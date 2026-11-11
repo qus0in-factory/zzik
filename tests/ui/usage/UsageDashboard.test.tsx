@@ -9,6 +9,16 @@ import { NOW, NOW_ISO } from '../../fakes/usage-ports'
 
 afterEach(cleanup)
 
+/** 렌더된 한도 카드의 id를 DOM 순서대로 모은다. */
+function cardIds(): string[] {
+  return screen.getAllByTestId('usage-card').map((card) => card.getAttribute('data-card-id') ?? '')
+}
+
+/** 렌더된 기타 항목의 id를 DOM 순서대로 모은다. */
+function otherIds(): string[] {
+  return screen.queryAllByTestId('usage-other').map((card) => card.getAttribute('data-other-id') ?? '')
+}
+
 describe('Given the usage dashboard with the unknown keys report', () => {
   it('When rendering then every top level key of the raw response gets a card (U2)', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
@@ -61,13 +71,53 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(9)
   })
 
-  it('When a report is ready then all raw keys are rendered on screen (완전성 불변식)', () => {
+  it('When a report is ready then card ids match the raw keys exactly and in order (완전성 불변식)', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     render(<UsageDashboard status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
-    const renderedText = document.body.textContent ?? ''
-    for (const key of Object.keys(report.raw ?? {})) {
-      expect(renderedText).toContain(key)
+
+    const expected = [
+      'five_hour',
+      'seven_day',
+      'seven_day_opus',
+      'seven_day_sonnet',
+      'seven_day_cowork',
+      'extra_usage',
+      'seven_day_fable',
+      'seven_day_haiku',
+      'thirty_day',
+    ]
+    expect(cardIds()).toEqual(expected)
+    expect(cardIds()).toEqual([...report.windows.map((item) => item.id), ...report.metrics.map((item) => item.id)])
+    expect(new Set(cardIds()).size).toBe(expected.length)
+    expect(otherIds()).toEqual([])
+    expect([...cardIds(), ...otherIds()].sort()).toEqual(Object.keys(unknownKeysRaw).sort())
+  })
+
+  it('When the normal fixture renders then its card ids are the documented order', () => {
+    const report = buildUsageView(normalRaw, { now: NOW })
+    render(<UsageDashboard status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
+    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet', 'extra_usage'])
+  })
+
+  it('When limit and non-limit keys are mixed then cards plus other items cover every raw key exactly once', () => {
+    const mixedRaw = {
+      five_hour: { utilization: 10, resets_at: '2026-11-11T14:00:00.000Z' },
+      seven_day: null,
+      seven_day_opus: null,
+      extra_usage: { utilization: 5 },
+      note: 'hello',
+      blob: { foo: 'bar' },
+      list: [1, 2, 3],
+      empty_object: {},
     }
+    const report = buildUsageView(mixedRaw, { now: NOW })
+    render(<UsageDashboard status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
+
+    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_opus', 'extra_usage'])
+    expect(otherIds()).toEqual(['note', 'blob', 'list', 'empty_object'])
+    const rendered = [...cardIds(), ...otherIds()]
+    expect(rendered).toHaveLength(Object.keys(mixedRaw).length)
+    expect(rendered.slice().sort()).toEqual(Object.keys(mixedRaw).sort())
   })
 })
 

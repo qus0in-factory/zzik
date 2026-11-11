@@ -1,5 +1,6 @@
 import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'
 import type { RawUsage } from '@domain/usage/types'
+import { rebaseUsageResetsAt } from '@domain/usage/calibration'
 import normalRaw from '../../../tests/fixtures/claude-usage.normal.json'
 import limitedRaw from '../../../tests/fixtures/claude-usage.limited.json'
 import unknownKeysRaw from '../../../tests/fixtures/claude-usage.unknown-keys.json'
@@ -13,6 +14,9 @@ import warnRaw from '../../../tests/fixtures/claude-usage.warn.json'
 export type FixtureName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'error' | 'loading'
 
 export const FIXTURE_NAMES: readonly FixtureName[] = ['normal', 'warn', 'limited', 'unknown-keys', 'error', 'loading']
+
+/** fixture 파일들이 작성된 기준 시각. resets_at 보정의 원점이다. */
+export const FIXTURE_ANCHOR_ISO = '2026-11-11T12:00:00.000Z'
 
 const FIXTURE_USAGE: Record<Exclude<FixtureName, 'error' | 'loading'>, RawUsage> = {
   normal: normalRaw as RawUsage,
@@ -30,13 +34,20 @@ export function parseFixtureUsageName(search: string | null | undefined): Fixtur
   return 'normal'
 }
 
-export function createFixtureUsageGateway(options: { getSearch?: () => string | undefined } = {}): UsageGateway {
+export interface FixtureUsageGatewayOptions {
+  getSearch?: () => string | undefined
+  /** 현재 시각(ISO). 생략하면 실제 시각을 쓰고, 주입하면 테스트가 고정한다. */
+  now?: () => string
+}
+
+export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = {}): UsageGateway {
   const getSearch =
     options.getSearch ??
     ((): string | undefined => {
       if (typeof window === 'undefined') return undefined
       return window.location.search
     })
+  const now = options.now ?? ((): string => new Date().toISOString())
 
   return {
     async fetchUsage(): Promise<UsageGatewayResult> {
@@ -48,7 +59,9 @@ export function createFixtureUsageGateway(options: { getSearch?: () => string | 
         // 의도로 끝나지 않는 요청: 로딩 상태를 확인한다.
         return new Promise<UsageGatewayResult>(() => {})
       }
-      return { ok: true, usage: FIXTURE_USAGE[name] }
+      // 작성 시점 고정값을 지금 기준으로 옮겨, 목 화면이 "리셋 시각 경과"로 굳지 않게 한다.
+      const usage = rebaseUsageResetsAt(FIXTURE_USAGE[name], new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
+      return { ok: true, usage }
     },
   }
 }

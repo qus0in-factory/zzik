@@ -10,7 +10,7 @@ export function OtherItems({ others }: { others: readonly UsageOther[] }): React
       <h3 className="mb-2 text-sm font-semibold text-muted-foreground">기타 항목</h3>
       <div className="space-y-2">
         {others.map((other) => (
-          <Card key={other.id} data-testid="usage-other" className="min-w-0 gap-2 p-4">
+          <Card key={other.id} data-testid="usage-other" data-other-id={other.id} className="min-w-0 gap-2 p-4">
             <div className="flex flex-wrap items-baseline gap-2">
               <code className="break-all text-xs text-muted-foreground">{other.id}</code>
             </div>
