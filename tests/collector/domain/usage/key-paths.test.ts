@@ -27,11 +27,13 @@ describe('Given the dry-run key path list', () => {
     expect(paths).toContain('codes[].nested')
   })
 
-  it('When the depth exceeds 4 then deeper nodes are not listed', () => {
-    const deep = { a: { b: { c: { d: { e: { f: 1 } } } } } }
+  it('When the depth exceeds 6 then deeper nodes are truncated with … (v2 D6)', () => {
+    const deep = { a: { b: { c: { d: { e: { f: { g: { h: 1 } } } } } } } }
     const paths = keyPaths(deep)
-    expect(paths).toContain('a.b.c.d')
-    expect(paths.join('\n')).not.toContain('e')
+    expect(paths).toContain('a.b.c.d.e.f')
+    expect(paths.filter((path) => path === 'a.b.c.d.e.f.')).toHaveLength(0)
+    expect(paths.join('\n')).toContain('a.b.c.d.e.f…')
+    expect(paths.join('\n')).not.toContain('a.b.c.d.e.f.g.h')
   })
 
   it('When the same path repeats (배열의 원시 원소) then it is listed once', () => {

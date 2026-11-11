@@ -65,3 +65,15 @@ describe('Given the collector log line format', () => {
     expect(statSync(join(root, 'logs')).mode & 0o777).toBe(0o700)
   })
 })
+
+describe('Given the diag field (v2 D4 진단)', () => {
+  it('When a failure carries diag then the line ends with diag=…(본문·토큰은 없다)', () => {
+    const line = formatLogLine({ ...ENTRY, diag: 'blocked content-type=text/html' })
+    expect(line).toContain('diag=blocked content-type=text/html')
+    expect(line).not.toContain('Access denied')
+  })
+
+  it('When there is no diag then the line has no diag segment', () => {
+    expect(formatLogLine(ENTRY)).not.toContain('diag=')
+  })
+})

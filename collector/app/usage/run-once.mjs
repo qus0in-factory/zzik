@@ -15,7 +15,9 @@ import { retryDelaySec } from '../../domain/usage/backoff.mjs'
 import { chooseCredential, credentialExpired } from '../../domain/usage/credential-choice.mjs'
 import { buildEnvelope, sha256Hex } from '../../domain/usage/envelope.mjs'
 import { keyPaths } from '../../domain/usage/key-paths.mjs'
-import { gateAllowsCall, gateRetryAt, openGateFor, resetGate, AUTH_REQUIRED_GATE_SEC } from '../../domain/usage/gate.mjs'
+import { applyRedactions } from '../../domain/usage/redact.mjs'
+import { authRetryDelaySec } from '../../domain/usage/backoff.mjs'
+import { gateAllowsCall, gateRetryAt, openGateFor, resetGate } from '../../domain/usage/gate.mjs'
 
 /** @typedef {import('../../domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
 /** @typedef {import('../../domain/usage/ports.mjs').CollectorState} CollectorState */
@@ -54,7 +56,7 @@ function normalizeState(state) {
 
 /**
  * @param {CollectorPorts} ports
- * @param {{ dryRun?: boolean, collectorVersion?: string, provider?: string }} options
+ * @param {{ dryRun?: boolean, collectorVersion?: string, provider?: string, sendAccountId?: boolean, redactionPaths?: readonly string[] }} options
  * @returns {Promise<{ exitCode: number, dryRunReport?: { provider: string, status: UsageStatus, called: boolean, keys: string[], sha256: string|null } }>}
  */
 export async function runOnce(ports, options = {}) {
@@ -77,6 +79,11 @@ export async function runOnce(ports, options = {}) {
   let httpStatus = null
   let bodyResult = null
   let retryAtMs = null
+  let diag = null
+  /** @type {string[]|null} */
+  let rawRedactedPaths = null
+  const accountHeaderWanted = options.sendAccountId === true
+  const accountId = accountHeaderWanted ? (chosen?.accountId ?? null) : null
 
   if (gateDecision.allowed === false) {
     // 게이트로 건너뛴 실행: 하트비트 봉투만 쓴다(D2).
@@ -87,15 +94,28 @@ export async function runOnce(ports, options = {}) {
   } else if (credentialExpired(chosen, nowMs)) {
     status = 'token_expired'
   } else {
-    const result = await ports.usage.fetchUsage(chosen.token)
+    const result = await ports.usage.fetchUsage(chosen.token, { accountId })
     called = true
     if (result.ok === true) {
       status = 'ok'
       httpStatus = result.httpStatus ?? 200
-      bodyResult = result.bodyText
+      // 식별자 가림: 목록이 있을 때만 본문을 고쳐 싣는다(D5). 가린 경로를 봉투에 남긴다.
+      const redactionPaths = options.redactionPaths ?? []
+      if (redactionPaths.length === 0) {
+        bodyResult = result.bodyText
+      } else {
+        const applied = applyRedactions(result.bodyText, redactionPaths)
+        bodyResult = applied.rawText
+        rawRedactedPaths = applied.rawRedacted ?? null
+      }
     } else {
       status = result.kind
       httpStatus = result.httpStatus ?? null
+      diag = result.diag ?? null
+      // 인증 거부 분리(D4): expiresAt이 미래면 auth_rejected, 모르면 auth_required.
+      if (result.kind === 'auth_required') {
+        status = chosen.expiresAt !== null && chosen.expiresAt > nowMs ? 'auth_rejected' : 'auth_required'
+      }
       if (result.kind === 'rate_limited') {
         const delaySec = retryDelaySec('rate_limited', gate.failCount ?? 0, result.retryAfterSec ?? null)
         gate = openGateFor(gate, { now: nowMs, kind: 'rate_limited', delaySec, credentialExpiresAt: chosen.expiresAt })
@@ -105,10 +125,11 @@ export async function runOnce(ports, options = {}) {
         gate = openGateFor(gate, { now: nowMs, kind: 'upstream_error', delaySec, credentialExpiresAt: chosen.expiresAt })
         retryAtMs = gate.nextAllowedAt
       } else if (result.kind === 'auth_required') {
+        const delaySec = authRetryDelaySec(gate.failCount ?? 0)
         gate = openGateFor(gate, {
           now: nowMs,
           kind: 'auth_required',
-          delaySec: AUTH_REQUIRED_GATE_SEC,
+          delaySec,
           credentialExpiresAt: chosen.expiresAt,
         })
         retryAtMs = gate.nextAllowedAt
@@ -131,6 +152,7 @@ export async function runOnce(ports, options = {}) {
     intervalSec: USAGE_INTERVAL_SEC,
     collectorVersion,
     provider: /** @type {'claude'|'codex'} */ (provider),
+    rawRedacted: /** @type {string[]|undefined} */ (rawRedactedPaths ?? undefined),
     kvTokenExpiresAtMs: null,
   })
 
@@ -191,6 +213,7 @@ export async function runOnce(ports, options = {}) {
     transition: prevStatus !== null && prevStatus !== status ? `${prevStatus}→${status}` : null,
     tokenRefreshed:
       prevTokenExpiresAt !== null && newTokenExpiresAt !== null && prevTokenExpiresAt !== newTokenExpiresAt,
+    diag: called === false ? null : (diag ?? null),
   })
 
   return { exitCode: kvResult.ok === true ? EXIT_OK : EXIT_KV_FAILURE }

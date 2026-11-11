@@ -9,13 +9,13 @@
  */
 
 /**
- * @typedef {{ source: string, token: string, expiresAt: number|null }} CredentialRead
+ * @typedef {{ source: string, token: string, expiresAt: number|null, accountId?: string|null }} CredentialRead
  * 한 번의 자격 증명 읽기. 실패한 읽기는 목록에 null로 들어온다.
  */
 
 /**
  * @typedef {{ ok: true, bodyText: string, httpStatus: number|null, retryAfterSec: number|null }} UsageCallOk
- * @typedef {{ ok: false, kind: 'rate_limited'|'auth_required'|'upstream_error'|'network_error', httpStatus: number|null, retryAfterSec: number|null }} UsageCallFailure
+ * @typedef {{ ok: false, kind: 'rate_limited'|'auth_required'|'auth_rejected'|'upstream_error'|'network_error', httpStatus: number|null, retryAfterSec: number|null, diag?: string }} UsageCallFailure
  * @typedef {UsageCallOk|UsageCallFailure} UsageCallResult
  * retryAfterSec는 초 단위(D5).
  */
@@ -25,12 +25,12 @@
 /**
  * @typedef {{ nextAllowedAt: number|null, failReason: string|null, failCount: number, authDeniedExpiresAt: number|null }} GateState
  * @typedef {{ provider: string|null, schema: number, previous: UsageEnvelope|null, gate: GateState, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
- * @typedef {{ provider: string, runAt: string, status: string, called: boolean, httpStatus: number|null, tokenExpiresAt: string|null, kvOk: boolean, kvReason: string|null, transition: string|null, tokenRefreshed: boolean }} LogEntry
+ * @typedef {{ provider: string, runAt: string, status: string, called: boolean, httpStatus: number|null, tokenExpiresAt: string|null, kvOk: boolean, kvReason: string|null, transition: string|null, tokenRefreshed: boolean, diag?: string|null }} LogEntry
  */
 
 /** @typedef {{ now(): number }} ClockPort */
 /** @typedef {{ readAll(): Promise<Array<CredentialRead|null>> }} CredentialReaderPort */
-/** @typedef {{ fetchUsage(token: string): Promise<UsageCallResult> }} UsageClientPort */
+/** @typedef {{ fetchUsage(token: string, options?: { accountId?: string|null }): Promise<UsageCallResult> }} UsageClientPort */
 /** @typedef {{ write(value: string): Promise<KvWriteResult> }} KvWriterPort */
 /** @typedef {{ read(): Promise<unknown>, write(state: unknown): Promise<void> }} StateStorePort */
 /** @typedef {{ write(entry: LogEntry): Promise<void> }} LoggerPort */

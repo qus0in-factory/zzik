@@ -18,10 +18,14 @@ import { dirname } from 'node:path'
 export function createStateFile({ path, legacyPath }) {
   return {
     async read() {
+      let readError = null
       try {
         return JSON.parse(await readFile(path, 'utf8'))
-      } catch {
-        /* 새 경로에 상태가 없으면 이전 경로를 읽는다(일회성 이행). */
+      } catch (error) {
+        readError = error
+        // 새 상태 파일이 '없을 때만' 이전 경로로 넘어간다(v2 M6). 깨져 있으면 빈 상태로 시작한다.
+        const code = /** @type {{ code?: string }} */ (readError)?.code
+        if (code !== 'ENOENT') return null
       }
       if (legacyPath === undefined) return null
       try {

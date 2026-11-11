@@ -5,7 +5,7 @@
 
 /** @typedef {import('./ports.mjs').GateState} GateState */
 
-export const AUTH_REQUIRED_GATE_SEC = 3600
+export const AUTH_REQUIRED_GATE_SEC = 3_600
 
 /** 빈 게이트: 아무 제약도 없다. @returns {GateState} */
 export function emptyGate() {
@@ -37,15 +37,15 @@ export function gateAllowsCall(gate, nowMs, credentialExpiresAt) {
 /**
  * 실패로 게이트를 연다. kind가 auth_required면 실패 계수는 별도 라인이라 0으로 되돌린다.
  * @param {GateState} gate
- * @param {{ now: number, kind: 'rate_limited'|'upstream_error'|'auth_required', delaySec: number, credentialExpiresAt: number|null|undefined }} input
+ * @param {{ now: number, kind: 'rate_limited'|'upstream_error'|'auth_required'|'auth_rejected', delaySec: number, credentialExpiresAt: number|null|undefined }} input
  * @returns {GateState}
  */
 export function openGateFor(gate, { now, kind, delaySec, credentialExpiresAt }) {
-  if (kind === 'auth_required') {
+  if (kind === 'auth_required' || kind === 'auth_rejected') {
     return {
       nextAllowedAt: now + delaySec * 1000,
       failReason: 'auth_required',
-      failCount: 0,
+      failCount: (gate.failCount ?? 0) + 1,
       authDeniedExpiresAt: credentialExpiresAt ?? null,
     }
   }

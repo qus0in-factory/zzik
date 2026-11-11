@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { USAGE_PROVIDERS, USAGE_KV_KEYS, USAGE_COLLECTOR_VERSION } from '../../../../shared/usage-contract'
+import { parseProvidersEnv } from '../../../../collector/domain/usage/providers.mjs'
 
 const BASE = fileURLToPath(new URL('../../../../', import.meta.url))
 const contractSource = readFileSync(join(BASE, 'shared', 'usage-contract.ts'), 'utf8')
@@ -30,5 +31,25 @@ describe('Given the provider contract', () => {
 
   it('When the old USAGE_KEY is gone then no provider-bound key constant remains', () => {
     expect(contractSource).not.toContain('export const USAGE_KEY')
+  })
+})
+
+describe('Given ZZIK_PROVIDERS parsing (v2 D3)', () => {
+  it('When the env is missing then the default claude,codex applies', () => {
+    expect(parseProvidersEnv(undefined).providers).toEqual(['claude', 'codex'])
+  })
+  it('When values have spaces, upper case and duplicates then they are trimmed, lowered and deduped', () => {
+    const parsed = parseProvidersEnv(' Codex, claude , CODEX ')
+    expect(parsed.providers).toEqual(['codex', 'claude'])
+    expect(parsed.warnings).toEqual([])
+  })
+  it('When a value is unknown then it is collected as a warning and dropped', () => {
+    const parsed = parseProvidersEnv('claude, bogusbogo, codex, anthropic2')
+    expect(parsed.providers).toEqual(['claude', 'codex'])
+    expect(parsed.warnings).toEqual(['bogusbogo', 'anthropic2'])
+  })
+  it('When the result is empty then the caller must exit with code 78 (조립 루트가 판단)', () => {
+    expect(parseProvidersEnv('bogus').providers).toEqual([])
+    expect(parseProvidersEnv('  ').providers).toEqual([])
   })
 })

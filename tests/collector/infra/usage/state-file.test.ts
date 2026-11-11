@@ -56,6 +56,15 @@ describe('Given the collector state file', () => {
     await expect(store.read()).resolves.toBeNull()
   })
 
+  it('When the new file is BROKEN then the legacy file is NOT used (v2 M6 폴백은 "없음"만)', async () => {
+    mkdirSync(join(root, 'state'), { recursive: true })
+    const legacy = join(root, 'state', 'legacy-state.json')
+    writeFileSync(path, '{broken') // 새 파일이 깨져 있음
+    writeFileSync(legacy, JSON.stringify({ schema: 1, provider: 'claude', previous: { rawText: 'old' } }))
+    const store = createStateFile({ path, legacyPath: legacy })
+    await expect(store.read()).resolves.toBeNull()
+  })
+
   it('When the new path has no state but the legacy path does then read falls back to it (ADR 0.3 D3 이행)', async () => {
     mkdirSync(join(root, 'state'), { recursive: true })
     const legacy = join(root, 'state', 'usage-state.json')

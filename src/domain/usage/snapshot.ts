@@ -20,6 +20,7 @@ const STATUSES: readonly string[] = [
   'rate_limited',
   'token_expired',
   'auth_required',
+  'auth_rejected',
   'no_credentials',
   'upstream_error',
   'network_error',

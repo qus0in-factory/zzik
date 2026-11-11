@@ -23,6 +23,7 @@ export function formatLogLine(entry) {
     `tokenExpiresAt=${entry.tokenExpiresAt ?? 'null'}`,
     entry.kvOk ? 'kv=ok' : `kv=fail:${entry.kvReason ?? 'unknown'}`,
   ]
+  if (entry.diag) parts.push(`diag=${entry.diag}`)
   if (entry.transition) parts.push(`transition=${entry.transition}`)
   if (entry.tokenRefreshed) parts.push('token_refreshed')
   return parts.join(' ')

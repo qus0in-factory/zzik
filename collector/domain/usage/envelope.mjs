@@ -41,6 +41,7 @@ function isoOrNull(ms) {
  *   intervalSec: number,
  *   collectorVersion: string,
  *   provider?: 'claude'|'codex',
+ *   rawRedacted?: string[],
  *   kvTokenExpiresAtMs?: number|null,
  * }} input
  * @returns {UsageEnvelope}
@@ -57,6 +58,7 @@ export function buildEnvelope({
   intervalSec,
   collectorVersion,
   provider = 'claude',
+  rawRedacted,
   kvTokenExpiresAtMs = null,
 }) {
   const runAt = new Date(nowMs).toISOString()
@@ -89,6 +91,7 @@ export function buildEnvelope({
     retryAt: isoOrNull(retryAtMs),
     tokenExpiresAt: isoOrNull(credentialExpiresAt),
     kvTokenExpiresAt: isoOrNull(kvTokenExpiresAtMs),
+    ...(rawRedacted !== undefined && rawRedacted !== null && rawRedacted.length > 0 ? { rawRedacted } : {}),
     intervalSec,
     collectorVersion,
     rawText,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { gateAllowsCall, openGateFor, gateRetryAt, resetGate, emptyGate } from '../../../../collector/domain/usage/gate.mjs'
+import { authRetryDelaySec } from '../../../../collector/domain/usage/backoff.mjs'
 
 const NOW = Date.parse('2026-11-11T12:00:00.000Z')
 const HOUR_SEC = 3600
@@ -56,5 +57,15 @@ describe('Given a successful run', () => {
     expect(reset.failCount).toBe(0)
     expect(reset.failReason).toBeNull()
     expect(gateAllowsCall(reset, NOW, null).allowed).toBe(true)
+  })
+})
+
+describe('Given back-to-back auth denials (v2 D4 수열)', () => {
+  it('When denial repeats then the wait grows 3600 → 7200 and a credential refresh resets the lane', () => {
+    const first = openGateFor(emptyGate(), { now: NOW, kind: 'auth_rejected', delaySec: authRetryDelaySec(0), credentialExpiresAt: 100 })
+    expect(first.nextAllowedAt).toBe(NOW + 3_600_000)
+    const second = openGateFor(first, { now: NOW + 3_600_000, kind: 'auth_required', delaySec: authRetryDelaySec(1), credentialExpiresAt: 100 })
+    expect(second.nextAllowedAt).toBe(NOW + 3_600_000 + 7_200_000)
+    expect(second.failCount).toBe(2)
   })
 })

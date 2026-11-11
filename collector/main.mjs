@@ -26,12 +26,12 @@ import { createStateFile } from './infra/usage/state-file.mjs'
 import { DEFAULT_CREDENTIALS_PATH, readCredentialsFile } from './infra/usage/claude-credentials-file.mjs'
 import { DEFAULT_CODEX_AUTH_PATH, readCodexCredentials } from './infra/usage/codex-credentials-file.mjs'
 import { runCycle } from './app/usage/run-cycle.mjs'
-import { USAGE_KV_KEYS, USAGE_PROVIDERS, USAGE_COLLECTOR_VERSION } from './domain/usage/providers.mjs'
+import { USAGE_KV_KEYS, USAGE_COLLECTOR_VERSION, USAGE_REDACTION_PATHS, USAGE_PROVIDERS as PROVIDER_IDS, parseProvidersEnv } from './domain/usage/providers.mjs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const VERSION = USAGE_COLLECTOR_VERSION
-const INTERVAL_MS = 300_000
+const INTERVAL_MS = (Number(process.env.ZZIK_INTERVAL_SEC) > 0 ? Number(process.env.ZZIK_INTERVAL_SEC) : 300) * 1000
 const KV_NAMESPACE_ID = process.env.ZZIK_KV_NAMESPACE_ID ?? '5fe6ac40c73c4d05ac2fab052c2100e6'
 const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')
 const LOG_PATH = process.env.ZZIK_LOG_PATH ?? join(homedir(), 'Library', 'Logs', 'zzik', 'usage-collector.log')
@@ -44,31 +44,41 @@ function resolveHomePath(value) {
 
 const CODEX_AUTH_PATH = process.env.ZZIK_CODEX_AUTH_PATH ? resolveHomePath(process.env.ZZIK_CODEX_AUTH_PATH) : DEFAULT_CODEX_AUTH_PATH
 
-/** 켜진 제공자 목록(ZZIK_PROVIDERS). 사용자가 끈 제공자는 runCycle에 들어가지 않는다. */
-const enabledProviders = (process.env.ZZIK_PROVIDERS ?? 'claude,codex')
-  .split(',')
-  .map((value) => value.trim())
-  .filter((value) => USAGE_PROVIDERS.includes(value))
+/**
+ * 켜진 제공자 목록(ZZIK_PROVIDERS 해석: 소문자·중복 제거·모르는 값 경고, ADR 0.3 v2 D3).
+ * 결과가 비면 설정 오류로 끝낸다(종료 코드 78).
+ */
+const parsedProviders = parseProvidersEnv(process.env.ZZIK_PROVIDERS)
+for (const unknownValue of parsedProviders.warnings) {
+  process.stderr.write(`[zzik-usage-collector] ZZIK_PROVIDERS에 목록에 없는 값이 있다: ${unknownValue}
+`)
+}
+const enabledProviders = parsedProviders.providers
+if (enabledProviders.length === 0) {
+  process.stderr.write('[zzik-usage-collector] ZZIK_PROVIDERS 해석 결과가 비었다. claude,codex 형식으로 설정한다\n')
+  process.exit(78)
+}
 
 const USAGE_TEXT = '사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex] [--credentials-file <path>]'
 
 /** @typedef {import('./domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
-/** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null }} ParsedFlags */
+/** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean }} ParsedFlags */
 
 /**
  * @param {string[]} argv
  * @returns {{ error: string|null, flags: ParsedFlags | null }}
  */
 function parseArgs(argv) {
-  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null }} */
-  const flags = { dryRun: false, once: false, credentialsPath: null, provider: null }
+  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean }} */
+  const flags = { dryRun: false, once: false, credentialsPath: null, provider: null, codexAccountHeader: false }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--dry-run') flags.dryRun = true
+    else if (arg === '--codex-account-header') flags.codexAccountHeader = true
     else if (arg === '--once') flags.once = true
     else if (arg === '--provider') {
       const value = /** @type {string|null} */ (argv[index + 1] ?? null)
-      if (value === null || !USAGE_PROVIDERS.includes(value)) return { error: `알 수 없는 제공자: ${value ?? '(없음)'}`, flags: null }
+      if (value === null || !PROVIDER_IDS.includes(value)) return { error: `알 수 없는 제공자: ${value ?? '(없음)'}`, flags: null }
       flags.provider = value
       index += 1
     } else if (arg === '--credentials-file') {
@@ -78,6 +88,9 @@ function parseArgs(argv) {
   }
   if (flags.credentialsPath !== null && (flags.dryRun !== true || flags.provider === null)) {
     return { error: '--credentials-file은 --provider와 --dry-run이 함께 있을 때만 쓴다(시험 자격 증명으로 다른 제공자의 KV에 쓰는 일을 막는다)', flags: null }
+  }
+  if (flags.codexAccountHeader === true && flags.dryRun !== true) {
+    return { error: '--codex-account-header는 --dry-run과 함께만 쓴다(G2 진단용)', flags: null }
   }
   return { error: null, flags }
 }
@@ -159,7 +172,7 @@ function startResident() {
     }
     inFlight = true
     try {
-      const { results } = await runCycle({}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false }), { collectorVersion: VERSION })
+      const { results } = await runCycle({}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION })
       const failures = results.filter((result) => result.exitCode !== 0)
       if (failures.length > 0) {
         process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map((result) => `${result.id}=exit${result.exitCode}`).join(', ')}\n`)

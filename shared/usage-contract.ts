@@ -28,6 +28,7 @@ export type UsageStatus =
   | 'rate_limited'
   | 'token_expired'
   | 'auth_required'
+  | 'auth_rejected'
   | 'no_credentials'
   | 'upstream_error'
   | 'network_error'
@@ -61,6 +62,8 @@ export interface UsageEnvelope {
   rawText: string | null
   /** 본문을 실지 못한 이유: null | 'too_large' */
   rawOmitted: 'too_large' | null
+  /** 식별자 가림(D5)이 적용된 키 경로. 목록이 비었으면 필드가 없다 */
+  rawRedacted?: string[]
 }
 
 /** Worker 트랙의 이름(같은 계약). */

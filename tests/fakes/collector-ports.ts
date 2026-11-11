@@ -11,11 +11,12 @@ export interface FakeCredentialRead {
   source: string
   token: string
   expiresAt: number | null
+  accountId?: string | null
 }
 
 export type FakeUsageResult =
   | { ok: true; bodyText: string; httpStatus: number | null; retryAfterSec: number | null }
-  | { ok: false; kind: 'rate_limited' | 'auth_required' | 'upstream_error' | 'network_error'; httpStatus: number | null; retryAfterSec: number | null }
+  | { ok: false; kind: 'rate_limited' | 'auth_required' | 'auth_rejected' | 'upstream_error' | 'network_error'; httpStatus: number | null; retryAfterSec: number | null; diag?: string }
 
 export type FakeKvResult = { ok: true } | { ok: false; httpStatus: number | null; message: string }
 
@@ -28,7 +29,9 @@ export function createFakeCollectorPorts(initialState?: unknown): {
   usage: {
     calls: number
     tokens: string[]
-    fetchUsage(token: string): Promise<FakeUsageResult>
+    /** UsageClientPort의 options(accountId 등)를 그대로 전달·기록한다(ADR 0.3 v2 M2). */
+    lastAccountId: string | null | undefined
+    fetchUsage(token: string, options?: { accountId?: string | null }): Promise<FakeUsageResult>
     queueUsage(result: FakeUsageResult): void
   }
   kv: {
@@ -74,9 +77,11 @@ export function createFakeCollectorPorts(initialState?: unknown): {
     usage: {
       calls: 0,
       tokens: [] as string[],
-      async fetchUsage(token: string): Promise<FakeUsageResult> {
+      lastAccountId: null as string | null | undefined,
+      async fetchUsage(token: string, options?: { accountId?: string | null }): Promise<FakeUsageResult> {
         ports.usage.calls += 1
         ports.usage.tokens.push(token)
+        ports.usage.lastAccountId = options?.accountId ?? null
         return usageQueue.shift() ?? { ok: false, kind: 'network_error', httpStatus: null, retryAfterSec: null }
       },
       queueUsage(result: FakeUsageResult): void {

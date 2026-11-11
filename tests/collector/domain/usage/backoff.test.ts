@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { retryDelaySec } from '../../../../collector/domain/usage/backoff.mjs'
+import { authRetryDelaySec, retryDelaySec } from '../../../../collector/domain/usage/backoff.mjs'
 
 describe('Given the 429 backoff without Retry-After', () => {
   it.each([
@@ -37,5 +37,17 @@ describe('Given the upstream error backoff', () => {
 
   it('When Retry-After is present on a 5xx then it is ignored', () => {
     expect(retryDelaySec('upstream_error', 0, 7200)).toBe(600)
+  })
+})
+
+describe('Given the auth denial sequence (v2 D4)', () => {
+  it.each([
+    [0, 3_600],
+    [1, 7_200],
+    [2, 14_400],
+    [3, 21_600],
+    [5, 21_600],
+  ] as const)('When the auth failure count is %s then the wait is %s seconds (상한 21,600)', (failCount, expected) => {
+    expect(authRetryDelaySec(failCount)).toBe(expected)
   })
 })

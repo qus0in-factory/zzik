@@ -40,3 +40,21 @@ describe('Given an API snapshot envelope (ADR 0.3 D7)', () => {
     expect(decodeUsageSnapshot(body, CLAUDE).ok).toBe(false)
   })
 })
+
+describe('Given the 0.3 envelope extensions', () => {
+  it('When the envelope status is auth_rejected then decode accepts it (v2 H2 상태 추가)', () => {
+    const envelope = { schema: 1, provider: 'claude', status: 'auth_rejected', called: true, runAt: '2026-11-11T12:00:00Z', fetchedAt: null, httpStatus: 401, retryAt: null, tokenExpiresAt: '2026-11-11T18:00:00Z', kvTokenExpiresAt: null, intervalSec: 300, collectorVersion: '0.3.0', rawText: null, rawOmitted: null }
+    expect(decodeUsageSnapshot({ snapshot: envelope }, CLAUDE).ok).toBe(true)
+  })
+
+  it('When the envelope carries rawRedacted then it rides the collection metadata (v2 H3 가림)', () => {
+    const snapshot = { schema: 1, provider: 'claude', status: 'ok', called: true, runAt: '2026-11-11T00:00:00Z', fetchedAt: null, httpStatus: 200, retryAt: null, tokenExpiresAt: null, kvTokenExpiresAt: null, intervalSec: 300, collectorVersion: '0.3.0', rawText: '{"account_email":"[가림]"}', rawOmitted: null, rawRedacted: ['account_email'] }
+    expect(decodeUsageSnapshot({ snapshot }, CLAUDE)).toEqual({
+      ok: true,
+      usage: { account_email: '[가림]' },
+      rawText: '{"account_email":"[가림]"}',
+      collection: { ...snapshot, rawText: undefined } as unknown as Record<string, unknown>,
+    })
+  })
+
+})

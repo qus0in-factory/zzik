@@ -81,3 +81,30 @@ describe('Given the provider run cycle (ADR 0.3 D3)', () => {
     expect(exitCode).toBe(3)
   })
 })
+
+describe('Given the cycle budget (v2: 주기 예산 240초)', () => {
+  it('When the budget is exhausted before a provider starts then it is skipped with a log and counts as 0', async () => {
+    let nowMs = COLLECTOR_NOW
+    const clock = { now: (): number => nowMs }
+    const claude = makeProviderPorts('claude')
+    const codex = makeProviderPorts('codex')
+    const slowRun = async (ports: Ports, options: { provider?: string }): Promise<{ exitCode: number }> => {
+      if (options.provider === 'claude') nowMs += 250_000 // claude 실행이 예산을 다 쓴다
+      return runOnce(ports, options) as Promise<{ exitCode: number }>
+    }
+    const { results, exitCode } = await runCycle({ runOnce: slowRun as never, clock }, [claude, codex] as never, { cycleBudgetMs: 240_000 })
+    expect(claude.ports.usage.calls).toBe(1)
+    expect(codex.ports.usage.calls).toBe(0) // 예산 초과로 건너뜀
+    expect(codex.ports.kv.calls).toBe(0)
+    expect(codex.ports.logger.entries[0]).toMatchObject({ provider: 'codex', status: 'skipped_budget' })
+    expect(results[1]).toMatchObject({ id: 'codex', exitCode: 0, skippedBudget: true })
+    expect(exitCode).toBe(0)
+  })
+
+  it('When both providers fit the budget then nothing is skipped', async () => {
+    const claude = makeProviderPorts('claude')
+    const codex = makeProviderPorts('codex')
+    const { results } = await runCycle({ clock: { now: () => COLLECTOR_NOW } }, [claude, codex])
+    expect(results.every((result) => result.skippedBudget === undefined)).toBe(true)
+  })
+})
