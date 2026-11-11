@@ -16,7 +16,7 @@ import { join } from 'node:path'
 
 /** @typedef {import('../../domain/usage/ports.mjs').KvWriteResult} KvWriteResult */
 
-const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const DEFAULT_WRANGLER_BIN = join(REPO_ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
 const DEFAULT_TIMEOUT_MS = 10_000
 

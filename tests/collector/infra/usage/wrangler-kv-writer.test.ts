@@ -1,6 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createWranglerKvWriter } from '../../../../collector/infra/usage/wrangler-kv-writer.mjs'
 
@@ -50,6 +51,16 @@ describe('Given the wrangler KV writer adapter', () => {
       '--remote',
     ])
     expect(options.timeout).toBe(10_000)
+  })
+
+  it('When writing with the repo default then wranglerBin points at the repo node_modules copy', async () => {
+    const execFileImpl = vi.fn(async () => ({ code: 0, stdout: '', stderr: '' }))
+    const writer = createWranglerKvWriter({ namespaceId: NAMESPACE_ID, keyName: KEY, execFileImpl, cwd: dir })
+    await writer.write(ENVELOPE)
+    const args = (execFileImpl.mock.calls[0] as [string, string[], Record<string, unknown>])[1] as string[]
+    const expectedBin = fileURLToPath(new URL('../../../../node_modules/wrangler/bin/wrangler.js', import.meta.url))
+    expect(existsSync(expectedBin)).toBe(true)
+    expect(args[0]).toBe(expectedBin)
   })
 
   it('When wrangler exits non-zero then the write fails with the command output', async () => {
