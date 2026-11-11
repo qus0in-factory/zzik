@@ -40,6 +40,8 @@ function isoOrNull(ms) {
  *   previous: UsageEnvelope|null,
  *   intervalSec: number,
  *   collectorVersion: string,
+ *   provider?: 'claude'|'codex',
+ *   rawRedacted?: string[],
  *   kvTokenExpiresAtMs?: number|null,
  * }} input
  * @returns {UsageEnvelope}
@@ -55,6 +57,8 @@ export function buildEnvelope({
   previous,
   intervalSec,
   collectorVersion,
+  provider = 'claude',
+  rawRedacted,
   kvTokenExpiresAtMs = null,
 }) {
   const runAt = new Date(nowMs).toISOString()
@@ -76,9 +80,15 @@ export function buildEnvelope({
     fetchedAt = prev?.fetchedAt ?? null
   }
 
+  const carriedRawRedacted =
+    rawRedacted !== undefined && rawRedacted !== null && rawRedacted.length > 0
+      ? rawRedacted
+      : ok
+        ? undefined // 새 성공에 가림이 없으면 이전 가림을 이어가지 않는다(원문 기준)
+        : prev?.rawRedacted
   return {
     schema: 1,
-    provider: 'claude',
+    provider,
     status,
     called: Boolean(called),
     runAt,
@@ -87,6 +97,9 @@ export function buildEnvelope({
     retryAt: isoOrNull(retryAtMs),
     tokenExpiresAt: isoOrNull(credentialExpiresAt),
     kvTokenExpiresAt: isoOrNull(kvTokenExpiresAtMs),
+    ...(carriedRawRedacted !== undefined && carriedRawRedacted !== null && carriedRawRedacted.length > 0
+      ? { rawRedacted: carriedRawRedacted }
+      : {}),
     intervalSec,
     collectorVersion,
     rawText,

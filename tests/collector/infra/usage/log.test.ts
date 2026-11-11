@@ -17,6 +17,7 @@ afterEach(() => {
 })
 
 const ENTRY = {
+  provider: 'codex',
   runAt: '2026-11-11T12:00:00.000Z',
   status: 'ok',
   called: true,
@@ -29,9 +30,10 @@ const ENTRY = {
 }
 
 describe('Given the collector log line format', () => {
-  it('When formatting an entry then the run fields are all present and on one line (D2)', () => {
+  it('When formatting an entry then the run fields are all present and on one line (D2·0.3 provider 필드)', () => {
     const line = formatLogLine(ENTRY)
     expect(line).toContain('2026-11-11T12:00:00.000Z')
+    expect(line).toContain('provider=codex')
     expect(line).toContain('status=ok')
     expect(line).toContain('called=1')
     expect(line).toContain('httpStatus=200')
@@ -61,5 +63,17 @@ describe('Given the collector log line format', () => {
     expect(content.trim().split('\n')).toHaveLength(2)
     expect(statSync(path).mode & 0o777).toBe(0o600)
     expect(statSync(join(root, 'logs')).mode & 0o777).toBe(0o700)
+  })
+})
+
+describe('Given the diag field (v2 D4 진단)', () => {
+  it('When a failure carries diag then the line ends with diag=…(본문·토큰은 없다)', () => {
+    const line = formatLogLine({ ...ENTRY, diag: 'blocked content-type=text/html' })
+    expect(line).toContain('diag=blocked content-type=text/html')
+    expect(line).not.toContain('Access denied')
+  })
+
+  it('When there is no diag then the line has no diag segment', () => {
+    expect(formatLogLine(ENTRY)).not.toContain('diag=')
   })
 })

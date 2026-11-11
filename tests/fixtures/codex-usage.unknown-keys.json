@@ -1,0 +1,13 @@
+{
+  "plan": "plus",
+  "rate_limit": {
+    "limit_reached": false,
+    "primary_window": { "used_percent": 55, "reset_at": 1794409200, "limit_window_seconds": 10800 },
+    "secondary_window": { "used_percent": 12, "reset_after_seconds": 1800, "limit_window_seconds": 604800 },
+    "unknown_field": "kept-in-other-items"
+  },
+  "code_review_rate_limit": { "used_percent": 30, "limit_window_seconds": 3600 },
+  "mcp": { "buckets": [{ "used_percent": 5, "limit_window_seconds": 18000 }] },
+  "broken_bucket": { "used_percent": "high", "limit_window_seconds": 18000 },
+  "daily": { "used_percent": 10 }
+}

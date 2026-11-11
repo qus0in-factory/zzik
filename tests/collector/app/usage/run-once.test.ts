@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { runOnce } from '../../../../collector/app/usage/run-once.mjs'
 import { sha256Hex } from '../../../../collector/domain/usage/envelope.mjs'
+import { USAGE_REDACTION_PATHS as USAGE_REDACTION_PATHS_CODEX_FROM_PROVIDERS } from '../../../../collector/domain/usage/providers.mjs'
 import {
   COLLECTOR_NOW,
   USAGE_TOKEN,
@@ -143,7 +144,8 @@ describe('Given an auth_required denial and a token refresh', () => {
     expect(ports.usage.calls).toBe(1)
     const skippedEnvelope = JSON.parse(ports.kv.writes[1] as string) as Record<string, unknown>
     expect(skippedEnvelope.called).toBe(false)
-    expect(skippedEnvelope.status).toBe('auth_required')
+    // v2: 401 + 만료 전 토큰 = auth_rejected(서버 거부), 문구 표도 분리된다.
+    expect(skippedEnvelope.status).toBe('auth_rejected')
     expect(skippedEnvelope.retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_000).toISOString())
 
     // expiresAt이 바뀐 자격 증명: 즉시 해제되어 다시 호출한다.
@@ -214,7 +216,7 @@ describe('Given dry-run', () => {
     const report = result.dryRunReport as { status: string; called: boolean; keys: string[]; sha256: string }
     expect(report.status).toBe('ok')
     expect(report.called).toBe(true)
-    expect(report.keys).toEqual(['five_hour'])
+    expect(report.keys).toEqual(['five_hour', 'five_hour.utilization', 'five_hour.resets_at'])
     expect(report.sha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
@@ -234,7 +236,7 @@ describe('Given the log transition fields', () => {
     const ports = createFakeCollectorPorts({
       schema: 1,
       previous: null,
-      gate: { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null },
+      gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null },
       lastRun: { status: 'token_expired', tokenExpiresAt: futureExpiresAt },
     })
     ports.credentials.queueReads([fileCredential(futureExpiresAt + 90_000)])
@@ -251,5 +253,199 @@ describe('Given the log transition fields', () => {
 describe('Given the raw body digest helper', () => {
   it('When hashing body text then the digest is deterministic (V6 dry-run sha256)', () => {
     expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+  })
+})
+
+describe('Given key paths for the dry-run report (ADR 0.3 D6)', () => {
+  it('When the body is nested then the report carries key paths instead of top keys only', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage({
+      ok: true,
+      bodyText: JSON.stringify({ rate_limit: { primary_window: { used_percent: 37 } }, extra: 'x' }),
+      httpStatus: 200,
+      retryAfterSec: null,
+    })
+    const result = await run(ports, { dryRun: true, provider: 'claude' })
+    const report = result.dryRunReport as { keys: string[] }
+    expect(report.keys).toEqual(['rate_limit', 'rate_limit.primary_window', 'rate_limit.primary_window.used_percent', 'extra'])
+  })
+})
+
+describe('Given the Codex provider run (ADR 0.3 D8 run Once)', () => {
+  it('When a codex run succeeds then the envelope carries provider=codex', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt, 'codex-access-token')])
+    ports.usage.queueUsage({ ok: true, bodyText: BODY, httpStatus: 200, retryAfterSec: null })
+    const result = await run(ports, { provider: 'codex' })
+    expect(result.exitCode).toBe(0)
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.provider).toBe('codex')
+    expect(ports.logger.entries[0]).toMatchObject({ provider: 'codex', status: 'ok' })
+    // 상태 파일에도 제공자가 적혀 상태 격리를 상기시킨다.
+    const state = ports.state.snapshot() as { provider: string, previous: { provider: string } }
+    expect(state.provider).toBe('codex')
+    expect(state.previous.provider).toBe('codex')
+  })
+
+  it('When the codex credential expiresAt is unknown (JWT가 아님) then it still calls and lets 401 decide (D2)', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(null, 'codex-access-token')])
+    ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
+    const result = await run(ports, { provider: 'codex' })
+    expect(ports.usage.calls).toBe(1)
+    expect(result.exitCode).toBe(0)
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.status).toBe('auth_required')
+    expect(envelope.tokenExpiresAt).toBeNull()
+  })
+
+  it('When a codex upstream answers 200 with HTML then upstream_error keeps the previous raw body (D4)', async () => {
+    const previousEnvelope = {
+      schema: 1, provider: 'codex', status: 'ok', called: true,
+      runAt: new Date(COLLECTOR_NOW - 300_000).toISOString(), fetchedAt: new Date(COLLECTOR_NOW - 300_000).toISOString(),
+      httpStatus: 200, retryAt: null, tokenExpiresAt: null, kvTokenExpiresAt: null,
+      intervalSec: 300, collectorVersion: '0.3.0', rawText: BODY, rawOmitted: null,
+    }
+    const ports = createFakeCollectorPorts({ schema: 1, provider: 'codex', previous: previousEnvelope, gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null }, lastRun: { status: 'ok', tokenExpiresAt: null } })
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage({ ok: false, kind: 'upstream_error', httpStatus: 200, retryAfterSec: null })
+    await run(ports, { provider: 'codex' })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.status).toBe('upstream_error')
+    expect(envelope.httpStatus).toBe(200)
+    expect(envelope.rawText).toBe(BODY) // 이전 성공 본문 유지
+  })
+})
+
+describe('Given the auth rejection split (v2 D4·H2)', () => {
+  it('When 401 arrives with a future expiresAt then the status is auth_rejected (서버가 거부)', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt, 'codex-token')])
+    ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
+    await run(ports, { provider: 'claude' })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.status).toBe('auth_rejected')
+    expect(envelope.tokenExpiresAt).toBe(new Date(futureExpiresAt).toISOString())
+  })
+
+  it('When 401 arrives with an unknown expiresAt then the status stays auth_required', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([{ source: 'codex', token: 'jwt-without-exp', expiresAt: null }])
+    ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
+    await run(ports, { provider: 'codex' })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.status).toBe('auth_required')
+  })
+
+  it('When an auth denial repeats then the gate waits 3600 then 7200 (수열, v2 D4)', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt, 'tok1')])
+    ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
+    await run(ports, { provider: 'codex' })
+    expect(JSON.parse(ports.kv.writes[0] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_000).toISOString())
+
+    // 게이트가 풀린 뒤(1시간 경과) 같은 토큰이 또 거부되면 수열이 이어진다(+7200).
+    ports.clock.advance(3_600_000 + 1)
+    ports.credentials.queueReads([fileCredential(futureExpiresAt, 'tok1')])
+    ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
+    await run(ports, { provider: 'codex' })
+    expect(JSON.parse(ports.kv.writes[1] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_001 + 7_200_000).toISOString()) // 2번째 거부: 1h 뒤 + 7200초(2시간)
+  })
+})
+
+describe('Given the identifier redaction (v2 D5·H3)', () => {
+  it('When a redaction list is given then the success body is re-serialized with [가림] and rawRedacted records paths', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt)])
+    ports.usage.queueUsage({ ok: true, bodyText: JSON.stringify({ rate_limit: { account_email: 'a@b.c', used_percent: 5 } }), httpStatus: 200, retryAfterSec: null })
+    const result = await run(ports, { provider: 'codex', redactionPaths: ['rate_limit.account_email'] })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(JSON.parse(envelope.rawText as string)).toEqual({ rate_limit: { account_email: '[가림]', used_percent: 5 } })
+    expect(envelope.rawRedacted).toEqual(['rate_limit.account_email'])
+    expect(result.exitCode).toBe(0)
+  })
+
+  it('When the list is empty then the body passes through untouched (D5 재직렬화 없음)', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt)])
+    ports.usage.queueUsage({ ok: true, bodyText: JSON.stringify({ tokens: { email: 'a@b.c' } }), httpStatus: 200, retryAfterSec: null })
+    await run(ports, { provider: 'codex', redactionPaths: [] })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(JSON.parse(envelope.rawText as string)).toEqual({ tokens: { email: 'a@b.c' } })
+    expect(envelope.rawRedacted).toBeUndefined()
+  })
+
+  it('When the redaction list is set then the state file also keeps the redacted body (가림 전 원문 미보관)', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt)])
+    ports.usage.queueUsage({ ok: true, bodyText: JSON.stringify({ account_email: 'a@b.c' }), httpStatus: 200, retryAfterSec: null })
+    await run(ports, { provider: 'codex', redactionPaths: ['account_email'] })
+    const state = ports.state.snapshot() as { previous: { rawText: string } }
+    expect(JSON.parse(state.previous.rawText).account_email).toBe('[가림]')
+  })
+})
+
+describe('Given the account header option (v2 D4·M2)', () => {
+  it('When sendAccountId is true then the usage port receives the credential accountId', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([{ source: 'codex', token: 't', expiresAt: futureExpiresAt, accountId: 'acct-9' }])
+    ports.usage.queueUsage({ ok: true, bodyText: BODY, httpStatus: 200, retryAfterSec: null })
+    await run(ports, { provider: 'codex', sendAccountId: true })
+    expect(ports.usage.lastAccountId).toBe('acct-9')
+  })
+
+  it('When sendAccountId is not set then the accountId is not sent even if the credential has one (기본 비전송)', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([{ source: 'codex', token: 't', expiresAt: futureExpiresAt, accountId: 'acct-9' }])
+    ports.usage.queueUsage({ ok: true, bodyText: BODY, httpStatus: 200, retryAfterSec: null })
+    await run(ports, { provider: 'codex' })
+    expect(ports.usage.lastAccountId).toBeNull()
+  })
+})
+
+describe('Given response diagnostics (v2 D4·M2)', () => {
+  it('When a failure carries a diag then the log line records it and a success leaves diag null', async () => {
+    const failing = createFakeCollectorPorts()
+    failing.credentials.queueReads([fileCredential(futureExpiresAt)])
+    failing.usage.queueUsage({ ok: false, kind: 'upstream_error', httpStatus: 403, retryAfterSec: null, diag: 'blocked content-type=text/html' })
+    await run(failing, { provider: 'codex' })
+    const okPorts = createFakeCollectorPorts()
+    okPorts.credentials.queueReads([fileCredential(futureExpiresAt)])
+    okPorts.usage.queueUsage({ ok: true, bodyText: BODY, httpStatus: 200, retryAfterSec: null })
+    await run(okPorts, { provider: 'codex' })
+    expect(failing.logger.entries[0]).toMatchObject({ status: 'upstream_error', diag: 'blocked content-type=text/html' })
+    expect(okPorts.logger.entries[0]).toMatchObject({ status: 'ok', diag: null })
+  })
+})
+
+describe('Given the G2 confirmed codex redaction list (2026-11-12 실측)', () => {
+  it('When the response carries user_id/account_id/email then the KV rawText leaks no values and rawRedacted has 3 paths', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt, 'codex-token')])
+    ports.usage.queueUsage({
+      ok: true,
+      bodyText: JSON.stringify({
+        user_id: 'user-9f31',
+        account_id: 'acct-123',
+        email: 'owner@example.com',
+        rate_limit: { primary_window: { used_percent: 20, limit_window_seconds: 18000, reset_after_seconds: 4300 } },
+      }),
+      httpStatus: 200,
+      retryAfterSec: null,
+    })
+    await run(ports, { provider: 'codex', redactionPaths: USAGE_REDACTION_PATHS_CODEX_FROM_PROVIDERS.codex })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const serialized = JSON.stringify(envelope)
+    expect(serialized).not.toContain('user-9f31')
+    expect(serialized).not.toContain('acct-123')
+    expect(serialized).not.toContain('owner@example.com')
+    const parsed = JSON.parse(envelope.rawText as string) as Record<string, unknown>
+    expect(parsed.user_id).toBe('[가림]')
+    expect(parsed.account_id).toBe('[가림]')
+    expect(parsed.email).toBe('[가림]')
+    expect(parsed.rate_limit).toMatchObject({ primary_window: { used_percent: 20 } }) // 구조·나머지 값 보존
+    expect(envelope.rawRedacted).toEqual(['user_id', 'account_id', 'email'])
+    expect(ports.usage.lastAccountId).toBeNull() // 계정 헤더 미지정 시 전송 없음
   })
 })

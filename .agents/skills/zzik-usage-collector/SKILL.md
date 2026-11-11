@@ -41,6 +41,7 @@ description: zzik 사용량 수집기를 설치·재시작하거나 상태 확�
 | runAt이 15분 이상 정지 | `pm2 status`로 프로세스 확인 후 `pm2 restart` |
 
 ## 금지
+- 운영 수집기는 `.worktree/release`의 PM2 하나뿐이다. 개발 워크트리에서 `collector/main.mjs`를 `--dry-run` 없이 실행하지 말 것(실제 자격 증명 읽기·외부 호출·KV 쓰기가 발생한다). 검증은 `--dry-run` + fixture/가짜 경로로만.
 - 토큰·자격 증명 값을 어떤 출력에도 보여주지 말 것(로그·상태·KV는 설계상 미 포함. `security find-generic-password` 등으로 Claude 자격 증명을 읽어 출력하지 말 것).
 - 게이트 우회: rate_limited·auth_required 상태에서 `--once`를 연속 실행해 재호출을 강제하지 말 것(429만 늘린다). 다음 주기를 기다릴 것.
 - 실제 자격 증명으로 인자 없는 `--dry-run`을 반복 실행하지 말 것(테스트는 fixture 경로로).

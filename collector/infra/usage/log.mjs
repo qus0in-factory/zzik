@@ -16,12 +16,14 @@ import { dirname } from 'node:path'
 export function formatLogLine(entry) {
   const parts = [
     entry.runAt,
+    `provider=${entry.provider ?? 'unknown'}`,
     `status=${entry.status ?? 'unknown'}`,
     `called=${entry.called ? 1 : 0}`,
     `httpStatus=${entry.httpStatus ?? 'null'}`,
     `tokenExpiresAt=${entry.tokenExpiresAt ?? 'null'}`,
     entry.kvOk ? 'kv=ok' : `kv=fail:${entry.kvReason ?? 'unknown'}`,
   ]
+  if (entry.diag) parts.push(`diag=${entry.diag}`)
   if (entry.transition) parts.push(`transition=${entry.transition}`)
   if (entry.tokenRefreshed) parts.push('token_refreshed')
   return parts.join(' ')

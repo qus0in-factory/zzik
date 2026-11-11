@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import type { Query } from '@tanstack/react-query'
-import { describeGatewayFailure, usageQueryKey, usageQueryOptions, UsageLoadError, shouldRetryUsage, USAGE_POLL_INTERVAL_MS } from '@app/usage/usage-query'
+import {
+  describeGatewayFailure,
+  shouldRetryUsage,
+  usageQueryKey,
+  usageQueryOptions,
+  UsageLoadError,
+  USAGE_ERROR_CODE_TEXT,
+  USAGE_POLL_INTERVAL_MS,
+  USAGE_QUERY_KEY_ROOT,
+} from '@app/usage/usage-query'
 import type { UsageGatewaySuccess } from '@domain/usage/gateway'
 import normalRaw from '../../fixtures/claude-usage.normal.json'
 import { createFakeUsageGateway } from '../../fakes/usage-ports'
-import type { RawUsage } from '@domain/usage/types'
 
 const USAGE_SUCCESS = {
   ok: true,
-  usage: normalRaw as RawUsage,
+  usage: normalRaw as Record<string, unknown>,
   collection: null,
   rawText: null,
 } as const
@@ -34,14 +42,24 @@ describe('Given the usage queryFn', () => {
   it('When the gateway succeeds then the raw success result is cached', async () => {
     const gateway = createFakeUsageGateway()
     gateway.pushResult(USAGE_SUCCESS)
-    const options = usageQueryOptions(gateway)
+    const options = usageQueryOptions(gateway, 'claude')
     await expect((options.queryFn as unknown as () => Promise<UsageGatewaySuccess>)()).resolves.toEqual(USAGE_SUCCESS)
+    expect(gateway.callsByProvider.claude).toBe(1)
+  })
+
+  it('When the provider is codex then the gateway is called with codex', async () => {
+    const gateway = createFakeUsageGateway()
+    gateway.pushResultFor('codex', USAGE_SUCCESS)
+    const options = usageQueryOptions(gateway, 'codex')
+    await (options.queryFn as unknown as () => Promise<UsageGatewaySuccess>)()
+    expect(gateway.callsByProvider.codex).toBe(1)
+    expect(gateway.callsByProvider.claude).toBe(0)
   })
 
   it('When the gateway fails then ok:false is thrown as UsageLoadError', async () => {
     const gateway = createFakeUsageGateway()
     gateway.pushResult({ ok: false, reason: 'session_expired', message: null })
-    const options = usageQueryOptions(gateway)
+    const options = usageQueryOptions(gateway, 'claude')
     await expect((options.queryFn as unknown as () => Promise<UsageGatewaySuccess>)()).rejects.toMatchObject({
       name: 'UsageLoadError',
       reason: 'session_expired',
@@ -49,12 +67,28 @@ describe('Given the usage queryFn', () => {
   })
 })
 
+describe('Given the query keys (D8)', () => {
+  it('When building keys then each provider gets its own key under the usage prefix', () => {
+    expect(USAGE_QUERY_KEY_ROOT).toEqual(['usage'])
+    expect(usageQueryKey('claude')).toEqual(['usage', 'claude'])
+    expect(usageQueryKey('codex')).toEqual(['usage', 'codex'])
+    expect(usageQueryKey('claude')).not.toEqual(usageQueryKey('codex'))
+  })
+
+  it('When options are built for different providers then the keys never collide', () => {
+    const gateway = createFakeUsageGateway()
+    expect(usageQueryOptions(gateway, 'claude').queryKey).not.toEqual(usageQueryOptions(gateway, 'codex').queryKey)
+  })
+})
+
 describe('Given the polling schedule', () => {
   function fakeQuery(error: unknown): Query<UsageGatewaySuccess, UsageLoadError> {
     return { state: { error } } as unknown as Query<UsageGatewaySuccess, UsageLoadError>
   }
-  function intervalOf(gateway: ReturnType<typeof createFakeUsageGateway>): (query: Query<UsageGatewaySuccess, UsageLoadError>) => number | false | undefined {
-    return usageQueryOptions(gateway).refetchInterval as (query: Query<UsageGatewaySuccess, UsageLoadError>) => number | false | undefined
+  function intervalOf(gateway: ReturnType<typeof createFakeUsageGateway>) {
+    return usageQueryOptions(gateway, 'claude').refetchInterval as (
+      query: Query<UsageGatewaySuccess, UsageLoadError>,
+    ) => number | false | undefined
   }
 
   it('When the last error is session_expired then polling stops (false)', () => {
@@ -65,24 +99,57 @@ describe('Given the polling schedule', () => {
     expect(intervalOf(createFakeUsageGateway())(fakeQuery(new UsageLoadError('api_error', null)))).toBe(USAGE_POLL_INTERVAL_MS)
     expect(intervalOf(createFakeUsageGateway())(fakeQuery(null))).toBe(USAGE_POLL_INTERVAL_MS)
   })
-
-  it('When the query key is fixed then it never drifts', () => {
-    expect(usageQueryKey).toEqual(['usage', 'claude'])
-  })
 })
 
-describe('Given gateway failure texts', () => {
-  it('When the reason has no message then the default text is used', () => {
+describe('Given gateway failure texts (이슈 #17: 원시 코드 노출 금지)', () => {
+  it.each([
+    ['invalid_response', '응답 형식이 올바르지 않습니다'],
+    ['snapshot_corrupt', '손상되었습니다'],
+    ['storage_unavailable', '읽지 못했습니다'],
+    ['jwks_unavailable', '로그인 확인 키'],
+    ['misconfigured', '설정이 완료되지 않았습니다'],
+    ['unauthorized', '로그인이 필요합니다'],
+    ['not_found', '찾을 수 없습니다'],
+    ['method_not_allowed', '지원하지 않는 요청'],
+  ] as const)('When the code is %s then the text is user facing', (code, snippet) => {
+    const text = describeGatewayFailure('api_error', code)
+    expect(text).toContain(snippet)
+    expect(text).not.toContain(code)
+  })
+
+  it('When every mapped code renders then no raw code leaks through the error message', () => {
+    for (const code of Object.keys(USAGE_ERROR_CODE_TEXT)) {
+      const error = new UsageLoadError('api_error', code)
+      expect(error.message).toBe(USAGE_ERROR_CODE_TEXT[code])
+      expect(error.message).not.toBe(code)
+    }
+  })
+
+  it.each([
+    [502, '서버에서'],
+    [503, '서버에서'],
+    [404, '처리하지 못했습니다'],
+  ] as const)('When the code is http_%s then it maps by status class', (status, snippet) => {
+    expect(describeGatewayFailure('api_error', `http_${status}`)).toContain(snippet)
+  })
+
+  it('When the code is unknown but looks like a code then it falls back to the reason text', () => {
+    expect(describeGatewayFailure('api_error', 'weird_code')).toBe('사용량을 불러오지 못했습니다.')
+    expect(describeGatewayFailure('api_error', 'weird_code')).not.toContain('weird_code')
+  })
+
+  it('When the message is a human sentence then it is shown as is', () => {
+    const message = '목 게이트웨이(error 시나리오): API 오류를 흉내 냅니다'
+    expect(describeGatewayFailure('api_error', message)).toBe(message)
+  })
+
+  it('When there is no code then the reason decides the text', () => {
     expect(describeGatewayFailure('session_expired')).toContain('Access 세션')
     expect(describeGatewayFailure('network_error')).toContain('네트워크')
     expect(describeGatewayFailure('api_error')).toContain('불러오지 못했습니다')
   })
 
-  it('When the raw fixture data is normal then the query options stay stable across builds', () => {
-    // queryOptions가 매번 캐시 키·옵션을 동일하게 만드는지(불변식) 확인한다.
-    const first = usageQueryOptions(createFakeUsageGateway())
-    const second = usageQueryOptions(createFakeUsageGateway())
-    expect(first.queryKey).toEqual(second.queryKey)
-    expect(first.staleTime).toBe(second.staleTime)
+  it('When the load error is constructed then the message is already the user text', () => {
+    expect(new UsageLoadError('api_error', 'invalid_response').message).toContain('응답 형식')
   })
 })

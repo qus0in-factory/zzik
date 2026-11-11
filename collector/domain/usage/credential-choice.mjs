@@ -2,10 +2,16 @@
  * 자격 증명 선택(ADR 0.2 D3).
  * Keychain 경로는 제거되었고 파일 읽기(~/.claude/.credentials.json) 하나만 남았지만,
  * 여러 읽기 소스 중 최신 expiresAt을 고르는 규칙은 일반형으로 유지한다.
+ * @typedef {import('./ports.mjs').CredentialRead} CredentialRead
  */
 
-/** 읽기 결과(null 포함) 중 expiresAt이 가장 늦은 것. 동점이면 목록 순서상 첫째.
- * @typedef {import('./ports.mjs').CredentialRead} CredentialRead
+/**
+ * 만료 판정 마진(초). 만료 "지났거나 마진 안"이면 token_expired로 호출을 생략한다(v2 D4).
+ */
+const EXPIRY_MARGIN_SEC = 60
+
+/**
+ * 읽기 결과(null 포함) 중 expiresAt이 가장 늦은 것. 동점이면 목록 순서상 첫째.
  * @param {Array<CredentialRead|null>} reads 읽기 결과(null은 실패한 읽기)
  * @param {number} _nowMs 사용하지 않는 시각 인자(호출부 시그니처 통일)
  * @returns {CredentialRead|null}
@@ -31,5 +37,5 @@ export function chooseCredential(reads, _nowMs) {
 export function credentialExpired(credential, nowMs) {
   if (credential === null || credential === undefined) return false
   if (credential.expiresAt === null || credential.expiresAt === undefined) return false
-  return credential.expiresAt < nowMs
+  return credential.expiresAt <= nowMs + EXPIRY_MARGIN_SEC * 1000
 }

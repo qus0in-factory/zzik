@@ -36,7 +36,7 @@ describe('Given the useUsage hook with TanStack Query', () => {
   it('When the first load succeeds then the state moves from loading to ready (A4 4상태)', async () => {
     const harness = makeHarness()
     harness.gateway.pushResult(SUCCESS)
-    const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
     expect(result.current.state.status).toBe('loading')
     await waitFor(() => expect(result.current.state.status).toBe('ready'))
     expect(result.current.state.report?.windows[0]).toMatchObject({ id: 'five_hour', usedPercent: 37 })
@@ -46,7 +46,7 @@ describe('Given the useUsage hook with TanStack Query', () => {
   it('When a later load fails then the state becomes stale and the last report is kept (A4)', async () => {
     const harness = makeHarness()
     harness.gateway.pushResult(SUCCESS)
-    const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
     await waitFor(() => expect(result.current.state.status).toBe('ready'))
     const report = result.current.state.report
 
@@ -63,7 +63,7 @@ describe('Given the useUsage hook with TanStack Query', () => {
   it('When the first load fails with no data then the state is error (A4 4상태)', async () => {
     const harness = makeHarness()
     harness.gateway.pushResult({ ok: false, reason: 'network_error', message: null })
-    const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
     await waitFor(() => expect(result.current.state.status).toBe('error'))
     expect(result.current.state.report).toBeNull()
     expect(result.current.state.errorMessage).toContain('네트워크')
@@ -72,7 +72,7 @@ describe('Given the useUsage hook with TanStack Query', () => {
   it('When the collection judgment is not ok then ready becomes stale (수집 판정 비정상)', async () => {
     const harness = makeHarness()
     harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: ENVELOPE_RATE_LIMITED, rawText: null })
-    const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
     await waitFor(() => expect(result.current.state.status).toBe('stale'))
     expect(result.current.state.report?.windows[0]).toMatchObject({ usedPercent: 37 })
   })
@@ -80,7 +80,7 @@ describe('Given the useUsage hook with TanStack Query', () => {
   it('When refresh is called twice while a request is pending then the gateway is called once (A4 병합)', async () => {
     const harness = makeHarness()
     const deferred = harness.gateway.pushDeferred()
-    const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
     let first: Promise<void> | undefined
     let second: Promise<void> | undefined
     await act(async () => {
@@ -102,7 +102,7 @@ describe('Given the 30 second now tick', () => {
   it('When the tick fires then the reset wording is recomputed with the new time (A4)', async () => {
     const harness = makeHarness()
     harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: ENVELOPE_OK, rawText: null })
-    const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
     await waitFor(() => expect(result.current.state.status).toBe('ready'))
 
     // 절대 시각 부분은 실행 기기의 시간대를 따른다(ko-KR HH:MM) — 기대값도 같은 계산으로 만든다.
@@ -127,7 +127,7 @@ describe('Given Query polling and window focus (가짜 타이머는 Query 주기
       const harness = makeHarness()
       harness.gateway.pushResult(SUCCESS)
       harness.gateway.pushResult(SUCCESS)
-      const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+      const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5_000)
       })
@@ -155,7 +155,7 @@ describe('Given Query polling and window focus (가짜 타이머는 Query 주기
       const harness = makeHarness()
       harness.gateway.pushResult(SUCCESS)
       harness.gateway.pushResult(SUCCESS)
-      const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+      const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1_000)
       })
@@ -187,7 +187,7 @@ describe('Given Query polling and window focus (가짜 타이머는 Query 주기
     try {
       const harness = makeHarness()
       harness.gateway.pushResult({ ok: false, reason: 'session_expired', message: null })
-      const { result } = renderHook(() => useUsage(), { wrapper: harness.wrapper })
+      const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1_000)
       })
@@ -203,5 +203,42 @@ describe('Given Query polling and window focus (가짜 타이머는 Query 주기
       vi.useRealTimers()
       cleanup()
     }
+  })
+})
+
+describe('Given the collection note exposed by the hook (ADR 0.3 v2 D8)', () => {
+  it('When the envelope is rate limited then the state carries a user note', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: ENVELOPE_RATE_LIMITED, rawText: null })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.status).toBe('stale'))
+    expect(result.current.state.collectionNote).toContain('요청이 제한되었습니다')
+  })
+
+  it('When the token expired then the note tells which client to run', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({
+      ok: true,
+      usage: normalRaw,
+      collection: { ...ENVELOPE_OK, status: 'token_expired', called: false },
+      rawText: null,
+    })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.collectionNote).toContain('Claude Code'))
+  })
+
+  it('When the collection is healthy then there is no note', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: ENVELOPE_OK, rawText: null })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.status).toBe('ready'))
+    expect(result.current.state.collectionNote).toBeNull()
+  })
+
+  it('When the envelope reports redacted keys then the hook exposes the count source list', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: { ...ENVELOPE_OK, rawRedacted: ['a.b', 'c'] }, rawText: null })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.rawRedacted).toEqual(['a.b', 'c']))
   })
 })

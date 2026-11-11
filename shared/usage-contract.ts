@@ -9,9 +9,18 @@
  */
 
 export const USAGE_SNAPSHOT_SCHEMA = 1
-export const USAGE_KEY = 'usage:claude'
 export const USAGE_INTERVAL_SEC = 300
-export const USAGE_COLLECTOR_VERSION = '0.2.0'
+export const USAGE_COLLECTOR_VERSION = '0.3.0'
+
+/** 수집 대상 제공자(ADR 0.3 D3). 제공자 목록은 정적이다. */
+export const USAGE_PROVIDERS = ['claude', 'codex'] as const
+export type UsageProvider = (typeof USAGE_PROVIDERS)[number]
+
+/** 제공자별 KV 키(ADR 0.3 D5). 문자열로 키를 조립하지 않는다. */
+export const USAGE_KV_KEYS: Record<UsageProvider, string> = {
+  claude: 'usage:claude',
+  codex: 'usage:codex',
+}
 
 /** 수집기가 본 상태. Worker·저장소 문제는 봉투에 들어가지 않는다. */
 export type UsageStatus =
@@ -19,6 +28,7 @@ export type UsageStatus =
   | 'rate_limited'
   | 'token_expired'
   | 'auth_required'
+  | 'auth_rejected'
   | 'no_credentials'
   | 'upstream_error'
   | 'network_error'
@@ -29,7 +39,7 @@ export type CollectionStatus = UsageStatus
 export interface UsageEnvelope {
   /** 계약 버전(USAGE_SNAPSHOT_SCHEMA) */
   schema: typeof USAGE_SNAPSHOT_SCHEMA
-  provider: 'claude'
+  provider: UsageProvider
   status: UsageStatus
   /** 이번 실행에서 upstream을 실제로 호출했는가 */
   called: boolean
@@ -52,6 +62,8 @@ export interface UsageEnvelope {
   rawText: string | null
   /** 본문을 실지 못한 이유: null | 'too_large' */
   rawOmitted: 'too_large' | null
+  /** 식별자 가림(D5)이 적용된 키 경로. 목록이 비었으면 필드가 없다 */
+  rawRedacted?: string[]
 }
 
 /** Worker 트랙의 이름(같은 계약). */

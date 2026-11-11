@@ -1,5 +1,7 @@
 import { Badge } from '@ui/components/ui/badge'
+import { usageProviderIds } from '@app/usage/provider-meta'
 import { UsageSection } from '@ui/usage/UsageSection'
+import { UsageSummary } from '@ui/usage/UsageSummary'
 
 export default function App() {
   return (
@@ -12,8 +14,11 @@ export default function App() {
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Hello Young-In</h1>
-        <p className="mt-3 text-sm text-muted-foreground">Claude 구독 사용량을 한눈에 확인하는 공간입니다.</p>
-        <UsageSection />
+        <p className="mt-3 text-sm text-muted-foreground">구독 사용량을 한눈에 확인하는 공간입니다.</p>
+        <UsageSummary />
+        {usageProviderIds().map((provider) => (
+          <UsageSection key={provider} provider={provider} />
+        ))}
       </main>
     </div>
   )
