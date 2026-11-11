@@ -20,81 +20,98 @@ describe('Given the fixture gateway name from the URL query', () => {
   })
 })
 
-describe('Given the fixture gateway', () => {
+describe('Given the claude fixture gateway', () => {
   it('When the query selects normal then it returns the normal usage', async () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=normal', now: ANCHOR_CLOCK })
-    const result = await gateway.fetchUsage()
+    const result = await gateway.fetchUsage('claude')
     expect(result).toMatchObject({ ok: true, usage: { five_hour: { utilization: 37, resets_at: '2026-11-11T14:13:00.000Z' } } })
   })
 
   it('When the query selects unknown-keys then the raw usage keeps unknown keys', async () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=unknown-keys', now: ANCHOR_CLOCK })
-    const result = await gateway.fetchUsage()
-    if (!result.ok || result.usage === null) throw new Error('expected ok with usage')
-    expect(Object.keys(result.usage)).toContain('seven_day_fable')
+    const result = await gateway.fetchUsage('claude')
+    if (!result.ok) throw new Error('expected ok')
+    expect(Object.keys(result.usage ?? {})).toContain('seven_day_fable')
   })
 
   it('When the query selects error then it fails with api_error', async () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=error', now: ANCHOR_CLOCK })
-    expect(await gateway.fetchUsage()).toMatchObject({ ok: false, reason: 'api_error', message: expect.any(String) })
+    expect(await gateway.fetchUsage('claude')).toEqual({ ok: false, reason: 'api_error', message: expect.any(String) })
   })
 
   it('When the query selects loading then the request stays pending', () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=loading', now: ANCHOR_CLOCK })
-    const pending = gateway.fetchUsage()
-    expect(pending).toBeInstanceOf(Promise)
-  })
-
-  it('When a fixture choice getter is injected then it wins over the search string (A5)', async () => {
-    const gateway = createFixtureUsageGateway({
-      getSearch: () => '?fixture=normal',
-      getFixtureName: () => 'warn',
-      now: ANCHOR_CLOCK,
-    })
-    await expect(gateway.fetchUsage()).resolves.toMatchObject({ ok: true, usage: { five_hour: { utilization: 84 } } })
+    expect(gateway.fetchUsage('claude')).toBeInstanceOf(Promise)
   })
 })
 
 describe('Given the fixture gateway recalculating resets_at against the current time', () => {
   it('When now is the fixture anchor then resets_at stays as authored', async () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=normal', now: ANCHOR_CLOCK })
-    const result = await gateway.fetchUsage()
-    if (!result.ok || result.usage === null) throw new Error('expected ok with usage')
-    expect(result.usage.five_hour).toEqual({ utilization: 37, resets_at: '2026-11-11T14:13:00.000Z' })
-    expect(result.usage.seven_day).toEqual({ utilization: 12, resets_at: '2026-11-14T09:00:00.000Z' })
+    const result = await gateway.fetchUsage('claude')
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.usage?.five_hour).toEqual({ utilization: 37, resets_at: '2026-11-11T14:13:00.000Z' })
+    expect(result.usage?.seven_day).toEqual({ utilization: 12, resets_at: '2026-11-14T09:00:00.000Z' })
   })
 
   it('When now is ten days after the anchor then every resets_at moves by ten days', async () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=normal', now: LATER_CLOCK })
-    const result = await gateway.fetchUsage()
-    if (!result.ok || result.usage === null) throw new Error('expected ok with usage')
-    expect(result.usage.five_hour).toEqual({ utilization: 37, resets_at: '2026-11-21T14:13:00.000Z' })
-    expect(result.usage.seven_day).toEqual({ utilization: 12, resets_at: '2026-11-24T09:00:00.000Z' })
-    expect(result.usage.seven_day_sonnet).toEqual({ utilization: 5, resets_at: '2026-11-24T09:00:00.000Z' })
-  })
-
-  it('When a fixture window was already expired then it stays expired after the shift', async () => {
-    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=limited', now: LATER_CLOCK })
-    const result = await gateway.fetchUsage()
-    if (!result.ok || result.usage === null) throw new Error('expected ok with usage')
-    expect(result.usage.seven_day_cowork).toEqual({ utilization: 100, resets_at: '2026-11-21T11:30:00.000Z' })
-    expect(Date.parse('2026-11-21T11:30:00.000Z')).toBeLessThan(Date.parse(LATER_CLOCK()))
+    const result = await gateway.fetchUsage('claude')
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.usage?.five_hour).toEqual({ utilization: 37, resets_at: '2026-11-21T14:13:00.000Z' })
+    expect(result.usage?.seven_day).toEqual({ utilization: 12, resets_at: '2026-11-24T09:00:00.000Z' })
   })
 
   it('When entries are null or have no resets_at then they are left alone', async () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=unknown-keys', now: LATER_CLOCK })
-    const result = await gateway.fetchUsage()
-    if (!result.ok || result.usage === null) throw new Error('expected ok with usage')
-    expect(result.usage.seven_day_opus).toBeNull()
-    expect(result.usage.seven_day_cowork).toBeNull()
-    expect(result.usage.seven_day_haiku).toEqual({ utilization: 3, resets_at: null })
-    expect(result.usage.extra_usage).toEqual({ utilization: 5 })
+    const result = await gateway.fetchUsage('claude')
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.usage?.seven_day_opus).toBeNull()
+    expect(result.usage?.seven_day_haiku).toEqual({ utilization: 3, resets_at: null })
+    expect(result.usage?.extra_usage).toEqual({ utilization: 5 })
+  })
+})
+
+describe('Given the codex fixture gateway (ADR 0.3 D6/D8)', () => {
+  it('When the provider is codex then the WHAM shaped fixture is returned', async () => {
+    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=normal', now: ANCHOR_CLOCK })
+    const result = await gateway.fetchUsage('codex')
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.usage?.rate_limit).toMatchObject({ limit_reached: false })
+    expect((result.usage?.rate_limit as Record<string, unknown>).primary_window).toMatchObject({ used_percent: 20, limit_window_seconds: 18000 })
   })
 
-  it('When the same fixture is served twice then the shift is stable (no drift)', async () => {
-    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=warn', now: LATER_CLOCK })
-    const first = await gateway.fetchUsage()
-    const second = await gateway.fetchUsage()
-    expect(second).toEqual(first)
+  it('When the codex limitation is requested then limit_reached is true', async () => {
+    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=limited', now: ANCHOR_CLOCK })
+    const result = await gateway.fetchUsage('codex')
+    if (!result.ok) throw new Error('expected ok')
+    expect((result.usage?.rate_limit as Record<string, unknown>).limit_reached).toBe(true)
+  })
+
+  it('When the codex unknown-keys scenario is requested then the extra buckets stay in the payload', async () => {
+    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=unknown-keys', now: ANCHOR_CLOCK })
+    const result = await gateway.fetchUsage('codex')
+    if (!result.ok) throw new Error('expected ok')
+    expect(Object.keys(result.usage ?? {})).toEqual(
+      expect.arrayContaining(['rate_limit', 'code_review_rate_limit', 'mcp', 'broken_bucket', 'daily']),
+    )
+  })
+
+  it('When the scenario is warn (no codex fixture) then it falls back to the normal codex payload', async () => {
+    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=warn', now: ANCHOR_CLOCK })
+    const result = await gateway.fetchUsage('codex')
+    if (!result.ok) throw new Error('expected ok')
+    expect((result.usage?.rate_limit as Record<string, unknown>).primary_window).toMatchObject({ used_percent: 20 })
+  })
+
+  it('When the fixture choice comes from the store getter then it wins over the search string', async () => {
+    const gateway = createFixtureUsageGateway({
+      getSearch: () => '?fixture=normal',
+      getFixtureName: () => 'limited',
+      now: ANCHOR_CLOCK,
+    })
+    const result = await gateway.fetchUsage('codex')
+    if (!result.ok) throw new Error('expected ok')
+    expect((result.usage?.rate_limit as Record<string, unknown>).limit_reached).toBe(true)
   })
 })

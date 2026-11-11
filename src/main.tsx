@@ -6,7 +6,7 @@ import ky from 'ky'
 import { parseFixtureUsageName } from '@domain/usage/fixture-name'
 import App from '@ui/App'
 import { createAppQueryClient } from '@app/query-client'
-import { usageQueryKey } from '@app/usage/usage-query'
+import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
@@ -37,7 +37,7 @@ if (devFixtureRequested) {
   useUsageUiStore.subscribe((state) => {
     if (state.fixtureName !== previous) {
       previous = state.fixtureName
-      void queryClient.invalidateQueries({ queryKey: usageQueryKey })
+      void queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY_ROOT })
     }
   })
 }

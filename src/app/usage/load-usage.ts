@@ -1,15 +1,15 @@
 import type { UsageCollectionMeta } from '../../../shared/usage-contract'
-import type { RawUsage } from '@domain/usage/types'
-import { buildUsageView } from '@domain/usage/view'
+import { buildProviderUsageView } from '@domain/usage/providers'
+import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/view'
 
 /**
- * 게이트웨이 성공 결과를 화면 뷰로 바꾼다(스택 부록 A4).
- * - 보고서: raw 응답을 domain의 buildUsageView로(0.2.1 계약과 같다).
- * - 수집 판정: 봉투 메타의 상태와 나이(D4의 두 표). 예외는 결과 유니온이 아니라 불리언으로.
+ * 게이트웨이 성공 결과를 화면 뷰로 바꾼다(스택 부록 A4, ADR 0.3 D8).
+ * - 보고서: 제공자 등록부가 고른 정규화기(claude/codex)로 만든다.
+ * - 수집 판정: 봉투 메타의 상태와 나이(0.2 D4의 두 표). 예외는 결과 유니온이 아니라 불리언으로.
  */
 export interface UsageSuccessData {
-  usage: RawUsage | null
+  usage: Record<string, unknown> | null
   collection: UsageCollectionMeta | null
   rawText: string | null
 }
@@ -35,11 +35,12 @@ function isCollectionOk(collection: UsageCollectionMeta | null, nowMs: number): 
   return true
 }
 
-export function buildUsageLoadView(data: UsageSuccessData, now: Date): UsageLoadView {
-  const report = buildUsageView(data.usage ?? {}, { now })
+export function buildUsageLoadView(data: UsageSuccessData, now: Date, provider: UsageProvider): UsageLoadView {
+  const fetchedAt = data.collection?.fetchedAt ?? null
+  const report = buildProviderUsageView(provider, data.usage ?? {}, { now, fetchedAt })
   return {
     report,
     collectionOk: isCollectionOk(data.collection, now.getTime()),
-    lastSuccessAt: data.collection?.fetchedAt ?? null,
+    lastSuccessAt: fetchedAt,
   }
 }
