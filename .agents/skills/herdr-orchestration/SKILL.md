@@ -48,3 +48,14 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 | work-reviewer | medium | 검수 누락이 배포로 이어진다 |
 | worker-watcher | low | 대기·요약만 한다 |
 | glm / ds / sol | 기본 유지 | 지시가 구체적이면 충분하다 |
+
+## 워크트리 (병렬 트랙)
+- 같은 파일을 건드릴 수 있는 트랙이 동시에 돌면 레포 내부 `.worktree/`에 워크트리를 만든다(`.gitignore` 등록됨).
+  `git worktree add .worktree/<트랙> -b <버전>/<트랙>` (예: `.worktree/usage`, 브랜치 `0.2/usage`)
+- 워커 지시에 작업 경로 `.worktree/<트랙>`을 명시하고, 그 안에서 `pnpm install`부터 실행하게 한다.
+- 통합은 opus가 main에서 merge하고, 끝난 워크트리는 `git worktree remove .worktree/<트랙>`으로 정리한다.
+
+## 이슈 관리
+- 작업 단위마다 GitHub 이슈를 만든다. 사용자에게 assign하지 않는다(사용자 수동 작업만 예외). 담당 워커는 본문에 적는다.
+- 마일스톤은 버전(`0.1`, `0.2` …), 라벨은 영역 하나만: `design`(ADR·설계) / `frontend` / `backend`(Worker API·수집) / `infra`(배포·DNS·Access·비밀값) / `harness`(에이전트·스킬·스크립트).
+- 커밋 메시지에 `Closes #N`으로 연결한다.
