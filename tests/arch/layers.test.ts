@@ -54,14 +54,51 @@ export type ViolationReason =
   | 'forbidden-direction'
   | 'ui-domain-value-import'
   | 'domain-external-import'
+  | 'collector-external-import'
+  | 'package-not-allowed'
 
 export interface LayerViolation {
   /** BASE 기준 상대 경로 */
   file: string
   root: string
-  layer: Layer
+  layer: Layer | null
   spec: string
   reason: ViolationReason
+}
+
+/**
+ * 외부 패키지의 허용 레이어(스택 부록 A7). 표에 없는 패키지는 domain·수집기 금지 규칙만 받는다.
+ * assembly: 조립 루트 파일(src/main.tsx, worker/index.ts)에서의 허용.
+ */
+const PACKAGE_ALLOWED: Record<string, readonly { root: string; layer?: Layer; assembly?: boolean }[]> = {
+  hono: [
+    { root: 'worker', layer: 'ui' },
+    { root: 'worker', assembly: true },
+  ],
+  jose: [{ root: 'worker', layer: 'infra' }],
+  ky: [
+    { root: 'src', layer: 'infra' },
+    { root: 'src', assembly: true },
+  ],
+  '@tanstack/react-query': [
+    { root: 'src', layer: 'app' },
+    { root: 'src', assembly: true },
+  ],
+  zustand: [{ root: 'src', layer: 'app' }],
+  react: [
+    { root: 'src', layer: 'ui' },
+    { root: 'src', layer: 'app' },
+    { root: 'src', assembly: true },
+  ],
+  'react-dom': [
+    { root: 'src', layer: 'ui' },
+    { root: 'src', layer: 'app' },
+    { root: 'src', assembly: true },
+  ],
+}
+
+function packageNameOf(spec: string): string {
+  return spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : (spec.split('/')[0] ?? spec)
 }
 
 export interface SourceFile {
@@ -196,17 +233,34 @@ export function findViolations(files: SourceFile[] = loadSourceFiles()): LayerVi
   for (const file of files) {
     const context = contextOf(file.path)
     const { root, layer } = context
-    if (layer === null) continue // 조립 루트(main.tsx, index.ts, main.mjs)는 배선 장소다
 
     for (const statement of importsOf(file.text, file.path)) {
       const target = targetOf(file.path, statement.spec)
 
       if (target.kind === 'external') {
+        // 수집기 전체는 node: 내장 모듈만 허용한다(A7). 조립 루트(collector/main.mjs)도 포함.
+        if (root === 'collector' && !statement.spec.startsWith('node:')) {
+          found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'collector-external-import' })
+          continue
+        }
         if (layer === 'domain' && !PURE_DOMAIN_BUILTINS.includes(statement.spec)) {
           found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'domain-external-import' })
+          continue
+        }
+        const pkg = packageNameOf(statement.spec)
+        const allowed = PACKAGE_ALLOWED[pkg]
+        if (allowed !== undefined && !allowed.some((entry) => entry.root === root && (entry.assembly === true ? layer === null : entry.layer === layer))) {
+          found.push({
+            file: relative(BASE, file.path),
+            root,
+            layer,
+            spec: statement.spec,
+            reason: 'package-not-allowed',
+          })
         }
         continue
       }
+      if (layer === null) continue // 조립 루트(main.tsx, index.ts, main.mjs)는 배선 장소다(패키지 규칙은 위에서 검사)
       if (target.kind === 'shared') continue
       if (target.kind === 'tests') {
         if (isFixtureImport(layer, statement.spec)) continue
@@ -404,6 +458,56 @@ describe('Given an injected layer violation', () => {
     expect(findViolations([probe('collector/main.mjs', "import { runOnce } from './app/usage/run-once.mjs'\n")])).toEqual([])
     expect(findViolations([probe('src/main.tsx', "import App from '@ui/App'\n")])).toEqual([])
     expect(findViolations([probe('worker/index.ts', "import { createRouter } from './ui/router'\n")])).toEqual([])
+  })
+})
+
+describe('Given the package allowlist (스택 부록 A7)', () => {
+  it('When src/ui imports TanStack Query then detection fails the layer rule', () => {
+    expect(summarize(findViolations([probe('src/ui/probe.tsx', "import { useQuery } from '@tanstack/react-query'\n")]))).toEqual([
+      ['package-not-allowed', '@tanstack/react-query'],
+    ])
+  })
+
+  it('When src/app imports Query and Zustand then both are allowed', () => {
+    expect(
+      findViolations([
+        probe('src/app/probe.ts', "import { useQuery } from '@tanstack/react-query'\n"),
+        probe('src/app/probe2.ts', "import { create } from 'zustand'\n"),
+      ]),
+    ).toEqual([])
+  })
+
+  it('When src/main.tsx imports ky and TanStack Query then the assembly allowance applies', () => {
+    expect(findViolations([probe('src/main.tsx', "import ky from 'ky'\n"), probe('src/main.tsx', "import { QueryClientProvider } from '@tanstack/react-query'\n")])).toEqual([])
+  })
+
+  it('When src/infra imports ky then it is allowed', () => {
+    expect(findViolations([probe('src/infra/probe.ts', "import ky from 'ky'\n")])).toEqual([])
+  })
+
+  it('When worker/ui imports hono and worker/infra imports jose then both are allowed', () => {
+    expect(
+      findViolations([
+        probe('worker/ui/probe.ts', "import { Hono } from 'hono'\n"),
+        probe('worker/infra/probe.ts', "import { jwtVerify } from 'jose'\n"),
+      ]),
+    ).toEqual([])
+  })
+
+  it('When worker/app imports hono then detection fails the layer rule', () => {
+    expect(summarize(findViolations([probe('worker/app/probe.ts', "import { Hono } from 'hono'\n")]))).toEqual([
+      ['package-not-allowed', 'hono'],
+    ])
+  })
+
+  it('When a collector file imports ky then detection fails the node builtins rule', () => {
+    expect(summarize(findViolations([probe('collector/app/probe.mjs', "import ky from 'ky'\n")]))).toEqual([
+      ['collector-external-import', 'ky'],
+    ])
+  })
+
+  it('When a collector file imports node builtins then it is allowed', () => {
+    expect(findViolations([probe('collector/infra/probe.mjs', "import { readFile } from 'node:fs/promises'\n")])).toEqual([])
   })
 
   it('When one clean file sits next to a violating file then only the violation is reported', () => {
