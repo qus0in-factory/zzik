@@ -23,11 +23,25 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@ui/*": [
+        "./src/ui/*"
+      ],
+      "@app/*": [
+        "./src/app/*"
+      ],
+      "@domain/*": [
+        "./src/domain/*"
+      ],
+      "@infra/*": [
+        "./src/infra/*"
       ]
     }
   },
   "include": [
     "src",
-    "vite.config.ts"
+    "vite.config.ts",
+    "tests",
+    "vitest.config.ts"
   ]
 }

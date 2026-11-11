@@ -5,5 +5,5 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  resolve: { alias: Object.fromEntries(['', 'ui', 'app', 'domain', 'infra'].map((layer) => [layer ? `@${layer}` : '@', fileURLToPath(new URL(`./src/${layer}`, import.meta.url))])) },
 })

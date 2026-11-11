@@ -1,6 +1,6 @@
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@ui/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@ui/components/ui/card'
+import { Skeleton } from '@ui/components/ui/skeleton'
 
 export default function App() {
   return (
