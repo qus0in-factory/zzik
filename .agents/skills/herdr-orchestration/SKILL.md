@@ -65,4 +65,4 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 - 원격: `main`(보호: PR 필수, 직접·강제 push·삭제 금지, 관리자 포함), `dev`(통합, 기본 브랜치).
 - 워크트리 브랜치는 `dev`에서 따고(`git worktree add .worktree/<트랙> -b <버전>/<트랙> dev`), 검수 통과 후 로컬 `dev`에 `--no-ff` merge → `dev` push.
 - 버전 단위로 `dev → main` PR(`gh pr create -B main -H dev`), 본문에 `Closes #N`. 머지 후 배포는 `main` 기준.
-- 이슈 자동 종료는 main 병합 시점에 일어나므로 dev 커밋에는 `Refs #N`을 쓴다.
+- 기본 브랜치가 `dev`라 `dev→main` PR의 `Closes #N`은 이슈를 자동으로 닫지 않는다. main 병합·배포 확인 후 opus가 이슈를 직접 닫고 마일스톤을 닫는다. dev 커밋에는 `Refs #N`.
