@@ -1,19 +1,20 @@
 import type ky from 'ky'
 import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'
+import type { UsageProvider } from '@domain/usage/providers'
 import { decodeUsageSnapshot } from '@domain/usage/snapshot'
 
 /**
- * /api/usage 게이트웨이(스택 부록 A3). ky 인스턴스는 조립 루트(main.tsx)가 만들어 주입한다:
+ * `/api/usage/:provider` 게이트웨이(스택 부록 A3, ADR 0.3 D7·D8). ky 인스턴스는
+ * 조립 루트(main.tsx)가 만들어 주입한다:
  *   ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })
- * 재시도는 ky에 두지 않는다(재시도 정책은 Query 한 곳). 본문 매핑(200, opaqueredirect,
- * 401/5xx, 예외)은 그대로고, 결과 유니온은 도메인 포트 형태다.
+ * 재시도는 ky에 두지 않는다(재시도 정책은 Query 한 곳). 경로는 제공자별 1:1이다.
  */
-export function createHttpUsageGateway(client: typeof ky, endpoint = '/api/usage'): UsageGateway {
+export function createHttpUsageGateway(client: typeof ky, basePath = '/api/usage'): UsageGateway {
   return {
-    async fetchUsage(): Promise<UsageGatewayResult> {
+    async fetchUsage(provider: UsageProvider): Promise<UsageGatewayResult> {
       let response: Response
       try {
-        response = await client.get(endpoint)
+        response = await client.get(`${basePath}/${provider}`)
       } catch {
         return { ok: false, reason: 'network_error', message: null }
       }
@@ -31,7 +32,7 @@ export function createHttpUsageGateway(client: typeof ky, endpoint = '/api/usage
         return { ok: false, reason: 'api_error', message }
       }
       try {
-        return decodeUsageSnapshot(await response.json())
+        return decodeUsageSnapshot(await response.json(), provider)
       } catch {
         return { ok: false, reason: 'api_error', message: 'invalid_response' }
       }

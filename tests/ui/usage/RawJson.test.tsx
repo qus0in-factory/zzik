@@ -12,7 +12,7 @@ afterEach(cleanup)
 describe('Given the raw JSON viewer', () => {
   it('When collapsed by default then no pre element exists yet (U7)', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
-    render(<RawJson raw={report.raw} />)
+    render(<RawJson raw={report.raw} provider="claude" />)
     const toggle = screen.getByRole('button', { name: '원본 JSON' })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByRole('region')).toBeNull()
@@ -20,7 +20,7 @@ describe('Given the raw JSON viewer', () => {
 
   it('When expanded then the pretty printed original object is shown and collapsible again (U7)', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
-    render(<RawJson raw={report.raw} />)
+    render(<RawJson raw={report.raw} provider="claude" />)
     fireEvent.click(screen.getByRole('button', { name: '원본 JSON' }))
     const region = screen.getByRole('region')
     expect((screen.getByRole('button', { name: '원본 JSON' })).getAttribute('aria-expanded')).toBe('true')
@@ -32,7 +32,7 @@ describe('Given the raw JSON viewer', () => {
 
   it('When the response has unknown keys then the raw text still contains them as-is (U7)', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
-    render(<RawJson raw={report.raw} />)
+    render(<RawJson raw={report.raw} provider="claude" />)
     fireEvent.click(screen.getByRole('button', { name: '원본 JSON' }))
     expect(screen.getByRole('region').textContent).toContain('thirty_day')
     expect(screen.getByRole('button', { name: '복사' })).toBeTruthy()

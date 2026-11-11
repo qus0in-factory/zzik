@@ -1,15 +1,19 @@
 import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'
 import { parseFixtureUsageName } from '@domain/usage/fixture-name'
-import type { RawUsage } from '@domain/usage/types'
+import type { UsageProvider } from '@domain/usage/providers'
 import { rebaseUsageResetsAt } from '@domain/usage/calibration'
-import normalRaw from '../../../tests/fixtures/claude-usage.normal.json'
-import limitedRaw from '../../../tests/fixtures/claude-usage.limited.json'
-import unknownKeysRaw from '../../../tests/fixtures/claude-usage.unknown-keys.json'
-import warnRaw from '../../../tests/fixtures/claude-usage.warn.json'
+import claudeNormalRaw from '../../../tests/fixtures/claude-usage.normal.json'
+import claudeLimitedRaw from '../../../tests/fixtures/claude-usage.limited.json'
+import claudeUnknownKeysRaw from '../../../tests/fixtures/claude-usage.unknown-keys.json'
+import claudeWarnRaw from '../../../tests/fixtures/claude-usage.warn.json'
+import codexNormalRaw from '../../../tests/fixtures/codex-usage.normal.json'
+import codexLimitedRaw from '../../../tests/fixtures/codex-usage.limited.json'
+import codexUnknownKeysRaw from '../../../tests/fixtures/codex-usage.unknown-keys.json'
 
 /**
- * 개발·테스트용 목 게이트웨이. `?fixture=<name>` 쿼리 또는 주입된 선택 getter(스택 부록 A5의
- * Zustand 상태)로 시나리오를 전환한다. 프로덕션 번들에는 DEV 조립 분기로만 들어간다.
+ * 개발·테스트용 목 게이트웨이(스택 부록 A5, ADR 0.3 D8). `?fixture=<name>` 쿼리 또는
+ * 주입된 선택 getter(Zustand 상태)로 시나리오를 전환하고, 제공자별 fixture를 돌려준다.
+ * 프로덕션 번들에는 DEV 조립 분기로만 들어간다.
  */
 
 export type FixtureName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'error' | 'loading'
@@ -18,14 +22,36 @@ export type FixtureName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'erro
 export const FIXTURE_NAMES = ['normal', 'warn', 'limited', 'unknown-keys', 'error', 'loading'] as const
 export { parseFixtureUsageName }
 
-/** fixture 파일들이 작성된 기준 시각. resets_at 보정의 원점이다. */
+/** fixture 파일들이 작성된 기준 시각. Claude `resets_at` 보정의 원점이다. */
 export const FIXTURE_ANCHOR_ISO = '2026-11-11T12:00:00.000Z'
 
-const FIXTURE_USAGE: Record<Exclude<FixtureName, 'error' | 'loading'>, RawUsage> = {
-  normal: normalRaw as RawUsage,
-  warn: warnRaw as RawUsage,
-  limited: limitedRaw as RawUsage,
-  ['unknown-keys']: unknownKeysRaw as RawUsage,
+type ScenarioName = Exclude<FixtureName, 'error' | 'loading'>
+
+const CLAUDE_FIXTURES: Record<ScenarioName, Record<string, unknown>> = {
+  normal: claudeNormalRaw as Record<string, unknown>,
+  warn: claudeWarnRaw as Record<string, unknown>,
+  limited: claudeLimitedRaw as Record<string, unknown>,
+  ['unknown-keys']: claudeUnknownKeysRaw as Record<string, unknown>,
+}
+
+/**
+ * Codex는 `reset_at`이 Unix 초(절대값)라 Claude처럼 상대 보정을 하지 않는다.
+ * 모든 시나리오에 값이 있는 것만 두고, 없는 시나리오는 normal로 대체한다.
+ */
+const CODEX_FIXTURES: Partial<Record<ScenarioName, Record<string, unknown>>> = {
+  normal: codexNormalRaw as Record<string, unknown>,
+  limited: codexLimitedRaw as Record<string, unknown>,
+  ['unknown-keys']: codexUnknownKeysRaw as Record<string, unknown>,
+}
+
+const FIXTURES: Record<UsageProvider, Record<ScenarioName, Record<string, unknown>>> = {
+  claude: CLAUDE_FIXTURES,
+  codex: {
+    normal: CODEX_FIXTURES.normal ?? {},
+    warn: CODEX_FIXTURES.normal ?? {},
+    limited: CODEX_FIXTURES.limited ?? {},
+    ['unknown-keys']: CODEX_FIXTURES['unknown-keys'] ?? {},
+  },
 }
 
 export interface FixtureUsageGatewayOptions {
@@ -47,11 +73,12 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
   const now = options.now ?? ((): string => new Date().toISOString())
 
   return {
-    async fetchUsage(): Promise<UsageGatewayResult> {
+    async fetchUsage(provider: UsageProvider): Promise<UsageGatewayResult> {
       const chosen = options.getFixtureName?.()
-      const name = chosen !== undefined && chosen.length > 0
-        ? parseFixtureUsageName(`?fixture=${chosen}`)
-        : parseFixtureUsageName(getSearch() ?? null)
+      const name =
+        chosen !== undefined && chosen.length > 0
+          ? parseFixtureUsageName(`?fixture=${chosen}`)
+          : parseFixtureUsageName(getSearch() ?? null)
       if (name === 'error') {
         return { ok: false, reason: 'api_error', message: '목 게이트웨이(error 시나리오): API 오류를 흉내 냅니다' }
       }
@@ -59,8 +86,12 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
         // 의도로 끝나지 않는 요청: 로딩 상태를 확인한다.
         return new Promise<UsageGatewayResult>(() => {})
       }
-      // 작성 시점 고정값을 지금 기준으로 옮겨, 목 화면이 "리셋 시각 경과"로 굳지 않게 한다.
-      const usage = rebaseUsageResetsAt(FIXTURE_USAGE[name], new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
+      const fixture = FIXTURES[provider][name]
+      // Claude는 작성 시점 고정값을 지금 기준으로 옮겨 "리셋 시각 경과"로 굳지 않게 한다.
+      const usage =
+        provider === 'claude'
+          ? rebaseUsageResetsAt(fixture as never, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
+          : fixture
       return { ok: true, usage, collection: null, rawText: null }
     },
   }

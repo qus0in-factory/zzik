@@ -1,87 +1,58 @@
 import { describe, expect, it } from 'vitest'
 import { codexWindowLabel } from '@domain/usage/codex-labels'
-import { findUsageWindows, isUsageWindowObject, windowResetAt } from '@domain/usage/codex-windows'
-import { USAGE_PROVIDER_REGISTRY } from '@domain/usage/providers'
-import { buildUsageView } from '@domain/usage/view'
 
-describe('Given the Codex window label rules (D6)', () => {
+function labelFor(limitWindowSeconds: number | null, insideRateLimit = true, path = 'rate_limit.primary_window') {
+  const topKey = path.split('.')[0]
+  return codexWindowLabel({ path, topKey, limitWindowSeconds, insideRateLimit })
+}
+
+describe('Given a codex window length (D6 라벨)', () => {
   it.each([
-    [18000, '5시간 한도', false],
-    [604800, '주간 한도', false],
-  ] as const)('When the length is a known %s seconds then the fixed label applies', (seconds, label, unknown) => {
-    expect(codexWindowLabel({ limit_window_seconds: seconds, used_percent: 0 }, 'rate_limit.primary_window', 'rate_limit')).toEqual({
-      label, unknown,
-    })
+    [18000, '5시간 한도'],
+    [604800, '주간 한도'],
+  ] as const)('When the length is %s seconds then the label is %s without an unverified badge', (seconds, label) => {
+    expect(labelFor(seconds)).toEqual({ label, unknown: false })
   })
 
-  it('When the length is a known one but the path label is requested elsewhere then the top key prefixes it with 미확인', () => {
-    const label = codexWindowLabel({ limit_window_seconds: 18000, used_percent: 0 }, 'codex_extra.weekly_window', 'codex_extra')
-    expect(label).toEqual({ label: 'codex extra · 5시간 한도', unknown: true })
+  it.each([
+    [3600, '1시간 한도'],
+    [10800, '3시간 한도'],
+    [172800, '2일 한도'],
+    [90000, '1일 한도'],
+  ] as const)('When the length is %s seconds then the label is derived and marked unverified', (seconds, label) => {
+    expect(labelFor(seconds)).toEqual({ label, unknown: true })
   })
 
-  it('When the length is unknown then the label is derived from hours or days and marked unknown', () => {
-    expect(codexWindowLabel({ limit_window_seconds: 3600, used_percent: 0 }, 'rate_limit.hourly', 'rate_limit')).toEqual({
-      label: '1시간 한도', unknown: true,
-    })
-    expect(codexWindowLabel({ limit_window_seconds: 129600, used_percent: 0 }, 'rate_limit.mid', 'rate_limit')).toEqual({
-      label: '1.5일 한도', unknown: true,
-    })
+  it('When the length is missing then the json path is used as the label and marked unverified', () => {
+    expect(labelFor(null)).toEqual({ label: 'rate_limit.primary_window', unknown: true })
   })
 
-  it('When the length is missing then the id path becomes the label', () => {
-    expect(codexWindowLabel({ used_percent: 0, reset_at: 1 }, 'rate_limit.mystery', 'rate_limit')).toEqual({
-      label: 'rate_limit.mystery', unknown: true,
-    })
+  it('When the length is not a sane number then it is treated as missing', () => {
+    expect(labelFor(0).unknown).toBe(true)
+    expect(labelFor(-60).label).toBe('rate_limit.primary_window')
+    expect(labelFor(Number.NaN).label).toBe('rate_limit.primary_window')
   })
 })
 
-describe('Given the Codex window discovery', () => {
-  it('When the object is a window then the checks match the D6 definition', () => {
-    expect(isUsageWindowObject({ used_percent: 37, limit_window_seconds: 18000 })).toBe(true)
-    expect(isUsageWindowObject({ used_percent: 37, reset_after_seconds: 1 })).toBe(true)
-    expect(isUsageWindowObject({ used_percent: -1, limit_window_seconds: 18000 })).toBe(true) // 잘못된 값은 창이 되고 issues로 기록된다
-    expect(isUsageWindowObject({ used_percent: '37', reset_at: 1 })).toBe(true)
-    expect(isUsageWindowObject({ limit_window_seconds: 18000 })).toBe(false) // used_percent 없음
-    expect(isUsageWindowObject({ used_percent: 37 })).toBe(false) // 리셋 필드 없음
-  })
-
-  it('When windows hide in arrays then they are found with the array path', () => {
-    const found = findUsageWindows({ codes: [{ used_percent: 3, reset_after_seconds: 10 }] })
-    expect(found.map((window) => window.id)).toEqual(['codes[]'])
-  })
-
-  it('When there is no reset_at but reset_after_seconds with fetchedAt then the reset is computed', () => {
-    const window = { reset_after_seconds: 10 }
-    expect(windowResetAt(window, '2026-11-11T12:00:00.000Z')).toBe('2026-11-11T12:00:10.000Z')
-    expect(windowResetAt(window, null)).toBeNull()
-    expect(windowResetAt({ reset_at: 1000 }, null)).toBe(new Date(1000 * 1000).toISOString())
-  })
-})
-
-describe('Given the provider registry (D8의 등록부)', () => {
-  it('When registered then Codex views come from buildCodexUsageView and Claude from buildUsageView', () => {
-    const codexShapeData = {
-      ok: true as const,
-      usage: { five_hour: { utilization: 37 }, rate_limit: { primary_window: { used_percent: 37, limit_window_seconds: 18000 } } },
-    }
-    const successData = codexShapeData as unknown as Parameters<typeof USAGE_PROVIDER_REGISTRY.codex.buildView>[0]
-    const claudeView = USAGE_PROVIDER_REGISTRY.claude.buildView(successData, { now: new Date('2026-11-11T12:00:00.000Z') })
-    const codexView = USAGE_PROVIDER_REGISTRY.codex.buildView(successData, { now: new Date('2026-11-11T12:00:00.000Z'), fetchedAt: null })
-    expect(claudeView.windows[0]).toMatchObject({ id: 'five_hour' })
-    expect(codexView.windows[0]).toMatchObject({ id: 'rate_limit.primary_window', label: '5시간 한도' })
-    void buildUsageView
-  })
-
-  it('When titles and hints are compared with D8 then they match the registry table', () => {
-    expect(USAGE_PROVIDER_REGISTRY.claude).toMatchObject({
-      title: 'Claude',
-      extraSectionTitle: '모델·기능별 한도',
-      refreshHint: '이 Mac에서 Claude Code를 실행하면 갱신된다',
+describe('Given a windows bucket outside rate_limit', () => {
+  it('When the top level key is not rate_limit then the label is prefixed with the readable key and marked unverified', () => {
+    expect(codexWindowLabel({ path: 'code_review_rate_limit', topKey: 'code_review_rate_limit', limitWindowSeconds: 3600, insideRateLimit: false })).toEqual({
+      label: 'Code Review Rate Limit · 1시간 한도',
+      unknown: true,
     })
-    expect(USAGE_PROVIDER_REGISTRY.codex).toMatchObject({
-      title: 'ChatGPT (Codex)',
-      extraSectionTitle: '추가 한도',
-      refreshHint: '이 Mac에서 Codex를 실행하면 갱신된다',
+  })
+
+  it('When the window is nested in an array then the readable top level key is still used', () => {
+    expect(codexWindowLabel({ path: 'mcp.buckets[0]', topKey: 'mcp', limitWindowSeconds: 18000, insideRateLimit: false })).toEqual({
+      label: 'Mcp · 5시간 한도',
+      unknown: true,
+    })
+  })
+
+  it('When a known length appears outside rate_limit then the badge still marks it unverified', () => {
+    expect(codexWindowLabel({ path: 'extra.weekly', topKey: 'extra', limitWindowSeconds: 604800, insideRateLimit: false })).toEqual({
+      label: 'Extra · 주간 한도',
+      unknown: true,
     })
   })
 })

@@ -3,10 +3,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { LimitCard } from '@ui/usage/LimitCard'
 import { buildUsageView } from '@domain/usage/view'
+import { buildCodexUsageView } from '@domain/usage/codex-view'
+import codexUnknownRaw from '../../fixtures/codex-usage.unknown-keys.json'
 import normalRaw from '../../fixtures/claude-usage.normal.json'
 import limitedRaw from '../../fixtures/claude-usage.limited.json'
 import warnRaw from '../../fixtures/claude-usage.warn.json'
-import { NOW } from '../../fakes/usage-ports'
+import { NOW, NOW_ISO } from '../../fakes/usage-ports'
 
 afterEach(cleanup)
 
@@ -74,5 +76,20 @@ describe('Given an item without a usable value', () => {
     expect(screen.getByText('정보 없음')).toBeTruthy()
     expect(screen.queryByText('0%')).toBeNull()
     expect(screen.queryByRole('progressbar')).toBeNull()
+  })
+})
+
+describe('Given card heading levels and unverified labels (ADR 0.3 D8)', () => {
+  it('When the card sits inside a provider section then its title is an h4', () => {
+    const report = buildUsageView(normalRaw, { now: NOW })
+    render(<LimitCard item={report.windows[0]} titleLevel={4} />)
+    expect(screen.getByRole('heading', { name: '5시간 한도', level: 4 })).toBeTruthy()
+  })
+
+  it('When a window label is unverified then the unverified badge appears', () => {
+    const report = buildCodexUsageView(codexUnknownRaw, { now: NOW, fetchedAt: NOW_ISO })
+    render(<LimitCard item={report.windows[0]} titleLevel={4} />)
+    expect(screen.getByText('미확인')).toBeTruthy()
+    expect(screen.getByText('3시간 한도')).toBeTruthy()
   })
 })

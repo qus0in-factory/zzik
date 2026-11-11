@@ -21,17 +21,21 @@ const THRESHOLD_BADGE: Partial<Record<UsageLevel, { text: string; variant: 'seco
   limit: { text: '한도 도달', variant: 'destructive' },
 }
 
-/** 한도 카드: 라벨·원래 키·퍼센트·진행률·배지·리셋 문구. 판정 없이 뷰 모델을 그린다. */
-export function LimitCard({ item }: { item: UsageLimitItem }): ReactNode {
+/**
+ * 한도 카드: 라벨·원래 키·퍼센트·진행률·배지·리셋 문구. 판정 없이 뷰 모델을 그린다.
+ * 제목 단계는 섹션 구조(제공자 h2 → 블록 h3 → 카드 h4)에 맞춰 주입한다.
+ */
+export function LimitCard({ item, titleLevel = 3 }: { item: UsageLimitItem; titleLevel?: 3 | 4 }): ReactNode {
   const { id, label, unknown = false, usedPercent, expired, status, resetText } = item
   const badge = THRESHOLD_BADGE[status]
+  const Heading = titleLevel === 4 ? 'h4' : 'h3'
   return (
     <Card data-testid="usage-card" data-card-id={id} className="min-w-0 gap-3">
       <CardHeader className="gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 data-testid="usage-card-label" className="break-words text-base leading-none font-semibold">
+          <Heading data-testid="usage-card-label" className="break-words text-base leading-none font-semibold">
             {label}
-          </h3>
+          </Heading>
           <code className="break-all text-xs text-muted-foreground">{id}</code>
           {unknown && <Badge variant="outline">미확인</Badge>}
         </div>

@@ -6,6 +6,8 @@ export type UsageLevel = 'normal' | 'warn' | 'limit' | 'unknown'
 export interface UsageWindow {
   id: string
   label: string
+  /** 라벨이 실측으로 확인되지 않은 창(미확인 배지) */
+  unknown?: boolean
   usedPercent: number | null
   resetsAt: string | null
   expired: boolean
@@ -49,5 +51,5 @@ export interface UsageReport {
   metrics: UsageMetric[]
   others: UsageOther[]
   issues: UsageIssue[]
-  raw: RawUsage | null
+  raw: Record<string, unknown> | null
 }
