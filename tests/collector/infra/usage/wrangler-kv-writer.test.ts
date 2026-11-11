@@ -57,7 +57,7 @@ describe('Given the wrangler KV writer adapter', () => {
     const execFileImpl = vi.fn(async () => ({ code: 0, stdout: '', stderr: '' }))
     const writer = createWranglerKvWriter({ namespaceId: NAMESPACE_ID, keyName: KEY, execFileImpl, cwd: dir })
     await writer.write(ENVELOPE)
-    const args = (execFileImpl.mock.calls[0] as [string, string[], Record<string, unknown>])[1] as string[]
+    const args = (execFileImpl.mock.calls[0] as unknown as [string, string[], Record<string, unknown>])[1] as string[]
     const expectedBin = fileURLToPath(new URL('../../../../node_modules/wrangler/bin/wrangler.js', import.meta.url))
     expect(existsSync(expectedBin)).toBe(true)
     expect(args[0]).toBe(expectedBin)
