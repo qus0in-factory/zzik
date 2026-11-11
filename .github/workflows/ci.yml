@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - '0.*/**'
+  pull_request:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 필수 체크로 쓰는 이름. 브랜치 보호 규칙에서 "ci"를 요구한다.
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Typecheck collector (checkJs)
+        run: pnpm typecheck:collector
+
+      - name: Build
+        run: pnpm build
+
+      # 배포하지 않는다. 번들·바인딩 구성이 유효한지만 확인하며 자격 증명이 필요 없다.
+      - name: Worker dry-run
+        run: pnpm exec wrangler deploy --dry-run --outdir /tmp/zzik-dry
+        env:
+          WRANGLER_SEND_METRICS: 'false'
