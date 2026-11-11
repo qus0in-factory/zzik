@@ -1,0 +1,56 @@
+import { describe, it, expect } from 'vitest'
+import { createRouter } from '../../../worker/ui/router'
+import { FakeVerifier, FakeStore } from '../../fakes/worker-ports'
+const config = { ok: true as const, config: { teamDomain: 'team.cloudflareaccess.com', issuer: 'https://team.cloudflareaccess.com', audience: 'aud', allowedEmail: 'owner@example.com' } }
+function setup() {
+  const verifier = new FakeVerifier(), store = new FakeStore()
+  const assets = { calls: 0, async fetch() { this.calls++; return new Response('SPA') } }
+  return { verifier, store, assets, app: createRouter({ config, verifier, store, assets }) }
+}
+describe('Given a Hono API router', () => {
+  it.each([
+    ['GET', '/api/usage', null, 401, 'unauthorized'],
+    ['POST', '/api/usage', null, 401, 'unauthorized'],
+    ['GET', '/api/nope', null, 401, 'unauthorized'],
+    ['GET', '/api/nope', 'jwt', 404, 'not_found'],
+    ['POST', '/api/nope', 'jwt', 404, 'not_found'],
+    ['POST', '/api/usage', 'jwt', 405, 'method_not_allowed'],
+    ['GET', '/api/usage/', 'jwt', 404, 'not_found'],
+  ] as const)('When %s %s has token %s Then status %s and %s', async (method, path, token, status, error) => {
+    const { app, store } = setup()
+    const res = await app.request(path, { method, headers: token ? { 'Cf-Access-Jwt-Assertion': token } : {} })
+    expect(res.status).toBe(status); expect(await res.json()).toEqual({ error }); expect(store.reads).toBe(0)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(res.headers.has('Access-Control-Allow-Origin')).toBe(false)
+  })
+  it('When config is invalid Then it fails before verification or storage', async () => {
+    const s = setup()
+    const app = createRouter({ ...s, config: { ok: false, reason: 'misconfigured' } })
+    const res = await app.request('/api/nope', { method: 'POST' })
+    expect(res.status).toBe(500); expect(await res.json()).toEqual({ error: 'misconfigured' })
+    expect(s.verifier.tokens).toEqual([]); expect(s.store.reads).toBe(0)
+  })
+  it.each(['invalid', 'unavailable'] as const)('When verification is %s Then storage is untouched', async (reason) => {
+    const s = setup(); s.verifier.result = { ok: false, reason }
+    const res = await s.app.request('/api/usage', { headers: { 'Cf-Access-Jwt-Assertion': 'jwt' } })
+    expect(res.status).toBe(reason === 'invalid' ? 401 : 503)
+    expect(await res.json()).toEqual({ error: reason === 'invalid' ? 'unauthorized' : 'jwks_unavailable' }); expect(s.store.reads).toBe(0)
+  })
+  it.each([null, '{"schema":1,"rawText":"unchanged"}', '{}'])('When storage returns %s Then it maps the use case', async (value) => {
+    const s = setup(); s.store.result = { ok: true, value }
+    const res = await s.app.request('/api/usage', { headers: { 'Cf-Access-Jwt-Assertion': 'jwt' } })
+    expect(res.status).toBe(value === '{}' ? 502 : 200)
+    expect(await res.json()).toEqual(value === '{}' ? { error: 'snapshot_corrupt' } : { snapshot: value ? JSON.parse(value) : null })
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+  })
+  it('When storage is unavailable Then it returns 503', async () => {
+    const s = setup(); s.store.result = { ok: false, reason: 'storage_unavailable' }
+    const res = await s.app.request('/api/usage', { headers: { 'Cf-Access-Jwt-Assertion': 'jwt' } })
+    expect(res.status).toBe(503); expect(await res.json()).toEqual({ error: 'storage_unavailable' })
+  })
+  it.each(['/', '/any/path', '/assets/app.js'])('When requesting %s Then assets handle it without auth or storage', async (path) => {
+    const s = setup(); const res = await s.app.request(path)
+    expect(await res.text()).toBe('SPA'); expect(s.assets.calls).toBe(1); expect(s.verifier.tokens).toEqual([]); expect(s.store.reads).toBe(0)
+  })
+})
