@@ -205,3 +205,40 @@ describe('Given Query polling and window focus (가짜 타이머는 Query 주기
     }
   })
 })
+
+describe('Given the collection note exposed by the hook (ADR 0.3 v2 D8)', () => {
+  it('When the envelope is rate limited then the state carries a user note', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: ENVELOPE_RATE_LIMITED, rawText: null })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.status).toBe('stale'))
+    expect(result.current.state.collectionNote).toContain('요청이 제한되었습니다')
+  })
+
+  it('When the token expired then the note tells which client to run', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({
+      ok: true,
+      usage: normalRaw,
+      collection: { ...ENVELOPE_OK, status: 'token_expired', called: false },
+      rawText: null,
+    })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.collectionNote).toContain('Claude Code'))
+  })
+
+  it('When the collection is healthy then there is no note', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: ENVELOPE_OK, rawText: null })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.status).toBe('ready'))
+    expect(result.current.state.collectionNote).toBeNull()
+  })
+
+  it('When the envelope reports redacted keys then the hook exposes the count source list', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: { ...ENVELOPE_OK, rawRedacted: ['a.b', 'c'] }, rawText: null })
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    await waitFor(() => expect(result.current.state.rawRedacted).toEqual(['a.b', 'c']))
+  })
+})

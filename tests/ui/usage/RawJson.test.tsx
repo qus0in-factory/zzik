@@ -38,3 +38,20 @@ describe('Given the raw JSON viewer', () => {
     expect(screen.getByRole('button', { name: '복사' })).toBeTruthy()
   })
 })
+
+describe('Given a redacted raw payload (ADR 0.3 v2 H3)', () => {
+  it('When rawRedacted has entries then the viewer says how many values were hidden', () => {
+    const report = buildUsageView(normalRaw, { now: NOW })
+    render(<RawJson raw={report.raw} provider="claude" rawRedacted={['tokens.access_token', 'account.email']} />)
+    const notice = screen.getByTestId('usage-raw-redacted-claude')
+    expect(notice.textContent).toContain('2개')
+    expect(notice.textContent).toContain('가렸습니다')
+    expect(notice.className).toContain('break-words')
+  })
+
+  it.each([[], null, undefined] as const)('When rawRedacted is %j then no notice is rendered', (rawRedacted) => {
+    const report = buildUsageView(normalRaw, { now: NOW })
+    render(<RawJson raw={report.raw} provider="claude" rawRedacted={rawRedacted as string[] | null | undefined} />)
+    expect(screen.queryByTestId('usage-raw-redacted-claude')).toBeNull()
+  })
+})

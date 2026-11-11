@@ -1,12 +1,13 @@
 /** fixture 시나리오 이름의 순수 해석(스택 부록 A5: 픽스처 선택 상태의 초기값 근원). */
 
-export type FixtureUsageName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'error' | 'loading'
+export type FixtureUsageName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'auth_rejected' | 'error' | 'loading'
 
 export const FIXTURE_USAGE_NAMES: readonly FixtureUsageName[] = [
   'normal',
   'warn',
   'limited',
   'unknown-keys',
+  'auth_rejected',
   'error',
   'loading',
 ]

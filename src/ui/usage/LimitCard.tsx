@@ -53,9 +53,11 @@ export function LimitCard({ item, titleLevel = 3 }: { item: UsageLimitItem; titl
           {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
         </div>
         {usedPercent !== null && (
-          <Progress value={Math.min(usedPercent, 100)} aria-label={`${label} 사용률`} />
+          <div className="min-w-0">
+            <Progress value={Math.min(usedPercent, 100)} aria-label={`${label} 사용률`} />
+          </div>
         )}
-        {resetText !== undefined && <p className="text-xs text-muted-foreground">{resetText}</p>}
+        {resetText !== undefined && <p className="break-words text-xs text-muted-foreground">{resetText}</p>}
       </CardContent>
     </Card>
   )

@@ -1,4 +1,5 @@
 import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'
+import type { UsageCollectionMeta } from '../../../shared/usage-contract'
 import { parseFixtureUsageName } from '@domain/usage/fixture-name'
 import type { UsageProvider } from '@domain/usage/providers'
 import { rebaseUsageResetsAt } from '@domain/usage/calibration'
@@ -16,16 +17,16 @@ import codexUnknownKeysRaw from '../../../tests/fixtures/codex-usage.unknown-key
  * 프로덕션 번들에는 DEV 조립 분기로만 들어간다.
  */
 
-export type FixtureName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'error' | 'loading'
+export type FixtureName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'auth_rejected' | 'error' | 'loading'
 
 /** 이름 해석은 domain의 순수 함수로(스토어 초기값도 같은 규칙을 쓴다). */
-export const FIXTURE_NAMES = ['normal', 'warn', 'limited', 'unknown-keys', 'error', 'loading'] as const
+export const FIXTURE_NAMES = ['normal', 'warn', 'limited', 'unknown-keys', 'auth_rejected', 'error', 'loading'] as const
 export { parseFixtureUsageName }
 
 /** fixture 파일들이 작성된 기준 시각. Claude `resets_at` 보정의 원점이다. */
 export const FIXTURE_ANCHOR_ISO = '2026-11-11T12:00:00.000Z'
 
-type ScenarioName = Exclude<FixtureName, 'error' | 'loading'>
+type ScenarioName = Exclude<FixtureName, 'error' | 'loading' | 'auth_rejected'>
 
 const CLAUDE_FIXTURES: Record<ScenarioName, Record<string, unknown>> = {
   normal: claudeNormalRaw as Record<string, unknown>,
@@ -85,6 +86,26 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
       if (name === 'loading') {
         // 의도로 끝나지 않는 요청: 로딩 상태를 확인한다.
         return new Promise<UsageGatewayResult>(() => {})
+      }
+      if (name === 'auth_rejected') {
+        // 서버가 유효한 토큰을 거부한 상태(v2 H2). 값은 정상 fixture를 그대로 쓰고 봉투만 거부로 둔다.
+        const at = now()
+        const collection: UsageCollectionMeta = {
+          schema: 1,
+          provider,
+          status: 'auth_rejected',
+          called: true,
+          runAt: at,
+          fetchedAt: at,
+          httpStatus: 401,
+          retryAt: null,
+          tokenExpiresAt: null,
+          kvTokenExpiresAt: null,
+          intervalSec: 300,
+          collectorVersion: '0.3.0',
+          rawOmitted: null,
+        }
+        return { ok: true, usage: FIXTURES[provider].normal, collection, rawText: null }
       }
       const fixture = FIXTURES[provider][name]
       // Claude는 작성 시점 고정값을 지금 기준으로 옮겨 "리셋 시각 경과"로 굳지 않게 한다.

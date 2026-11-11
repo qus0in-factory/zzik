@@ -96,3 +96,46 @@ describe('Given collection staleness (D4의 두 표)', () => {
     expect(view.collectionOk).toBe(false)
   })
 })
+
+describe('Given the collection status for the screen note (ADR 0.3 v2 D8)', () => {
+  it('When there is no envelope then the status is null and collectionOk stays true (목 데이터)', () => {
+    const view = buildUsageLoadView({ usage: normalRaw, collection: null, rawText: null }, NOW, 'claude')
+    expect(view.collectionStatus).toBeNull()
+    expect(view.collectionOk).toBe(true)
+    expect(view.collectionMeta).toBeNull()
+  })
+
+  it('When the envelope is fresh and ok then the status is ok', () => {
+    const view = buildUsageLoadView({ usage: normalRaw, collection: collectionMeta(), rawText: null }, NOW, 'claude')
+    expect(view.collectionStatus).toBe('ok')
+    expect(view.collectionMeta?.status).toBe('ok')
+  })
+
+  it.each(['rate_limited', 'token_expired', 'auth_required', 'auth_rejected', 'no_credentials', 'upstream_error', 'network_error'] as const)(
+    'When the envelope status is %s then it is surfaced as-is',
+    (statusValue) => {
+      const view = buildUsageLoadView({ usage: normalRaw, collection: collectionMeta({ status: statusValue, httpStatus: 401 }), rawText: null }, NOW, 'claude')
+      expect(view.collectionStatus).toBe(statusValue)
+      expect(view.collectionOk).toBe(false)
+      expect(view.collectionMeta?.httpStatus).toBe(401)
+    },
+  )
+
+  it('When the collector heartbeat is stale then it reports collector_down', () => {
+    const view = buildUsageLoadView(
+      { usage: normalRaw, collection: collectionMeta({ runAt: new Date(NOW_MS - 3 * 300_000 - 1).toISOString() }), rawText: null },
+      NOW,
+      'claude',
+    )
+    expect(view.collectionStatus).toBe('collector_down')
+  })
+
+  it('When only the fetched value is stale then it reports stale (not collector_down)', () => {
+    const view = buildUsageLoadView(
+      { usage: normalRaw, collection: collectionMeta({ fetchedAt: new Date(NOW_MS - 3 * 300_000 - 1).toISOString() }), rawText: null },
+      NOW,
+      'claude',
+    )
+    expect(view.collectionStatus).toBe('stale')
+  })
+})
