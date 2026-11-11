@@ -2,9 +2,17 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { act } from 'react'
 import { cleanup, renderHook } from '@testing-library/react'
-import { createUsageUiStore, useRawJsonOpen, useFixtureChoice, useUsageUiStore } from '@app/usage/usage-ui-store'
+import { createUsageUiStore, useFixtureChoice, useRawJsonOpen, useUsageUiStore } from '@app/usage/usage-ui-store'
+import {
+  usageStatusLabel,
+} from '@ui/usage/status-label'
+import type { UsageReport } from '@domain/usage/types'
 
 afterEach(cleanup)
+
+function report(status: UsageReport['status']): UsageReport {
+  return { status, windows: [], metrics: [], others: [], issues: [], raw: null }
+}
 
 describe('Given the usage UI client store', () => {
   it('When a store is created with ?fixture=warn then the fixture choice starts there (A5 초기값)', () => {
@@ -31,24 +39,52 @@ describe('Given the usage UI client store', () => {
     expect(useUsageUiStore.getState().fixtureName).toBe('limited')
   })
 
-  it('When raw JSON is toggled then it stays open until closed again (A5: 조회 갱신과 무관하게 유지)', () => {
-    const { result } = renderHook(() => useRawJsonOpen())
-    expect(result.current.open).toBe(false)
+  it('When raw JSON is toggled per provider then each provider keeps its own open state (D8)', () => {
+    const { result } = renderHook(() => ({ claude: useRawJsonOpen('claude'), codex: useRawJsonOpen('codex') }))
+    expect(result.current.claude.open).toBe(false)
+    expect(result.current.codex.open).toBe(false)
+
     act(() => {
-      result.current.toggle()
+      result.current.claude.toggle()
     })
-    expect(result.current.open).toBe(true)
+    expect(result.current.claude.open).toBe(true)
+    expect(result.current.codex.open).toBe(false)
+
     act(() => {
-      result.current.toggle()
+      result.current.codex.setOpen(true)
     })
-    expect(result.current.open).toBe(false)
+    expect(result.current.codex.open).toBe(true)
+    expect(result.current.claude.open).toBe(true)
+
+    act(() => {
+      result.current.claude.toggle()
+    })
+    expect(result.current.claude.open).toBe(false)
+    expect(result.current.codex.open).toBe(true)
   })
 
-  it('When raw JSON is opened then another toggle helper keeps the same state (하나의 상태 원천)', () => {
+  it('When a store is created then both providers start collapsed and independently mutable', () => {
     const store = createUsageUiStore('/')
-    store.getState().setRawJsonOpen(true)
-    expect(store.getState().rawJsonOpen).toBe(true)
-    store.getState().toggleRawJson()
-    expect(store.getState().rawJsonOpen).toBe(false)
+    expect(store.getState().rawJsonOpen).toEqual({ claude: false, codex: false })
+    store.getState().toggleRawJson('codex')
+    expect(store.getState().rawJsonOpen).toEqual({ claude: false, codex: true })
+  })
+})
+
+describe('Given the status label mapping used by summary chips', () => {
+  it.each([
+    ['loading', null, '불러오는 중'],
+    ['error', null, '오류'],
+    ['ready', report('normal'), '정상'],
+    ['ready', report('warn'), '주의'],
+    ['ready', report('limit'), '한도 도달'],
+    ['ready', report('unknown'), '데이터 없음'],
+    ['stale', report('normal'), '오래된 데이터'],
+  ] as const)('When the state is %s then the chip label is %s', (status, value, expected) => {
+    expect(usageStatusLabel(status, value)).toBe(expected)
+  })
+
+  it('When a ready state has no report then it reads as no data', () => {
+    expect(usageStatusLabel('ready', null)).toBe('데이터 없음')
   })
 })

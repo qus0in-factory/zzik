@@ -1,0 +1,9 @@
+{
+  "plan": "pro",
+  "credits": { "remaining": 0, "limit": 3000 },
+  "rate_limit": {
+    "limit_reached": true,
+    "primary_window": { "used_percent": 100, "reset_at": 1794402000, "limit_window_seconds": 18000 },
+    "secondary_window": { "used_percent": 100, "reset_at": 1794571200, "limit_window_seconds": 604800 }
+  }
+}

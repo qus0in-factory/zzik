@@ -1,4 +1,5 @@
 import type { UsageClock, UsageGateway, UsageGatewayResult, UsageScheduler } from '@domain/usage/gateway'
+import type { UsageProvider } from '@domain/usage/providers'
 
 export const NOW_ISO = '2026-11-11T12:00:00.000Z'
 export const NOW = new Date(NOW_ISO)
@@ -19,34 +20,51 @@ export interface Deferred<T> {
   reject: (reason?: unknown) => void
 }
 
-interface QueuedItem {
-  item: UsageGatewayResult | { deferred: Deferred<UsageGatewayResult> }
-}
+type Queued = UsageGatewayResult | { deferred: Deferred<UsageGatewayResult> }
 
 export interface FakeUsageGateway extends UsageGateway {
+  /** 전체 호출 수(기존 테스트 계약) */
   calls: number
-  queue: QueuedItem['item'][]
+  callsByProvider: Record<UsageProvider, number>
+  queue: Queued[]
   pushResult(result: UsageGatewayResult): void
+  pushResultFor(provider: UsageProvider, result: UsageGatewayResult): void
   pushDeferred(): Deferred<UsageGatewayResult>
 }
 
+/**
+ * 포트 가짜(스택 부록 A6). 제공자별 큐를 따로 두어 한쪽 실패가 다른 쪽 섹션에
+ * 섞이지 않는지 테스트할 수 있다. 큐가 비면 api_error를 돌려준다.
+ */
 export function createFakeUsageGateway(): FakeUsageGateway {
-  const queue: QueuedItem['item'][] = []
+  const shared: Queued[] = []
+  const perProvider: Record<UsageProvider, Queued[]> = { claude: [], codex: [] }
+  const callsByProvider: Record<UsageProvider, number> = { claude: 0, codex: 0 }
+
   const gateway: FakeUsageGateway = {
     calls: 0,
-    queue,
-    async fetchUsage() {
+    callsByProvider,
+    queue: shared,
+    async fetchUsage(provider: UsageProvider) {
       gateway.calls += 1
-      const item = queue.shift() ?? { ok: false as const, reason: 'api_error' as const, message: '가짜 큐가 비었다' }
+      callsByProvider[provider] += 1
+      const item = perProvider[provider].shift() ?? shared.shift() ?? {
+        ok: false as const,
+        reason: 'api_error' as const,
+        message: '가짜 큐가 비었다',
+      }
       if ('deferred' in item) return item.deferred.promise
       return item
     },
     pushResult(result) {
-      queue.push(result)
+      shared.push(result)
+    },
+    pushResultFor(provider, result) {
+      perProvider[provider].push(result)
     },
     pushDeferred() {
       const deferred = createDeferred<UsageGatewayResult>()
-      queue.push({ deferred })
+      shared.push({ deferred })
       return deferred
     },
   }

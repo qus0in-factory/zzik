@@ -28,13 +28,26 @@ describe('Given credential reads', () => {
   })
 })
 
-describe('Given a chosen credential', () => {
+describe('Given a chosen credential (마진 포함 판정, v2 D4)', () => {
   it('When the expiresAt has passed then it is marked expired', () => {
     expect(credentialExpired({ source: 'file', token: 't', expiresAt: NOW - 1 }, NOW)).toBe(true)
   })
 
-  it('When the expiresAt is ahead, equal or unknown then it is not marked expired', () => {
-    expect(credentialExpired({ source: 'file', token: 't', expiresAt: NOW }, NOW)).toBe(false)
+  it('When the expiresAt equals now then the 60s margin applies (지났거나 마진 안)', () => {
+    expect(credentialExpired({ source: 'file', token: 't', expiresAt: NOW }, NOW)).toBe(true)
+  })
+
+  it('When the expiresAt is unknown then it is not marked expired (호출해서 401로 판정)', () => {
     expect(credentialExpired({ source: 'file', token: 't', expiresAt: null }, NOW)).toBe(false)
+  })
+})
+
+describe('Given the expiry margin (v2: 지났거나 마진 안이면 token_expired)', () => {
+  it('When expiresAt is within the 60s margin then it is expired', () => {
+    expect(credentialExpired({ source: 'file', token: 't', expiresAt: NOW + 60_000 }, NOW)).toBe(true)
+    expect(credentialExpired({ source: 'file', token: 't', expiresAt: NOW + 59_999 }, NOW)).toBe(true)
+  })
+  it('When expiresAt is beyond the margin then it is not expired', () => {
+    expect(credentialExpired({ source: 'file', token: 't', expiresAt: NOW + 60_001 }, NOW)).toBe(false)
   })
 })

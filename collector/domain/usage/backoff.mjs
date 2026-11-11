@@ -9,6 +9,18 @@
 const BACKOFF_BASE_SEC = 600
 const RATE_LIMIT_MAX_SEC = 3_600
 const UPSTREAM_MAX_SEC = 900
+const AUTH_BASE_SEC = 3_600
+const AUTH_MAX_SEC = 21_600
+
+/**
+ * 인증 거부·인증 필요 수열(ADR 0.3 D4): min(3600 × 2^n, 21600).
+ * 1시간 → 2시간 → 4시간 → 이후 6시간. expiresAt이 바뀌면 즉시 해제된다.
+ * @param {number} failCount 이번 실패 이전의 인증 관련 연속 실패 횟수(0부터)
+ * @returns {number}
+ */
+export function authRetryDelaySec(failCount) {
+  return Math.min(AUTH_BASE_SEC * 2 ** (failCount ?? 0), AUTH_MAX_SEC)
+}
 
 /**
  * @param {'rate_limited'|'upstream_error'} kind
