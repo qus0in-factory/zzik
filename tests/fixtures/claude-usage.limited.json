@@ -1,0 +1,8 @@
+{
+  "five_hour": { "utilization": 100, "resets_at": "2026-11-11T12:47:00.000Z" },
+  "seven_day": { "utilization": 97, "resets_at": "2026-11-12T08:00:00.000Z" },
+  "seven_day_opus": null,
+  "seven_day_sonnet": { "utilization": 104, "resets_at": "2026-11-12T08:00:00.000Z" },
+  "seven_day_cowork": { "utilization": 100, "resets_at": "2026-11-11T11:30:00.000Z" },
+  "extra_usage": { "utilization": 100 }
+}

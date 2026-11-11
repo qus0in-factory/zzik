@@ -1,0 +1,11 @@
+{
+  "five_hour": { "utilization": 46, "resets_at": "2026-11-11T14:05:00.000Z" },
+  "seven_day": { "utilization": 28, "resets_at": "2026-11-15T03:00:00.000Z" },
+  "seven_day_opus": null,
+  "seven_day_sonnet": { "utilization": 9, "resets_at": "2026-11-15T03:00:00.000Z" },
+  "seven_day_fable": { "utilization": 44, "resets_at": "2026-11-15T03:00:00.000Z" },
+  "seven_day_haiku": { "utilization": 3, "resets_at": null },
+  "seven_day_cowork": null,
+  "thirty_day": { "utilization": 61, "resets_at": "2026-12-01T00:00:00.000Z" },
+  "extra_usage": { "utilization": 5 }
+}

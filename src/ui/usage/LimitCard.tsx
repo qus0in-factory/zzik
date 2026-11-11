@@ -1,0 +1,58 @@
+import type { ReactNode } from 'react'
+import { Badge } from '@ui/components/ui/badge'
+import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
+import { Progress } from '@ui/components/ui/progress'
+import type { UsageLevel } from '@domain/usage/types'
+
+export interface UsageLimitItem {
+  id: string
+  label: string
+  unknown?: boolean
+  usedPercent: number | null
+  resetsAt: string | null
+  expired: boolean
+  status: UsageLevel
+  /** domain 계산 표시 문구(리셋까지 남은 시간 등) */
+  resetText?: string
+}
+
+const THRESHOLD_BADGE: Partial<Record<UsageLevel, { text: string; variant: 'secondary' | 'destructive' }>> = {
+  warn: { text: '주의', variant: 'secondary' },
+  limit: { text: '한도 도달', variant: 'destructive' },
+}
+
+/** 한도 카드: 라벨·원래 키·퍼센트·진행률·배지·리셋 문구. 판정 없이 뷰 모델을 그린다. */
+export function LimitCard({ item }: { item: UsageLimitItem }): ReactNode {
+  const { id, label, unknown = false, usedPercent, expired, status, resetText } = item
+  const badge = THRESHOLD_BADGE[status]
+  return (
+    <Card data-testid="usage-card" className="min-w-0 gap-3">
+      <CardHeader className="gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 data-testid="usage-card-label" className="break-words text-base leading-none font-semibold">
+            {label}
+          </h3>
+          <code className="break-all text-xs text-muted-foreground">{id}</code>
+          {unknown && <Badge variant="outline">미확인</Badge>}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          {usedPercent === null ? (
+            <span className="text-2xl leading-none font-semibold tabular-nums text-muted-foreground">정보 없음</span>
+          ) : (
+            <span aria-label={`${usedPercent}퍼센트`} className="text-2xl leading-none font-semibold tabular-nums">
+              {usedPercent}%
+            </span>
+          )}
+          {badge && <Badge variant={badge.variant}>{badge.text}</Badge>}
+          {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
+        </div>
+        {usedPercent !== null && (
+          <Progress value={Math.min(usedPercent, 100)} aria-label={`${label} 사용률`} />
+        )}
+        {resetText !== undefined && <p className="text-xs text-muted-foreground">{resetText}</p>}
+      </CardContent>
+    </Card>
+  )
+}
