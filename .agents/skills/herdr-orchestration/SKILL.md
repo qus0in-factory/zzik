@@ -59,3 +59,4 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 - 작업 단위마다 GitHub 이슈를 만든다. 사용자에게 assign하지 않는다(사용자 수동 작업만 예외). 담당 워커는 본문에 적는다.
 - 마일스톤은 버전(`0.1`, `0.2` …), 라벨은 영역 하나만: `design`(ADR·설계) / `frontend` / `backend`(Worker API·수집) / `infra`(배포·DNS·Access·비밀값) / `harness`(에이전트·스킬·스크립트).
 - 커밋 메시지에 `Closes #N`으로 연결한다.
+- 작업 묶음이 끝나면 `discord-notify` 스킬로 완료 보고.
