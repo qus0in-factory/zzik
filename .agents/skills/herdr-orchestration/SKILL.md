@@ -51,12 +51,18 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 
 ## 워크트리 (병렬 트랙)
 - 같은 파일을 건드릴 수 있는 트랙이 동시에 돌면 레포 내부 `.worktree/`에 워크트리를 만든다(`.gitignore` 등록됨).
-  `git worktree add .worktree/<트랙> -b <버전>/<트랙>` (예: `.worktree/usage`, 브랜치 `0.2/usage`)
+  `git worktree add .worktree/<트랙> -b <버전>/<트랙> dev` (예: `.worktree/usage`, 브랜치 `0.2/usage`)
 - 워커 지시에 작업 경로 `.worktree/<트랙>`을 명시하고, 그 안에서 `pnpm install`부터 실행하게 한다.
 - 통합은 opus가 main에서 merge하고, 끝난 워크트리는 `git worktree remove .worktree/<트랙>`으로 정리한다.
 
 ## 이슈 관리
 - 작업 단위마다 GitHub 이슈를 만든다. 사용자에게 assign하지 않는다(사용자 수동 작업만 예외). 담당 워커는 본문에 적는다.
 - 마일스톤은 버전(`0.1`, `0.2` …), 라벨은 영역 하나만: `design`(ADR·설계) / `frontend` / `backend`(Worker API·수집) / `infra`(배포·DNS·Access·비밀값) / `harness`(에이전트·스킬·스크립트).
-- 커밋 메시지에 `Closes #N`으로 연결한다.
+- 커밋 메시지에는 `Refs #N`, dev→main PR 본문에 `Closes #N`.
 - 작업 묶음이 끝나면 `discord-notify` 스킬로 완료 보고.
+
+## 브랜치·통합
+- 원격: `main`(보호: PR 필수, 직접·강제 push·삭제 금지, 관리자 포함), `dev`(통합, 기본 브랜치).
+- 워크트리 브랜치는 `dev`에서 따고(`git worktree add .worktree/<트랙> -b <버전>/<트랙> dev`), 검수 통과 후 로컬 `dev`에 `--no-ff` merge → `dev` push.
+- 버전 단위로 `dev → main` PR(`gh pr create -B main -H dev`), 본문에 `Closes #N`. 머지 후 배포는 `main` 기준.
+- 이슈 자동 종료는 main 병합 시점에 일어나므로 dev 커밋에는 `Refs #N`을 쓴다.
