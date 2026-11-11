@@ -16,12 +16,11 @@ export const SKIPPED_BUDGET_STATUS = 'skipped_budget'
  *
  * @param {{ runOnce?: typeof runOnce, clock?: { now(): number } }} deps 시계는 주입(테스트)
  * @typedef {import('../../domain/usage/ports.mjs').CollectorPorts} CollectorPorts
- * @typedef {{ id: string, ports: CollectorPorts, runOptions?: { sendAccountId?: boolean, redactionPaths?: readonly string[] } }} ProviderBundle
- * @param {ProviderBundle[]} providers 조립 루트가 만든 제공자별 포트 묶음
+ * @param {Array<{ id: string, ports: CollectorPorts, runOptions?: object }>} providers 런타임 계약 — ports는 조립 루트 계약, 배선 검증은 provider-bundles 테스트가 담당
  * @param {{ dryRun?: boolean, collectorVersion?: string, cycleBudgetMs?: number, intervalSec?: number }} options
  * @returns {Promise<{ results: Array<{ id: string, exitCode: number, skippedBudget?: boolean, dryRunReport?: object }>, exitCode: number }>}
  */
-export async function runCycle(deps, /** @type {ProviderBundle[]} */ providers = [], options = {}) {
+export async function runCycle(deps, providers = [], options = {}) {
   const run = deps.runOnce ?? runOnce
   const clock = deps.clock
   const budgetMs = options.cycleBudgetMs ?? CYCLE_BUDGET_MS

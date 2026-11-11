@@ -15,7 +15,7 @@ export const USAGE_COLLECTOR_VERSION = '0.3.0'
 /** 제공자 정의의 가림 목록(ADR 0.3 D5). codex는 G2에서 정한다(기본 빈 목록), claude는 비어 있다. */
 export const USAGE_REDACTION_PATHS = {
   claude: [],
-  codex: [],
+  codex: ['user_id', 'account_id', 'email'], // G2 실측(2026-11-12): 최상위 식별자 키 확정
 }
 
 /**

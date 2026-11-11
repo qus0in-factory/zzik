@@ -26,6 +26,7 @@ import { createStateFile } from './infra/usage/state-file.mjs'
 import { DEFAULT_CREDENTIALS_PATH, readCredentialsFile } from './infra/usage/claude-credentials-file.mjs'
 import { DEFAULT_CODEX_AUTH_PATH, readCodexCredentials } from './infra/usage/codex-credentials-file.mjs'
 import { runCycle } from './app/usage/run-cycle.mjs'
+import { buildProviderBundles } from './app/usage/provider-bundles.mjs'
 import { USAGE_KV_KEYS, USAGE_COLLECTOR_VERSION, USAGE_REDACTION_PATHS, USAGE_PROVIDERS as PROVIDER_IDS, parseProvidersEnv } from './domain/usage/providers.mjs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -132,11 +133,20 @@ function buildProviderPorts(provider, { credentialsPath }) {
   }
 }
 
-/** 활성 제공자들의 포트 묶음. --provider로 좁혀진다. */
-/** @param {ParsedFlags} flags @returns {Array<{ id: string, ports: CollectorPorts }>} */
+/**
+ * 활성 제공자들의 포트 묶음 + 실행 옵션(가림 목록·계정 헤더) 배선.
+ * 실제 조립은 app/usage/provider-bundles.mjs의 순수 함수가 하고, 이 파일은
+ * 환경값(제공자 목록·credentialsPath·계정 헤더 플래그)을 넘겨주는 배선 장소다.
+ * @param {ParsedFlags} flags @returns {ReturnType<typeof buildProviderBundles>}
+ */
 function buildProviders(flags) {
-  const targets = flags.provider !== null ? enabledProviders.filter((id) => id === flags.provider) : enabledProviders
-  return targets.map((id) => ({ id, ports: buildProviderPorts(id, { credentialsPath: flags.credentialsPath }) }))
+  return buildProviderBundles({
+    providerIds: enabledProviders,
+    flags: { provider: flags.provider, credentialsPath: flags.credentialsPath, codexAccountHeader: flags.codexAccountHeader },
+    envSendAccountId: process.env.ZZIK_CODEX_SEND_ACCOUNT_ID === '1',
+    redactionPaths: USAGE_REDACTION_PATHS,
+    buildPorts: (providerId) => buildProviderPorts(providerId, { credentialsPath: flags.credentialsPath }),
+  })
 }
 
 /** @param {ParsedFlags} flags @returns {Promise<void>} */

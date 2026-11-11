@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { runOnce } from '../../../../collector/app/usage/run-once.mjs'
 import { sha256Hex } from '../../../../collector/domain/usage/envelope.mjs'
+import { USAGE_REDACTION_PATHS as USAGE_REDACTION_PATHS_CODEX_FROM_PROVIDERS } from '../../../../collector/domain/usage/providers.mjs'
 import {
   COLLECTOR_NOW,
   USAGE_TOKEN,
@@ -415,5 +416,36 @@ describe('Given response diagnostics (v2 D4·M2)', () => {
     await run(okPorts, { provider: 'codex' })
     expect(failing.logger.entries[0]).toMatchObject({ status: 'upstream_error', diag: 'blocked content-type=text/html' })
     expect(okPorts.logger.entries[0]).toMatchObject({ status: 'ok', diag: null })
+  })
+})
+
+describe('Given the G2 confirmed codex redaction list (2026-11-12 실측)', () => {
+  it('When the response carries user_id/account_id/email then the KV rawText leaks no values and rawRedacted has 3 paths', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt, 'codex-token')])
+    ports.usage.queueUsage({
+      ok: true,
+      bodyText: JSON.stringify({
+        user_id: 'user-9f31',
+        account_id: 'acct-123',
+        email: 'owner@example.com',
+        rate_limit: { primary_window: { used_percent: 20, limit_window_seconds: 18000, reset_after_seconds: 4300 } },
+      }),
+      httpStatus: 200,
+      retryAfterSec: null,
+    })
+    await run(ports, { provider: 'codex', redactionPaths: USAGE_REDACTION_PATHS_CODEX_FROM_PROVIDERS.codex })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const serialized = JSON.stringify(envelope)
+    expect(serialized).not.toContain('user-9f31')
+    expect(serialized).not.toContain('acct-123')
+    expect(serialized).not.toContain('owner@example.com')
+    const parsed = JSON.parse(envelope.rawText as string) as Record<string, unknown>
+    expect(parsed.user_id).toBe('[가림]')
+    expect(parsed.account_id).toBe('[가림]')
+    expect(parsed.email).toBe('[가림]')
+    expect(parsed.rate_limit).toMatchObject({ primary_window: { used_percent: 20 } }) // 구조·나머지 값 보존
+    expect(envelope.rawRedacted).toEqual(['user_id', 'account_id', 'email'])
+    expect(ports.usage.lastAccountId).toBeNull() // 계정 헤더 미지정 시 전송 없음
   })
 })
