@@ -1,10 +1,4 @@
-import type {
-  UsageClock,
-  UsageGateway,
-  UsageGatewayResult,
-  UsageScheduler,
-  UsageVisibility,
-} from '@domain/usage/gateway'
+import type { UsageClock, UsageGateway, UsageGatewayResult, UsageScheduler } from '@domain/usage/gateway'
 
 export const NOW_ISO = '2026-11-11T12:00:00.000Z'
 export const NOW = new Date(NOW_ISO)
@@ -101,30 +95,6 @@ export function createFakeUsageScheduler(): FakeUsageScheduler {
     },
   }
   return scheduler
-}
-
-export interface FakeUsageVisibility extends UsageVisibility {
-  setVisible(next: boolean): void
-  listenerCount(): number
-}
-
-export function createFakeUsageVisibility(initial = true): FakeUsageVisibility {
-  const listeners = new Set<() => void>()
-  let visible = initial
-  return {
-    isVisible: () => visible,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    listenerCount: () => listeners.size,
-    setVisible(next) {
-      visible = next
-      listeners.forEach((listener) => listener())
-    },
-  }
 }
 
 export interface FakeUsageClock extends UsageClock {

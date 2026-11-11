@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { UsageReport } from '@domain/usage/view'
-import { describeGatewayFailure, loadUsage } from './load-usage'
-import type { UsageLoadResult } from './load-usage'
+import { buildUsageLoadView } from './load-usage'
+import { describeGatewayFailure, usageQueryOptions, UsageLoadError } from './usage-query'
 import { composeLastSuccessText, composeStaleNoteText } from './usage-text'
-import { createUsagePoller } from './usage-poller'
 import { useUsageDeps } from './UsageGatewayContext'
 
-/** 화면이 관측하는 사용량 상태(시나리오 §2의 status/report/lastSuccessAt/errorMessage). */
+/** 화면이 관측하는 사용량 상태(0.2.1 계약 유지 — ui는 바뀌지 않는다). */
 export type UsageUiStatus = 'ready' | 'loading' | 'error' | 'stale'
 
 export interface UsageUiState {
@@ -27,91 +27,32 @@ export interface UsageUiStateValue {
   refresh: () => Promise<void>
 }
 
-const USAGE_POLL_INTERVAL_MS = 60_000
 const USAGE_NOW_TICK_MS = 30_000
 
 /**
- * usage-poller를 React 상태에 연결하는 얇은 훅(ADR 0.2 D11).
- * 마운트 시와 60초마다(탭이 보일 때만) 게이트웨이를 호출한다. 재조회가 실패하면
- * 마지막 보고서는 유지되고 stale로 바뀐다.
+ * TanStack Query를 React 상태에 연결하는 얇은 훅(스택 부록 A4).
+ * 주기·가시성 정지·재시도·중복 병합은 Query 옵션과 클라이언트 기본값이 맡는다.
+ * 4상태 매핑: 데이터도 오류도 없음 → loading, 데이터+정상 → ready,
+ * 데이터+(오류 또는 수집 판정 비정상) → stale, 데이터 없고 오류 → error.
+ * 캐시에는 성공 결과(raw수집 정보)만 있고 뷰는 now로 매번 다시 만든다
+ * — 30초 틱마다 리셋 문구와 stale 판정이 재계산된다.
  */
 export function useUsage(): UsageUiStateValue {
   const deps = useUsageDeps()
-  const [state, setState] = useState<UsageUiState>(() => ({
-    status: 'loading',
-    report: null,
-    lastSuccessAt: null,
-    errorMessage: null,
-    nowIso: deps.clock.nowIso(),
-    lastSuccessText: null,
-    staleNoteText: null,
-  }))
-
-  const handleResult = useCallback(
-    (result: UsageLoadResult) => {
-      setState((prev) => {
-        const nowIso = deps.clock.nowIso()
-        if (result.ok) {
-          return {
-            status: 'ready',
-            report: result.report,
-            lastSuccessAt: nowIso,
-            errorMessage: null,
-            nowIso,
-            lastSuccessText: composeLastSuccessText(nowIso, nowIso),
-            staleNoteText: null,
-          }
-        }
-        const message = result.message ?? describeGatewayFailure(result.reason)
-        if (prev.report) {
-          return {
-            ...prev,
-            status: 'stale',
-            errorMessage: message,
-            nowIso,
-            lastSuccessText: composeLastSuccessText(prev.lastSuccessAt, nowIso),
-            staleNoteText: composeStaleNoteText(prev.lastSuccessAt, nowIso),
-          }
-        }
-        return { ...prev, status: 'error', errorMessage: message, nowIso, lastSuccessText: null, staleNoteText: null }
-      })
-    },
-    [deps],
-  )
-
-  const poller = useMemo(
-    () =>
-      createUsagePoller(
-        {
-          fetch: () => loadUsage(deps.gateway, { now: new Date(deps.clock.nowIso()) }),
-          intervalMs: USAGE_POLL_INTERVAL_MS,
-          scheduler: deps.scheduler,
-          visibility: deps.visibility,
-        },
-        { onResult: handleResult },
-      ),
-    [deps, handleResult],
-  )
-
-  useEffect(() => {
-    poller.start()
-    return () => poller.stop()
-  }, [poller])
+  const query = useQuery({ ...usageQueryOptions(deps.gateway) })
+  const [nowIso, setNowIso] = useState<string>(() => deps.clock.nowIso())
+  /**
+   * Query v5의 성질: 데이터가 있을 때의 재조회 실패는 observer의 error·status를 바꾸지
+   * 않는다(캐시 state.error에만 남는다). refresh/retry 실패는 여기에 잡아 stale 매핑에 쓴다(A4).
+   */
+  const [refetchFailure, setRefetchFailure] = useState<UsageLoadError | null>(null)
 
   // 상대 시각은 30초마다 다시 계산한다(ADR 0.2 D9).
   useEffect(() => {
     let cancel = (): void => {}
     const scheduleTick = (): void => {
       cancel = deps.scheduler.schedule(USAGE_NOW_TICK_MS, () => {
-        setState((prev) => {
-          const nowIso = deps.clock.nowIso()
-          return {
-            ...prev,
-            nowIso,
-            lastSuccessText: composeLastSuccessText(prev.lastSuccessAt, nowIso),
-            staleNoteText: prev.status === 'stale' ? composeStaleNoteText(prev.lastSuccessAt, nowIso) : null,
-          }
-        })
+        setNowIso(deps.clock.nowIso())
         scheduleTick()
       })
     }
@@ -119,7 +60,53 @@ export function useUsage(): UsageUiStateValue {
     return () => cancel()
   }, [deps])
 
-  const refresh = useCallback(() => poller.refresh(), [poller])
+  const view = useMemo(
+    () => (query.data !== undefined ? buildUsageLoadView(query.data, new Date(nowIso)) : null),
+    [query.data, nowIso],
+  )
+
+  // 성공 데이터가 도착하면 수동 재조회 실패 표시를 지운다(다음 실패에서 다시 세팅된다).
+  useEffect(() => {
+    setRefetchFailure((prev) => (prev === null ? prev : null))
+  }, [query.dataUpdatedAt])
+
+  const queryErrorFound = query.error !== null && query.error !== undefined
+  const effectiveError: UsageLoadError | null = queryErrorFound
+    ? query.error instanceof UsageLoadError
+      ? query.error
+      : new UsageLoadError('api_error', null)
+    : refetchFailure
+  const errorMessage: string | null = effectiveError === null ? null : effectiveError.message ?? describeGatewayFailure(effectiveError.reason)
+
+  const status: UsageUiStatus = useMemo(() => {
+    if (view === null) return effectiveError === null ? 'loading' : 'error'
+    if (effectiveError !== null || view.collectionOk === false) return 'stale'
+    return 'ready'
+  }, [view, effectiveError])
+
+  const lastSuccessAt = view?.lastSuccessAt ?? null
+  const state = useMemo<UsageUiState>(() => ({
+    status,
+    report: view?.report ?? null,
+    lastSuccessAt,
+    errorMessage,
+    nowIso,
+    lastSuccessText: composeLastSuccessText(lastSuccessAt, nowIso),
+    staleNoteText: status === 'stale' ? composeStaleNoteText(lastSuccessAt, nowIso) : null,
+  }), [status, view, lastSuccessAt, errorMessage, nowIso])
+
+  // 수동 새로고침은 진행 중 호출을 취소하지 않는다(cancelRefetch: false → 합쳐진다).
+  // 실패(취소·오류)는 refetchFailure로 잡아 stale 매핑에 쓴다.
+  const refresh = useCallback((): Promise<void> => {
+    return query
+      .refetch({ cancelRefetch: false })
+      .then(() => {
+        setRefetchFailure((prev) => (prev === null ? prev : null))
+      })
+      .catch((error: unknown) => {
+        setRefetchFailure(error instanceof UsageLoadError ? error : new UsageLoadError('api_error', null))
+      })
+  }, [query])
 
   return { state, refresh }
 }

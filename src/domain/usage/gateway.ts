@@ -1,15 +1,19 @@
 import type { RawUsage } from './types'
 
 /**
- * 0.2.1 목 단계의 프론트 포트(ADR 0.2 D11 도메인 배정).
- * 0.2에서 `http-usage-gateway`가 이 포트를 구현해 교체한다.
+ * 프론트 사용량 포트(ADR 0.2 D11, 스택 부록 A4).
+ * 성공 데이터는 raw 응답과 수집 메타(봉투의 rawText 제거분)를 그대로 싣는다.
+ * 가공은 app의 load-usage가 now와 함께 한다.
  */
 
 export type UsageGatewayFailureReason = 'session_expired' | 'api_error' | 'network_error'
 
 export type UsageGatewayResult =
-  | { ok: true; usage: RawUsage }
+  | { ok: true; usage: RawUsage | null; collection: import('../../../shared/usage-contract').UsageCollectionMeta | null; rawText: string | null }
   | { ok: false; reason: UsageGatewayFailureReason; message: string | null }
+
+/** queryFn이 되돌려 캐시에 두는 성공 데이터. */
+export type UsageGatewaySuccess = Extract<UsageGatewayResult, { ok: true }>
 
 export interface UsageGateway {
   fetchUsage(): Promise<UsageGatewayResult>
@@ -20,13 +24,7 @@ export interface UsageClock {
   nowIso(): string
 }
 
-/** 타이머 포트. schedule은 1회성 실행이고 되돌림 함수를 돌려준다. */
+/** 타이머 포트. schedule은 1회성 실행이고 되돌림 함수를 돌려준다. 30초 now 틱에 쓴다. */
 export interface UsageScheduler {
   schedule(ms: number, run: () => void): () => void
-}
-
-/** 탭 가시성 포트. 폴러가 화면이 보일 때만 호출하게 한다. */
-export interface UsageVisibility {
-  isVisible(): boolean
-  subscribe(listener: () => void): () => void
 }

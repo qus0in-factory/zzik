@@ -1,25 +1,40 @@
-import ky from 'ky'
+import type ky from 'ky'
+import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'
 import { decodeUsageSnapshot } from '@domain/usage/snapshot'
-import type { SnapshotUsageGateway, SnapshotGatewayResult } from '@domain/usage/snapshot'
-export class HttpUsageGateway implements SnapshotUsageGateway {
-  private readonly client: typeof ky
-  constructor(fetcher: typeof globalThis.fetch = globalThis.fetch, private readonly endpoint = '/api/usage') {
-    this.client = ky.create({ fetch: fetcher, redirect: 'manual', retry: 0, throwHttpErrors: false })
-  }
-  async fetchUsage(): Promise<SnapshotGatewayResult> {
-    let response: Response
-    try { response = await this.client.get(this.endpoint) }
-    catch { return { ok: false, reason: 'network_error', message: null } }
-    if (response.type === 'opaqueredirect') return { ok: false, reason: 'session_expired', message: null }
-    if (response.status !== 200) {
-      let message = `http_${response.status}`
+
+/**
+ * /api/usage 게이트웨이(스택 부록 A3). ky 인스턴스는 조립 루트(main.tsx)가 만들어 주입한다:
+ *   ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })
+ * 재시도는 ky에 두지 않는다(재시도 정책은 Query 한 곳). 본문 매핑(200, opaqueredirect,
+ * 401/5xx, 예외)은 그대로고, 결과 유니온은 도메인 포트 형태다.
+ */
+export function createHttpUsageGateway(client: typeof ky, endpoint = '/api/usage'): UsageGateway {
+  return {
+    async fetchUsage(): Promise<UsageGatewayResult> {
+      let response: Response
       try {
-        const body: unknown = await response.json()
-        if (typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string') message = body.error
-      } catch { /* A non-JSON error still has an HTTP status. */ }
-      return { ok: false, reason: 'api_error', message }
-    }
-    try { return decodeUsageSnapshot(await response.json()) }
-    catch { return { ok: false, reason: 'api_error', message: 'invalid_response' } }
+        response = await client.get(endpoint)
+      } catch {
+        return { ok: false, reason: 'network_error', message: null }
+      }
+      if (response.type === 'opaqueredirect') return { ok: false, reason: 'session_expired', message: null }
+      if (response.status !== 200) {
+        let message = `http_${response.status}`
+        try {
+          const body: unknown = await response.json()
+          if (typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string') {
+            message = body.error
+          }
+        } catch {
+          /* JSON이 아닌 오류 본문이라도 상태 코드는 남는다 */
+        }
+        return { ok: false, reason: 'api_error', message }
+      }
+      try {
+        return decodeUsageSnapshot(await response.json())
+      } catch {
+        return { ok: false, reason: 'api_error', message: 'invalid_response' }
+      }
+    },
   }
 }
