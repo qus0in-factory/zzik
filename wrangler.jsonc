@@ -3,9 +3,30 @@
   "compatibility_date": "2026-11-11",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
-  "routes": [{ "pattern": "zzik.qus0in.dev", "custom_domain": true }],
+  "routes": [
+    {
+      "pattern": "zzik.qus0in.dev",
+      "custom_domain": true
+    }
+  ],
   "workers_dev": false,
-  "preview_urls": false
+  "preview_urls": false,
+  "main": "worker/index.ts",
+  "kv_namespaces": [
+    {
+      "binding": "USAGE_KV",
+      "id": "5fe6ac40c73c4d05ac2fab052c2100e6"
+    }
+  ],
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "qus0in.cloudflareaccess.com",
+    "ACCESS_AUD": "d83bb3725ec247352d8a87ea9be8fc43a4aea78d68821b927a479f622bf29b79",
+    "ALLOWED_EMAIL": "qus0in@gmail.com"
+  }
 }
