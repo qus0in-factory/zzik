@@ -26,7 +26,7 @@ export function LimitCard({ item }: { item: UsageLimitItem }): ReactNode {
   const { id, label, unknown = false, usedPercent, expired, status, resetText } = item
   const badge = THRESHOLD_BADGE[status]
   return (
-    <Card data-testid="usage-card" className="min-w-0 gap-3">
+    <Card data-testid="usage-card" data-card-id={id} className="min-w-0 gap-3">
       <CardHeader className="gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <h3 data-testid="usage-card-label" className="break-words text-base leading-none font-semibold">
