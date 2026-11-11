@@ -14,7 +14,7 @@
  */
 
 /**
- * @typedef {{ ok: true, bodyText: string, httpStatus: number, retryAfterSec: null }} UsageCallOk
+ * @typedef {{ ok: true, bodyText: string, httpStatus: number|null, retryAfterSec: number|null }} UsageCallOk
  * @typedef {{ ok: false, kind: 'rate_limited'|'auth_required'|'upstream_error'|'network_error', httpStatus: number|null, retryAfterSec: number|null }} UsageCallFailure
  * @typedef {UsageCallOk|UsageCallFailure} UsageCallResult
  * retryAfterSec는 초 단위(D5).
@@ -24,15 +24,15 @@
 
 /**
  * @typedef {{ nextAllowedAt: number|null, failReason: string|null, failCount: number, authDeniedExpiresAt: number|null }} GateState
- * @typedef {{ schema: number, previous: UsageEnvelope|null, gate: GateState, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
- * @typedef {{ runAt: string, status: string, called: boolean, httpStatus: number|null, tokenExpiresAt: string|null, kvOk: boolean, kvReason: string|null, transition: string|null, tokenRefreshed: boolean }} LogEntry
+ * @typedef {{ provider: string|null, schema: number, previous: UsageEnvelope|null, gate: GateState, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
+ * @typedef {{ provider: string, runAt: string, status: string, called: boolean, httpStatus: number|null, tokenExpiresAt: string|null, kvOk: boolean, kvReason: string|null, transition: string|null, tokenRefreshed: boolean }} LogEntry
  */
 
 /** @typedef {{ now(): number }} ClockPort */
 /** @typedef {{ readAll(): Promise<Array<CredentialRead|null>> }} CredentialReaderPort */
 /** @typedef {{ fetchUsage(token: string): Promise<UsageCallResult> }} UsageClientPort */
 /** @typedef {{ write(value: string): Promise<KvWriteResult> }} KvWriterPort */
-/** @typedef {{ read(): Promise<CollectorState|null>, write(state: CollectorState): Promise<void> }} StateStorePort */
+/** @typedef {{ read(): Promise<unknown>, write(state: unknown): Promise<void> }} StateStorePort */
 /** @typedef {{ write(entry: LogEntry): Promise<void> }} LoggerPort */
 
 /**

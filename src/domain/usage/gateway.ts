@@ -11,6 +11,9 @@ export type UsageGatewayResult =
   | { ok: true; usage: RawUsage }
   | { ok: false; reason: UsageGatewayFailureReason; message: string | null }
 
+/** queryFn이 되돌려 캐시에 두는 성공 결과(스택 부록 A4). */
+export type UsageGatewaySuccess = Extract<UsageGatewayResult, { ok: true }>
+
 export interface UsageGateway {
   fetchUsage(): Promise<UsageGatewayResult>
 }

@@ -214,7 +214,7 @@ describe('Given dry-run', () => {
     const report = result.dryRunReport as { status: string; called: boolean; keys: string[]; sha256: string }
     expect(report.status).toBe('ok')
     expect(report.called).toBe(true)
-    expect(report.keys).toEqual(['five_hour'])
+    expect(report.keys).toEqual(['five_hour', 'five_hour.utilization', 'five_hour.resets_at'])
     expect(report.sha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
@@ -251,5 +251,67 @@ describe('Given the log transition fields', () => {
 describe('Given the raw body digest helper', () => {
   it('When hashing body text then the digest is deterministic (V6 dry-run sha256)', () => {
     expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+  })
+})
+
+describe('Given key paths for the dry-run report (ADR 0.3 D6)', () => {
+  it('When the body is nested then the report carries key paths instead of top keys only', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage({
+      ok: true,
+      bodyText: JSON.stringify({ rate_limit: { primary_window: { used_percent: 37 } }, extra: 'x' }),
+      httpStatus: 200,
+      retryAfterSec: null,
+    })
+    const result = await run(ports, { dryRun: true, provider: 'claude' })
+    const report = result.dryRunReport as { keys: string[] }
+    expect(report.keys).toEqual(['rate_limit', 'rate_limit.primary_window', 'rate_limit.primary_window.used_percent', 'extra'])
+  })
+})
+
+describe('Given the Codex provider run (ADR 0.3 D8 run Once)', () => {
+  it('When a codex run succeeds then the envelope carries provider=codex', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(futureExpiresAt, 'codex-access-token')])
+    ports.usage.queueUsage({ ok: true, bodyText: BODY, httpStatus: 200, retryAfterSec: null })
+    const result = await run(ports, { provider: 'codex' })
+    expect(result.exitCode).toBe(0)
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.provider).toBe('codex')
+    expect(ports.logger.entries[0]).toMatchObject({ provider: 'codex', status: 'ok' })
+    // 상태 파일에도 제공자가 적혀 상태 격리를 상기시킨다.
+    const state = ports.state.snapshot() as { provider: string, previous: { provider: string } }
+    expect(state.provider).toBe('codex')
+    expect(state.previous.provider).toBe('codex')
+  })
+
+  it('When the codex credential expiresAt is unknown (JWT가 아님) then it still calls and lets 401 decide (D2)', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential(null, 'codex-access-token')])
+    ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
+    const result = await run(ports, { provider: 'codex' })
+    expect(ports.usage.calls).toBe(1)
+    expect(result.exitCode).toBe(0)
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.status).toBe('auth_required')
+    expect(envelope.tokenExpiresAt).toBeNull()
+  })
+
+  it('When a codex upstream answers 200 with HTML then upstream_error keeps the previous raw body (D4)', async () => {
+    const previousEnvelope = {
+      schema: 1, provider: 'codex', status: 'ok', called: true,
+      runAt: new Date(COLLECTOR_NOW - 300_000).toISOString(), fetchedAt: new Date(COLLECTOR_NOW - 300_000).toISOString(),
+      httpStatus: 200, retryAt: null, tokenExpiresAt: null, kvTokenExpiresAt: null,
+      intervalSec: 300, collectorVersion: '0.3.0', rawText: BODY, rawOmitted: null,
+    }
+    const ports = createFakeCollectorPorts({ schema: 1, provider: 'codex', previous: previousEnvelope, gate: { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null }, lastRun: { status: 'ok', tokenExpiresAt: null } })
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage({ ok: false, kind: 'upstream_error', httpStatus: 200, retryAfterSec: null })
+    await run(ports, { provider: 'codex' })
+    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    expect(envelope.status).toBe('upstream_error')
+    expect(envelope.httpStatus).toBe(200)
+    expect(envelope.rawText).toBe(BODY) // 이전 성공 본문 유지
   })
 })

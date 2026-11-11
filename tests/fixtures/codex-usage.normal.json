@@ -1,0 +1,27 @@
+{
+  "rate_limit": {
+    "primary_window": {
+      "used_percent": 37,
+      "limit_window_seconds": 18000,
+      "reset_at": 1799988000,
+      "reset_after_seconds": 4300
+    },
+    "secondary_window": {
+      "used_percent": 62,
+      "limit_window_seconds": 604800,
+      "reset_after_seconds": 86400
+    },
+    "limit_reached": false
+  },
+  "codex_extra": {
+    "weekly_window": {
+      "used_percent": 9,
+      "limit_window_seconds": 604800,
+      "reset_at": 1800123456
+    }
+  },
+  "codes": [
+    { "used_percent": 3, "reset_after_seconds": 100 }
+  ],
+  "plan": "pro"
+}

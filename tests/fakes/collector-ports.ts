@@ -100,7 +100,7 @@ export function createFakeCollectorPorts(initialState?: unknown): {
         return storedState
       },
       async write(state: unknown): Promise<void> {
-        stateWrites.push(state)
+        stateWrites.push(state as never)
         storedState = state
       },
       writeCount: (): number => stateWrites.length,

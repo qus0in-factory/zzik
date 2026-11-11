@@ -1,113 +1,171 @@
 #!/usr/bin/env node
 /**
- * 수집기 조립 루트(ADR 0.2 D10·D11, 운영 제약 개정판).
- * infra 구현을 만들어 app의 runOnce에 주입한다. 로직은 이 파일에 두지 않는다.
+ * 수집기 조립 루트(ADR 0.3 D3 다중 제공자 + D9 조립 배정).
+ * 제공자 정의(claude/codex)를 만들어 runCycle에 주입한다. 로직은 이 파일에 두지 않는다.
  *
  * 실행 모드(PM2 상주가 기본):
- *   (기본)       즉시 1회 실행 후 300초마다 실행(내부 setInterval, 실행이 밀리면 스킵)
- *   --once       1회 실행 후 종료한다. 수동 실행도 게이트를 따른다
- *   --dry-run    상태·KV·로그 어디에도 쓰지 않고 status·키 목록·본문 sha256만 출력한다
- *   --credentials-file <path>  자격 증명 파일 경로 재현(--dry-run과 함께만 허용)
+ *   (기본)       즉시 1회 실행 후 300초마다 runCycle(제공자 수만큼 줄이 생긴다)
+ *   --once       1회 실행 후 종료한다. 종료 코드는 제공자별 결과 중 가장 큰 값
+ *   --dry-run    상태·KV·로그 어디에도 쓰지 않는다(--provider와 같이 쓰면 경로 목록 출력)
+ *   --provider <id>   대상 제공자(claude|codex). 생략하면 켜진 제공자 전부
+ *   --credentials-file <path>  자격 증명 파일 재현(--provider와 --dry-run이 함께 있을 때만)
  *
- * KV 쓰기는 이 Mac에 로그인된 wrangler를 실행한다(레포 devDependency, 토큰 파일 없음):
- *   node node_modules/wrangler/bin/wrangler.js kv key put usage:claude \
+ * 제공자 목록: env ZZIK_PROVIDERS(기본 'claude,codex'). 하나의 제공자 실패가 다른
+ * 제공자를 막지 않는다(예외 격리, 제공자별 상태 파일·게이트).
+ *
+ * KV 쓰기는 이 Mac에 로그인된 wrangler를 실행한다(키는 제공자 id에서 정해진다):
+ *   node node_modules/wrangler/bin/wrangler.js kv key put usage:<provider> \
  *     --path <tmp> --namespace-id <id> --remote
  */
 
 import { createLogAppender } from './infra/usage/log.mjs'
-import { createUsageClient } from './infra/usage/usage-client.mjs'
+import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
+import { createCodexUsageClient } from './infra/usage/codex-usage-client.mjs'
 import { createWranglerKvWriter } from './infra/usage/wrangler-kv-writer.mjs'
 import { createStateFile } from './infra/usage/state-file.mjs'
-import { DEFAULT_CREDENTIALS_PATH, readCredentialsFile } from './infra/usage/credentials-file.mjs'
-import { runOnce } from './app/usage/run-once.mjs'
+import { DEFAULT_CREDENTIALS_PATH, readCredentialsFile } from './infra/usage/claude-credentials-file.mjs'
+import { DEFAULT_CODEX_AUTH_PATH, readCodexCredentials } from './infra/usage/codex-credentials-file.mjs'
+import { runCycle } from './app/usage/run-cycle.mjs'
+import { USAGE_KV_KEYS, USAGE_PROVIDERS, USAGE_COLLECTOR_VERSION } from './domain/usage/providers.mjs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const VERSION = '0.2.0'
+const VERSION = USAGE_COLLECTOR_VERSION
 const INTERVAL_MS = 300_000
 const KV_NAMESPACE_ID = process.env.ZZIK_KV_NAMESPACE_ID ?? '5fe6ac40c73c4d05ac2fab052c2100e6'
-const KV_KEY = process.env.ZZIK_KV_KEY ?? 'usage:claude'
-const STATE_PATH = process.env.ZZIK_STATE_PATH ?? join(homedir(), 'Library', 'Application Support', 'zzik', 'usage-state.json')
+const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')
 const LOG_PATH = process.env.ZZIK_LOG_PATH ?? join(homedir(), 'Library', 'Logs', 'zzik', 'usage-collector.log')
 
-const USAGE_TEXT = '사용법: node collector/main.mjs [--once] [--dry-run] [--credentials-file <path>]'
+/** @param {string} value @returns {string} */
+function resolveHomePath(value) {
+  if (/** @type {string} */ (value).startsWith('~')) return join(homedir(), value.slice(1))
+  return value
+}
+
+const CODEX_AUTH_PATH = process.env.ZZIK_CODEX_AUTH_PATH ? resolveHomePath(process.env.ZZIK_CODEX_AUTH_PATH) : DEFAULT_CODEX_AUTH_PATH
+
+/** 켜진 제공자 목록(ZZIK_PROVIDERS). 사용자가 끈 제공자는 runCycle에 들어가지 않는다. */
+const enabledProviders = (process.env.ZZIK_PROVIDERS ?? 'claude,codex')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => USAGE_PROVIDERS.includes(value))
+
+const USAGE_TEXT = '사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex] [--credentials-file <path>]'
 
 /** @typedef {import('./domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
+/** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null }} ParsedFlags */
 
 /**
  * @param {string[]} argv
- * @returns {{ error: string|null, flags: { dryRun: boolean, once: boolean, credentialsPath: string|null } | null }}
+ * @returns {{ error: string|null, flags: ParsedFlags | null }}
  */
 function parseArgs(argv) {
-  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null }} */
-  const flags = { dryRun: false, once: false, credentialsPath: null }
+  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null }} */
+  const flags = { dryRun: false, once: false, credentialsPath: null, provider: null }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--dry-run') flags.dryRun = true
     else if (arg === '--once') flags.once = true
-    else if (arg === '--credentials-file') {
+    else if (arg === '--provider') {
+      const value = /** @type {string|null} */ (argv[index + 1] ?? null)
+      if (value === null || !USAGE_PROVIDERS.includes(value)) return { error: `알 수 없는 제공자: ${value ?? '(없음)'}`, flags: null }
+      flags.provider = value
+      index += 1
+    } else if (arg === '--credentials-file') {
       flags.credentialsPath = argv[index + 1] ?? null
       index += 1
     } else return { error: `알 수 없는 인자: ${arg}`, flags: null }
   }
-  if (flags.credentialsPath !== null && flags.dryRun !== true) {
-    return { error: '--credentials-file은 --dry-run과 함께만 쓴다(시험 자격 증명으로 KV에 쓰는 것을 막는다)', flags: null }
+  if (flags.credentialsPath !== null && (flags.dryRun !== true || flags.provider === null)) {
+    return { error: '--credentials-file은 --provider와 --dry-run이 함께 있을 때만 쓴다(시험 자격 증명으로 다른 제공자의 KV에 쓰는 일을 막는다)', flags: null }
   }
   return { error: null, flags }
 }
 
-/** @param {{ credentialsPath: string|null }} options @returns {CollectorPorts} */
-function buildPorts({ credentialsPath }) {
-  const usageClient = createUsageClient({ fetchImpl: (url, init) => fetch(url, init) })
-  const kvWriter = createWranglerKvWriter({ namespaceId: KV_NAMESPACE_ID, keyName: KV_KEY })
+/**
+ * 제공자 하나의 포트 묶음(ADR 0.3 D3의 표). 자격 증명 포트·usage 포트·KV 키·상태 파일이
+ * 제공자별로 다르고 나머지(시계, 로거, KV 어댑터)는 공유한다.
+ * @param {string} provider
+ * @param {{ credentialsPath: string|null }} options
+ * @returns {CollectorPorts}
+ */
+function buildProviderPorts(provider, { credentialsPath }) {
+  const providerId = /** @type {keyof typeof USAGE_KV_KEYS} */ (provider)
+  const kvWriter = createWranglerKvWriter({ namespaceId: KV_NAMESPACE_ID, keyName: USAGE_KV_KEYS[providerId] })
+  const usageClient =
+    provider === 'codex'
+      ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
+      : createClaudeUsageClient({ fetchImpl: globalThis.fetch })
   return {
     clock: { now: () => Date.now() },
     credentials: {
-      readAll: async () => [await readCredentialsFile(credentialsPath ?? DEFAULT_CREDENTIALS_PATH)],
+      readAll: async () => {
+        if (provider === 'codex') return [await readCodexCredentials(credentialsPath ?? CODEX_AUTH_PATH)]
+        return [await readCredentialsFile(credentialsPath ?? DEFAULT_CREDENTIALS_PATH)]
+      },
     },
     usage: { fetchUsage: (token) => usageClient.fetchUsage(token) },
     kv: { write: (value) => kvWriter.write(value) },
-    state: createStateFile({ path: STATE_PATH }),
+    state: createStateFile({
+      path: join(STATE_DIR, `usage-state.${provider}.json`),
+      // 0.2에서 claude 전용으로 쓰던 파일의 일회성 이행(D3).
+      legacyPath: provider === 'claude' ? join(STATE_DIR, 'usage-state.json') : undefined,
+    }),
     logger: createLogAppender({ path: LOG_PATH }),
   }
 }
 
-/** @param {CollectorPorts} ports @param {{ dryRun: boolean }} options */
-async function once(ports, { dryRun }) {
-  const result = await runOnce(ports, { dryRun, collectorVersion: VERSION })
-  const report = result.dryRunReport
-  if (report === undefined) {
-    process.stderr.write('오류: dry-run 보고서가 없다\n')
-    process.exit(1)
-    return
-  }
-  process.stdout.write(
-    [
-      `status=${report.status}`,
-      `called=${report.called ? 1 : 0}`,
-      `keys=${JSON.stringify(report.keys)}`,
-      `sha256=${report.sha256 ?? 'null'}`,
-      '',
-    ].join('\n'),
-  )
-  process.exit(result.exitCode)
+/** 활성 제공자들의 포트 묶음. --provider로 좁혀진다. */
+/** @param {ParsedFlags} flags @returns {Array<{ id: string, ports: CollectorPorts }>} */
+function buildProviders(flags) {
+  const targets = flags.provider !== null ? enabledProviders.filter((id) => id === flags.provider) : enabledProviders
+  return targets.map((id) => ({ id, ports: buildProviderPorts(id, { credentialsPath: flags.credentialsPath }) }))
 }
 
-/** @param {CollectorPorts} ports */
-function startResident(ports) {
+/** @param {ParsedFlags} flags @returns {Promise<void>} */
+async function once(flags) {
+  const { results } = await runCycle({}, buildProviders(flags), {
+    dryRun: flags.dryRun,
+    collectorVersion: VERSION,
+  })
+  for (const result of results) {
+    if (flags.dryRun) {
+      const report = /** @type {{ provider: string, status: string, called: boolean, keys: string[], sha256: string|null }} */ (result.dryRunReport ?? { provider: result.id, status: 'unknown', called: false, keys: [], sha256: null })
+      process.stdout.write(
+        [
+          `provider=${result.id}`,
+          `status=${report.status}`,
+          `called=${report.called ? 1 : 0}`,
+          `keys=${JSON.stringify(report.keys ?? [])}`,
+          `sha256=${report.sha256 ?? 'null'}`,
+          '',
+        ].join('\n'),
+      )
+    } else {
+      process.stdout.write(`provider=${result.id} exit=${result.exitCode}\n`)
+    }
+  }
+  process.exit(Math.max(0, ...results.map((result) => result.exitCode)))
+}
+
+function startResident() {
   let inFlight = false
   process.on('SIGINT', () => process.exit(0))
   process.on('SIGTERM', () => process.exit(0))
   const tick = async () => {
     if (inFlight) {
-      process.stderr.write('[zzik-usage-collector] 이전 실행이 아직 진행 중이라 이번 주기를 건너뛴다\n')
+      process.stderr.write('[zzik-usage-collector] 이전 주기가 아직 진행 중이라 이번 주기를 건너뛴다\n')
       return
     }
     inFlight = true
     try {
-      await runOnce(ports, { collectorVersion: VERSION })
+      const { results } = await runCycle({}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false }), { collectorVersion: VERSION })
+      const failures = results.filter((result) => result.exitCode !== 0)
+      if (failures.length > 0) {
+        process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map((result) => `${result.id}=exit${result.exitCode}`).join(', ')}\n`)
+      }
     } catch (error) {
-      process.stderr.write(`[zzik-usage-collector] 실행 실패: ${String(error)}\n`)
+      process.stderr.write(`[zzik-usage-collector] 주기 실패: ${String(error)}\n`)
     } finally {
       inFlight = false
     }
@@ -125,10 +183,11 @@ async function main() {
     process.exit(64)
     return
   }
-  const ports = buildPorts({ credentialsPath: parsed.flags.credentialsPath })
-  if (parsed.flags.dryRun) await once(ports, { dryRun: true })
-  else if (parsed.flags.once) await once(ports, { dryRun: false })
-  else startResident(ports)
+  if (parsed.flags.once || parsed.flags.dryRun) {
+    await once(parsed.flags)
+    return
+  }
+  startResident()
 }
 
 await main()

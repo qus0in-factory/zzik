@@ -16,6 +16,7 @@ import { dirname } from 'node:path'
 export function formatLogLine(entry) {
   const parts = [
     entry.runAt,
+    `provider=${entry.provider ?? 'unknown'}`,
     `status=${entry.status ?? 'unknown'}`,
     `called=${entry.called ? 1 : 0}`,
     `httpStatus=${entry.httpStatus ?? 'null'}`,

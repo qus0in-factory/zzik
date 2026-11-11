@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createUsageClient, USAGE_URL } from '../../../../collector/infra/usage/usage-client.mjs'
+import { createUsageClient, USAGE_URL } from '../../../../collector/infra/usage/claude-usage-client.mjs'
 
 const NOW = Date.parse('2026-11-11T12:00:00.000Z')
 

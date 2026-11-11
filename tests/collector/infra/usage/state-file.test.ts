@@ -55,4 +55,16 @@ describe('Given the collector state file', () => {
     const store = createStateFile({ path })
     await expect(store.read()).resolves.toBeNull()
   })
+
+  it('When the new path has no state but the legacy path does then read falls back to it (ADR 0.3 D3 이행)', async () => {
+    mkdirSync(join(root, 'state'), { recursive: true })
+    const legacy = join(root, 'state', 'usage-state.json')
+    writeFileSync(legacy, JSON.stringify({ schema: 1, provider: 'claude', previous: { rawText: 'old' } }))
+    const store = createStateFile({ path, legacyPath: legacy })
+    await expect(store.read()).resolves.toMatchObject({ provider: 'claude', previous: { rawText: 'old' } })
+    // 쓰기는 새 경로로 한다(이행은 읽기에서만).
+    await store.write({ schema: 1, provider: 'claude', previous: null, gate: { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null }, lastRun: { status: null, tokenExpiresAt: null } })
+    expect(await store.read()).toMatchObject({ provider: 'claude' })
+    expect(statSync(legacy).mode & 0o777).toBeGreaterThan(0)
+  })
 })

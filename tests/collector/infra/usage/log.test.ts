@@ -17,6 +17,7 @@ afterEach(() => {
 })
 
 const ENTRY = {
+  provider: 'codex',
   runAt: '2026-11-11T12:00:00.000Z',
   status: 'ok',
   called: true,
@@ -29,9 +30,10 @@ const ENTRY = {
 }
 
 describe('Given the collector log line format', () => {
-  it('When formatting an entry then the run fields are all present and on one line (D2)', () => {
+  it('When formatting an entry then the run fields are all present and on one line (D2·0.3 provider 필드)', () => {
     const line = formatLogLine(ENTRY)
     expect(line).toContain('2026-11-11T12:00:00.000Z')
+    expect(line).toContain('provider=codex')
     expect(line).toContain('status=ok')
     expect(line).toContain('called=1')
     expect(line).toContain('httpStatus=200')

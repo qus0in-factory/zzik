@@ -40,6 +40,7 @@ function isoOrNull(ms) {
  *   previous: UsageEnvelope|null,
  *   intervalSec: number,
  *   collectorVersion: string,
+ *   provider?: 'claude'|'codex',
  *   kvTokenExpiresAtMs?: number|null,
  * }} input
  * @returns {UsageEnvelope}
@@ -55,6 +56,7 @@ export function buildEnvelope({
   previous,
   intervalSec,
   collectorVersion,
+  provider = 'claude',
   kvTokenExpiresAtMs = null,
 }) {
   const runAt = new Date(nowMs).toISOString()
@@ -78,7 +80,7 @@ export function buildEnvelope({
 
   return {
     schema: 1,
-    provider: 'claude',
+    provider,
     status,
     called: Boolean(called),
     runAt,
