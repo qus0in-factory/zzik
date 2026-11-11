@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createUsagePoller } from '@app/usage/usage-poller'
+import { loadUsage } from '@app/usage/load-usage'
 import { createDeferred, createFakeUsageGateway, createFakeUsageScheduler, createFakeUsageVisibility } from '../../fakes/usage-ports'
 
 const INTERVAL_MS = 60_000
@@ -15,7 +16,7 @@ function makeHarness(initialVisible = true) {
   const visibility = createFakeUsageVisibility(initialVisible)
   const onResult = vi.fn()
   const poller = createUsagePoller(
-    { fetch: () => gateway.fetchUsage(), intervalMs: INTERVAL_MS, scheduler, visibility },
+    { fetch: () => loadUsage(gateway), intervalMs: INTERVAL_MS, scheduler, visibility },
     { onResult },
   )
   return { gateway, scheduler, visibility, onResult, poller }
@@ -48,7 +49,7 @@ describe('Given the usage poller', () => {
     poller.start()
     await settle()
     expect(onResult).toHaveBeenCalledTimes(1)
-    expect(onResult.mock.calls[0][0]).toEqual({ ok: true, usage: {} })
+    expect(onResult.mock.calls[0][0]).toEqual({ ok: true, report: expect.anything() })
   })
 
   it('When the tab is hidden then scheduled ticks do not fetch', async () => {

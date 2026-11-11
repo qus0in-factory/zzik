@@ -10,6 +10,8 @@ export interface UsageWindow {
   resetsAt: string | null
   expired: boolean
   status: UsageLevel
+  /** 리셋까지 남은 시간의 표시 문구(ui는 판정하지 않고 그대로 그린다) */
+  resetText: string
 }
 
 export interface UsageMetric {
@@ -20,6 +22,8 @@ export interface UsageMetric {
   resetsAt: string | null
   expired: boolean
   status: UsageLevel
+  /** 리셋까지 남은 시간의 표시 문구(ui는 판정하지 않고 그대로 그린다) */
+  resetText: string
 }
 
 export type UsageOtherValue = { kind: 'object'; fields: readonly UsageOtherField[] } | { kind: 'value'; text: string }

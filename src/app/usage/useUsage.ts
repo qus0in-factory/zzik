@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UsageReport } from '@domain/usage/view'
 import { describeGatewayFailure, loadUsage } from './load-usage'
 import type { UsageLoadResult } from './load-usage'
+import { composeLastSuccessText, composeStaleNoteText } from './usage-text'
 import { createUsagePoller } from './usage-poller'
 import { useUsageDeps } from './UsageGatewayContext'
 
@@ -15,6 +16,10 @@ export interface UsageUiState {
   errorMessage: string | null
   /** 상대 시각 재계산용 현재 시각(30초마다 갱신, ADR 0.2 D9) */
   nowIso: string | null
+  /** 상태 줄 문구(`마지막 수집 11:58 (2분 전)`) — app에서 계산 */
+  lastSuccessText: string | null
+  /** stale 안내 문구(`마지막 성공 2분 전`) — app에서 계산 */
+  staleNoteText: string | null
 }
 
 export interface UsageUiStateValue {
@@ -38,6 +43,8 @@ export function useUsage(): UsageUiStateValue {
     lastSuccessAt: null,
     errorMessage: null,
     nowIso: deps.clock.nowIso(),
+    lastSuccessText: null,
+    staleNoteText: null,
   }))
 
   const handleResult = useCallback(
@@ -45,11 +52,28 @@ export function useUsage(): UsageUiStateValue {
       setState((prev) => {
         const nowIso = deps.clock.nowIso()
         if (result.ok) {
-          return { status: 'ready', report: result.report, lastSuccessAt: nowIso, errorMessage: null, nowIso }
+          return {
+            status: 'ready',
+            report: result.report,
+            lastSuccessAt: nowIso,
+            errorMessage: null,
+            nowIso,
+            lastSuccessText: composeLastSuccessText(nowIso, nowIso),
+            staleNoteText: null,
+          }
         }
         const message = result.message ?? describeGatewayFailure(result.reason)
-        if (prev.report) return { ...prev, status: 'stale', errorMessage: message, nowIso }
-        return { ...prev, status: 'error', errorMessage: message, nowIso }
+        if (prev.report) {
+          return {
+            ...prev,
+            status: 'stale',
+            errorMessage: message,
+            nowIso,
+            lastSuccessText: composeLastSuccessText(prev.lastSuccessAt, nowIso),
+            staleNoteText: composeStaleNoteText(prev.lastSuccessAt, nowIso),
+          }
+        }
+        return { ...prev, status: 'error', errorMessage: message, nowIso, lastSuccessText: null, staleNoteText: null }
       })
     },
     [deps],
@@ -74,11 +98,20 @@ export function useUsage(): UsageUiStateValue {
     return () => poller.stop()
   }, [poller])
 
+  // 상대 시각은 30초마다 다시 계산한다(ADR 0.2 D9).
   useEffect(() => {
     let cancel = (): void => {}
     const scheduleTick = (): void => {
       cancel = deps.scheduler.schedule(USAGE_NOW_TICK_MS, () => {
-        setState((prev) => ({ ...prev, nowIso: deps.clock.nowIso() }))
+        setState((prev) => {
+          const nowIso = deps.clock.nowIso()
+          return {
+            ...prev,
+            nowIso,
+            lastSuccessText: composeLastSuccessText(prev.lastSuccessAt, nowIso),
+            staleNoteText: prev.status === 'stale' ? composeStaleNoteText(prev.lastSuccessAt, nowIso) : null,
+          }
+        })
         scheduleTick()
       })
     }

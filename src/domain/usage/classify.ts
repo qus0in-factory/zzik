@@ -3,7 +3,7 @@ import type { RawUsage, UsageIssue } from './types'
 /**
  * raw 최상위 키를 창(primary/secondary)·항목(metric)·기타로 분류한다 (시나리오 C1~C3).
  */
-export const WINDOW_IDS: readonly ['five_hour', 'seven_day'] = ['five_hour', 'seven_day'] as const
+export const WINDOW_IDS: readonly string[] = ['five_hour', 'seven_day']
 
 export interface ClassifiedUsageEntry {
   kind: 'window' | 'metric' | 'other'

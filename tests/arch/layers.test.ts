@@ -23,7 +23,7 @@ const FORBIDDEN: Record<Exclude<Layer, 'root'>, readonly Layer[]> = {
 
 interface SourceFile {
   path: string
-  layer: Exclude<Layer, 'root'> | 'root'
+  layer: Layer
   text: string
 }
 
@@ -58,13 +58,13 @@ function targetLayer(fromFile: string, spec: string): Layer | null {
 function loadSourceFiles(): SourceFile[] {
   return listSourceFiles(SRC_DIR).map((path) => ({
     path,
-    layer: layerOf(path) as SourceFile['layer'],
+    layer: layerOf(path),
     text: readFileSync(path, 'utf8'),
   }))
 }
 
 interface ImportStatement {
-  kind: 'import' | 'export'
+  kind: string
   isTypeOnly: boolean
   spec: string
 }
@@ -99,7 +99,6 @@ function findViolations(): LayerViolation[] {
       const target = targetLayer(file.path, stmt.spec)
       if (target === null || target === 'root') continue
       const from = file.layer
-      if (from === 'root') continue
       if ((FORBIDDEN as Record<Layer, readonly Layer[]>)[from].includes(target)) {
         found.push({
           file: relative(SRC_DIR, file.path),

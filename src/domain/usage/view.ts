@@ -1,7 +1,7 @@
 import { classifyUsageKeys, isKnownMetricId, WINDOW_IDS } from './classify'
 import { aggregateUsageLevel, usageLevelOf } from './level'
 import { usageLabelFor } from './labels'
-import { isResetExpired } from './staleness'
+import { formatResetRemaining, isResetExpired } from './staleness'
 import type { RawUsage, UsageIssue, UsageMetric, UsageOther, UsageReport, UsageWindow } from './types'
 
 export type { RawUsage, UsageReport, UsageMetric, UsageWindow, UsageOther, UsageIssue } from './types'
@@ -44,6 +44,7 @@ export function buildUsageView(raw: unknown, options: BuildUsageViewOptions = {}
           resetsAt: item.resetsAt,
           expired: isResetExpired(item.resetsAt, now),
           status: usageLevelOf(usedPercent),
+          resetText: formatResetRemaining(item.resetsAt, now),
         }
       }),
   )
@@ -67,6 +68,7 @@ export function buildUsageView(raw: unknown, options: BuildUsageViewOptions = {}
           resetsAt: item.resetsAt,
           expired: isResetExpired(item.resetsAt, now),
           status: usageLevelOf(usedPercent),
+          resetText: formatResetRemaining(item.resetsAt, now),
         }
       }),
   )
