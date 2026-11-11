@@ -17,9 +17,12 @@ describe('Given a Retry-After header value', () => {
     ['7200', 7200], // 상한(RA는 지수 상한과 별개)이 없어 7200을 유지한다
     ['86400', 86400],
     ['200000', 86400],
-    [42, null], // 숫자가 아닌 타입은 없는 것으로 본다
   ] as const)('When the value is %j then the wait seconds are %j', (value, expected) => {
     expect(parseRetryAfter(value, NOW)).toBe(expected)
+  })
+
+  it('When the value is not a string at all then it is treated as absent', () => {
+    expect(parseRetryAfter(42 as unknown as string, NOW)).toBeNull()
   })
 
   it('When the value is a future HTTP-date then it converts to remaining seconds', () => {

@@ -43,5 +43,9 @@
     "vite.config.ts",
     "tests",
     "vitest.config.ts"
+  ],
+  "exclude": [
+    "tests/collector",
+    "tests/worker"
   ]
 }

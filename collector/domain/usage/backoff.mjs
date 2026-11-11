@@ -10,6 +10,12 @@ const BACKOFF_BASE_SEC = 600
 const RATE_LIMIT_MAX_SEC = 3_600
 const UPSTREAM_MAX_SEC = 900
 
+/**
+ * @param {'rate_limited'|'upstream_error'} kind
+ * @param {number} failCount 이번 실패 이전의 연속 실패 횟수(429·5xx·타임아웃만 센다)
+ * @param {number|null} retryAfterSec Retry-After 해석값, 없으면 null
+ * @returns {number} 이번 실패로 게이트에 걸 대기(초)
+ */
 export function retryDelaySec(kind, failCount, retryAfterSec) {
   const withFailCount = failCount ?? 0
   if (kind === 'rate_limited') {

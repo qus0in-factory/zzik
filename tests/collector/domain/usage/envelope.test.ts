@@ -6,10 +6,10 @@ const NOW_ISO = new Date(NOW).toISOString()
 const BODY = '{"five_hour":{"utilization":37,"resets_at":"2026-11-11T14:13:00.000Z"}}'
 const TOKEN = 'sk-ant-secret-token-value'
 
-function baseInput(overrides = {}) {
+function baseInput(overrides: Record<string, unknown> = {}) {
   return {
     nowMs: NOW,
-    status: 'ok',
+    status: 'ok' as const,
     called: true,
     httpStatus: 200,
     retryAtMs: null,

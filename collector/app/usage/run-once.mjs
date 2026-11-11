@@ -15,11 +15,17 @@ import { chooseCredential, credentialExpired } from '../../domain/usage/credenti
 import { buildEnvelope, sha256Hex } from '../../domain/usage/envelope.mjs'
 import { gateAllowsCall, gateRetryAt, openGateFor, resetGate, AUTH_REQUIRED_GATE_SEC } from '../../domain/usage/gate.mjs'
 
+/**
+ * @typedef {import('../../domain/usage/ports.mjs').CollectorPorts} CollectorPorts
+ * @typedef {import('../../domain/usage/ports.mjs').CollectorState} CollectorState
+ * @typedef {import('../../domain/usage/ports.mjs').UsageStatus} UsageStatus
+ */
+
 export const USAGE_INTERVAL_SEC = 300
 const EXIT_OK = 0
 const EXIT_KV_FAILURE = 3
 
-/** 로컬 상태 파일의 기본 형태(D2 usage-state.json). */
+/** 로컬 상태 파일의 기본 형태(D2 usage-state.json). @returns {CollectorState} */
 export function emptyCollectorState() {
   return {
     schema: 1,
@@ -29,7 +35,7 @@ export function emptyCollectorState() {
   }
 }
 
-/** 상태 파일이 부분적으로만 있거나 오래된 형태일 때 보완한다. */
+/** 상태 파일이 부분적으로만 있거나 오래된 형태일 때 보완한다. @param {any} state @returns {CollectorState} */
 function normalizeState(state) {
   const base = emptyCollectorState()
   if (state === null || typeof state !== 'object') return base
@@ -44,6 +50,11 @@ function normalizeState(state) {
   }
 }
 
+/**
+ * @param {CollectorPorts} ports
+ * @param {{ dryRun?: boolean, collectorVersion?: string }} options
+ * @returns {Promise<{ exitCode: number, dryRunReport?: { status: UsageStatus, called: boolean, keys: string[], sha256: string|null } }>}
+ */
 export async function runOnce(ports, options = {}) {
   const dryRun = options.dryRun === true
   const collectorVersion = options.collectorVersion ?? '0.2.0'
@@ -57,6 +68,7 @@ export async function runOnce(ports, options = {}) {
   const gateDecision = gateAllowsCall(state.gate, nowMs, chosen?.expiresAt ?? undefined)
   let gate = gateDecision.releasedByRefresh === true ? resetGate() : state.gate
 
+  /** @type {UsageStatus} */
   let status
   let called = false
   let httpStatus = null
@@ -115,10 +127,11 @@ export async function runOnce(ports, options = {}) {
     previous: state.previous,
     intervalSec: USAGE_INTERVAL_SEC,
     collectorVersion,
-    kvTokenExpiresAt: null,
+    kvTokenExpiresAtMs: null,
   })
 
   if (dryRun) {
+    /** @type {string[]} */
     let keys = []
     if (status === 'ok' && envelope.rawText !== null) {
       try {

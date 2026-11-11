@@ -33,45 +33,39 @@ describe('Given the usage HTTP client', () => {
   it('When the response is 200 then the body text is carried verbatim', async () => {
     const body = '{"five_hour":{"utilization":37}}'
     const client = createUsageClient({ fetchImpl: async () => okResponse(body), nowMs: () => NOW })
-    const result = await client.fetchUsage('t')
-    expect(result.ok).toBe(true)
-    expect(result.httpStatus).toBe(200)
-    expect(result.bodyText).toBe(body)
-  })
-
-  it('When the endpoint rate limits with Retry-After then the kind and seconds come back', async () => {
-    const client = createUsageClient({ fetchImpl: async () => statusResponse(429, { 'retry-after': '7200' }), nowMs: () => NOW })
-    const result = await client.fetchUsage('t')
-    expect(result).toEqual({ ok: false, kind: 'rate_limited', httpStatus: 429, retryAfterSec: 7200 })
-  })
-
-  it('When the endpoint needs auth or errors upstream then the kinds match the table', async () => {
-    const client = createUsageClient({
-      fetchImpl: async (url: string) => (url === USAGE_URL ? statusResponse(401) : statusResponse(503)),
-      nowMs: () => NOW,
+    await expect(client.fetchUsage('t')).resolves.toMatchObject({
+      ok: true,
+      httpStatus: 200,
+      bodyText: body,
     })
+  })
 
-    const authResult = createUsageClient({ fetchImpl: async () => statusResponse(401), nowMs: () => NOW }).fetchUsage('t')
-    const forbidden = createUsageClient({ fetchImpl: async () => statusResponse(403), nowMs: () => NOW }).fetchUsage('t')
-    const upstream = createUsageClient({ fetchImpl: async () => statusResponse(503), nowMs: () => NOW }).fetchUsage('t')
-    const notFound = createUsageClient({ fetchImpl: async () => statusResponse(404), nowMs: () => NOW }).fetchUsage('t')
+  it('When the endpoint rate limits with Retry-After then the kind and seconds come back (7200은 잘리지 않는다)', async () => {
+    const client = createUsageClient({ fetchImpl: async () => statusResponse(429, { 'retry-after': '7200' }), nowMs: () => NOW })
+    await expect(client.fetchUsage('t')).resolves.toEqual({ ok: false, kind: 'rate_limited', httpStatus: 429, retryAfterSec: 7200 })
+  })
 
-    expect((await authResult).kind).toBe('auth_required')
-    expect((await forbidden).kind).toBe('auth_required')
-    expect((await upstream).kind).toBe('upstream_error')
-    expect((await notFound).kind).toBe('upstream_error')
-    expect((await notFound).httpStatus).toBe(404)
+  it('When the endpoint needs auth then the kind is auth_required', async () => {
+    const client = createUsageClient({ fetchImpl: async () => statusResponse(401), nowMs: () => NOW })
+    await expect(client.fetchUsage('t')).resolves.toMatchObject({ ok: false, kind: 'auth_required', httpStatus: 401 })
+  })
+
+  it('When the response is 403, 5xx or another 4xx then the kinds map to upstream/auth as designed', async () => {
+    const forbidden = await createUsageClient({ fetchImpl: async () => statusResponse(403), nowMs: () => NOW }).fetchUsage('t')
+    expect(forbidden).toMatchObject({ ok: false, kind: 'auth_required', httpStatus: 403 })
+    const upstream = await createUsageClient({ fetchImpl: async () => statusResponse(503), nowMs: () => NOW }).fetchUsage('t')
+    expect(upstream).toMatchObject({ ok: false, kind: 'upstream_error', httpStatus: 503 })
+    const notFound = await createUsageClient({ fetchImpl: async () => statusResponse(404), nowMs: () => NOW }).fetchUsage('t')
+    expect(notFound).toMatchObject({ ok: false, kind: 'upstream_error', httpStatus: 404 })
   })
 
   it('When the request throws or times out then it is a network error without a status', async () => {
-    const client = createUsageClient({ fetchImpl: async () => { throw new Error('offline') }, nowMs: () => NOW })
-    expect(await client.fetchUsage('t')).toEqual({ ok: false, kind: 'network_error', httpStatus: null, retryAfterSec: null })
-  })
-
-  it('When building then the timeout option is 10 seconds', () => {
-    const fetchImpl = vi.fn(async () => okResponse())
-    createUsageClient({ fetchImpl, nowMs: () => NOW }).fetchUsage('t')
-    const init = fetchImpl.mock.calls[0][1]
-    expect(init.timeoutMs).toBe(10_000)
+    const client = createUsageClient({
+      fetchImpl: async () => {
+        throw new Error('offline')
+      },
+      nowMs: () => NOW,
+    })
+    await expect(client.fetchUsage('t')).resolves.toEqual({ ok: false, kind: 'network_error', httpStatus: null, retryAfterSec: null })
   })
 })

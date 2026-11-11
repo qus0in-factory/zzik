@@ -10,17 +10,40 @@ import { createHash } from 'node:crypto'
 
 const MAX_RAW_BYTES = 64 * 1024
 
-export const RAW_OMITTED_TOO_LARGE = 'too_large'
-
-/** dry-run 출력용 본문 지문(V6). */
+/** dry-run 출력용 본문 지문(V6). @param {string} text @returns {string} */
 export function sha256Hex(text) {
   return createHash('sha256').update(text, 'utf8').digest('hex')
 }
 
+/** @type {'too_large'} */
+export const RAW_OMITTED_TOO_LARGE = 'too_large'
+
+/**
+ * @typedef {import('./ports.mjs').UsageEnvelope} UsageEnvelope
+ * @typedef {import('../../../shared/usage-contract.js').UsageStatus} UsageStatus
+ */
+
+/** @param {number|null|undefined} ms @returns {string|null} */
 function isoOrNull(ms) {
   return ms === null || ms === undefined ? null : new Date(ms).toISOString()
 }
 
+/**
+ * @param {{
+ *   nowMs: number,
+ *   status: UsageStatus,
+ *   called: boolean,
+ *   httpStatus: number|null,
+ *   retryAtMs: number|null,
+ *   credentialExpiresAt: number|null,
+ *   bodyText: string|null,
+ *   previous: UsageEnvelope|null,
+ *   intervalSec: number,
+ *   collectorVersion: string,
+ *   kvTokenExpiresAtMs?: number|null,
+ * }} input
+ * @returns {UsageEnvelope}
+ */
 export function buildEnvelope({
   nowMs,
   status,
@@ -32,7 +55,7 @@ export function buildEnvelope({
   previous,
   intervalSec,
   collectorVersion,
-  kvTokenExpiresAt = null,
+  kvTokenExpiresAtMs = null,
 }) {
   const runAt = new Date(nowMs).toISOString()
   const prev = previous ?? null
@@ -63,7 +86,7 @@ export function buildEnvelope({
     httpStatus: called && httpStatus !== null && httpStatus !== undefined ? httpStatus : (prev?.httpStatus ?? null),
     retryAt: isoOrNull(retryAtMs),
     tokenExpiresAt: isoOrNull(credentialExpiresAt),
-    kvTokenExpiresAt: isoOrNull(kvTokenExpiresAt),
+    kvTokenExpiresAt: isoOrNull(kvTokenExpiresAtMs),
     intervalSec,
     collectorVersion,
     rawText,

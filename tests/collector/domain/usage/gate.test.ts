@@ -51,7 +51,7 @@ describe('Given a successful run', () => {
       openGateFor(emptyGate(), { now: NOW, kind: 'rate_limited', delaySec: 600, credentialExpiresAt: null }),
       { now: NOW, kind: 'rate_limited', delaySec: 1200, credentialExpiresAt: null },
     )
-    const reset = resetGate(gate)
+    const reset = resetGate()
     expect(reset.nextAllowedAt).toBeNull()
     expect(reset.failCount).toBe(0)
     expect(reset.failReason).toBeNull()

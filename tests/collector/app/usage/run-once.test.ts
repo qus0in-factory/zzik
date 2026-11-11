@@ -7,7 +7,6 @@ import {
   createFakeCollectorPorts,
   type FakeCredentialRead,
 } from '../../../fakes/collector-ports'
-
 const BODY = '{"five_hour":{"utilization":37,"resets_at":"2026-11-11T14:13:00.000Z"}}'
 
 const futureExpiresAt = Date.parse('2026-11-11T18:00:00.000Z')
@@ -58,7 +57,7 @@ describe('Given a healthy run', () => {
     ports.usage.queueUsage(okUsage)
     await run(ports)
 
-    const allRecords = [ports.state.snapshot(), ...ports.kv.writes, ...ports.logger.entries.map((e) => JSON.stringify(e))]
+    const allRecords = [ports.state.snapshot(), ...ports.kv.writes, ...ports.logger.entries.map((e: Record<string, unknown>) => JSON.stringify(e))]
     for (const record of allRecords) {
       expect(String(record)).not.toContain(USAGE_TOKEN)
       expect(String(record)).not.toContain('sk-ant')
