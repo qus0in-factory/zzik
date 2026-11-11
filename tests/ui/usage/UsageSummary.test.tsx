@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { UsageSummary } from '@ui/usage/UsageSummary'
+import { usageProviderIds } from '@app/usage/provider-meta'
 import type { UsageGatewayResult } from '@domain/usage/gateway'
 import normalRaw from '../../fixtures/claude-usage.normal.json'
 import limitedRaw from '../../fixtures/codex-usage.limited.json'
@@ -68,5 +69,15 @@ describe('Given the provider summary chips (ADR 0.3 D8)', () => {
     for (const chip of screen.getAllByTestId(/^usage-summary-/)) {
       expect(chip.className).toContain('max-w-full')
     }
+  })
+})
+
+describe('Given the provider list source (D8: 목록 기반 렌더)', () => {
+  it('When rendering then chips are generated from the registry list, not hardcoded indices', () => {
+    renderSummary(OK_CLAUDE, OK_CODEX_LIMITED)
+    const ids = usageProviderIds()
+    const rendered = screen.getAllByTestId(/^usage-summary-/).map((chip) => chip.getAttribute('data-testid'))
+    expect(rendered).toEqual(ids.map((id) => `usage-summary-${id}`))
+    expect(ids.length).toBeGreaterThan(1)
   })
 })

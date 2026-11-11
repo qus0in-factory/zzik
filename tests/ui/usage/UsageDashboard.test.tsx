@@ -238,3 +238,57 @@ describe('Given the codex section (ADR 0.3 D6·D8)', () => {
     expect(screen.getByTestId('provider-hint').textContent).toContain('Codex를 실행하면')
   })
 })
+
+describe('Given the collection note and 320px layout (ADR 0.3 v2 D8)', () => {
+  it('When a collection note is given then it is rendered as plain informational text', () => {
+    const report = buildUsageView(normalRaw, { now: NOW })
+    render(
+      <UsageDashboard
+        provider="claude"
+        status="stale"
+        report={report}
+        errorMessage={null}
+        collectionNote="이 Mac에서 Claude Code를 실행하면 갱신됩니다."
+      />,
+    )
+    const note = screen.getByTestId('collection-note')
+    expect(note.textContent).toContain('실행하면 갱신됩니다')
+    expect(note.className).toContain('break-words')
+    expect(note.className).toContain('min-w-0')
+    // stale 안내(role=status)와 섞이지 않는다: plain 문단이므로 status 역할을 만들지 않는다.
+    expect(note.getAttribute('role')).toBeNull()
+  })
+
+  it('When there is no note then the note element is absent', () => {
+    const report = buildUsageView(normalRaw, { now: NOW })
+    render(<UsageDashboard provider="claude" status="ready" report={report} errorMessage={null} collectionNote={null} />)
+    expect(screen.queryByTestId('collection-note')).toBeNull()
+  })
+
+  it('When an error message is long then the alert box wraps instead of overflowing at 320px', () => {
+    render(
+      <UsageDashboard
+        provider="claude"
+        status="error"
+        report={null}
+        errorMessage={'아주 긴 오류 문구 '.repeat(20)}
+      />,
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert.className).toContain('min-w-0')
+    expect(alert.querySelector('[data-testid="usage-error-text"]')?.className).toContain('break-words')
+  })
+
+  it('When the grids render at 320px then they stay single column without horizontal scroll', () => {
+    const report = buildUsageView(normalRaw, { now: NOW })
+    render(<UsageDashboard provider="claude" status="ready" report={report} errorMessage={null} />)
+    for (const grid of screen.getAllByTestId('usage-grid-claude')) {
+      expect(grid.className).toContain('grid-cols-1')
+      expect(grid.className).not.toMatch(/(?:^|\s)grid-cols-[23]/)
+      expect(grid.className).not.toContain('overflow-x-auto')
+    }
+    for (const bar of screen.getAllByRole('progressbar')) {
+      expect(bar.parentElement?.className).toContain('min-w-0')
+    }
+  })
+})

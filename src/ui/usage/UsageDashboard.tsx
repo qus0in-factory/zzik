@@ -29,6 +29,10 @@ export interface UsageDashboardProps {
   lastSuccessText?: string | null
   /** stale 안내(`마지막 성공 2분 전`) — app에서 계산된 문구 */
   staleNoteText?: string | null
+  /** 수집 상태별 안내(ADR 0.3 v2 D4 표) — app에서 계산된 문구 */
+  collectionNote?: string | null
+  /** 봉투가 가린 키 경로(H3) — Raw 보기에 개수만 알린다 */
+  rawRedacted?: readonly string[] | null
 }
 
 /** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도 → 기타 항목 → 원본 JSON. */
@@ -45,6 +49,8 @@ export function UsageDashboard({
   onRetry = null,
   lastSuccessText = null,
   staleNoteText = null,
+  collectionNote = null,
+  rawRedacted = null,
 }: UsageDashboardProps): ReactNode {
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
@@ -81,15 +87,23 @@ export function UsageDashboard({
       {title !== undefined && <h2 className="text-xl font-semibold tracking-tight">{title}</h2>}
       <StatusBar badge={badge} lastSuccessText={lastSuccessText} onRetry={onRetry} />
 
-      {refreshHint !== null && status !== 'ready' && (
+      {refreshHint !== null && status !== 'ready' && collectionNote === null && (
         <p data-testid="provider-hint" className="text-sm text-muted-foreground">
           {refreshHint}
         </p>
       )}
 
+      {collectionNote !== null && (
+        <p data-testid="collection-note" aria-live="polite" className="min-w-0 break-words rounded-lg border p-3 text-sm text-muted-foreground">
+          {collectionNote}
+        </p>
+      )}
+
       {status === 'error' && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
-          <span className="text-sm">{errorMessage ?? '사용량을 불러오지 못했습니다'}</span>
+        <div role="alert" className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+          <span data-testid="usage-error-text" className="min-w-0 break-words text-sm">
+            {errorMessage ?? '사용량을 불러오지 못했습니다'}
+          </span>
           <button
             type="button"
             onClick={onRetry ?? undefined}
@@ -132,7 +146,7 @@ export function UsageDashboard({
       )}
 
       {report !== null && <OtherItems others={report.others} />}
-      {report !== null && <RawJson raw={report.raw} provider={provider} />}
+      {report !== null && <RawJson raw={report.raw} provider={provider} rawRedacted={rawRedacted} />}
     </section>
   )
 }

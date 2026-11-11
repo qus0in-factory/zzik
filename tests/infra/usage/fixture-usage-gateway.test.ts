@@ -115,3 +115,17 @@ describe('Given the codex fixture gateway (ADR 0.3 D6/D8)', () => {
     expect((result.usage?.rate_limit as Record<string, unknown>).limit_reached).toBe(true)
   })
 })
+
+describe('Given the auth_rejected fixture scenario (ADR 0.3 v2)', () => {
+  it('When the scenario is auth_rejected then the envelope says the server rejected the token', async () => {
+    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=auth_rejected', now: ANCHOR_CLOCK })
+    const result = await gateway.fetchUsage('codex')
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.collection).toMatchObject({ status: 'auth_rejected', httpStatus: 401, provider: 'codex' })
+    expect(result.usage).not.toBeNull()
+  })
+
+  it('When the scenario name parses then auth_rejected is a known name', () => {
+    expect(parseFixtureUsageName('?fixture=auth_rejected')).toBe('auth_rejected')
+  })
+})

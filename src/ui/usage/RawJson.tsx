@@ -6,21 +6,24 @@ import { useRawJsonOpen } from '@app/usage/usage-ui-store'
 /**
  * 원본 JSON 보기: 접힘으로 시작, 펼치면 원문(2칸 들여쓰기)과 복사 버튼.
  * 펼침 상태는 제공자별로 클라이언트 Zustand 스토어에 둔다(ADR 0.3 D8, 스택 부록 A5).
- * 제공자 섹션이 둘이므로 `pre`/`region` 라벨도 제공자별로 구분한다.
+ * 식별자를 가린 봉투(`rawRedacted`)면 가린 개수를 알린다(H3) — 가린 값 자체는 보여 주지 않는다.
  */
 export function RawJson({
   raw,
   provider,
   label,
+  rawRedacted = null,
 }: {
   raw: Record<string, unknown> | null
   provider: UsageProvider
   label?: string
+  rawRedacted?: readonly string[] | null
 }): ReactNode {
   const rawJson = useRawJsonOpen(provider)
   const open = rawJson.open
   const text = raw === null ? 'null' : JSON.stringify(raw, null, 2)
   const regionLabel = `원본 JSON (${label ?? provider})`
+  const redactedCount = rawRedacted?.length ?? 0
   const copy = (): void => {
     try {
       void navigator.clipboard?.writeText(text)?.catch(() => {})
@@ -45,6 +48,11 @@ export function RawJson({
           </button>
         )}
       </div>
+      {redactedCount > 0 && (
+        <p data-testid={`usage-raw-redacted-${provider}`} className="mt-2 min-w-0 break-words text-xs text-muted-foreground">
+          값 {redactedCount}개를 가렸습니다
+        </p>
+      )}
       {open && (
         <pre
           role="region"

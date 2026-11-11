@@ -20,6 +20,8 @@ export interface UsageProviderMeta {
   id: UsageProvider
   title: string
   metricsTitle: string
+  /** 갱신을 맡는 클라이언트 이름(안내 문구에 쓴다). */
+  clientName: string
   refreshHint: string
   sectionId: string
   ariaLabel: string
@@ -30,6 +32,7 @@ export const USAGE_PROVIDER_META: Record<UsageProvider, UsageProviderMeta> = {
     id: 'claude',
     title: 'Claude',
     metricsTitle: '모델·기능별 한도',
+    clientName: 'Claude Code',
     refreshHint: '이 Mac에서 Claude Code를 실행하면 갱신된다',
     sectionId: 'usage-claude',
     ariaLabel: 'Claude 사용량',
@@ -38,6 +41,7 @@ export const USAGE_PROVIDER_META: Record<UsageProvider, UsageProviderMeta> = {
     id: 'codex',
     title: 'ChatGPT (Codex)',
     metricsTitle: '추가 한도',
+    clientName: 'Codex',
     refreshHint: '이 Mac에서 Codex를 실행하면 갱신된다',
     sectionId: 'usage-codex',
     ariaLabel: 'ChatGPT 사용량',

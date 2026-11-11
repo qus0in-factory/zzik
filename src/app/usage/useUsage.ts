@@ -4,7 +4,7 @@ import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/view'
 import { buildUsageLoadView } from './load-usage'
 import { describeGatewayFailure, usageQueryOptions, UsageLoadError } from './usage-query'
-import { composeLastSuccessText, composeStaleNoteText } from './usage-text'
+import { composeCollectionNote, composeLastSuccessText, composeStaleNoteText } from './usage-text'
 import { useUsageDeps } from './UsageGatewayContext'
 
 /** 화면이 관측하는 사용량 상태(0.2.1 계약 유지 — ui는 바뀌지 않는다). */
@@ -21,6 +21,10 @@ export interface UsageUiState {
   lastSuccessText: string | null
   /** stale 안내 문구(`마지막 성공 2분 전`) — app에서 계산 */
   staleNoteText: string | null
+  /** 수집 상태별 안내(D4 표). 정상이거나 봉투가 없으면 null */
+  collectionNote: string | null
+  /** 봉투가 가린 키 경로 목록(H3). 없으면 null */
+  rawRedacted: string[] | null
 }
 
 export interface UsageUiStateValue {
@@ -101,7 +105,9 @@ export function useUsage(provider: UsageProvider): UsageUiStateValue {
     nowIso,
     lastSuccessText: composeLastSuccessText(lastSuccessAt, nowIso),
     staleNoteText: status === 'stale' ? composeStaleNoteText(lastSuccessAt, nowIso) : null,
-  }), [status, view, lastSuccessAt, errorMessage, nowIso])
+    collectionNote: composeCollectionNote(provider, view?.collectionStatus ?? null, view?.collectionMeta ?? null),
+    rawRedacted: view?.collectionMeta?.rawRedacted ?? null,
+  }), [status, view, lastSuccessAt, errorMessage, nowIso, provider])
 
   // 수동 새로고침은 진행 중 호출을 취소하지 않는다(cancelRefetch: false → 합쳐진다).
   // 실패(취소·오류)는 refetchFailure로 잡아 stale 매핑에 쓴다.
