@@ -1,6 +1,6 @@
 ---
 name: zzik-deploy
-description: zzik를 Cloudflare Workers에 배포하거나 Cloudflare Access 설정·검증할 때 사용. 배포, Access 앱 생성, wrangler deploy, 배포 검정, workers.dev 우회 확인 문구에서 트리거.
+description: zzik를 Cloudflare Workers에 배포하거나 Cloudflare Access 설정·검증할 때 사용. 배포, Access 앱 생성, wrangler deploy, 배포 검증, workers.dev 우회 확인 문구에서 트리거.
 ---
 
 # zzik 배포 · Access 절차
@@ -22,10 +22,10 @@ description: zzik를 Cloudflare Workers에 배포하거나 Cloudflare Access 설
 - 배포 전 로컬 확인은 `pnpm build` · `pnpm dev`로만 할 수 있다(preview URL이 없음).
 
 ## 4. 검증
-- 배포 후 `scripts/verify-zzik.sh`를 실행한다(ADR Verification 2·3 자동화).
-- workers.dev 우회까지 확인하려면 서브도메인을 인자로 넣는다: `scripts/verify-zzik.sh <account-subdomain>`
+- 배포 후 `scripts/verify-zzik.sh`를 실행한다(ADR Verification 2·3 자동화). 미인증 요청은 302 + Location 에 `cdn-cgi/access/login` 이 있는 것으로 차단을 판정하고, 본문에 `Hello Young-In` 이 없어야 한다. cloudflareaccess.com 여부는 참고 출력일 뿐이다.
+- workers.dev 우회까지 확인하려면 서브도메인을 인자로 넣는다: `scripts/verify-zzik.sh <account-subdomain>`. URL이 200 을 돌려주면 앱 문구가 없어도 경고가 출력된다.
 - 나머지 Verification(4~7)은 사람이 수동으로: 시크릿 창 로그인, Access 로그, SPA 폴백, 대시보드 설정 대조.
 
-## 5. 금지·되돌리기 금지
+## 5. 되돌리기 금지
 - `wrangler.jsonc`의 `workers_dev: false`, `preview_urls: false`를 다시 켜지 말 것. 켜는 순간 workers.dev/preview URL이 Access 밖으로 공개된다.
 - 설정을 바꿨으면(Access 앱 포함) 반드시 `scripts/verify-zzik.sh`를 다시 돌린다.

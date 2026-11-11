@@ -1,0 +1,4 @@
+# pnpm 11 기준 빌드 스크립트 승인(v11에서 onlyBuiltDependencies 제거 → allowBuilds 로 대체)
+allowBuilds:
+  esbuild: true
+  workerd: true

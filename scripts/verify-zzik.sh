@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # zzik 배포 검증 — ADR 0.1 Verification 2·3 자동화.
-# 2: 미인증 요청이 zzik.qus0in.dev 에서 302 + cloudflareaccess.com Location 으로
-#    차단되고, 응답 본문에 앱 콘텐츠(Hello Young-In)가 없는지 확인한다.
-# 3: 인자로 workers.dev 서브도메인을 받으면 그 URL이 앱을 서빙하지 않는지 확인한다.
+# 2: 미인증 요청이 zzik.qus0in.dev 에서 302 를 받고, Location 에 cdn-cgi/access/login
+#    이 있는 것으로 차단을 판정한다. cloudflareaccess.com 여부는 참고 출력만 한다.
+#    응답 본문에 앱 콘텐츠(Hello Young-In)가 없는지도 확인한다.
+# 3: 인자로 workers.dev 서브도메인을 받으면 그 URL이 앱을 서빙하지 않는지 확인하고,
+#    상태 200 인데 앱 문구가 없으면 경고를 출력한다.
 # 사용: scripts/verify-zzik.sh                            # Verification 2만 실행
 #       scripts/verify-zzik.sh <account-subdomain>        # zzik.<sub>.workers.dev 로 확인
 #       scripts/verify-zzik.sh zzik.<sub>.workers.dev     # 전체 URL 형태도 허용
@@ -50,8 +52,13 @@ fi
 if [ -n "$location" ]; then
   printf '      Location: %s\n' "$location"
 fi
-if ! grep -qi 'cloudflareaccess.com' <<<"${location:-}"; then
-  fail "Location 에 cloudflareaccess.com 이 없다: '${location:-없음}'"
+if ! grep -q 'cdn-cgi/access/login' <<<"${location:-}"; then
+  fail "Location 에 cdn-cgi/access/login 이 없다: '${location:-없음}' — Access 로그인 페이지로 돌려보내는 게 아니다"
+fi
+if grep -qi 'cloudflareaccess.com' <<<"${location:-}"; then
+  echo "참고  Location 이 cloudflareaccess.com 임(참고용 출력)"
+else
+  echo "참고  Location 에 cloudflareaccess.com 이 없다(참고용 출력, 판정과 무관)"
 fi
 if grep -qF "$APP_TEXT" "$body_file"; then
   fail "응답 본문에 '$APP_TEXT' 가 보인다 — Access 없이 앱이 공개된 상태다"
@@ -63,7 +70,10 @@ if [ -n "$WORKER_URL" ]; then
   echo "== Verification 3: workers.dev 우회 차단 ($WORKER_URL)"
   status=$(fetch "$WORKER_URL")
   if grep -qF "$APP_TEXT" "$body_file"; then
-    fail "$WORKER_URL 이 app을 서빙한다(상태 $status) — workers_dev/preview_urls 를 다시 켜지 말 것"
+    fail "$WORKER_URL 이 앱을 서빙한다(상태 $status) — workers_dev/preview_urls 를 다시 켜지 말 것"
+  fi
+  if [ "$status" = "200" ]; then
+    printf 'WARN  상태 200 인데 앱 문구는 없다 — %s 이 무언가를 서빙 중이므로 확인할 것\n' "$WORKER_URL"
   fi
   pass "$WORKER_URL 은 앱을 서빙하지 않는다(상태 $status)"
 else
