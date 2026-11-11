@@ -40,8 +40,13 @@
   },
   "include": [
     "src",
+    "worker",
+    "shared",
     "vite.config.ts",
-    "tests",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "tests"
+  ],
+  "exclude": [
+    "tests/collector"
   ]
 }

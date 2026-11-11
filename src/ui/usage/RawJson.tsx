@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react'
-import { useState } from 'react'
 import type { RawUsage } from '@domain/usage/types'
+import { useRawJsonOpen } from '@app/usage/usage-ui-store'
 
-/** 원본 JSON 보기: 접힘으로 시작, 펼치면 원문(2칸 들여쓰기)과 복사 버튼. */
+/** 원본 JSON 보기: 접힘으로 시작, 펼치면 원문(2칸 들여쓰기)과 복사 버튼.
+ * 펼침 상태는 클라이언트 Zustand 스토어에 두어 조회 갱신으로 다시 마운트돼도 유지한다(스택 부록 A5).
+ */
 export function RawJson({ raw }: { raw: RawUsage | null }): ReactNode {
-  const [open, setOpen] = useState(false)
+  const rawJson = useRawJsonOpen()
+  const open = rawJson.open
   const text = raw === null ? 'null' : JSON.stringify(raw, null, 2)
   const copy = (): void => {
     try {
@@ -19,7 +22,7 @@ export function RawJson({ raw }: { raw: RawUsage | null }): ReactNode {
         <button
           type="button"
           aria-expanded={open}
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={() => rawJson.toggle()}
           className="rounded-md border border-border px-2.5 py-1.5 text-sm font-medium hover:bg-accent"
         >
           원본 JSON

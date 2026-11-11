@@ -1,28 +1,45 @@
-import type { UsageGateway, UsageGatewayFailureReason } from '@domain/usage/gateway'
+import type { UsageCollectionMeta } from '../../../shared/usage-contract'
+import type { RawUsage } from '@domain/usage/types'
 import { buildUsageView } from '@domain/usage/view'
 import type { UsageReport } from '@domain/usage/view'
 
-export type UsageLoadResult =
-  | { ok: true; report: UsageReport }
-  | { ok: false; reason: UsageGatewayFailureReason; message: string | null }
-
-export interface LoadUsageOptions {
-  now?: Date
+/**
+ * 게이트웨이 성공 결과를 화면 뷰로 바꾼다(스택 부록 A4).
+ * - 보고서: raw 응답을 domain의 buildUsageView로(0.2.1 계약과 같다).
+ * - 수집 판정: 봉투 메타의 상태와 나이(D4의 두 표). 예외는 결과 유니온이 아니라 불리언으로.
+ */
+export interface UsageSuccessData {
+  usage: RawUsage | null
+  collection: UsageCollectionMeta | null
+  rawText: string | null
 }
 
-/** 게이트웨이 포트를 호출하고 raw를 domain의 뷰 모델로 바꾼다(ADR 0.2 D11). */
-export function loadUsage(gateway: UsageGateway, options: LoadUsageOptions = {}): Promise<UsageLoadResult> {
-  return gateway.fetchUsage().then((result) => {
-    if (result.ok) {
-      return { ok: true as const, report: buildUsageView(result.usage, options.now ? { now: options.now } : {}) }
-    }
-    return { ok: false as const, reason: result.reason, message: result.message }
-  })
+export interface UsageLoadView {
+  report: UsageReport
+  /** 수집 판정이 정상(봉투 상태 ok + 값·하트비트가 주기 안)인지. 봉투가 없으면(목 데이터) 정상으로 본다. */
+  collectionOk: boolean
+  /** 마지막 성공 시각(봉투의 fetchedAt). 모의 데이터는 null */
+  lastSuccessAt: string | null
 }
 
-/** 실패 이유의 기본 안내 문구. 게이트웨이가 준 message가 없을 때 쓴다. */
-export function describeGatewayFailure(reason: UsageGatewayFailureReason): string {
-  if (reason === 'session_expired') return 'Access 세션이 만료되었습니다. 페이지를 새로 고친 뒤 다시 로그인해 주세요.'
-  if (reason === 'network_error') return '네트워크에 연결할 수 없습니다.'
-  return '사용량을 불러오지 못했습니다.'
+const COLLECT_STALE_FACTOR = 3
+
+function isCollectionOk(collection: UsageCollectionMeta | null, nowMs: number): boolean {
+  if (collection === null) return true
+  if (collection.status !== 'ok') return false
+  const intervalMs = collection.intervalSec * 1000
+  const fetchedMs = collection.fetchedAt !== null ? Date.parse(collection.fetchedAt) : null
+  if (fetchedMs !== null && !Number.isNaN(fetchedMs) && nowMs - fetchedMs > COLLECT_STALE_FACTOR * intervalMs) return false
+  const runMs = Date.parse(collection.runAt)
+  if (!Number.isNaN(runMs) && nowMs - runMs > COLLECT_STALE_FACTOR * intervalMs) return false
+  return true
+}
+
+export function buildUsageLoadView(data: UsageSuccessData, now: Date): UsageLoadView {
+  const report = buildUsageView(data.usage ?? {}, { now })
+  return {
+    report,
+    collectionOk: isCollectionOk(data.collection, now.getTime()),
+    lastSuccessAt: data.collection?.fetchedAt ?? null,
+  }
 }
