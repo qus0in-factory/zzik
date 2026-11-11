@@ -5,19 +5,35 @@ import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 // 레이어 의존 규칙(ADR 0.2 D11, AGENTS.md, layered-tdd 스킬):
-//   ui → app → domain, domain은 shared만, infra는 domain만. ui가 domain을 쓸 때는 import type만.
-//   src/, worker/, collector/ 세 루트는 서로 import하지 않는다(shared/만 예외).
-//   조립 루트(src/main.tsx, worker/index.ts, collector/main.mjs)는 레이어 밖이라 검사에서 제외한다.
+//   ui → app → domain, domain은 shared만, infra는 domain만 — 세 루트(src/, worker/, collector/) 공통.
+//   ui가 domain을 쓸 때는 import type만 허용. infra 구현은 조립 루트에서만 생성·주입.
+//   루트 사이의 import는 금지(공유는 shared/로만). 조립 루트는 배선 장소라 검사에서 제외.
+//   collector는 .mjs/.cjs, 나머지는 .ts/.tsx를 검사한다.
 //
-// 검사는 TypeScript 파서(AST)로 한다. 문자열/주석/여러 줄 서식에 흔들리지 않고,
-// 동적 import(`import('...')`)도 같은 규칙으로 잡는다.
+// 검사는 TypeScript 파서(AST)로 한다. 문자열·주석·여러 줄 서식에 흔들리지 않고,
+// 동적 import(`import('...')`)도 같은 규칙으로 잡는다. JSDoc 안의 `import('...')`는
+// 주석이므로 AST에 노드가 생기지 않아 자연히 무시된다.
+//
+// 규칙이 실제로 동작하는지는 아래 "위반 주입" 테스트가 음성/양성 양쪽으로 확인한다.
 
 const BASE = fileURLToPath(new URL('../..', import.meta.url))
 
-const ROOTS = ['src', 'worker', 'collector'] as const
-const LAYERS = ['ui', 'app', 'domain', 'infra'] as const
+interface RootSpec {
+  name: string
+  dir: string
+  extensions: RegExp
+}
 
-type Root = (typeof ROOTS)[number]
+const ROOTS: readonly RootSpec[] = [
+  { name: 'src', dir: join(BASE, 'src'), extensions: /\.(ts|tsx)$/ },
+  { name: 'worker', dir: join(BASE, 'worker'), extensions: /\.(ts|tsx)$/ },
+  { name: 'collector', dir: join(BASE, 'collector'), extensions: /\.(mjs|cjs)$/ },
+]
+
+const SHARED_DIR = join(BASE, 'shared')
+const TESTS_DIR = join(BASE, 'tests')
+
+const LAYERS = ['ui', 'app', 'domain', 'infra'] as const
 type Layer = (typeof LAYERS)[number]
 
 const ALLOWED: Record<Layer, readonly Layer[]> = {
@@ -26,6 +42,12 @@ const ALLOWED: Record<Layer, readonly Layer[]> = {
   domain: ['domain'],
   infra: ['infra', 'domain'],
 }
+
+/**
+ * domain은 원칙적으로 외부 패키지를 쓰지 않는다. 예외는 순수 계산뿐인 Node 내장 모듈.
+ * (수집기 domain이 봉투 지문 계산에 `node:crypto`를 쓴다. I/O 내장 모듈은 여전히 금지.)
+ */
+const PURE_DOMAIN_BUILTINS: readonly string[] = ['node:crypto']
 
 export type ViolationReason =
   | 'cross-root-import'
@@ -37,7 +59,7 @@ export interface LayerViolation {
   /** BASE 기준 상대 경로 */
   file: string
   root: string
-  layer: Layer | null
+  layer: Layer
   spec: string
   reason: ViolationReason
 }
@@ -47,17 +69,19 @@ export interface SourceFile {
   text: string
 }
 
-function listSourceFiles(dir: string): string[] {
+function listSourceFiles(dir: string, extensions: RegExp): string[] {
   if (!existsSync(dir)) return []
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name)
-    if (entry.isDirectory()) return listSourceFiles(path)
-    return /\.(tsx?|mjs)$/.test(entry.name) ? [path] : []
+    if (entry.isDirectory()) return listSourceFiles(path, extensions)
+    return extensions.test(entry.name) ? [path] : []
   })
 }
 
-export function loadSourceFiles(roots: readonly string[] = ROOTS): SourceFile[] {
-  return roots.flatMap((root) => listSourceFiles(join(BASE, root)).map((path) => ({ path, text: readFileSync(path, 'utf8') })))
+export function loadSourceFiles(): SourceFile[] {
+  return ROOTS.flatMap((root) =>
+    listSourceFiles(root.dir, root.extensions).map((path) => ({ path, text: readFileSync(path, 'utf8') })),
+  )
 }
 
 export interface ImportStatement {
@@ -67,7 +91,7 @@ export interface ImportStatement {
 }
 
 function scriptKind(path: string): ts.ScriptKind {
-  if (path.endsWith('.mjs')) return ts.ScriptKind.JS
+  if (/\.(mjs|cjs|js)$/.test(path)) return ts.ScriptKind.JS
   if (path.endsWith('.tsx')) return ts.ScriptKind.TSX
   return ts.ScriptKind.TS
 }
@@ -78,7 +102,7 @@ function literalText(node: ts.Expression | undefined): string | null {
   return null
 }
 
-/** 정적 import/export와 동적 `import('...')`을 모두 문장으로 뽑는다. JSDoc 타입 참조는 AST에 없으므로 자연히 무시된다. */
+/** 정적 import/export와 동적 `import('...')`을 모두 뽑는다. JSDoc 타입 참조는 AST에 없으므로 무시된다. */
 export function importsOf(text: string, path = join(BASE, 'src', 'ui', 'probe.tsx')): ImportStatement[] {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, scriptKind(path))
   const found: ImportStatement[] = []
@@ -93,10 +117,7 @@ export function importsOf(text: string, path = join(BASE, 'src', 'ui', 'probe.ts
           spec,
         })
       }
-    } else if (
-      ts.isCallExpression(node) &&
-      node.expression.kind === ts.SyntaxKind.ImportKeyword
-    ) {
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const spec = literalText(node.arguments[0])
       if (spec !== null) found.push({ kind: 'import', isTypeOnly: false, spec })
     }
@@ -110,58 +131,97 @@ export function importsOf(text: string, path = join(BASE, 'src', 'ui', 'probe.ts
 interface FileContext {
   root: string
   layer: Layer | null
+  rootDir: string | null
 }
 
 function contextOf(path: string): FileContext {
-  const [root, layer] = relative(BASE, path).split('/')
-  return { root, layer: (LAYERS as readonly string[]).includes(layer) ? (layer as Layer) : null }
+  for (const root of ROOTS) {
+    const rel = relative(root.dir, path).replace(/\\/g, '/')
+    if (rel.startsWith('..')) continue
+    const [first] = rel.split('/')
+    return {
+      root: root.name,
+      layer: (LAYERS as readonly string[]).includes(first) ? (first as Layer) : null,
+      rootDir: root.dir,
+    }
+  }
+  return { root: '', layer: null, rootDir: null }
 }
 
-function resolveTarget(fromFile: string, spec: string): string | null {
+function layerWithin(rootDir: string, absPath: string): Layer | null {
+  const rel = relative(rootDir, absPath).replace(/\\/g, '/')
+  if (rel.startsWith('..')) return null
+  const [first] = rel.split('/')
+  return (LAYERS as readonly string[]).includes(first) ? (first as Layer) : null
+}
+
+type Target =
+  | { kind: 'shared' }
+  | { kind: 'tests' }
+  | { kind: 'external' }
+  | { kind: 'cross-root' }
+  | { kind: 'layer'; root: string; layer: Layer }
+
+/** import 스펙이 어느 루트의 어느 레이어(또는 shared·tests·외부)를 가리키는지 판정한다. */
+function targetOf(fromFile: string, spec: string): Target {
   const normalized = spec.split('?')[0].split('#')[0]
   const alias = /^@(ui|app|domain|infra)\/(.*)$/.exec(normalized)
-  if (alias !== null) return resolve(BASE, 'src', alias[1], alias[2])
-  if (normalized.startsWith('@/')) return resolve(BASE, 'src', normalized.slice(2))
-  if (normalized.startsWith('.')) return resolve(dirname(fromFile), normalized)
-  return null // 외부 패키지
+  let abs: string
+  if (alias !== null) abs = join(BASE, 'src', alias[1], alias[2])
+  else if (normalized.startsWith('@/')) abs = join(BASE, 'src', normalized.slice(2))
+  else if (normalized.startsWith('.')) abs = resolve(dirname(fromFile), normalized)
+  else return { kind: 'external' }
+
+  if (abs === SHARED_DIR || abs.startsWith(SHARED_DIR + '/')) return { kind: 'shared' }
+  if (abs === TESTS_DIR || abs.startsWith(TESTS_DIR + '/')) return { kind: 'tests' }
+
+  for (const root of ROOTS) {
+    const layer = layerWithin(root.dir, abs)
+    if (layer !== null) {
+      if (root.dir === contextOf(fromFile).rootDir) return { kind: 'layer', root: root.name, layer }
+      return { kind: 'cross-root' }
+    }
+  }
+  return { kind: 'cross-root' }
 }
 
 /** src/infra가 목 fixture JSON을 읽는 것은 허용한다(실행 코드가 아닌 예시 데이터). */
-function isFixtureImport(root: string, layer: Layer, targetRel: string, spec: string): boolean {
-  return root === 'src' && layer === 'infra' && targetRel.startsWith('tests/fixtures/') && spec.endsWith('.json')
+function isFixtureImport(layer: Layer, spec: string): boolean {
+  return layer === 'infra' && spec.includes('tests/fixtures/') && spec.endsWith('.json')
 }
 
 export function findViolations(files: SourceFile[] = loadSourceFiles()): LayerViolation[] {
   const found: LayerViolation[] = []
 
   for (const file of files) {
-    const { root, layer } = contextOf(file.path)
-    if (layer === null) continue // 조립 루트는 배선 장소다
+    const context = contextOf(file.path)
+    const { root, layer } = context
+    if (layer === null) continue // 조립 루트(main.tsx, index.ts, main.mjs)는 배선 장소다
 
     for (const statement of importsOf(file.text, file.path)) {
-      const target = resolveTarget(file.path, statement.spec)
-      if (target === null) {
-        if (layer === 'domain') {
+      const target = targetOf(file.path, statement.spec)
+
+      if (target.kind === 'external') {
+        if (layer === 'domain' && !PURE_DOMAIN_BUILTINS.includes(statement.spec)) {
           found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'domain-external-import' })
         }
         continue
       }
-
-      const targetRel = relative(BASE, target).replace(/\\/g, '/')
-      if (targetRel.startsWith('shared/')) continue
-      if (isFixtureImport(root, layer, targetRel, statement.spec)) continue
-
-      const [targetRoot, targetLayer] = targetRel.split('/')
-      if (targetRoot !== root || !(ROOTS as readonly string[]).includes(targetRoot)) {
+      if (target.kind === 'shared') continue
+      if (target.kind === 'tests') {
+        if (isFixtureImport(layer, statement.spec)) continue
         found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'cross-root-import' })
         continue
       }
-      if (!(LAYERS as readonly string[]).includes(targetLayer)) continue
-      if (!ALLOWED[layer].includes(targetLayer as Layer)) {
+      if (target.kind === 'cross-root' || target.root !== root) {
+        found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'cross-root-import' })
+        continue
+      }
+      if (!ALLOWED[layer].includes(target.layer)) {
         found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'forbidden-direction' })
         continue
       }
-      if (layer === 'ui' && targetLayer === 'domain' && !statement.isTypeOnly) {
+      if (layer === 'ui' && target.layer === 'domain' && !statement.isTypeOnly) {
         found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'ui-domain-value-import' })
       }
     }
@@ -179,9 +239,13 @@ function summarize(violations: LayerViolation[]): Array<[ViolationReason, string
 }
 
 describe('Given the layered source roots', () => {
-  it.each(ROOTS)('When scanning %s then dependency directions and root isolation hold', (root) => {
-    const violations = findViolations(loadSourceFiles([root]))
+  it.each(ROOTS.map((root) => root.name))('When scanning %s then dependency directions and root isolation hold', (root) => {
+    const violations = findViolations(loadSourceFiles().filter((file) => contextOf(file.path).root === root))
     expect(violations.map((violation) => `${violation.file}: ${violation.reason} ${violation.spec}`)).toEqual([])
+  })
+
+  it('When every root is scanned together then no root-to-root import exists', () => {
+    expect(findViolations().filter((violation) => violation.reason === 'cross-root-import')).toEqual([])
   })
 
   it('When every root is scanned together then the aggregate list is empty', () => {
@@ -190,9 +254,13 @@ describe('Given the layered source roots', () => {
 
   it('When scanning then the scanner actually loaded sources (빈 스캔 방지)', () => {
     const files = loadSourceFiles()
-    expect(files.length).toBeGreaterThan(15)
+    expect(files.length).toBeGreaterThan(20)
     expect(files.some((file) => file.path.endsWith(join('src', 'ui', 'usage', 'LimitCard.tsx')))).toBe(true)
     expect(files.some((file) => file.path.endsWith(join('worker', 'ui', 'router.ts')))).toBe(true)
+    expect(files.some((file) => file.path.endsWith(join('collector', 'app', 'usage', 'run-once.mjs')))).toBe(true)
+    expect(
+      files.filter((file) => contextOf(file.path).root === 'collector').every((file) => /\.(mjs|cjs)$/.test(file.path)),
+    ).toBe(true)
     expect(files.every((file) => file.text.length > 0)).toBe(true)
   })
 })
@@ -236,11 +304,6 @@ describe('Given the import scanner', () => {
     expect(importsOf(text)).toEqual([])
   })
 
-  it('When a JSDoc type reference names a module then it is not an import', () => {
-    const text = "/** @type {import('../../shared/usage-contract').UsageSnapshot} */\nconst value = {}\n"
-    expect(importsOf(text, join(BASE, 'collector', 'domain', 'probe.mjs'))).toEqual([])
-  })
-
   it('When an export has no from clause then no spec is invented', () => {
     expect(importsOf('export const value = () => 1\n')).toEqual([])
     expect(importsOf('export interface Props {\n  id: string\n}\n')).toEqual([])
@@ -266,6 +329,12 @@ describe('Given an injected layer violation', () => {
     ])
   })
 
+  it('When domain imports app then detection fails the rule', () => {
+    expect(summarize(findViolations([probe('src/domain/probe.ts', "import { loadUsage } from '@app/usage/load-usage'\n")]))).toEqual([
+      ['forbidden-direction', '@app/usage/load-usage'],
+    ])
+  })
+
   it('When ui imports a domain value then detection reports a value import', () => {
     expect(summarize(findViolations([probe('src/ui/probe.tsx', "import { buildUsageView } from '@domain/usage/view'\n")]))).toEqual([
       ['ui-domain-value-import', '@domain/usage/view'],
@@ -282,22 +351,59 @@ describe('Given an injected layer violation', () => {
     ])
   })
 
-  it('When worker/ui imports its own infra then detection reports a forbidden direction', () => {
-    expect(summarize(findViolations([probe('worker/ui/probe.ts', "import { create } from '../infra/probe'\n")]))).toEqual([
-      ['forbidden-direction', '../infra/probe'],
+  it('When src/ui reaches into collector then detection reports a cross-root import', () => {
+    expect(summarize(findViolations([probe('src/ui/probe.tsx', "import { runOnce } from '../../collector/main.mjs'\n")]))).toEqual([
+      ['cross-root-import', '../../collector/main.mjs'],
     ])
   })
 
-  it('When collector/domain uses a node builtin then detection reports a domain external import', () => {
+  it('When collector/app imports collector/infra then detection fails the rule (mjs 포함)', () => {
+    expect(summarize(findViolations([probe('collector/app/probe.mjs', "import { write } from '../infra/usage/wrangler-kv-writer.mjs'\n")]))).toEqual([
+      ['forbidden-direction', '../infra/usage/wrangler-kv-writer.mjs'],
+    ])
+  })
+
+  it('When collector/domain reaches into src then detection reports a cross-root import', () => {
+    expect(summarize(findViolations([probe('collector/domain/probe.mjs', "import { buildUsageView } from '../../src/domain/usage/view.js'\n")]))).toEqual([
+      ['cross-root-import', '../../src/domain/usage/view.js'],
+    ])
+  })
+
+  it('When domain imports a node builtin with I/O then detection fails the purity rule', () => {
     expect(summarize(findViolations([probe('collector/domain/probe.mjs', "import { readFileSync } from 'node:fs'\n")]))).toEqual([
       ['domain-external-import', 'node:fs'],
     ])
   })
 
-  it('When collector/domain imports collector/infra then detection fails the rule (mjs 포함)', () => {
-    expect(summarize(findViolations([probe('collector/domain/probe.mjs', "import { write } from '../infra/state-file.mjs'\n")]))).toEqual([
-      ['forbidden-direction', '../infra/state-file.mjs'],
-    ])
+  it('When domain imports a pure builtin then it is allowed', () => {
+    expect(findViolations([probe('collector/domain/probe.mjs', "import { createHash } from 'node:crypto'\n")])).toEqual([])
+  })
+
+  it('When a collector domain file only references shared through JSDoc then it is allowed', () => {
+    const text = [
+      '/**',
+      ' * @typedef {import("../../../shared/usage-contract.js").UsageEnvelope} UsageEnvelope',
+      ' */',
+      'export function noop() {}',
+      '',
+    ].join('\n')
+    expect(findViolations([probe('collector/domain/probe.mjs', text)])).toEqual([])
+  })
+
+  it('When a domain file imports shared directly then it is allowed', () => {
+    expect(findViolations([probe('src/domain/probe.ts', "import type { UsageEnvelope } from '../../shared/usage-contract.js'\n")])).toEqual([])
+  })
+
+  it('When the infrastructure layer reads a fixture JSON then it is allowed', () => {
+    expect(
+      findViolations([probe('src/infra/usage/probe.ts', "import normal from '../../../tests/fixtures/claude-usage.normal.json'\n")]),
+    ).toEqual([])
+  })
+
+  it('When the assembly root imports the layer implementations then it is exempt', () => {
+    expect(findViolations([probe('collector/main.mjs', "import { runOnce } from './app/usage/run-once.mjs'\n")])).toEqual([])
+    expect(findViolations([probe('src/main.tsx', "import App from '@ui/App'\n")])).toEqual([])
+    expect(findViolations([probe('worker/index.ts', "import { createRouter } from './ui/router'\n")])).toEqual([])
   })
 
   it('When one clean file sits next to a violating file then only the violation is reported', () => {
