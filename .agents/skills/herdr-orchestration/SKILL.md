@@ -39,3 +39,12 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 
 ## 프롬프트 작성
 - 목표, 범위(파일), 완료 조건, 금지사항을 명시하고 "끝나면 변경 파일 목록과 요약만 보고"로 끝낸다.
+
+## effort 기준 (#1)
+| 대상 | effort | 이유 |
+|---|---|---|
+| opus | medium | 분해·판정 오류가 워커 전체로 퍼진다 |
+| fable | high | 호출이 적어 비용 대비 효과가 크다 |
+| work-reviewer | medium | 검수 누락이 배포로 이어진다 |
+| worker-watcher | low | 대기·요약만 한다 |
+| glm / ds / sol | 기본 유지 | 지시가 구체적이면 충분하다 |

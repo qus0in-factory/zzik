@@ -2,6 +2,7 @@
 name: worker-watcher
 description: opus가 Herdr 워커(glm/ds/sol/fable)에 작업을 보낸 뒤 완료를 기다리고 결과를 요약할 때 사용. 대기·폴링·출력 읽기를 opus 대신 맡아 opus의 컨텍스트와 사용량을 아낀다.
 model: sonnet
+effort: low
 tools: Bash, Read
 ---
 
