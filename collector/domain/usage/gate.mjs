@@ -9,7 +9,7 @@ export const AUTH_REQUIRED_GATE_SEC = 3_600
 
 /** 빈 게이트: 아무 제약도 없다. @returns {GateState} */
 export function emptyGate() {
-  return { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null }
+  return { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null }
 }
 
 /**
@@ -42,10 +42,12 @@ export function gateAllowsCall(gate, nowMs, credentialExpiresAt) {
  */
 export function openGateFor(gate, { now, kind, delaySec, credentialExpiresAt }) {
   if (kind === 'auth_required' || kind === 'auth_rejected') {
+    // 인증 거부는 전용 실패 카운터로 수열을 계산한다(429·5xx와 분리, v2 D4).
     return {
       nextAllowedAt: now + delaySec * 1000,
       failReason: 'auth_required',
-      failCount: (gate.failCount ?? 0) + 1,
+      failCount: gate.failCount ?? 0,
+      authFailCount: (gate.authFailCount ?? 0) + 1,
       authDeniedExpiresAt: credentialExpiresAt ?? null,
     }
   }
@@ -53,6 +55,7 @@ export function openGateFor(gate, { now, kind, delaySec, credentialExpiresAt }) 
     nextAllowedAt: now + delaySec * 1000,
     failReason: kind,
     failCount: (gate.failCount ?? 0) + 1,
+    authFailCount: gate.authFailCount ?? 0,
     authDeniedExpiresAt: gate.authDeniedExpiresAt ?? null,
   }
 }

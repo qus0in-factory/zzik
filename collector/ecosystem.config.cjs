@@ -17,8 +17,8 @@ module.exports = {
       max_restarts: 20,
       restart_delay: 30000,
       env: {
-        ZZIK_PROVIDERS: 'claude,codex',
-        ZZIK_CODEX_AUTH_PATH: '~/.codex/auth.json',
+        ZZIK_PROVIDERS: 'claude',
+        ZZIK_CODEX_AUTH_PATH: '/Users/young-mini/.codex/auth.json',
         ZZIK_INTERVAL_SEC: '300',
         CLOUDFLARE_ACCOUNT_ID: 'c89ea66c04742e4f6f1feb8dd8e5b775',
         WRANGLER_SEND_METRICS: 'false',

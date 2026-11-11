@@ -72,7 +72,7 @@ describe('Given the collector state file', () => {
     const store = createStateFile({ path, legacyPath: legacy })
     await expect(store.read()).resolves.toMatchObject({ provider: 'claude', previous: { rawText: 'old' } })
     // 쓰기는 새 경로로 한다(이행은 읽기에서만).
-    await store.write({ schema: 1, provider: 'claude', previous: null, gate: { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null }, lastRun: { status: null, tokenExpiresAt: null } })
+    await store.write({ schema: 1, provider: 'claude', previous: null, gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null }, lastRun: { status: null, tokenExpiresAt: null } })
     expect(await store.read()).toMatchObject({ provider: 'claude' })
     expect(statSync(legacy).mode & 0o777).toBeGreaterThan(0)
   })

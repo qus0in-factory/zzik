@@ -60,12 +60,30 @@ describe('Given a successful run', () => {
   })
 })
 
-describe('Given back-to-back auth denials (v2 D4 수열)', () => {
-  it('When denial repeats then the wait grows 3600 → 7200 and a credential refresh resets the lane', () => {
+describe('Given back-to-back auth denials (v2 D4 수열 + 전용 카운터)', () => {
+  it('When denial repeats then the wait grows 3600 → 7200 in a SEPARATE counter (429·5xx와 분리)', () => {
     const first = openGateFor(emptyGate(), { now: NOW, kind: 'auth_rejected', delaySec: authRetryDelaySec(0), credentialExpiresAt: 100 })
     expect(first.nextAllowedAt).toBe(NOW + 3_600_000)
+    expect(first.authFailCount).toBe(1)
+    expect(first.failCount).toBe(0)
     const second = openGateFor(first, { now: NOW + 3_600_000, kind: 'auth_required', delaySec: authRetryDelaySec(1), credentialExpiresAt: 100 })
     expect(second.nextAllowedAt).toBe(NOW + 3_600_000 + 7_200_000)
-    expect(second.failCount).toBe(2)
+    expect(second.authFailCount).toBe(2)
+    expect(second.failCount).toBe(0)
+  })
+
+  it('When 429 and auth denials interleave then each lane keeps its own count', () => {
+    const rate = openGateFor(emptyGate(), { now: NOW, kind: 'rate_limited', delaySec: 600, credentialExpiresAt: null })
+    expect(rate.failCount).toBe(1)
+    const auth = openGateFor(rate, { now: NOW + 600_000, kind: 'auth_rejected', delaySec: 3_600, credentialExpiresAt: 100 })
+    expect(auth.failCount).toBe(1)     // rate 레인 보존
+    expect(auth.authFailCount).toBe(1) // auth 레인 독립
+  })
+
+  it('When a blocked upstream response (diag blocked*) then the 429 sequence applies 600 → 1200 (상한 3,600)', () => {
+    const first = openGateFor(emptyGate(), { now: NOW, kind: 'rate_limited', delaySec: 600, credentialExpiresAt: null })
+    const second = openGateFor(first, { now: NOW + 600_000, kind: 'rate_limited', delaySec: 1_200, credentialExpiresAt: null })
+    expect(second.nextAllowedAt).toBe(NOW + 1_800_000) // NOW+600s 첫 대기, +1200s 둘째 대기
+    expect(first.nextAllowedAt).toBe(NOW + 600_000)
   })
 })

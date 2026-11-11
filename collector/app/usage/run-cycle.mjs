@@ -18,7 +18,7 @@ export const SKIPPED_BUDGET_STATUS = 'skipped_budget'
  * @typedef {import('../../domain/usage/ports.mjs').CollectorPorts} CollectorPorts
  * @typedef {{ id: string, ports: CollectorPorts, runOptions?: { sendAccountId?: boolean, redactionPaths?: readonly string[] } }} ProviderBundle
  * @param {ProviderBundle[]} providers 조립 루트가 만든 제공자별 포트 묶음
- * @param {{ dryRun?: boolean, collectorVersion?: string, cycleBudgetMs?: number }} options
+ * @param {{ dryRun?: boolean, collectorVersion?: string, cycleBudgetMs?: number, intervalSec?: number }} options
  * @returns {Promise<{ results: Array<{ id: string, exitCode: number, skippedBudget?: boolean, dryRunReport?: object }>, exitCode: number }>}
  */
 export async function runCycle(deps, /** @type {ProviderBundle[]} */ providers = [], options = {}) {

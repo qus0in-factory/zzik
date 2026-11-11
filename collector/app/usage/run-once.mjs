@@ -11,19 +11,18 @@
  * - 봉투의 provider는 options.provider 그대로다(ADR 0.3 D5).
  */
 
-import { retryDelaySec } from '../../domain/usage/backoff.mjs'
 import { chooseCredential, credentialExpired } from '../../domain/usage/credential-choice.mjs'
 import { buildEnvelope, sha256Hex } from '../../domain/usage/envelope.mjs'
 import { keyPaths } from '../../domain/usage/key-paths.mjs'
 import { applyRedactions } from '../../domain/usage/redact.mjs'
-import { authRetryDelaySec } from '../../domain/usage/backoff.mjs'
+import { authRetryDelaySec, retryDelaySec } from '../../domain/usage/backoff.mjs'
 import { gateAllowsCall, gateRetryAt, openGateFor, resetGate } from '../../domain/usage/gate.mjs'
 
 /** @typedef {import('../../domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
 /** @typedef {import('../../domain/usage/ports.mjs').CollectorState} CollectorState */
 /** @typedef {import('../../domain/usage/ports.mjs').UsageStatus} UsageStatus */
 
-export const USAGE_INTERVAL_SEC = 300
+export const USAGE_INTERVAL_SEC = 300 /** 조립 루트가 intervalSec 옵션을 안 주면 기본값 */
 const EXIT_OK = 0
 const EXIT_KV_FAILURE = 3
 
@@ -33,7 +32,7 @@ export function emptyCollectorState() {
     schema: 1,
     provider: null,
     previous: null,
-    gate: { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null },
+    gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null },
     lastRun: { status: null, tokenExpiresAt: null },
   }
 }
@@ -56,8 +55,8 @@ function normalizeState(state) {
 
 /**
  * @param {CollectorPorts} ports
- * @param {{ dryRun?: boolean, collectorVersion?: string, provider?: string, sendAccountId?: boolean, redactionPaths?: readonly string[] }} options
- * @returns {Promise<{ exitCode: number, dryRunReport?: { provider: string, status: UsageStatus, called: boolean, keys: string[], sha256: string|null } }>}
+ * @param {{ dryRun?: boolean, collectorVersion?: string, provider?: string, sendAccountId?: boolean, redactionPaths?: readonly string[], intervalSec?: number }} options
+ * @returns {Promise<{ exitCode: number, dryRunReport?: { provider: string, status: UsageStatus, called: boolean, keys: string[], sha256: string|null, diag: string|null } }>}
  */
 export async function runOnce(ports, options = {}) {
   const dryRun = options.dryRun === true
@@ -125,7 +124,7 @@ export async function runOnce(ports, options = {}) {
         gate = openGateFor(gate, { now: nowMs, kind: 'upstream_error', delaySec, credentialExpiresAt: chosen.expiresAt })
         retryAtMs = gate.nextAllowedAt
       } else if (result.kind === 'auth_required') {
-        const delaySec = authRetryDelaySec(gate.failCount ?? 0)
+        const delaySec = authRetryDelaySec(gate.authFailCount ?? 0)
         gate = openGateFor(gate, {
           now: nowMs,
           kind: 'auth_required',
@@ -149,7 +148,7 @@ export async function runOnce(ports, options = {}) {
     credentialExpiresAt: chosen?.expiresAt ?? null,
     bodyText: bodyResult,
     previous: state.previous,
-    intervalSec: USAGE_INTERVAL_SEC,
+    intervalSec: options.intervalSec ?? USAGE_INTERVAL_SEC,
     collectorVersion,
     provider: /** @type {'claude'|'codex'} */ (provider),
     rawRedacted: /** @type {string[]|undefined} */ (rawRedactedPaths ?? undefined),
@@ -174,6 +173,7 @@ export async function runOnce(ports, options = {}) {
         called,
         keys: paths,
         sha256: envelope.rawText !== null ? sha256Hex(envelope.rawText) : null,
+        diag: diag ?? null,
       },
     }
   }
@@ -186,6 +186,7 @@ export async function runOnce(ports, options = {}) {
       nextAllowedAt: gate.nextAllowedAt ?? null,
       failReason: gate.failReason ?? null,
       failCount: gate.failCount ?? 0,
+      authFailCount: gate.authFailCount ?? 0,
       authDeniedExpiresAt: gate.authDeniedExpiresAt ?? null,
     },
     lastRun: { status, tokenExpiresAt: chosen?.expiresAt ?? null },

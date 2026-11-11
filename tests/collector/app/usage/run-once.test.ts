@@ -235,7 +235,7 @@ describe('Given the log transition fields', () => {
     const ports = createFakeCollectorPorts({
       schema: 1,
       previous: null,
-      gate: { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null },
+      gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null },
       lastRun: { status: 'token_expired', tokenExpiresAt: futureExpiresAt },
     })
     ports.credentials.queueReads([fileCredential(futureExpiresAt + 90_000)])
@@ -306,7 +306,7 @@ describe('Given the Codex provider run (ADR 0.3 D8 run Once)', () => {
       httpStatus: 200, retryAt: null, tokenExpiresAt: null, kvTokenExpiresAt: null,
       intervalSec: 300, collectorVersion: '0.3.0', rawText: BODY, rawOmitted: null,
     }
-    const ports = createFakeCollectorPorts({ schema: 1, provider: 'codex', previous: previousEnvelope, gate: { nextAllowedAt: null, failReason: null, failCount: 0, authDeniedExpiresAt: null }, lastRun: { status: 'ok', tokenExpiresAt: null } })
+    const ports = createFakeCollectorPorts({ schema: 1, provider: 'codex', previous: previousEnvelope, gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null }, lastRun: { status: 'ok', tokenExpiresAt: null } })
     ports.credentials.queueReads([fileCredential()])
     ports.usage.queueUsage({ ok: false, kind: 'upstream_error', httpStatus: 200, retryAfterSec: null })
     await run(ports, { provider: 'codex' })
@@ -349,7 +349,7 @@ describe('Given the auth rejection split (v2 D4·H2)', () => {
     ports.credentials.queueReads([fileCredential(futureExpiresAt, 'tok1')])
     ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
     await run(ports, { provider: 'codex' })
-    expect(JSON.parse(ports.kv.writes[1] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_001 + 7_200_000).toISOString())
+    expect(JSON.parse(ports.kv.writes[1] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_001 + 7_200_000).toISOString()) // 2번째 거부: 1h 뒤 + 7200초(2시간)
   })
 })
 

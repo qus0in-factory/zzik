@@ -80,6 +80,12 @@ export function buildEnvelope({
     fetchedAt = prev?.fetchedAt ?? null
   }
 
+  const carriedRawRedacted =
+    rawRedacted !== undefined && rawRedacted !== null && rawRedacted.length > 0
+      ? rawRedacted
+      : ok
+        ? undefined // 새 성공에 가림이 없으면 이전 가림을 이어가지 않는다(원문 기준)
+        : prev?.rawRedacted
   return {
     schema: 1,
     provider,
@@ -91,7 +97,9 @@ export function buildEnvelope({
     retryAt: isoOrNull(retryAtMs),
     tokenExpiresAt: isoOrNull(credentialExpiresAt),
     kvTokenExpiresAt: isoOrNull(kvTokenExpiresAtMs),
-    ...(rawRedacted !== undefined && rawRedacted !== null && rawRedacted.length > 0 ? { rawRedacted } : {}),
+    ...(carriedRawRedacted !== undefined && carriedRawRedacted !== null && carriedRawRedacted.length > 0
+      ? { rawRedacted: carriedRawRedacted }
+      : {}),
     intervalSec,
     collectorVersion,
     rawText,

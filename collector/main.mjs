@@ -38,7 +38,7 @@ const LOG_PATH = process.env.ZZIK_LOG_PATH ?? join(homedir(), 'Library', 'Logs',
 
 /** @param {string} value @returns {string} */
 function resolveHomePath(value) {
-  if (/** @type {string} */ (value).startsWith('~')) return join(homedir(), value.slice(1))
+  if (value.startsWith('~')) return join(homedir(), value.slice(1))
   return value
 }
 
@@ -109,15 +109,19 @@ function buildProviderPorts(provider, { credentialsPath }) {
     provider === 'codex'
       ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
       : createClaudeUsageClient({ fetchImpl: globalThis.fetch })
+  /** @param {string} message @returns {void} */
+  const warn = (message) => {
+    process.stderr.write(`[zzik-usage-collector] warn: ${message}\n`)
+  }
   return {
     clock: { now: () => Date.now() },
     credentials: {
       readAll: async () => {
-        if (provider === 'codex') return [await readCodexCredentials(credentialsPath ?? CODEX_AUTH_PATH)]
+        if (provider === 'codex') return [await readCodexCredentials(credentialsPath ?? CODEX_AUTH_PATH, { warn })]
         return [await readCredentialsFile(credentialsPath ?? DEFAULT_CREDENTIALS_PATH)]
       },
     },
-    usage: { fetchUsage: (token) => usageClient.fetchUsage(token) },
+    usage: { fetchUsage: (token, opts) => usageClient.fetchUsage(token, opts) },
     kv: { write: (value) => kvWriter.write(value) },
     state: createStateFile({
       path: join(STATE_DIR, `usage-state.${provider}.json`),
@@ -137,23 +141,24 @@ function buildProviders(flags) {
 
 /** @param {ParsedFlags} flags @returns {Promise<void>} */
 async function once(flags) {
+  const intervalSec = Number(process.env.ZZIK_INTERVAL_SEC) > 0 ? Number(process.env.ZZIK_INTERVAL_SEC) : 300
   const { results } = await runCycle({}, buildProviders(flags), {
     dryRun: flags.dryRun,
     collectorVersion: VERSION,
+    intervalSec,
   })
   for (const result of results) {
     if (flags.dryRun) {
-      const report = /** @type {{ provider: string, status: string, called: boolean, keys: string[], sha256: string|null }} */ (result.dryRunReport ?? { provider: result.id, status: 'unknown', called: false, keys: [], sha256: null })
-      process.stdout.write(
-        [
-          `provider=${result.id}`,
-          `status=${report.status}`,
-          `called=${report.called ? 1 : 0}`,
-          `keys=${JSON.stringify(report.keys ?? [])}`,
-          `sha256=${report.sha256 ?? 'null'}`,
-          '',
-        ].join('\n'),
-      )
+      const report = /** @type {{ provider: string, status: string, called: boolean, keys: string[], sha256: string|null, diag?: string|null }} */ (result.dryRunReport ?? { provider: result.id, status: 'unknown', called: false, keys: [], sha256: null })
+      const lines = [
+        `provider=${result.id}`,
+        `status=${report.status}`,
+        `called=${report.called ? 1 : 0}`,
+        `keys=${JSON.stringify(report.keys ?? [])}`,
+        `sha256=${report.sha256 ?? 'null'}`,
+      ]
+      if (report.diag !== null && report.diag !== undefined) lines.push(`diag=${report.diag}`)
+      process.stdout.write([...lines, ''].join('\n'))
     } else {
       process.stdout.write(`provider=${result.id} exit=${result.exitCode}\n`)
     }
@@ -172,7 +177,8 @@ function startResident() {
     }
     inFlight = true
     try {
-      const { results } = await runCycle({}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION })
+      const intervalSec = Number(process.env.ZZIK_INTERVAL_SEC) > 0 ? Number(process.env.ZZIK_INTERVAL_SEC) : 300
+      const { results } = await runCycle({}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION, intervalSec })
       const failures = results.filter((result) => result.exitCode !== 0)
       if (failures.length > 0) {
         process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map((result) => `${result.id}=exit${result.exitCode}`).join(', ')}\n`)
