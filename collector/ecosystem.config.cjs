@@ -17,7 +17,7 @@ module.exports = {
       max_restarts: 20,
       restart_delay: 30000,
       env: {
-        ZZIK_PROVIDERS: 'claude',
+        ZZIK_PROVIDERS: 'claude,codex', // G2 통과(2026-11-12, docs/research/0.3-g2-codex-keys.md)
         ZZIK_CODEX_AUTH_PATH: '/Users/young-mini/.codex/auth.json',
         ZZIK_INTERVAL_SEC: '300',
         CLOUDFLARE_ACCOUNT_ID: 'c89ea66c04742e4f6f1feb8dd8e5b775',
