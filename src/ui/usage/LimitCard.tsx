@@ -7,7 +7,7 @@ import type { UsageLevel } from '@domain/usage/types'
 import type { CardPresentation } from '@app/usage/card-presentation'
 import { CatSvg, SleepingCatSvg } from './CatSvg'
 
-/** 판정 결과가 없을 때(정적 렌더) 쓰는 기본값: 중립 막대, 고양이 없음. */
+/** 판정 결과가 없을 때(정적 렌더) 쓰는 기본값: 중립 막대, 자는 고양이, 배지 없음. */
 const NO_PRESENTATION: CardPresentation = { barLevel: 'neutral', barLevelText: '', cat: { mode: 'sleeping', lapSeconds: null } }
 
 export interface UsageLimitItem {
@@ -23,9 +23,11 @@ export interface UsageLimitItem {
   resetText?: string
 }
 
-const THRESHOLD_BADGE: Partial<Record<UsageLevel, { text: string; variant: 'secondary' | 'destructive' }>> = {
-  warn: { text: '주의', variant: 'secondary' },
-  limit: { text: '한도 도달', variant: 'destructive' },
+/** 배지는 막대 단계(barLevel)와 같은 판정에서 나온다. 여유·중립은 배지 없이 aria 문구로만 전달한다. */
+function badgeFor(barLevel: CardPresentation['barLevel'], usedPercent: number | null): { text: string; variant: 'secondary' | 'destructive' } | null {
+  if (barLevel === 'caution') return { text: '주의', variant: 'secondary' }
+  if (barLevel === 'danger') return { text: usedPercent !== null && usedPercent >= 100 ? '한도 도달' : '위험', variant: 'destructive' }
+  return null
 }
 
 /**
@@ -33,10 +35,10 @@ const THRESHOLD_BADGE: Partial<Record<UsageLevel, { text: string; variant: 'seco
  * 제목 단계는 섹션 구조(제공자 h2 → 블록 h3 → 카드 h4)에 맞춰 주입한다.
  */
 export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION }: { item: UsageLimitItem; titleLevel?: 3 | 4; presentation?: CardPresentation }): ReactNode {
-  const { id, label, unknown = false, usedPercent, expired, status, resetText, elapsedPercent } = item
+  const { id, label, unknown = false, usedPercent, expired, resetText, elapsedPercent } = item
   const percentText = usedPercent === null ? null : new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(usedPercent)
-  const badge = THRESHOLD_BADGE[status]
   const { barLevel, barLevelText, cat } = presentation
+  const badge = badgeFor(barLevel, usedPercent)
   const Heading = titleLevel === 4 ? 'h4' : 'h3'
   return (
     <Card data-testid="usage-card" data-card-id={id} className="min-w-0 gap-3">

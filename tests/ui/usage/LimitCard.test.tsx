@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import { cardPresentation } from '@app/usage/card-presentation'
 import { LimitCard } from '@ui/usage/LimitCard'
 import { buildUsageView } from '@domain/usage/view'
 import { buildCodexUsageView } from '@domain/usage/codex-view'
@@ -32,14 +33,14 @@ describe('Given a limit card status badges', () => {
   it('When rendering an warn level item then the caution badge appears (U3)', () => {
     const report = buildUsageView(warnRaw, { now: NOW })
     const item = report.windows[0]
-    render(<LimitCard item={item} />)
+    render(<LimitCard item={item} presentation={cardPresentation(item, null)} />)
     expect(screen.getByText('주의')).toBeTruthy()
   })
 
   it('When rendering a normal level item then no threshold badge appears (U3)', () => {
     const report = buildUsageView(warnRaw, { now: NOW })
     const item = report.windows[1]
-    render(<LimitCard item={item} />)
+    render(<LimitCard item={item} presentation={cardPresentation(item, null)} />)
     expect(screen.getByText('62%')).toBeTruthy()
     expect(screen.queryByText('주의')).toBeNull()
     expect(screen.queryByText('한도 도달')).toBeNull()
@@ -51,8 +52,8 @@ describe('Given a limit card status badges', () => {
     const sonnet = report.metrics.find((m) => m.id === 'seven_day_sonnet')
     render(
       <>
-        <LimitCard item={windowItem} />
-        <LimitCard item={sonnet ?? windowItem} />
+        <LimitCard item={windowItem} presentation={cardPresentation(windowItem, null)} />
+        <LimitCard item={sonnet ?? windowItem} presentation={cardPresentation(sonnet ?? windowItem, null)} />
       </>,
     )
     expect(screen.getAllByText('한도 도달')).toHaveLength(2)
@@ -62,7 +63,8 @@ describe('Given a limit card status badges', () => {
   it('When rendering an expired limit then both the limit badge and the reset passed note appear (U3)', () => {
     const report = buildUsageView(limitedRaw, { now: NOW })
     const cowork = report.metrics.find((m) => m.id === 'seven_day_cowork')
-    render(<LimitCard item={cowork ?? report.windows[0]} />)
+    const coworkItem = cowork ?? report.windows[0]
+    render(<LimitCard item={coworkItem} presentation={cardPresentation(coworkItem, null)} />)
     expect(screen.getByText('한도 도달')).toBeTruthy()
     expect(screen.getByText('리셋 지남')).toBeTruthy()
   })
@@ -101,5 +103,23 @@ describe('Given Antigravity fractional usage', () => {
     render(<LimitCard item={{id:'safe',label:'Model group · 5시간 한도',usedPercent:percent,resetsAt:null,expired:false,status:'normal'}} />)
     expect(screen.getByText('20%')).toBeTruthy()
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(String(percent))
+  })
+})
+
+describe('Given badges and bar share one judgment', () => {
+  const item = (used: number, elapsed: number | null) => ({ id: 'x', label: 'X', usedPercent: used, resetsAt: null, expired: false, status: 'normal' as const, elapsedPercent: elapsed })
+  it.each([
+    [30, 50, null, 'ok'],
+    [60, 20, '주의', 'caution'],
+    [92, 99, '위험', 'danger'],
+    [100, 100, '한도 도달', 'danger'],
+    [85, 95, null, 'ok'],
+  ] as const)('When used=%s elapsed=%s Then badge %s and bar %s', (used, elapsed, badge, level) => {
+    const x = item(used, elapsed)
+    render(<LimitCard item={x} presentation={cardPresentation(x, null)} />)
+    expect(screen.getByTestId('usage-bar').getAttribute('data-bar-level')).toBe(level)
+    for (const text of ['주의', '위험', '한도 도달']) {
+      expect(screen.queryByText(text) !== null).toBe(text === badge)
+    }
   })
 })
