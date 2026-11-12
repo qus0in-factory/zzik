@@ -22,7 +22,10 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(glm, ds, sol, fa
 ## 흐름
 1. opus가 작업을 분해하고, 설계가 필요하면 fable → 설계 확정 후 구현 분배.
 2. 독립 작업은 여러 에이전트에 병렬로 보낸다(같은 파일을 동시에 수정하게 하지 않는다).
-3. 대기·출력 읽기는 `worker-watcher`, 검수는 `work-reviewer`(둘 다 sonnet 서브에이전트, `.claude/agents/`)에 넘긴다. opus는 판정만 보고 통합한다.
+3. **opus 직접 실행 금지**: opus는 코드·설계·스크립트 조사·편집·대기 작업을 직접 수행하지 않고 워커 또는 `.claude/agents/` 전용 서브에이전트에 위임한다.
+4. **서브에이전트 선택 기준**: 대기·요약은 `worker-watcher`, 검수는 `work-reviewer` 전용 서브에이전트만 사용한다. 임의의 `general-purpose` 서브에이전트 사용은 금지한다.
+5. **권한 처리**: 도구 실행 등에서 권한 거부(`blocked`) 발생 시 설정 파일을 자가 수정(우회)하지 말고, 반드시 사용자에게 승인 여부를 묻는다.
+6. 대기·출력 읽기는 `worker-watcher`, 검수는 `work-reviewer`(둘 다 sonnet 서브에이전트, `.claude/agents/`)에 넘긴다. opus는 판정만 보고 통합한다.
 
 ## 명령
 ```bash
