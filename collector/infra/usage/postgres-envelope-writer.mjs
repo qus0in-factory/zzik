@@ -9,15 +9,17 @@ export function createPostgresEnvelopeWriter({ execute }) {
       try {
         await execute('BEGIN')
         await execute("SET LOCAL statement_timeout = '10s'")
+        // value is already JSON text. Force a text wire parameter so postgres.js
+        // does not JSON.stringify it again when PostgreSQL infers a jsonb OID.
         await execute(`INSERT INTO usage_snapshot
           (provider,envelope,status,run_at,fetched_at,raw_sha256,collector_version,updated_at)
-          VALUES ($1,$2::jsonb,$3,$4::timestamptz,$5::timestamptz,$6,$7,now())
+          VALUES ($1,$2::text::jsonb,$3,$4::timestamptz,$5::timestamptz,$6,$7,now())
           ON CONFLICT (provider) DO UPDATE SET envelope=excluded.envelope,status=excluded.status,
           run_at=excluded.run_at,fetched_at=excluded.fetched_at,raw_sha256=excluded.raw_sha256,
           collector_version=excluded.collector_version,updated_at=now()`,
           [meta.provider,value,meta.status,meta.runAt,meta.fetchedAt,meta.rawSha256,meta.collectorVersion])
         if (meta.changed) {
-          await execute('INSERT INTO usage_event (provider,run_at,status,raw_sha256,envelope) VALUES ($1,$2::timestamptz,$3,$4,$5::jsonb)',
+          await execute('INSERT INTO usage_event (provider,run_at,status,raw_sha256,envelope) VALUES ($1,$2::timestamptz,$3,$4,$5::text::jsonb)',
             [meta.provider,meta.runAt,meta.status,meta.rawSha256,value])
         }
         await execute('COMMIT')
