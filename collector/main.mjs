@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
  * 수집기 조립 루트(ADR 0.3 D3 다중 제공자 + D9 조립 배정).
- * 제공자 정의(claude/codex/antigravity)를 만들어 runCycle에 주입한다. 로직은 이 파일에 두지 않는다.
+ * 제공자 정의(claude/codex/antigravity/opencode/grok/ollama)를 만들어 runCycle에 주입한다. 로직은 이 파일에 두지 않는다.
  *
  * 실행 모드(PM2 상주가 기본):
  *   (기본)       즉시 1회 실행 후 900초마다 runCycle(제공자 수만큼 줄이 생긴다)
  *   --once       1회 실행 후 종료한다. 종료 코드는 제공자별 결과 중 가장 큰 값
  *   --dry-run    상태·KV·로그 어디에도 쓰지 않는다(--provider와 같이 쓰면 경로 목록 출력)
- *   --provider <id>   대상 제공자(claude|codex|antigravity). 생략하면 켜진 제공자 전부
+ *   --provider <id>   대상 제공자(claude|codex|antigravity|opencode|grok|ollama). 생략하면 켜진 제공자 전부
  *   --credentials-file <path>  자격 증명 파일 재현(--provider와 --dry-run이 함께 있을 때만)
  *
- * 제공자 목록: env ZZIK_PROVIDERS(기본 'claude,codex,antigravity'). 하나의 제공자 실패가 다른
+ * 제공자 목록: env ZZIK_PROVIDERS(기본 전체 6개). 하나의 제공자 실패가 다른
  * 제공자를 막지 않는다(예외 격리, 제공자별 상태 파일·게이트).
  *
  * KV 쓰기는 이 Mac에 로그인된 wrangler를 실행한다(키는 제공자 id에서 정해진다):
@@ -26,6 +26,11 @@ import { createLogAppender } from './infra/usage/log.mjs'
 import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
 import { createAntigravityUsageClient, ANTIGRAVITY_API_HOSTS } from './infra/usage/antigravity-usage-client.mjs'
 import { DEFAULT_ANTIGRAVITY_AUTH_PATH, readAntigravityCredentials } from './infra/usage/antigravity-credentials-file.mjs'
+import { createGrokUsageClient } from './infra/usage/grok-usage-client.mjs'
+import { createOpencodeUsageClient } from './infra/usage/opencode-usage-client.mjs'
+import { createOllamaUsageClient, DEFAULT_OLLAMA_HOST, isAllowedOllamaHost } from './infra/usage/ollama-usage-client.mjs'
+import { readOllamaLocalCredentials } from './infra/usage/ollama-local-credentials.mjs'
+import { createOpencodeDbCredentialReader, DEFAULT_OPENCODE_DB_PATH } from './infra/usage/opencode-db-credentials.mjs'
 import { createCodexUsageClient } from './infra/usage/codex-usage-client.mjs'
 import { createWranglerKvWriter } from './infra/usage/wrangler-kv-writer.mjs'
 import { createStateFile } from './infra/usage/state-file.mjs'
@@ -62,6 +67,12 @@ if (!ANTIGRAVITY_API_HOSTS.includes(ANTIGRAVITY_HOST)) {
   process.stderr.write('Invalid Antigravity API host\n')
   process.exit(78)
 }
+const OPENCODE_DB_PATH = process.env.ZZIK_OPENCODE_DB_PATH ? resolveHomePath(process.env.ZZIK_OPENCODE_DB_PATH) : DEFAULT_OPENCODE_DB_PATH
+const OLLAMA_HOST = process.env.ZZIK_OLLAMA_HOST ?? DEFAULT_OLLAMA_HOST
+if (!isAllowedOllamaHost(OLLAMA_HOST)) {
+  process.stderr.write('Invalid Ollama host (loopback http만 허용)\n')
+  process.exit(78)
+}
 const CODEX_AUTH_PATH = process.env.ZZIK_CODEX_AUTH_PATH ? resolveHomePath(process.env.ZZIK_CODEX_AUTH_PATH) : DEFAULT_CODEX_AUTH_PATH
 
 /**
@@ -75,11 +86,11 @@ for (const unknownValue of parsedProviders.warnings) {
 }
 const enabledProviders = parsedProviders.providers
 if (enabledProviders.length === 0) {
-  process.stderr.write('[zzik-usage-collector] ZZIK_PROVIDERS 해석 결과가 비었다. claude,codex,antigravity 형식으로 설정한다\n')
+  process.stderr.write('[zzik-usage-collector] ZZIK_PROVIDERS 해석 결과가 비었다. claude,codex,antigravity,opencode,grok,ollama 형식으로 설정한다\n')
   process.exit(78)
 }
 
-const USAGE_TEXT = '사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity] [--credentials-file <path>]'
+const USAGE_TEXT = '사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity|opencode|grok|ollama] [--credentials-file <path>]'
 
 /** @typedef {import('./domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
 /** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean }} ParsedFlags */
@@ -126,7 +137,13 @@ function buildProviderPorts(provider, { credentialsPath }) {
   const providerId = /** @type {keyof typeof USAGE_KV_KEYS} */ (provider)
   const kvWriter = createWranglerKvWriter({ namespaceId: KV_NAMESPACE_ID, keyName: USAGE_KV_KEYS[providerId] })
   const usageClient =
-    provider === 'antigravity'
+    provider === 'grok'
+      ? createGrokUsageClient({ fetchImpl: globalThis.fetch })
+      : provider === 'opencode'
+      ? createOpencodeUsageClient({ fetchImpl: globalThis.fetch })
+      : provider === 'ollama'
+      ? createOllamaUsageClient({ fetchImpl: globalThis.fetch, host: OLLAMA_HOST })
+      : provider === 'antigravity'
       ? createAntigravityUsageClient({ fetchImpl: globalThis.fetch, host: ANTIGRAVITY_HOST, project: process.env.ZZIK_ANTIGRAVITY_PROJECT ?? 'default-cli-project' })
       : provider === 'codex'
       ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
@@ -135,10 +152,14 @@ function buildProviderPorts(provider, { credentialsPath }) {
   const warn = (message) => {
     process.stderr.write(`[zzik-usage-collector] warn: ${message}\n`)
   }
+  const readOpencodeDb = (/** @type {string} */ integrationId) => createOpencodeDbCredentialReader({ path: credentialsPath ?? OPENCODE_DB_PATH, integrationId, warn })()
   return {
     clock: { now: () => Date.now() },
     credentials: {
       readAll: async () => {
+        if (provider === 'grok') return [await readOpencodeDb('xai')]
+        if (provider === 'opencode') return [await readOpencodeDb('opencode')]
+        if (provider === 'ollama') return [await readOllamaLocalCredentials()]
         if (provider === 'antigravity') return [await readAntigravityCredentials(credentialsPath ?? ANTIGRAVITY_AUTH_PATH, { warn })]
         if (provider === 'codex') return [await readCodexCredentials(credentialsPath ?? CODEX_AUTH_PATH, { warn })]
         return [await readCredentialsFile(credentialsPath ?? DEFAULT_CREDENTIALS_PATH)]

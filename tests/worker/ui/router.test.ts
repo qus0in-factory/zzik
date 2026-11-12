@@ -45,7 +45,7 @@ describe('Given a Hono API router', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store')
   })
 
-  it.each(['claude', 'codex', 'antigravity'])('When GET /api/usage/%s is requested Then the matching provider key is read', async (provider) => {
+  it.each(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])('When GET /api/usage/%s is requested Then the matching provider key is read', async (provider) => {
     const s = setup()
     const envelope = JSON.stringify({ schema: 1, provider })
     s.store.result = { ok: true, value: envelope }

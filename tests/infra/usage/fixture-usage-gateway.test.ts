@@ -140,3 +140,24 @@ describe('Given Antigravity DEV scenarios', () => {
     expect(groups[0].buckets[1].resetTime).toBe('2026-11-21T14:30:00.000Z')
   })
 })
+
+describe('Given OpenCode, Grok and Ollama DEV scenarios', () => {
+  const cases = [
+    ['opencode', (usage: Record<string, any>) => usage.usage.weekly.resetsAt, '2026-11-24T00:00:00.000Z'],
+    ['grok', (usage: Record<string, any>) => usage.config.billingPeriodEnd, '2026-11-26T00:00:00.000Z'],
+    ['ollama', (usage: Record<string, any>) => usage.included.period.until, '2026-12-11T00:00:00.000Z'],
+  ] as const
+  it.each(cases)('When %s normal is selected Then dates are rebased to now', async (provider, pick, expected) => {
+    const gateway = createFixtureUsageGateway({ getFixtureName: () => 'normal', now: LATER_CLOCK })
+    const result = await gateway.fetchUsage(provider)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(pick(result.usage as Record<string, any>)).toBe(expected)
+  })
+  it.each(['opencode', 'grok', 'ollama'] as const)('When %s has limited and unknown-keys Then both return data', async (provider) => {
+    for (const name of ['limited', 'unknown-keys']) {
+      const result = await createFixtureUsageGateway({ getFixtureName: () => name, now: LATER_CLOCK }).fetchUsage(provider)
+      expect(result.ok && result.usage !== null).toBe(true)
+    }
+  })
+})

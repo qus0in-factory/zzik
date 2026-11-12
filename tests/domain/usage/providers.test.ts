@@ -5,14 +5,18 @@ import normalRaw from '../../fixtures/claude-usage.normal.json'
 import { NOW } from '../../fakes/usage-ports'
 
 describe('Given the provider registry (D8)', () => {
-  it('When listing providers then claude comes before codex and antigravity follows', () => {
-    expect(USAGE_PROVIDERS).toEqual(['claude', 'codex', 'antigravity'])
+  it('When listing providers then claude comes before codex, then antigravity, opencode, grok and ollama', () => {
+    expect(USAGE_PROVIDERS).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
   })
 
   it.each([
     ['claude', true],
     ['codex', true],
     ['antigravity', true],
+    ['opencode', true],
+    ['grok', true],
+    ['ollama', true],
+    ['xai', false],
     ['nope', false],
     ['', false],
     [undefined, false],
@@ -65,5 +69,19 @@ describe('Given Antigravity registration', () => {
     const report=buildProviderUsageView('antigravity', {groups:[{buckets:[{bucketId:'safe',window:'5h',remainingFraction:0.5}]}]}, {now:NOW})
     expect(report.windows[0]).toMatchObject({id:'safe',usedPercent:50})
     expect(USAGE_PROVIDER_META.antigravity).toMatchObject({title:'Antigravity',clientName:'Antigravity',sectionId:'usage-antigravity'})
+  })
+})
+
+describe('Given OpenCode, Grok and Ollama registration', () => {
+  it('When reading the metadata Then titles, client names and section ids follow the design', () => {
+    expect(USAGE_PROVIDER_META.opencode).toMatchObject({ title: 'OpenCode', clientName: 'OpenCode', sectionId: 'usage-opencode', ariaLabel: 'OpenCode 사용량' })
+    expect(USAGE_PROVIDER_META.grok).toMatchObject({ title: 'Grok', clientName: 'OpenCode(xAI 로그인)', sectionId: 'usage-grok', ariaLabel: 'Grok 사용량' })
+    expect(USAGE_PROVIDER_META.ollama).toMatchObject({ title: 'Ollama', clientName: 'Ollama', sectionId: 'usage-ollama', ariaLabel: 'Ollama 사용량' })
+  })
+  it('When checking networkErrorNote Then only ollama has one', () => {
+    expect(USAGE_PROVIDERS.filter((id) => USAGE_PROVIDER_META[id].networkErrorNote !== undefined)).toEqual(['ollama'])
+  })
+  it.each(['opencode', 'grok', 'ollama'] as const)('When %s is selected Then its own normalizer runs, not the claude one', (provider) => {
+    expect(buildProviderUsageView(provider, null, { now: NOW }).issues).toEqual([{ code: 'invalid_shape' }])
   })
 })

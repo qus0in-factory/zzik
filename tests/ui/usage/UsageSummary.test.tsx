@@ -78,7 +78,7 @@ describe('Given the provider list source (D8: 목록 기반 렌더)', () => {
     const ids = usageProviderIds()
     const rendered = screen.getAllByTestId(/^usage-summary-/).map((chip) => chip.getAttribute('data-testid'))
     expect(rendered).toEqual(ids.map((id) => `usage-summary-${id}`))
-    expect(ids).toEqual(['claude','codex','antigravity'])
+    expect(ids).toEqual(['claude','codex','antigravity','opencode','grok','ollama'])
     expect(screen.getByTestId('usage-summary-antigravity').getAttribute('href')).toBe('#usage-antigravity')
   })
 })
