@@ -9,22 +9,25 @@ command -v jq >/dev/null || { echo "jq가 필요합니다." >&2; exit 1; }
 
 ws="${1:-$HERDR_WORKSPACE_ID}"
 
-# 화면 텍스트 → 약칭 (위에서부터 먼저 매칭되는 것 사용)
+# 화면 텍스트 → 약칭 (화면 하단 상태줄 우선 역순 검색)
 detect() {
   local text="$1"
-  # 모델명이 박힌 고유 문자열(상태줄·배너)을 먼저 본다. 대화 본문의 모델 이름 언급으로 오판하지 않게.
-  case "$text" in
-    *Grok\ [0-9]*)          echo grok ;;
-    *GPT-*-Sol*|*gpt-*-sol*) echo sol ;;
-    *Gemini\ [0-9]*)          echo gemini ;;
-    *GLM*|*glm*)            echo glm ;;
-    *DeepSeek*|*deepseek*)  echo ds ;;
-    *Fable*)                echo fable ;;
-    *Opus*)                 echo opus ;;
-    *Sonnet*)               echo sonnet ;;
-    *-Sol*|*-sol*)          echo sol ;;
-    *)                      echo "" ;;
-  esac
+  local line
+  # 모델명이 박힌 고유 문자열(상태줄·배너)을 화면 하단부터 위로 거슬러 올라가며 감지한다.
+  # 이전 대화의 모델 언급이나 과거 '/model' 전환 기록(예: Fable→Sonnet)에 속지 않게 마지막 상태줄을 우선한다.
+  while IFS= read -r line; do
+    case "$line" in
+      *Grok\ [0-9]*|*[Gg]rok-[0-9]*)            echo grok; return 0 ;;
+      *GPT-*-Sol*|*gpt-*-sol*|*-Sol*|*-sol*)   echo sol; return 0 ;;
+      *Gemini\ [0-9]*|*[Gg]emini-[0-9]*)       echo gemini; return 0 ;;
+      *GLM*|*glm*)                             echo glm; return 0 ;;
+      *DeepSeek*|*deepseek*)                   echo ds; return 0 ;;
+      *Claude*[Ss]onnet*|*Sonnet*|*sonnet*)    echo sonnet; return 0 ;;
+      *Fable*|*fable*)                         echo fable; return 0 ;;
+      *Opus*|*opus*)                           echo opus; return 0 ;;
+    esac
+  done < <(printf '%s\n' "$text" | awk '{a[NR]=$0} END {for (i=NR; i>=1; i--) print a[i]}')
+  echo ""
 }
 
 herdr pane list --workspace "$ws" \
@@ -42,8 +45,10 @@ herdr pane list --workspace "$ws" \
       fi
       target="$name"
       suffix=2
+      rename_ok=false
       while :; do
         if err="$(herdr agent rename "$pane" "$target" 2>&1)"; then
+          rename_ok=true
           break
         fi
         case "$err" in
@@ -61,6 +66,11 @@ herdr pane list --workspace "$ws" \
             ;;
         esac
       done
+
+      if [ "$rename_ok" != true ]; then
+        continue
+      fi
+
       herdr tab rename "$tab" "$target" >/dev/null
       herdr pane rename "$pane" "$target" >/dev/null
       echo "$pane ($tab) → $target"
