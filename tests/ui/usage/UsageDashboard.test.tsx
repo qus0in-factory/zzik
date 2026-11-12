@@ -7,6 +7,8 @@ import { cleanup, fireEvent, render as baseRender, screen } from '@testing-libra
 import { UsageDashboard } from '@ui/usage/UsageDashboard'
 import { buildUsageView } from '@domain/usage/view'
 import { buildCodexUsageView } from '@domain/usage/codex-view'
+import liveClaude from '../../fixtures/claude-usage.live-scoped.json'
+import liveCodex from '../../fixtures/codex-usage.live.json'
 import normalRaw from '../../fixtures/claude-usage.normal.json'
 import unknownKeysRaw from '../../fixtures/claude-usage.unknown-keys.json'
 import codexUnknownRaw from '../../fixtures/codex-usage.unknown-keys.json'
@@ -29,22 +31,22 @@ function otherIds(): string[] {
 }
 
 describe('Given the usage dashboard with the unknown keys report', () => {
-  it('When rendering then every top level key of the raw response gets a card (U2)', () => {
+  it('When rendering then only populated limit keys get cards (U2)', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
-    expect(screen.getAllByTestId('usage-card')).toHaveLength(9)
+    expect(screen.getAllByTestId('usage-card')).toHaveLength(7)
+    expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
+    expect(screen.queryByText(/Raw JSON/)).toBeNull()
     expect(screen.getByText('주간 · Haiku')).toBeTruthy()
     expect(screen.getByText('주간 · Haiku')).toBeTruthy()
     expect(screen.getAllByText('thirty_day').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('When rendering a null valued card then it shows no value instead of 0% (U2)', () => {
+  it('When a metric has no data then its card is hidden (U2)', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
-    const coworkLabel = screen.getByText('Cowork 주간')
-    const card = coworkLabel.closest('[data-testid="usage-card"]') as HTMLElement
-    expect(card.textContent).toContain('정보 없음')
-    expect(card.textContent).not.toContain('0%')
+    expect(screen.queryByText('Cowork 주간')).toBeNull()
+    expect(screen.queryByText('정보 없음')).toBeNull()
   })
 
   it('When rendering unknown metric cards then they carry the unverified badge and known ones do not (U2)', () => {
@@ -53,7 +55,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     const fableLabel = screen.getByText('주간 · Haiku')
     const fableCard = fableLabel.closest('[data-testid="usage-card"]') as HTMLElement
     expect(fableCard.textContent).toContain('미확인')
-    const opusCard = (screen.getByText('Opus 주간').closest('[data-testid="usage-card"]') as HTMLElement)
+    const opusCard = (screen.getByText('Sonnet 주간').closest('[data-testid="usage-card"]') as HTMLElement)
     expect(opusCard.textContent).not.toContain('미확인')
   })
 
@@ -86,19 +88,17 @@ describe('Given the usage dashboard with the unknown keys report', () => {
       />,
     )
     expect(screen.getByLabelText('Claude 사용량')).toBeTruthy()
-    expect(screen.getAllByRole('heading', { level: 4 })).toHaveLength(9)
+    expect(screen.getAllByRole('heading', { level: 4 })).toHaveLength(7)
   })
 
-  it('When a report is ready then card ids match the raw keys exactly and in order (완전성 불변식)', () => {
+  it('When a report is ready then card ids match populated domain entries in order', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
 
     const expected = [
       'five_hour',
       'seven_day',
-      'seven_day_opus',
       'seven_day_sonnet',
-      'seven_day_cowork',
       'extra_usage',
       'seven_day_fake',
       'seven_day_haiku',
@@ -108,16 +108,16 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     expect(cardIds()).toEqual([...report.windows.map((item) => item.id), ...report.metrics.map((item) => item.id)])
     expect(new Set(cardIds()).size).toBe(expected.length)
     expect(otherIds()).toEqual([])
-    expect([...cardIds(), ...otherIds()].sort()).toEqual(Object.keys(unknownKeysRaw).sort())
+    expect([...cardIds(), ...otherIds()].sort()).toEqual(Object.entries(unknownKeysRaw).filter(([, value]) => value !== null).map(([key]) => key).sort())
   })
 
   it('When the normal fixture renders then its card ids are the documented order', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
-    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet', 'extra_usage'])
+    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_sonnet', 'extra_usage'])
   })
 
-  it('When limit and non-limit keys are mixed then cards plus other items cover every raw key exactly once', () => {
+  it('When limit and non-limit keys are mixed then cards plus other items cover populated keys exactly once', () => {
     const mixedRaw = {
       five_hour: { utilization: 10, resets_at: '2026-11-11T14:00:00.000Z' },
       seven_day: null,
@@ -131,11 +131,11 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     const report = buildUsageView(mixedRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
 
-    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_opus', 'extra_usage'])
-    expect(otherIds()).toEqual(['note', 'blob', 'list', 'empty_object'])
+    expect(cardIds()).toEqual(['five_hour', 'extra_usage'])
+    expect(otherIds()).toEqual(['note', 'blob', 'list'])
     const rendered = [...cardIds(), ...otherIds()]
-    expect(rendered).toHaveLength(Object.keys(mixedRaw).length)
-    expect(rendered.slice().sort()).toEqual(Object.keys(mixedRaw).sort())
+    expect(rendered).toHaveLength(5)
+    expect(rendered.slice().sort()).toEqual(['five_hour', 'extra_usage', 'note', 'blob', 'list'].sort())
   })
 })
 
@@ -163,7 +163,7 @@ describe('Given the error state', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="error" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage="사용량을 불러오지 못했습니다" />)
     expect(screen.getByRole('alert').textContent).toContain('사용량을 불러오지 못했습니다')
-    expect(screen.getAllByTestId('usage-card')).toHaveLength(5)
+    expect(screen.getAllByTestId('usage-card')).toHaveLength(4)
   })
 })
 
@@ -297,5 +297,19 @@ describe('Given the collection note and 320px layout (ADR 0.3 v2 D8)', () => {
     for (const bar of screen.getAllByRole('progressbar')) {
       expect(bar.parentElement?.className).toContain('min-w-0')
     }
+  })
+})
+
+describe('Given live provider reports after the display policy', () => {
+  it.each(['claude', 'codex'] as const)('When %s renders Then only domain-selected cards appear and Raw JSON has no control or panel', provider => {
+    const report = provider === 'claude' ? buildUsageView(liveClaude, { now: NOW }) : buildCodexUsageView(liveCodex, { now: NOW })
+    render(<UsageDashboard provider={provider} status="ready" report={report} errorMessage={null} />)
+    expect(cardIds()).toEqual(provider === 'claude' ? ['five_hour', 'seven_day', 'seven_day_fable'] : ['rate_limit.primary_window'])
+    expect(otherIds()).toEqual(provider === 'claude'
+      ? ['extra_usage', 'spend', 'member_dashboard_available', 'seven_day_breakdown']
+      : ['plan_type', 'model_usage', 'credits', 'spend_control', 'rate_limit_reset_credits'])
+    expect(screen.queryByText('정보 없음')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
+    expect(document.querySelector('pre')).toBeNull()
   })
 })

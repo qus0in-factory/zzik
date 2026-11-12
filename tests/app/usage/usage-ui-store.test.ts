@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { act } from 'react'
 import { cleanup, renderHook } from '@testing-library/react'
-import { createUsageUiStore, useFixtureChoice, useRawJsonOpen, useUsageUiStore } from '@app/usage/usage-ui-store'
+import { createUsageUiStore, useFixtureChoice, useUsageUiStore } from '@app/usage/usage-ui-store'
 import {
   usageStatusLabel,
 } from '@ui/usage/status-label'
@@ -39,36 +39,7 @@ describe('Given the usage UI client store', () => {
     expect(useUsageUiStore.getState().fixtureName).toBe('limited')
   })
 
-  it('When raw JSON is toggled per provider then each provider keeps its own open state (D8)', () => {
-    const { result } = renderHook(() => ({ claude: useRawJsonOpen('claude'), codex: useRawJsonOpen('codex') }))
-    expect(result.current.claude.open).toBe(false)
-    expect(result.current.codex.open).toBe(false)
 
-    act(() => {
-      result.current.claude.toggle()
-    })
-    expect(result.current.claude.open).toBe(true)
-    expect(result.current.codex.open).toBe(false)
-
-    act(() => {
-      result.current.codex.setOpen(true)
-    })
-    expect(result.current.codex.open).toBe(true)
-    expect(result.current.claude.open).toBe(true)
-
-    act(() => {
-      result.current.claude.toggle()
-    })
-    expect(result.current.claude.open).toBe(false)
-    expect(result.current.codex.open).toBe(true)
-  })
-
-  it('When a store is created then both providers start collapsed and independently mutable', () => {
-    const store = createUsageUiStore('/')
-    expect(store.getState().rawJsonOpen).toEqual({ claude: false, codex: false })
-    store.getState().toggleRawJson('codex')
-    expect(store.getState().rawJsonOpen).toEqual({ claude: false, codex: true })
-  })
 })
 
 describe('Given the status label mapping used by summary chips', () => {

@@ -23,8 +23,6 @@ export interface UsageUiState {
   staleNoteText: string | null
   /** 수집 상태별 안내(D4 표). 정상이거나 봉투가 없으면 null */
   collectionNote: string | null
-  /** 봉투가 가린 키 경로 목록(H3). 없으면 null */
-  rawRedacted: string[] | null
 }
 
 export interface UsageUiStateValue {
@@ -106,7 +104,6 @@ export function useUsage(provider: UsageProvider): UsageUiStateValue {
     lastSuccessText: composeLastSuccessText(lastSuccessAt, nowIso),
     staleNoteText: status === 'stale' ? composeStaleNoteText(lastSuccessAt, nowIso) : null,
     collectionNote: composeCollectionNote(provider, view?.collectionStatus ?? null, view?.collectionMeta ?? null),
-    rawRedacted: view?.collectionMeta?.rawRedacted ?? null,
   }), [status, view, lastSuccessAt, errorMessage, nowIso, provider])
 
   // 수동 새로고침은 진행 중 호출을 취소하지 않는다(cancelRefetch: false → 합쳐진다).
