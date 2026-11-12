@@ -38,3 +38,24 @@ describe('Given Antigravity fixture dates', () => {
     expect(normal.groups[0].buckets[1].resetTime).toBe('2026-11-11T14:30:00Z')
   })
 })
+
+describe('Given the Gemini, Claude·GPT and Argon groups', () => {
+  it('When all three groups exist Then five cards with short group labels in group order', async () => {
+    const { default: geminiArgon } = await import('../../fixtures/antigravity-usage.gemini-argon.json')
+    const report = buildAntigravityUsageView(geminiArgon, { now })
+    expect(report.windows.map(w => [w.id, w.label, Math.round(w.usedPercent ?? -1)])).toEqual([
+      ['gemini-5h', 'Gemini · 5시간 한도', 13],
+      ['gemini-weekly', 'Gemini · 주간 한도', 87],
+      ['3p-5h', 'Claude·GPT · 5시간 한도', 0],
+      ['3p-weekly', 'Claude·GPT · 주간 한도', 99],
+      ['argon-weekly', 'Argon · 주간 한도', 100],
+    ])
+    expect(report.status).toBe('limit')
+    expect(report.issues).toEqual([])
+  })
+  it('When the group name is unknown Then it is shown as is', async () => {
+    const { antigravityGroupLabel } = await import('@domain/usage/antigravity-labels')
+    expect(antigravityGroupLabel('Future Models')).toBe('Future Models')
+    expect(antigravityGroupLabel('GEMINI MODELS')).toBe('Gemini')
+  })
+})

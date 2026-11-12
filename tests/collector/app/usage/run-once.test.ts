@@ -454,7 +454,7 @@ describe('Given storage write metadata', () => {
   it('When no credentials exist Then writes the envelope metadata and marks only the first status/hash as changed', async () => {
     const ports=createFakeCollectorPorts()
     await runOnce(ports)
-    expect(ports.store.metas[0]).toMatchObject({provider:'claude',status:'no_credentials',rawSha256:null,changed:true,collectorVersion:'0.5.0'})
+    expect(ports.store.metas[0]).toMatchObject({provider:'claude',status:'no_credentials',rawSha256:null,changed:true,collectorVersion:'0.6.0'})
     ports.clock.advance(900000)
     await runOnce(ports)
     expect(ports.store.metas[1]).toMatchObject({changed:false})

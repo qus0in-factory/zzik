@@ -31,6 +31,7 @@ import { createOpencodeUsageClient } from './infra/usage/opencode-usage-client.m
 import { createOllamaUsageClient, DEFAULT_OLLAMA_HOST, isAllowedOllamaHost } from './infra/usage/ollama-usage-client.mjs'
 import { readOllamaLocalCredentials } from './infra/usage/ollama-local-credentials.mjs'
 import { createOpencodeDbCredentialReader, DEFAULT_OPENCODE_DB_PATH } from './infra/usage/opencode-db-credentials.mjs'
+import { runAgyQuotaCli } from './infra/usage/agy-quota-cli-runner.mjs'
 import { createCodexUsageClient } from './infra/usage/codex-usage-client.mjs'
 import { createWranglerKvWriter } from './infra/usage/wrangler-kv-writer.mjs'
 import { createStateFile } from './infra/usage/state-file.mjs'
@@ -144,7 +145,7 @@ function buildProviderPorts(provider, { credentialsPath }) {
       : provider === 'ollama'
       ? createOllamaUsageClient({ fetchImpl: globalThis.fetch, host: OLLAMA_HOST })
       : provider === 'antigravity'
-      ? createAntigravityUsageClient({ fetchImpl: globalThis.fetch, host: ANTIGRAVITY_HOST, project: process.env.ZZIK_ANTIGRAVITY_PROJECT ?? 'default-cli-project' })
+      ? createAntigravityUsageClient({ fetchImpl: globalThis.fetch, host: ANTIGRAVITY_HOST, quotaCli: () => runAgyQuotaCli({ path: process.env.ZZIK_AGY_CLI_PATH ?? 'agy', enabled: process.env.ZZIK_AGY_CLI_ENABLED !== '0' }) })
       : provider === 'codex'
       ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
       : createClaudeUsageClient({ fetchImpl: globalThis.fetch })
