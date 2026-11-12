@@ -305,6 +305,9 @@ describe('Given live provider reports after the display policy', () => {
     const report = provider === 'claude' ? buildUsageView(liveClaude, { now: NOW }) : buildCodexUsageView(liveCodex, { now: NOW })
     render(<UsageDashboard provider={provider} status="ready" report={report} errorMessage={null} />)
     expect(cardIds()).toEqual(provider === 'claude' ? ['five_hour', 'seven_day', 'seven_day_fable'] : ['rate_limit.primary_window'])
+    expect(otherIds()).toEqual(provider === 'claude'
+      ? ['extra_usage', 'spend', 'member_dashboard_available', 'seven_day_breakdown']
+      : ['plan_type', 'model_usage', 'credits', 'spend_control', 'rate_limit_reset_credits'])
     expect(screen.queryByText('정보 없음')).toBeNull()
     expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
     expect(document.querySelector('pre')).toBeNull()

@@ -1,3 +1,4 @@
+import { visibleUsageReport } from '@domain/usage/visible'
 import { describe, it, expect } from 'vitest'
 import { buildUsageView } from '@domain/usage/view'
 import { buildCodexUsageView } from '@domain/usage/codex-view'
@@ -16,7 +17,7 @@ describe('Given live usage fixtures', () => {
     const report = buildCodexUsageView(codex, { now })
     expect(report.windows.map(item => [item.id, item.label])).toEqual([['rate_limit.primary_window', '주간 한도']])
     expect(report.metrics).toEqual([])
-    expect(report.others.map(item => item.id)).toEqual(['user_id', 'account_id', 'email', 'plan_type', 'rate_limit', 'model_usage', 'credits', 'spend_control', 'rate_limit_reset_credits'])
+    expect(report.others.map(item => item.id)).toEqual(['plan_type', 'model_usage', 'credits', 'spend_control', 'rate_limit_reset_credits'])
   })
 })
 describe('Given absent and valid zero or false values', () => {
@@ -27,5 +28,21 @@ describe('Given absent and valid zero or false values', () => {
     expect(report.metrics).toEqual([])
     expect(report.others.map(item => item.id)).toEqual(['bool', 'object'])
     expect(report.others[1].value).toEqual({ kind: 'object', fields: [{ key: 'present', text: '0' }] })
+  })
+})
+
+describe('Given nested redaction paths and placeholder fallback', () => {
+  it('When a JSON-valued field contains redactions Then excludes only those paths while preserving valid siblings and raw', () => {
+    const raw = { details: { nested: { email: 'different-mask', count: 0 }, label: '[가림]' }, public_name: 'available' }
+    const report = visibleUsageReport(buildUsageView(raw, { now }), ['details.nested.email'])
+    expect(report.others).toMatchObject([
+      { id: 'details', value: { fields: [{ key: 'nested', text: '{"count":0}' }] } },
+      { id: 'public_name', value: { text: 'available' } },
+    ])
+    expect(report.raw).toEqual(raw)
+  })
+  it('When a whole container is redacted Then excludes its descendants without hiding similarly named fields', () => {
+    const report = visibleUsageReport(buildUsageView({ private: { count: 1 }, private_extra: { count: 2 } }, { now }), ['private'])
+    expect(report.others.map(item => item.id)).toEqual(['private_extra'])
   })
 })

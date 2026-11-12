@@ -139,3 +139,17 @@ describe('Given the collection status for the screen note (ADR 0.3 v2 D8)', () =
     expect(view.collectionStatus).toBe('stale')
   })
 })
+
+describe('Given envelope redaction paths', () => {
+  it.each(['claude', 'codex'] as const)('When %s is loaded Then app passes paths to the domain even when values are not placeholders', provider => {
+    const usage = { user_id: 'masked-another-way', plan_type: 'prolite', details: { email: 'private', count: 0 } }
+    const view = buildUsageLoadView({
+      usage,
+      collection: collectionMeta({ provider, rawRedacted: ['user_id', 'details.email'] }),
+      rawText: null,
+    }, NOW, provider)
+    expect(view.report.others.map(item => item.id)).toEqual(['plan_type', 'details'])
+    expect(view.report.others[1].value).toEqual({ kind: 'object', fields: [{ key: 'count', text: '0' }] })
+    expect(view.report.raw).toEqual(usage)
+  })
+})

@@ -1,3 +1,4 @@
+import { visibleUsageReport } from '@domain/usage/visible'
 import type { UsageCollectionMeta } from '../../../shared/usage-contract'
 import { buildProviderUsageView } from '@domain/usage/providers'
 import type { UsageProvider } from '@domain/usage/providers'
@@ -44,7 +45,10 @@ function collectionStatusOf(collection: UsageCollectionMeta | null, nowMs: numbe
 
 export function buildUsageLoadView(data: UsageSuccessData, now: Date, provider: UsageProvider): UsageLoadView {
   const fetchedAt = data.collection?.fetchedAt ?? null
-  const report = buildProviderUsageView(provider, data.usage ?? {}, { now, fetchedAt })
+  const report = visibleUsageReport(
+    buildProviderUsageView(provider, data.usage ?? {}, { now, fetchedAt }),
+    data.collection?.rawRedacted ?? [],
+  )
   const collectionStatus = collectionStatusOf(data.collection, now.getTime())
   return {
     report,

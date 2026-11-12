@@ -71,7 +71,6 @@ describe('Given the scan result for other items', () => {
     expect(rateLimitOther?.value).toEqual({
       kind: 'object',
       fields: [
-        { key: 'limit_reached', text: 'false' },
         { key: 'unknown_field', text: 'kept-in-other-items' },
       ],
     })
@@ -79,7 +78,7 @@ describe('Given the scan result for other items', () => {
 
   it('When a top level key has no windows then the whole value becomes an other item', () => {
     const scan = scanCodexUsage(codexNormalRaw, { fetchedAt: NOW_ISO })
-    expect(scan.otherEntries.map((entry) => entry.id)).toEqual(['plan', 'credits', 'rate_limit'])
+    expect(scan.otherEntries.map((entry) => entry.id)).toEqual(['plan', 'credits'])
     expect(scan.otherEntries[0].value).toEqual({ kind: 'value', text: 'pro' })
     expect(scan.otherEntries[1].value).toEqual({
       kind: 'object',
@@ -88,5 +87,12 @@ describe('Given the scan result for other items', () => {
         { key: 'limit', text: '3000' },
       ],
     })
+  })
+})
+
+describe('Given a rate limit container without windows', () => {
+  it('When only status fields exist Then retains the container because there is no duplicate window', () => {
+    const scan = scanCodexUsage({ rate_limit: { allowed: false, limit_reached: true } })
+    expect(scan.otherEntries.map(item => item.id)).toEqual(['rate_limit'])
   })
 })

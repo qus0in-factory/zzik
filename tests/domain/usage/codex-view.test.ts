@@ -23,9 +23,9 @@ describe('Given the codex normal fixture', () => {
     expect(report.issues).toEqual([])
   })
 
-  it('When some keys are not windows then they land in other items and the completeness invariant holds', () => {
+  it('When some keys are not windows then meaningful metadata is retained without duplicate status fields', () => {
     const report = buildCodexUsageView(codexNormalRaw, BUILD)
-    expect(report.others.map((other) => other.id)).toEqual(['plan', 'credits', 'rate_limit'])
+    expect(report.others.map((other) => other.id)).toEqual(['plan', 'credits'])
     expect(coveredKeys(report).sort()).toEqual(Object.keys(codexNormalRaw).sort())
   })
 
@@ -87,13 +87,12 @@ describe('Given the codex unknown-keys fixture', () => {
     expect(report.others.map((other) => other.id)).toEqual(['plan', 'rate_limit', 'broken_bucket', 'daily'])
   })
 
-  it('When a top level key produced windows then its remaining fields are kept in other items', () => {
+  it('When a top level key produced windows then meaningful unknown remaining fields are kept in other items', () => {
     const report = buildCodexUsageView(codexUnknownRaw, BUILD)
     const rateLimit = report.others.find((other) => other.id === 'rate_limit')
     expect(rateLimit?.value).toEqual({
       kind: 'object',
       fields: [
-        { key: 'limit_reached', text: 'false' },
         { key: 'unknown_field', text: 'kept-in-other-items' },
       ],
     })
