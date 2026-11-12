@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+import type { ReactElement } from 'react'
+import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
+import { createFakeUsageGateway, createFakeUsageScheduler } from '../../fakes/usage-ports'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render as baseRender, screen } from '@testing-library/react'
 import { UsageDashboard } from '@ui/usage/UsageDashboard'
 import { buildUsageView } from '@domain/usage/view'
 import { buildCodexUsageView } from '@domain/usage/codex-view'
@@ -9,6 +12,10 @@ import unknownKeysRaw from '../../fixtures/claude-usage.unknown-keys.json'
 import codexUnknownRaw from '../../fixtures/codex-usage.unknown-keys.json'
 import { NOW, NOW_ISO } from '../../fakes/usage-ports'
 
+const deps = { gateway: createFakeUsageGateway(), clock: { nowIso: () => NOW_ISO }, scheduler: createFakeUsageScheduler() }
+function render(element: ReactElement) {
+  return baseRender(<UsageGatewayProvider deps={deps}>{element}</UsageGatewayProvider>)
+}
 afterEach(cleanup)
 
 /** 렌더된 한도 카드의 id를 DOM 순서대로 모은다. */

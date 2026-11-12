@@ -33,6 +33,7 @@ description: zzik 배포·배포 후 검증을 하거나 배포 뒤 수집기를
   curl --resolve "zzik.qus0in.dev:443:$ip" -s -o /dev/null -w '%{http_code}\n' https://zzik.qus0in.dev/api/usage
   ```
 - 배포 출력에 `zzik.qus0in.dev` 외 URL이 나오거나 302가 아니면 실패로 보고 설정부터 확인한다.
+- **기능 대조**: 배포 후 `scripts/usage-live-shape.sh <provider>` 실행 결과의 주요 필드·한도 항목과 화면 기대치를 대조하여 이상 유무를 워커가 보고한다. 단순히 302 성공만 보고 기능을 '사용자 확인'으로 넘기지 않는다.
 
 ## 3. 배포 후 수집기
 - 수집기 PM2 프로세스는 `.worktree/release` 체크아웃을 cwd로 돈다(브랜치 전환과 무관하게 배포본 기준). 재시작·로그·증상 대응은 `zzik-usage-collector` 스킬을 따른다.

@@ -25,4 +25,5 @@ description: zzik 코드(프론트 src/, Worker worker/, 수집기 collector/)�
 - 순서: 실패 테스트 → 최소 구현 → 리팩터. 레이어는 domain → app → ui/infra 순.
 - `vi.mock` 금지, 가짜 포트 주입. 가짜 타이머는 폴러에만. jsdom은 ui 테스트만.
 - `tests/arch/layers.test.ts`가 import 방향을 강제한다.
+- **실데이터 우선 (픽스처 작성 전)**: 사용량 표시·파싱 기능을 착수하거나 픽스처를 작성·수정하기 전, 반드시 `scripts/usage-live-shape.sh`로 실데이터 모양을 확인한다. 테스트 픽스처는 가정이 아닌 실데이터 형상에서 따온다.
 - 완료 조건: `pnpm test`, `pnpm build` 통과.
