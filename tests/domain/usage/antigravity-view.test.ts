@@ -4,7 +4,7 @@ import normal from '../../fixtures/antigravity-usage.normal.json'
 import limited from '../../fixtures/antigravity-usage.limited.json'
 import unknown from '../../fixtures/antigravity-usage.unknown-keys.json'
 const now = new Date('2026-11-11T12:00:00Z')
-describe('Given synthetic values on the masked probe shape (G2a success pending)', () => {
+describe('Given synthetic values on the masked probe shape; separate from the captured live fixture', () => {
   it('When normal Then orders group windows by duration and computes usage and elapsed', () => {
     const report=buildAntigravityUsageView(normal,{now})
     expect(report.windows.map(w=>w.id)).toEqual(['3p-5h','3p-weekly'])

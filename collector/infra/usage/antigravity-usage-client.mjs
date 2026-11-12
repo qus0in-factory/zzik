@@ -1,5 +1,7 @@
 import { parseRetryAfter } from '../../domain/usage/retry-after.mjs'
 
+/** User-approved exception to ADR 0.3 D4; required by the Antigravity API. */
+export const ANTIGRAVITY_USER_AGENT = 'Antigravity/1.0'
 export const ANTIGRAVITY_API_HOSTS = ['cloudcode-pa.googleapis.com', 'daily-cloudcode-pa.googleapis.com']
 /** @typedef {import('../../domain/usage/ports.mjs').UsageCallResult} UsageCallResult */
 
@@ -28,7 +30,7 @@ export function createAntigravityUsageClient({ fetchImpl, host = 'cloudcode-pa.g
       try {
         const res = await fetchImpl('https://' + host + '/v1internal:retrieveUserQuotaSummary', {
           method: 'POST',
-          headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Content-Type': 'application/json' },
+          headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': ANTIGRAVITY_USER_AGENT },
           body: JSON.stringify({ project }),
           redirect: 'manual',
           signal: AbortSignal.timeout(timeoutMs),

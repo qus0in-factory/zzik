@@ -7,8 +7,8 @@ describe('Given the Antigravity summary client', () => {
     const client = createAntigravityUsageClient({ host, project: 'fake-project', fetchImpl: async (input, init) => { url = String(input); seen = init; return new Response('{"groups":[]}') } })
     expect(await client.fetchUsage('fake-token')).toMatchObject({ ok: true, bodyText: '{"groups":[]}' })
     expect(url).toBe('https://' + host + '/v1internal:retrieveUserQuotaSummary')
-    expect(seen).toMatchObject({ method: 'POST', redirect: 'manual', body: '{"project":"fake-project"}', headers: { Authorization: 'Bearer fake-token', Accept: 'application/json', 'Content-Type': 'application/json' } })
-    expect(Object.keys(seen?.headers ?? {})).toHaveLength(3)
+    expect(seen).toMatchObject({ method: 'POST', redirect: 'manual', body: '{"project":"fake-project"}', headers: { Authorization: 'Bearer fake-token', Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'Antigravity/1.0' } })
+    expect(Object.keys(seen?.headers ?? {})).toHaveLength(4)
     expect(seen?.signal).toBeInstanceOf(AbortSignal)
   })
   it('When host is not allowlisted Then rejects configuration before calling fetch', () => {
