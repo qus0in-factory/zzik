@@ -1,0 +1,12 @@
+{
+  "config": {
+    "currentPeriod": { "type": "USAGE_PERIOD_TYPE_WEEKLY", "start": "2026-11-09T00:00:00.000Z", "end": "2026-11-16T00:00:00.000Z" },
+    "creditUsagePercent": 2.0,
+    "productUsage": [{ "product": "xyz", "usagePercent": 2.0 }],
+    "isUnifiedBillingUser": true,
+    "prepaidBalance": { "val": 0 },
+    "topUpMethod": "synthetic-top-up-method",
+    "billingPeriodStart": "2026-11-09T00:00:00.000Z",
+    "billingPeriodEnd": "2026-11-16T00:00:00.000Z"
+  }
+}

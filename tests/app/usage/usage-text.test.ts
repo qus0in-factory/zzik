@@ -71,3 +71,16 @@ describe('Given Antigravity credential guidance', () => {
     expect(composeCollectionNote('antigravity',status,null)).not.toContain('Claude Code')
   })
 })
+
+describe('Given OpenCode, Grok and Ollama guidance', () => {
+  it('When Grok token is expired Then it names OpenCode as the renewal owner', () => {
+    expect(composeCollectionNote('grok', 'token_expired', null)).toContain('OpenCode')
+    expect(composeCollectionNote('opencode', 'no_credentials', null)).toContain('OpenCode')
+  })
+  it('When Ollama has a network error Then the daemon-off note is used', () => {
+    expect(composeCollectionNote('ollama', 'network_error', null)).toContain('Ollama 데몬이 꺼져 있는 것 같습니다')
+  })
+  it.each(['claude', 'codex', 'antigravity', 'opencode', 'grok'] as const)('When %s has a network error Then the generic note stays', (provider) => {
+    expect(composeCollectionNote(provider, 'network_error', null)).toBe('네트워크 오류로 수집하지 못했습니다. 다음 주기에 다시 시도합니다.')
+  })
+})

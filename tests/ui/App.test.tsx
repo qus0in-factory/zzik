@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import App from '@ui/App'
 import agyRaw from '../fixtures/antigravity-usage.normal.json'
+import grokRaw from '../fixtures/grok-usage.normal.json'
+import ollamaRaw from '../fixtures/ollama-usage.normal.json'
+import opencodeRaw from '../fixtures/opencode-usage.normal.json'
 import normalRaw from '../fixtures/claude-usage.normal.json'
 import codexUnknownRaw from '../fixtures/codex-usage.unknown-keys.json'
 import { createFakeUsageClock, createFakeUsageGateway, createFakeUsageScheduler } from '../fakes/usage-ports'
@@ -15,6 +18,9 @@ function renderApp(client = createTestQueryClient()) {
   gateway.pushResultFor('claude', { ok: true, usage: normalRaw, collection: null, rawText: null })
   gateway.pushResultFor('codex', { ok: true, usage: codexUnknownRaw, collection: null, rawText: null })
   gateway.pushResultFor('antigravity', { ok: true, usage: agyRaw, collection: null, rawText: null })
+  gateway.pushResultFor('opencode', { ok: true, usage: opencodeRaw, collection: null, rawText: null })
+  gateway.pushResultFor('grok', { ok: true, usage: grokRaw, collection: null, rawText: null })
+  gateway.pushResultFor('ollama', { ok: true, usage: ollamaRaw, collection: null, rawText: null })
   const providers = makeUsageProviders(
     {
       gateway,
@@ -31,18 +37,18 @@ function renderApp(client = createTestQueryClient()) {
   return { utils, gateway }
 }
 
-describe('Given the dashboard with three providers', () => {
+describe('Given the dashboard with six providers', () => {
   it('When it renders Then Hello Young-In is the main heading (U9 계약 유지)', () => {
     renderApp()
     expect(screen.getByRole('heading', { name: 'Hello Young-In', level: 1 })).toBeTruthy()
   })
 
-  it('When both queries resolve Then three provider sections render side by side in fixed order', async () => {
+  it('When both queries resolve Then six provider sections render side by side in fixed order', async () => {
     renderApp()
     await screen.findByTestId('usage-section-claude')
     await waitFor(() => expect(screen.getByRole('heading', { name: 'ChatGPT (Codex)', level: 2 })).toBeTruthy())
     const sections = screen.getAllByTestId(/^usage-section-/)
-    expect(sections.map((section) => section.getAttribute('data-provider'))).toEqual(['claude', 'codex', 'antigravity'])
+    expect(sections.map((section) => section.getAttribute('data-provider'))).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
     expect(screen.getByRole('heading', { name: 'Claude', level: 2 })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'ChatGPT (Codex)', level: 2 })).toBeTruthy()
   })

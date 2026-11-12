@@ -1,4 +1,4 @@
-import { rebaseAntigravityResetsAt } from '@domain/usage/antigravity-calibration'
+import { rebaseIsoFields } from '@domain/usage/rebase-iso-fields'
 import agyNormal from '../../../tests/fixtures/antigravity-usage.normal.json'
 import agyLimited from '../../../tests/fixtures/antigravity-usage.limited.json'
 import agyUnknown from '../../../tests/fixtures/antigravity-usage.unknown-keys.json'
@@ -11,6 +11,15 @@ import claudeNormalRaw from '../../../tests/fixtures/claude-usage.normal.json'
 import claudeLimitedRaw from '../../../tests/fixtures/claude-usage.limited.json'
 import claudeUnknownKeysRaw from '../../../tests/fixtures/claude-usage.unknown-keys.json'
 import claudeWarnRaw from '../../../tests/fixtures/claude-usage.warn.json'
+import grokNormalRaw from '../../../tests/fixtures/grok-usage.normal.json'
+import grokLimitedRaw from '../../../tests/fixtures/grok-usage.limited.json'
+import grokUnknownKeysRaw from '../../../tests/fixtures/grok-usage.unknown-keys.json'
+import opencodeNormalRaw from '../../../tests/fixtures/opencode-usage.normal.json'
+import opencodeLimitedRaw from '../../../tests/fixtures/opencode-usage.limited.json'
+import opencodeUnknownKeysRaw from '../../../tests/fixtures/opencode-usage.unknown-keys.json'
+import ollamaNormalRaw from '../../../tests/fixtures/ollama-usage.normal.json'
+import ollamaLimitedRaw from '../../../tests/fixtures/ollama-usage.limited.json'
+import ollamaUnknownKeysRaw from '../../../tests/fixtures/ollama-usage.unknown-keys.json'
 import codexNormalRaw from '../../../tests/fixtures/codex-usage.normal.json'
 import codexLimitedRaw from '../../../tests/fixtures/codex-usage.limited.json'
 import codexUnknownKeysRaw from '../../../tests/fixtures/codex-usage.unknown-keys.json'
@@ -22,6 +31,14 @@ import codexUnknownKeysRaw from '../../../tests/fixtures/codex-usage.unknown-key
  */
 
 export type FixtureName = 'normal' | 'warn' | 'limited' | 'unknown-keys' | 'auth_rejected' | 'error' | 'loading'
+
+/** DEV 시나리오에서 날짜를 지금 기준으로 옮길 제공자별 시각 키(Codex는 Unix 초 절대값이라 제외). */
+const REBASE_KEYS: Partial<Record<UsageProvider, readonly string[]>> = {
+  antigravity: ['resetTime'],
+  grok: ['start', 'end', 'billingPeriodStart', 'billingPeriodEnd'],
+  ollama: ['from', 'until'],
+  opencode: ['resetsAt'],
+}
 
 /** 이름 해석은 domain의 순수 함수로(스토어 초기값도 같은 규칙을 쓴다). */
 export const FIXTURE_NAMES = ['normal', 'warn', 'limited', 'unknown-keys', 'auth_rejected', 'error', 'loading'] as const
@@ -50,6 +67,9 @@ const CODEX_FIXTURES: Partial<Record<ScenarioName, Record<string, unknown>>> = {
 }
 
 const FIXTURES: Record<UsageProvider, Record<ScenarioName, Record<string, unknown>>> = {
+  grok: { normal: grokNormalRaw, warn: grokNormalRaw, limited: grokLimitedRaw, ['unknown-keys']: grokUnknownKeysRaw },
+  ollama: { normal: ollamaNormalRaw, warn: ollamaNormalRaw, limited: ollamaLimitedRaw, ['unknown-keys']: ollamaUnknownKeysRaw },
+  opencode: { normal: opencodeNormalRaw, warn: opencodeNormalRaw, limited: opencodeLimitedRaw, ['unknown-keys']: opencodeUnknownKeysRaw },
   antigravity: { normal: agyNormal, warn: agyLimited, limited: agyLimited, ['unknown-keys']: agyUnknown },
   claude: CLAUDE_FIXTURES,
   codex: {
@@ -107,16 +127,17 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
           tokenExpiresAt: null,
           kvTokenExpiresAt: null,
           intervalSec: 300,
-          collectorVersion: '0.4.0',
+          collectorVersion: '0.6.0',
           rawOmitted: null,
         }
         return { ok: true, usage: FIXTURES[provider].normal, collection, rawText: null }
       }
       const fixture = FIXTURES[provider][name]
       // Claude는 작성 시점 고정값을 지금 기준으로 옮겨 "리셋 시각 경과"로 굳지 않게 한다.
+      const rebaseKeys = REBASE_KEYS[provider]
       const usage =
-        provider === 'antigravity'
-          ? rebaseAntigravityResetsAt(fixture, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
+        rebaseKeys !== undefined
+          ? rebaseIsoFields(fixture, rebaseKeys, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
           : provider === 'claude'
           ? rebaseUsageResetsAt(fixture as never, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
           : fixture
