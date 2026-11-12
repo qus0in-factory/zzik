@@ -28,4 +28,23 @@ describe('Given a card activity store shared above the cards', () => {
 
     expect(activeLap(store.observe('five_hour', 20, 2), 2)).toBeNull()
   })
+
+  it('When an active card drops to 0% and later unmounts and remounts Then it stays resting until new positive change', () => {
+    const store = createCardActivityStore()
+    store.observe('five_hour', 10, 0)
+    const running = store.observe('five_hour', 12, 60_000)
+    expect(activeLap(running, 60_000)).toBe(0.6)
+
+    // 0% 관측으로 정지
+    const zero = store.observe('five_hour', 0, 120_000)
+    expect(activeLap(zero, 120_000)).toBeNull()
+
+    // 언마운트 후 0%로 재마운트 시 여전히 정지
+    const remountZero = store.observe('five_hour', 0, 180_000)
+    expect(activeLap(remountZero, 180_000)).toBeNull()
+
+    // 이후 새로운 양수 변화 발생 시 재활성화
+    const reactivated = store.observe('five_hour', 5, 240_000)
+    expect(activeLap(reactivated, 240_000)).toBe(0.25)
+  })
 })

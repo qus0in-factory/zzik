@@ -55,25 +55,25 @@ export function LimitCard({ item, titleLevel = 3, lapSeconds = null }: { item: U
           {badge && <Badge variant={badge.variant}>{badge.text}</Badge>}
           {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
         </div>
-        {lapSeconds !== null && usedPercent !== null && usedPercent > 0 && (
-          <div aria-hidden="true" className="activity-cat-track">
-            <span
-              data-testid="activity-cat"
-              className="activity-cat-runner text-foreground"
-              style={
-                {
-                  left: `${Math.max(0, Math.min(100, usedPercent))}%`,
-                  animationDuration: `${lapSeconds}s`,
-                  '--cat-lap': `${lapSeconds}s`,
-                } as CSSProperties
-              }
-            >
-              <CatSvg className="activity-cat-svg" />
-            </span>
-          </div>
-        )}
         {usedPercent !== null && (
           <div className="relative min-w-0">
+            {lapSeconds !== null && (
+              <div aria-hidden="true" className="activity-cat-track">
+                <span
+                  data-testid="activity-cat"
+                  className="activity-cat-runner text-foreground"
+                  style={
+                    {
+                      left: `${Math.max(0, Math.min(100, usedPercent))}%`,
+                      animationDuration: `${lapSeconds}s`,
+                      '--cat-lap': `${lapSeconds}s`,
+                    } as CSSProperties
+                  }
+                >
+                  <CatSvg className="activity-cat-svg" />
+                </span>
+              </div>
+            )}
             {elapsedPercent != null && <span aria-hidden="true" className="absolute z-10 h-full border-l-2 border-foreground" style={{ left: `${elapsedPercent}%`, transform: 'translateX(-50%)' }} />}
             <Progress value={Math.min(usedPercent, 100)} aria-label={`${label} 사용률`} />
           </div>
