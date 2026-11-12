@@ -1,9 +1,105 @@
-.activity-cat-track { position: relative; height: 1.75rem; margin-inline: .25rem; overflow: hidden; }
-.activity-cat-runner { position: absolute; left: 0; width: 1.75rem; animation: cat-lap linear infinite; }
-.activity-cat-body { display: inline-block; transform: scaleX(-1); animation: cat-bounce .18s ease-in-out infinite alternate; }
-@keyframes cat-lap { from { left: 0; } to { left: calc(100% - 1.75rem); } }
-@keyframes cat-bounce { from { transform: scaleX(-1) translateY(0); } to { transform: scaleX(-1) translateY(-3px) rotate(-5deg); } }
+/* 공유 사용률 전환 설정 (Progress 채움과 고양이 위치 이동 동기화) */
+:root {
+  --usage-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-indicator-transition {
+  transition: transform var(--usage-transition);
+}
+
+.activity-cat-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1.25rem;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.activity-cat-runner {
+  position: absolute;
+  top: 0;
+  width: 2rem;
+  height: 1.25rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: left var(--usage-transition);
+}
+
+.activity-cat-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: cat-body-bob var(--cat-lap, 0.6s) ease-in-out infinite;
+}
+
+/* 다리 교차 스윙 (달리기): transform-box: fill-box로 각 다리 바운딩 박스 기준 상단 관절 회전 */
+.cat-leg {
+  transform-box: fill-box;
+  transform-origin: top center;
+}
+
+.cat-leg-front-left,
+.cat-leg-back-right {
+  animation: cat-leg-swing-a var(--cat-lap, 0.6s) ease-in-out infinite;
+}
+
+.cat-leg-front-right,
+.cat-leg-back-left {
+  animation: cat-leg-swing-b var(--cat-lap, 0.6s) ease-in-out infinite;
+}
+
+/* 꼬리 살랑 */
+.cat-part-tail {
+  transform-origin: 3px 8px;
+  animation: cat-tail-wag var(--cat-lap, 0.6s) ease-in-out infinite;
+}
+
+@keyframes cat-body-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes cat-leg-swing-a {
+  0%, 100% {
+    transform: rotate(25deg);
+  }
+  50% {
+    transform: rotate(-25deg);
+  }
+}
+
+@keyframes cat-leg-swing-b {
+  0%, 100% {
+    transform: rotate(-25deg);
+  }
+  50% {
+    transform: rotate(25deg);
+  }
+}
+
+@keyframes cat-tail-wag {
+  0%, 100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .activity-cat-track { display: none; }
-  .activity-cat-runner, .activity-cat-body { animation: none; }
+  .activity-cat-track {
+    display: none;
+  }
+  .activity-cat-runner,
+  .activity-cat-svg,
+  .cat-leg,
+  .cat-part-tail {
+    animation: none;
+  }
 }
