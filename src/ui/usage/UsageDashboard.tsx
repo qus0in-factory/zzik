@@ -6,7 +6,6 @@ import type { UsageUiStatus } from '@app/usage/useUsage'
 import { Badge } from '@ui/components/ui/badge'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { LimitCard } from './LimitCard'
-import { OtherItems } from './OtherItems'
 import { StatusBar } from './StatusBar'
 import { READY_BADGE } from './status-label'
 
@@ -33,7 +32,7 @@ export interface UsageDashboardProps {
   collectionNote?: string | null
 }
 
-/** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도 → 기타 항목. */
+/** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도. */
 export function UsageDashboard({
   provider,
   title,
@@ -69,7 +68,7 @@ export function UsageDashboard({
     )
   }
 
-  const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0 && report.others.length === 0)
+  const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0)
   const badge =
     status === 'stale'
       ? '오래된 데이터'
@@ -141,8 +140,6 @@ export function UsageDashboard({
           )}
         </>
       )}
-
-      {report !== null && <OtherItems others={report.others} />}
     </section>
   )
 }
