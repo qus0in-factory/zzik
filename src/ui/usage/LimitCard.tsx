@@ -1,9 +1,10 @@
 import './activity-cat.css'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Badge } from '@ui/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Progress } from '@ui/components/ui/progress'
 import type { UsageLevel } from '@domain/usage/types'
+import { CatSvg } from './CatSvg'
 
 export interface UsageLimitItem {
   id: string
@@ -54,7 +55,23 @@ export function LimitCard({ item, titleLevel = 3, lapSeconds = null }: { item: U
           {badge && <Badge variant={badge.variant}>{badge.text}</Badge>}
           {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
         </div>
-        {lapSeconds !== null && <div aria-hidden="true" className="activity-cat-track"><span className="activity-cat-runner" style={{ animationDuration: lapSeconds + 's' }}><span className="activity-cat-body">🐈</span></span></div>}
+        {lapSeconds !== null && usedPercent !== null && usedPercent > 0 && (
+          <div aria-hidden="true" className="activity-cat-track">
+            <span
+              data-testid="activity-cat"
+              className="activity-cat-runner text-foreground"
+              style={
+                {
+                  left: `${Math.max(0, Math.min(100, usedPercent))}%`,
+                  animationDuration: `${lapSeconds}s`,
+                  '--cat-lap': `${lapSeconds}s`,
+                } as CSSProperties
+              }
+            >
+              <CatSvg className="activity-cat-svg" />
+            </span>
+          </div>
+        )}
         {usedPercent !== null && (
           <div className="relative min-w-0">
             {elapsedPercent != null && <span aria-hidden="true" className="absolute z-10 h-full border-l-2 border-foreground" style={{ left: `${elapsedPercent}%`, transform: 'translateX(-50%)' }} />}

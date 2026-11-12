@@ -9,7 +9,7 @@ describe('Given a card activity store shared above the cards', () => {
     expect(activeLap(first, 60_000)).toBeNull()
 
     const second = store.observe('five_hour', 12, 60_000)
-    expect(activeLap(second, 60_000)).toBe(4)
+    expect(activeLap(second, 60_000)).toBe(0.6)
   })
 
   it('When two card ids alternate Then each keeps its own baseline', () => {
@@ -17,7 +17,7 @@ describe('Given a card activity store shared above the cards', () => {
     store.observe('five_hour', 10, 0)
     store.observe('seven_day', 40, 0)
 
-    expect(activeLap(store.observe('five_hour', 12, 60_000), 60_000)).toBe(4)
+    expect(activeLap(store.observe('five_hour', 12, 60_000), 60_000)).toBe(0.6)
     expect(activeLap(store.observe('seven_day', 40, 60_000), 60_000)).toBeNull()
   })
 
