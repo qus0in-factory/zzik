@@ -8,6 +8,7 @@ export interface UsageLimitItem {
   id: string
   label: string
   unknown?: boolean
+  elapsedPercent?: number | null
   usedPercent: number | null
   resetsAt: string | null
   expired: boolean
@@ -26,7 +27,7 @@ const THRESHOLD_BADGE: Partial<Record<UsageLevel, { text: string; variant: 'seco
  * 제목 단계는 섹션 구조(제공자 h2 → 블록 h3 → 카드 h4)에 맞춰 주입한다.
  */
 export function LimitCard({ item, titleLevel = 3 }: { item: UsageLimitItem; titleLevel?: 3 | 4 }): ReactNode {
-  const { id, label, unknown = false, usedPercent, expired, status, resetText } = item
+  const { id, label, unknown = false, usedPercent, expired, status, resetText, elapsedPercent } = item
   const badge = THRESHOLD_BADGE[status]
   const Heading = titleLevel === 4 ? 'h4' : 'h3'
   return (
@@ -53,10 +54,12 @@ export function LimitCard({ item, titleLevel = 3 }: { item: UsageLimitItem; titl
           {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
         </div>
         {usedPercent !== null && (
-          <div className="min-w-0">
+          <div className="relative min-w-0">
+            {elapsedPercent != null && <span aria-hidden="true" className="absolute z-10 h-full border-l-2 border-foreground" style={{ left: `${elapsedPercent}%`, transform: 'translateX(-50%)' }} />}
             <Progress value={Math.min(usedPercent, 100)} aria-label={`${label} 사용률`} />
           </div>
         )}
+        {elapsedPercent != null && <p className="text-xs text-muted-foreground">기간 경과 {Math.round(elapsedPercent)}%</p>}
         {resetText !== undefined && <p className="break-words text-xs text-muted-foreground">{resetText}</p>}
       </CardContent>
     </Card>

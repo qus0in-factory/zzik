@@ -41,7 +41,7 @@ describe('Given the Anthropic usage fixture (normal)', () => {
   it('When raw is preserved then report.raw is deep equal to the input', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     expect(report.raw).toEqual(unknownKeysRaw)
-    expect(JSON.stringify(report.raw)).toContain('seven_day_fable')
+    expect(JSON.stringify(report.raw)).toContain('seven_day_fake')
   })
 })
 
@@ -87,7 +87,7 @@ describe('Given unknown keys in the usage fixture', () => {
       'seven_day_sonnet',
       'seven_day_cowork',
       'extra_usage',
-      'seven_day_fable',
+      'seven_day_fake',
       'seven_day_haiku',
       'thirty_day',
     ])

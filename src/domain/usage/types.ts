@@ -8,6 +8,7 @@ export interface UsageWindow {
   label: string
   /** 라벨이 실측으로 확인되지 않은 창(미확인 배지) */
   unknown?: boolean
+  elapsedPercent: number | null
   usedPercent: number | null
   resetsAt: string | null
   expired: boolean
@@ -20,6 +21,7 @@ export interface UsageMetric {
   id: string
   label: string
   unknown: boolean
+  elapsedPercent: number | null
   usedPercent: number | null
   resetsAt: string | null
   expired: boolean

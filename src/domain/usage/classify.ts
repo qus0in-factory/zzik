@@ -24,6 +24,7 @@ export interface ClassificationResult {
 }
 
 const KNOWN_METRIC_IDS: readonly string[] = [
+  'seven_day_fable',
   'seven_day_opus',
   'seven_day_sonnet',
   'seven_day_oauth_apps',

@@ -11,6 +11,7 @@ export interface UsageLabel {
 
 const LABELS: Record<string, string> = {
   five_hour: '5시간 한도',
+  seven_day_fable: 'Fable 주간',
   seven_day: '주간 한도',
   seven_day_opus: 'Opus 주간',
   seven_day_sonnet: 'Sonnet 주간',
