@@ -31,7 +31,7 @@ describe('Given the claude fixture gateway', () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=unknown-keys', now: ANCHOR_CLOCK })
     const result = await gateway.fetchUsage('claude')
     if (!result.ok) throw new Error('expected ok')
-    expect(Object.keys(result.usage ?? {})).toContain('seven_day_fable')
+    expect(Object.keys(result.usage ?? {})).toContain('seven_day_haiku')
   })
 
   it('When the query selects error then it fails with api_error', async () => {

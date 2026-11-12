@@ -21,7 +21,7 @@ describe('Given a known usage key', () => {
 
 describe('Given an unknown usage key', () => {
   it('When the key follows the seven_day pattern then the label is derived from the slug', () => {
-    expect(usageLabelFor('seven_day_fable')).toEqual({ label: '주간 · Fable', unknown: true })
+    expect(usageLabelFor('seven_day_new_model')).toEqual({ label: '주간 · New Model', unknown: true })
     expect(usageLabelFor('seven_day_haiku')).toEqual({ label: '주간 · Haiku', unknown: true })
   })
 
@@ -39,10 +39,10 @@ describe('Given an unknown usage key', () => {
 
   it('When a metric id is unlisted then the report marks it unknown and a known id is not', () => {
     const report = buildUsageView(
-      { seven_day_fable: { utilization: 44, resets_at: '2026-11-15T03:00:00.000Z' }, seven_day_cowork: null },
+      { seven_day_haiku: { utilization: 44, resets_at: '2026-11-15T03:00:00.000Z' }, seven_day_cowork: null },
       { now: NOW },
     )
-    expect(report.metrics.find((m) => m.id === 'seven_day_fable')).toMatchObject({ unknown: true })
+    expect(report.metrics.find((m) => m.id === 'seven_day_haiku')).toMatchObject({ unknown: true })
     expect(report.metrics.find((m) => m.id === 'seven_day_cowork')).toMatchObject({ unknown: false })
   })
 })

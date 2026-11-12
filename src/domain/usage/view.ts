@@ -1,3 +1,4 @@
+import { elapsedPercent, cycleSeconds } from './elapsed'
 import { classifyUsageKeys, isKnownMetricId, WINDOW_IDS } from './classify'
 import { aggregateUsageLevel, usageLevelOf } from './level'
 import { usageLabelFor } from './labels'
@@ -11,6 +12,7 @@ export interface BuildUsageViewOptions {
 }
 
 const KNOWN_METRIC_ORDER: readonly string[] = [
+  'seven_day_fable',
   'seven_day_opus',
   'seven_day_sonnet',
   'seven_day_oauth_apps',
@@ -41,6 +43,7 @@ export function buildUsageView(raw: unknown, options: BuildUsageViewOptions = {}
           id: item.key,
           label: usageLabelFor(item.key).label,
           usedPercent,
+          elapsedPercent: elapsedPercent(item.resetsAt, cycleSeconds(item.key), now),
           resetsAt: item.resetsAt,
           expired: isResetExpired(item.resetsAt, now),
           status: usageLevelOf(usedPercent),
@@ -65,6 +68,7 @@ export function buildUsageView(raw: unknown, options: BuildUsageViewOptions = {}
           label: usageLabelFor(item.key).label,
           unknown: !isKnownMetricId(item.key),
           usedPercent,
+          elapsedPercent: elapsedPercent(item.resetsAt, cycleSeconds(item.key), now),
           resetsAt: item.resetsAt,
           expired: isResetExpired(item.resetsAt, now),
           status: usageLevelOf(usedPercent),

@@ -1,3 +1,4 @@
+import { elapsedPercent } from './elapsed'
 import { aggregateUsageLevel, usageLevelOf } from './level'
 import { codexWindowLabel } from './codex-labels'
 import { scanCodexUsage } from './codex-windows'
@@ -39,6 +40,7 @@ export function buildCodexUsageView(raw: unknown, options: CodexViewOptions): Us
       label: label.label,
       unknown: label.unknown,
       usedPercent: entry.usedPercent,
+      elapsedPercent: elapsedPercent(entry.resetsAt, entry.limitWindowSeconds, now),
       resetsAt: entry.resetsAt,
       expired: isResetExpired(entry.resetsAt, now),
       status: usageLevelOf(entry.usedPercent),
@@ -53,6 +55,7 @@ export function buildCodexUsageView(raw: unknown, options: CodexViewOptions): Us
       label: label.label,
       unknown: true,
       usedPercent: entry.usedPercent,
+      elapsedPercent: elapsedPercent(entry.resetsAt, entry.limitWindowSeconds, now),
       resetsAt: entry.resetsAt,
       expired: isResetExpired(entry.resetsAt, now),
       status: usageLevelOf(entry.usedPercent),
