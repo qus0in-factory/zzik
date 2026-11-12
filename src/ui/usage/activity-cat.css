@@ -4,5 +4,6 @@
 @keyframes cat-lap { from { left: 0; } to { left: calc(100% - 1.75rem); } }
 @keyframes cat-bounce { from { transform: scaleX(-1) translateY(0); } to { transform: scaleX(-1) translateY(-3px) rotate(-5deg); } }
 @media (prefers-reduced-motion: reduce) {
+  .activity-cat-track { display: none; }
   .activity-cat-runner, .activity-cat-body { animation: none; }
 }
