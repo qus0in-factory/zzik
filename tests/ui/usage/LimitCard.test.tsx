@@ -72,7 +72,8 @@ describe('Given an item without a usable value', () => {
   it('When rendering a null valued metric then it shows no value and never renders 0% (U2·U3)', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
     const opus = report.metrics.find((m) => m.id === 'seven_day_opus')
-    render(<LimitCard item={opus ?? report.windows[0]} />)
+    expect(opus).toBeUndefined()
+    render(<LimitCard item={{ ...report.windows[0], usedPercent: null }} />)
     expect(screen.getByText('정보 없음')).toBeTruthy()
     expect(screen.queryByText('0%')).toBeNull()
     expect(screen.queryByRole('progressbar')).toBeNull()

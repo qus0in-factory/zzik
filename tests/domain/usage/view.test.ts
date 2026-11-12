@@ -8,27 +8,21 @@ import warnRaw from '../../fixtures/claude-usage.warn.json'
 const NOW = new Date('2026-11-11T12:00:00.000Z')
 
 describe('Given the Anthropic usage fixture (normal)', () => {
-  it('When parsing then it yields the two fixed windows and the three metrics in order', () => {
+  it('When parsing then it yields the two fixed windows and populated metrics in order', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
     expect(report.windows.map((w) => w.id)).toEqual(['five_hour', 'seven_day'])
     expect(report.windows[0]).toMatchObject({ usedPercent: 37, status: 'normal', expired: false })
     expect(report.windows[1]).toMatchObject({ usedPercent: 12, status: 'normal', expired: false })
-    expect(report.metrics.map((m) => m.id)).toEqual(['seven_day_opus', 'seven_day_sonnet', 'extra_usage'])
-    expect(report.metrics).toHaveLength(3)
+    expect(report.metrics.map((m) => m.id)).toEqual(['seven_day_sonnet', 'extra_usage'])
+    expect(report.metrics).toHaveLength(2)
     expect(report.status).toBe('normal')
     expect(report.issues).toEqual([])
   })
 
-  it('When a metric value is null then it is kept as an unknown metric', () => {
+  it('When a metric value is null then it is omitted', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
     const opus = report.metrics.find((m) => m.id === 'seven_day_opus')
-    expect(opus).toMatchObject({
-      usedPercent: null,
-      resetsAt: null,
-      status: 'unknown',
-      label: 'Opus 주간',
-      unknown: false,
-    })
+    expect(opus).toBeUndefined()
   })
 
   it('When a metric value is zero then it is normal, not unknown', () => {
@@ -83,9 +77,7 @@ describe('Given unknown keys in the usage fixture', () => {
   it('When metrics are collected then new keys are listed after known ids in lexicographic order', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     expect(report.metrics.map((m) => m.id)).toEqual([
-      'seven_day_opus',
       'seven_day_sonnet',
-      'seven_day_cowork',
       'extra_usage',
       'seven_day_fake',
       'seven_day_haiku',
@@ -108,9 +100,9 @@ describe('Given malformed usage input', () => {
   it.each([
     [{ five_hour: { utilization: -5 } }] as const,
     [{ five_hour: { utilization: '37' } }] as const,
-  ])('When utilization is invalid (%j) then the entry survives as unknown with an issue', (input) => {
+  ])('When utilization is invalid (%j) then the entry is hidden and the issue is retained', (input) => {
     const report = buildUsageView(input, { now: NOW })
-    expect(report.windows[0]).toMatchObject({ id: 'five_hour', usedPercent: null, status: 'unknown' })
+    expect(report.windows).toEqual([])
     expect(report.issues).toContainEqual({ code: 'invalid_utilization', key: 'five_hour' })
   })
 

@@ -1,3 +1,4 @@
+import { visibleUsageReport } from './visible'
 import { elapsedPercent } from './elapsed'
 import { aggregateUsageLevel, usageLevelOf } from './level'
 import { codexWindowLabel } from './codex-labels'
@@ -74,14 +75,14 @@ export function buildCodexUsageView(raw: unknown, options: CodexViewOptions): Us
     ? 'limit'
     : aggregateUsageLevel([...windows, ...metrics].map((item) => ({ status: item.status, expired: item.expired })))
 
-  return {
+  return visibleUsageReport({
     status,
     windows,
     metrics,
     others: scan.otherEntries.map((entry) => ({ id: entry.id, label: entry.id, value: entry.value })),
     issues: scan.issues,
     raw: isRecord(raw) ? raw : null,
-  }
+  })
 }
 
 function limitReached(raw: unknown): boolean {

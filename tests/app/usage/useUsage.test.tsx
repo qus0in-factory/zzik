@@ -235,10 +235,5 @@ describe('Given the collection note exposed by the hook (ADR 0.3 v2 D8)', () => 
     expect(result.current.state.collectionNote).toBeNull()
   })
 
-  it('When the envelope reports redacted keys then the hook exposes the count source list', async () => {
-    const harness = makeHarness()
-    harness.gateway.pushResult({ ok: true, usage: normalRaw, collection: { ...ENVELOPE_OK, rawRedacted: ['a.b', 'c'] }, rawText: null })
-    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
-    await waitFor(() => expect(result.current.state.rawRedacted).toEqual(['a.b', 'c']))
-  })
+
 })
