@@ -26,7 +26,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
     expect(screen.getAllByTestId('usage-card')).toHaveLength(9)
-    expect(screen.getByText('주간 · Fable')).toBeTruthy()
+    expect(screen.getByText('주간 · Haiku')).toBeTruthy()
     expect(screen.getByText('주간 · Haiku')).toBeTruthy()
     expect(screen.getAllByText('thirty_day').length).toBeGreaterThanOrEqual(1)
   })
@@ -43,7 +43,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
   it('When rendering unknown metric cards then they carry the unverified badge and known ones do not (U2)', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
-    const fableLabel = screen.getByText('주간 · Fable')
+    const fableLabel = screen.getByText('주간 · Haiku')
     const fableCard = fableLabel.closest('[data-testid="usage-card"]') as HTMLElement
     expect(fableCard.textContent).toContain('미확인')
     const opusCard = (screen.getByText('Opus 주간').closest('[data-testid="usage-card"]') as HTMLElement)
@@ -93,7 +93,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
       'seven_day_sonnet',
       'seven_day_cowork',
       'extra_usage',
-      'seven_day_fable',
+      'seven_day_fake',
       'seven_day_haiku',
       'thirty_day',
     ]

@@ -17,7 +17,7 @@ SELF_LABEL=<내 모델 약칭> scripts/herdr-label-models.sh [workspace_id]
 
 ## 동작
 1. 에이전트가 있는 패널만 골라 `herdr pane read --source visible`로 화면을 읽는다.
-2. 화면 글자로 약칭 판별: GLM→`glm`, DeepSeek→`ds`, Fable→`fable`, Opus→`opus`, Sonnet→`sonnet`, `-Sol`→`sol`.
+2. 화면 글자로 약칭 판별: GLM→`glm`, DeepSeek→`ds`, Fable→`fable`, Opus→`opus`, Sonnet→`sonnet`, `GPT-*-Sol`·`-Sol`→`sol`, `Gemini <버전>`→`gemini`. 고유 문자열(상태줄·배너)을 먼저 매칭해 대화 본문 속 모델명 언급으로 오판하지 않는다.
 3. `herdr tab rename`, `herdr pane rename`, `herdr agent rename`으로 세 곳 모두 지정.
 
 ## 결과 확인

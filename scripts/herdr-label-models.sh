@@ -12,7 +12,10 @@ ws="${1:-$HERDR_WORKSPACE_ID}"
 # 화면 텍스트 → 약칭 (위에서부터 먼저 매칭되는 것 사용)
 detect() {
   local text="$1"
+  # 모델명이 박힌 고유 문자열(상태줄·배너)을 먼저 본다. 대화 본문의 모델 이름 언급으로 오판하지 않게.
   case "$text" in
+    *GPT-*-Sol*|*gpt-*-sol*) echo sol ;;
+    *Gemini\ [0-9]*)          echo gemini ;;
     *GLM*|*glm*)            echo glm ;;
     *DeepSeek*|*deepseek*)  echo ds ;;
     *Fable*)                echo fable ;;
