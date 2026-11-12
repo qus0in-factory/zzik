@@ -1,3 +1,7 @@
+import { rebaseAntigravityResetsAt } from '@domain/usage/antigravity-calibration'
+import agyNormal from '../../../tests/fixtures/antigravity-usage.normal.json'
+import agyLimited from '../../../tests/fixtures/antigravity-usage.limited.json'
+import agyUnknown from '../../../tests/fixtures/antigravity-usage.unknown-keys.json'
 import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'
 import type { UsageCollectionMeta } from '../../../shared/usage-contract'
 import { parseFixtureUsageName } from '@domain/usage/fixture-name'
@@ -46,6 +50,7 @@ const CODEX_FIXTURES: Partial<Record<ScenarioName, Record<string, unknown>>> = {
 }
 
 const FIXTURES: Record<UsageProvider, Record<ScenarioName, Record<string, unknown>>> = {
+  antigravity: { normal: agyNormal, warn: agyLimited, limited: agyLimited, ['unknown-keys']: agyUnknown },
   claude: CLAUDE_FIXTURES,
   codex: {
     normal: CODEX_FIXTURES.normal ?? {},
@@ -102,7 +107,7 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
           tokenExpiresAt: null,
           kvTokenExpiresAt: null,
           intervalSec: 300,
-          collectorVersion: '0.3.0',
+          collectorVersion: '0.4.0',
           rawOmitted: null,
         }
         return { ok: true, usage: FIXTURES[provider].normal, collection, rawText: null }
@@ -110,7 +115,9 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
       const fixture = FIXTURES[provider][name]
       // Claude는 작성 시점 고정값을 지금 기준으로 옮겨 "리셋 시각 경과"로 굳지 않게 한다.
       const usage =
-        provider === 'claude'
+        provider === 'antigravity'
+          ? rebaseAntigravityResetsAt(fixture, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
+          : provider === 'claude'
           ? rebaseUsageResetsAt(fixture as never, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
           : fixture
       return { ok: true, usage, collection: null, rawText: null }

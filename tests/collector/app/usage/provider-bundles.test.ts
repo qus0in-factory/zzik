@@ -83,3 +83,21 @@ describe('Given the sendAccountId resolution', () => {
     expect(resolveSendAccountId({ envValue: false, codexAccountHeader: true })).toBe(true) // 정의되지 않은 env도 꺼짐(투명 대체 제거)
   })
 })
+
+describe('Given Antigravity bundle wiring', () => {
+  it('When enabled with Codex account headers Then Antigravity still has no account header and empty redaction paths', () => {
+    const bundles=buildProviderBundles({
+      providerIds:['claude','codex','antigravity'],
+      flags:{provider:null,credentialsPath:null,codexAccountHeader:true},
+      buildPorts:()=>({}) as never,
+    })
+    expect(bundles.map(bundle=>bundle.id)).toEqual(['claude','codex','antigravity'])
+    expect(bundles[2].runOptions).toEqual({redactionPaths:[]})
+    const selected=buildProviderBundles({
+      providerIds:['claude','codex','antigravity'],
+      flags:{provider:'antigravity',credentialsPath:null,codexAccountHeader:false},
+      buildPorts:()=>({}) as never,
+    })
+    expect(selected.map(bundle=>bundle.id)).toEqual(['antigravity'])
+  })
+})

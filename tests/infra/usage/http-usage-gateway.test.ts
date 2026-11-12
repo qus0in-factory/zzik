@@ -76,3 +76,12 @@ describe('Given a ky HTTP usage gateway (ADR 0.3 D7)', () => {
     await expect(gateway.fetchUsage('claude')).resolves.toEqual({ ok: false, reason: 'api_error', message: 'invalid_response' })
   })
 })
+
+describe('Given Antigravity HTTP routing', () => {
+  it('When fetching Then targets its own API path', async () => {
+    let url=''
+    const gateway=makeGateway(async input=>{url=(input as Request).url;return Response.json({snapshot:null})},'https://test/api/usage')
+    expect(await gateway.fetchUsage('antigravity')).toMatchObject({ok:true})
+    expect(url).toBe('https://test/api/usage/antigravity')
+  })
+})

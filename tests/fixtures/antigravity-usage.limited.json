@@ -1,0 +1,26 @@
+{
+  "groups": [
+    {
+      "displayName": "Claude and GPT models",
+      "description": "synthetic description",
+      "buckets": [
+        {
+          "bucketId": "3p-weekly",
+          "displayName": "Weekly",
+          "window": "weekly",
+          "resetTime": "2026-11-18T12:00:00Z",
+          "description": "synthetic description",
+          "remainingFraction": 0.3
+        },
+        {
+          "bucketId": "3p-5h",
+          "displayName": "Five hours",
+          "window": "5h",
+          "resetTime": "2026-11-11T14:30:00Z",
+          "remainingFraction": 0
+        }
+      ]
+    }
+  ],
+  "description": "synthetic description"
+}

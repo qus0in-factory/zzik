@@ -58,3 +58,11 @@ describe('Given the 0.3 envelope extensions', () => {
   })
 
 })
+
+describe('Given an Antigravity snapshot', () => {
+  it('When its provider matches Then decodes; mismatch is rejected', () => {
+    const agy={...snapshot,provider:'antigravity',rawText:'{"groups":[]}'}
+    expect(decodeUsageSnapshot({snapshot:agy},'antigravity')).toMatchObject({ok:true,usage:{groups:[]}})
+    expect(decodeUsageSnapshot({snapshot:agy},'claude')).toMatchObject({ok:false})
+  })
+})

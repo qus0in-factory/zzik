@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { USAGE_PROVIDERS, USAGE_KV_KEYS, USAGE_COLLECTOR_VERSION } from '../../../../shared/usage-contract'
-import { parseProvidersEnv } from '../../../../collector/domain/usage/providers.mjs'
+import { USAGE_PROVIDERS as COLLECTOR_PROVIDERS, USAGE_KV_KEYS as COLLECTOR_KEYS, USAGE_COLLECTOR_VERSION as COLLECTOR_VERSION, parseProvidersEnv } from '../../../../collector/domain/usage/providers.mjs'
 
 const BASE = fileURLToPath(new URL('../../../../', import.meta.url))
 const contractSource = readFileSync(join(BASE, 'shared', 'usage-contract.ts'), 'utf8')
@@ -13,20 +13,23 @@ const providersSource = readFileSync(join(BASE, 'collector', 'domain', 'usage', 
 describe('Given the provider contract', () => {
   it('When the collector provider list is compared with shared then they are the same', () => {
     // shared의 정의를 소스 텍스트에서 읽어 런타임 상수와 대조한다.
-    expect(contractSource).toContain("['claude', 'codex'] as const")
-    expect(providersSource).toContain("['claude', 'codex']")
-    expect([...USAGE_PROVIDERS]).toEqual(['claude', 'codex'])
+    expect(contractSource).toContain("['claude', 'codex', 'antigravity'] as const")
+    expect(providersSource).toContain("['claude', 'codex', 'antigravity']")
+    expect(COLLECTOR_PROVIDERS).toEqual([...USAGE_PROVIDERS])
+    expect(COLLECTOR_KEYS).toEqual(USAGE_KV_KEYS)
+    expect(COLLECTOR_VERSION).toBe(USAGE_COLLECTOR_VERSION)
+    expect([...USAGE_PROVIDERS]).toEqual(['claude', 'codex', 'antigravity'])
   })
 
   it('When the KV keys are compared then each provider maps to its own key', () => {
     expect(contractSource).toContain("claude: 'usage:claude'")
     expect(contractSource).toContain("codex: 'usage:codex'")
-    expect(USAGE_KV_KEYS).toEqual({ claude: 'usage:claude', codex: 'usage:codex' })
+    expect(USAGE_KV_KEYS).toEqual({ claude: 'usage:claude', codex: 'usage:codex', antigravity: 'usage:antigravity' })
   })
 
   it('When the collector version changes then the contract source matches the runtime value', () => {
     expect(contractSource).toContain(`USAGE_COLLECTOR_VERSION = '${USAGE_COLLECTOR_VERSION}'`)
-    expect(USAGE_COLLECTOR_VERSION).toBe('0.3.0')
+    expect(USAGE_COLLECTOR_VERSION).toBe('0.4.0')
   })
 
   it('When the old USAGE_KEY is gone then no provider-bound key constant remains', () => {
@@ -36,7 +39,7 @@ describe('Given the provider contract', () => {
 
 describe('Given ZZIK_PROVIDERS parsing (v2 D3)', () => {
   it('When the env is missing then the default claude,codex applies', () => {
-    expect(parseProvidersEnv(undefined).providers).toEqual(['claude', 'codex'])
+    expect(parseProvidersEnv(undefined).providers).toEqual(['claude', 'codex', 'antigravity'])
   })
   it('When values have spaces, upper case and duplicates then they are trimmed, lowered and deduped', () => {
     const parsed = parseProvidersEnv(' Codex, claude , CODEX ')
@@ -51,5 +54,11 @@ describe('Given ZZIK_PROVIDERS parsing (v2 D3)', () => {
   it('When the result is empty then the caller must exit with code 78 (조립 루트가 판단)', () => {
     expect(parseProvidersEnv('bogus').providers).toEqual([])
     expect(parseProvidersEnv('  ').providers).toEqual([])
+  })
+})
+
+describe('Given Antigravity selection', () => {
+  it('When explicitly selected Then enables just Antigravity', () => {
+    expect(parseProvidersEnv('antigravity').providers).toEqual(['antigravity'])
   })
 })

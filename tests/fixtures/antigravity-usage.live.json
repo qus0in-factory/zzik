@@ -1,0 +1,26 @@
+{
+  "groups": [
+    {
+      "buckets": [
+        {
+          "bucketId": "masked-bucket-1",
+          "displayName": "Masked model group",
+          "window": "weekly",
+          "resetTime": "2026-11-17T09:54:30Z",
+          "description": "[가림]",
+          "remainingFraction": 0.005544
+        },
+        {
+          "bucketId": "masked-bucket-2",
+          "displayName": "Masked model group",
+          "window": "5h",
+          "resetTime": "2026-11-13T03:21:42Z",
+          "remainingFraction": 1
+        }
+      ],
+      "displayName": "Masked model group",
+      "description": "[가림]"
+    }
+  ],
+  "description": "[가림]"
+}

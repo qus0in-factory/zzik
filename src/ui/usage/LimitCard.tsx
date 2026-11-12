@@ -30,6 +30,7 @@ const THRESHOLD_BADGE: Partial<Record<UsageLevel, { text: string; variant: 'seco
  */
 export function LimitCard({ item, titleLevel = 3, lapSeconds = null }: { item: UsageLimitItem; titleLevel?: 3 | 4; lapSeconds?: number | null }): ReactNode {
   const { id, label, unknown = false, usedPercent, expired, status, resetText, elapsedPercent } = item
+  const percentText = usedPercent === null ? null : new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(usedPercent)
   const badge = THRESHOLD_BADGE[status]
   const Heading = titleLevel === 4 ? 'h4' : 'h3'
   return (
@@ -48,8 +49,8 @@ export function LimitCard({ item, titleLevel = 3, lapSeconds = null }: { item: U
           {usedPercent === null ? (
             <span className="text-2xl leading-none font-semibold tabular-nums text-muted-foreground">정보 없음</span>
           ) : (
-            <span aria-label={`${usedPercent}퍼센트`} className="text-2xl leading-none font-semibold tabular-nums">
-              {usedPercent}%
+            <span aria-label={`${percentText}퍼센트`} className="text-2xl leading-none font-semibold tabular-nums">
+              {percentText}%
             </span>
           )}
           {badge && <Badge variant={badge.variant}>{badge.text}</Badge>}

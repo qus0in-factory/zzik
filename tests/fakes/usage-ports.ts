@@ -38,8 +38,8 @@ export interface FakeUsageGateway extends UsageGateway {
  */
 export function createFakeUsageGateway(): FakeUsageGateway {
   const shared: Queued[] = []
-  const perProvider: Record<UsageProvider, Queued[]> = { claude: [], codex: [] }
-  const callsByProvider: Record<UsageProvider, number> = { claude: 0, codex: 0 }
+  const perProvider: Record<UsageProvider, Queued[]> = { claude: [], codex: [], antigravity: [] }
+  const callsByProvider: Record<UsageProvider, number> = { claude: 0, codex: 0, antigravity: 0 }
 
   const gateway: FakeUsageGateway = {
     calls: 0,
