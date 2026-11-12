@@ -5,6 +5,7 @@ import type { UsageReport } from '@domain/usage/types'
 import type { UsageUiStatus } from '@app/usage/useUsage'
 import { Badge } from '@ui/components/ui/badge'
 import { Skeleton } from '@ui/components/ui/skeleton'
+import { cardPresentation } from '@app/usage/card-presentation'
 import { LimitCard } from './LimitCard'
 import { StatusBar } from './StatusBar'
 import { READY_BADGE } from './status-label'
@@ -146,5 +147,5 @@ export function UsageDashboard({
 
 function ActiveLimitCard({ item }: { item: UsageReport['windows'][number] }): ReactNode {
   const lapSeconds = useCardActivity(item.id, item.usedPercent)
-  return <LimitCard item={item} titleLevel={4} lapSeconds={lapSeconds} />
+  return <LimitCard item={item} titleLevel={4} presentation={cardPresentation(item, lapSeconds)} />
 }

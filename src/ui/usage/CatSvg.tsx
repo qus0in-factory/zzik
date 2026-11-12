@@ -33,3 +33,27 @@ export function CatSvg({ className }: { className?: string }): ReactNode {
     </svg>
   )
 }
+
+/**
+ * 자는 고양이(웅크린 옆모습): 0%일 때 막대 시작점에 놓는다.
+ * 눈 감은 선과 작은 z가 있고, 호흡은 CSS(.cat-sleep-body)로 은은하게 움직인다.
+ */
+export function SleepingCatSvg({ className }: { className?: string }): ReactNode {
+  return (
+    <svg viewBox="0 0 32 20" fill="currentColor" className={className} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* 웅크린 몸통과 꼬리 감싸기 */}
+      <g className="cat-sleep-body">
+        <ellipse cx="14" cy="14" rx="11" ry="5" />
+        <path d="M3 15 C 2 19, 12 19.5, 18 18 C 12 18.5, 5 18, 3 15 Z" />
+        {/* 머리와 귀 */}
+        <circle cx="22" cy="13" r="4.2" />
+        <polygon points="19.5,10.5 20.5,6.5 23,9.5" />
+        <polygon points="22.5,9.5 25,6.5 26,10.5" />
+        {/* 눈 감은 선(배경색으로 파냄) */}
+        <path d="M21 13 Q 22.2 14 23.4 13" fill="none" stroke="var(--card)" strokeWidth="0.9" strokeLinecap="round" />
+      </g>
+      {/* z */}
+      <text x="27" y="6" fontSize="5" fontWeight="700" className="cat-sleep-z">z</text>
+    </svg>
+  )
+}
