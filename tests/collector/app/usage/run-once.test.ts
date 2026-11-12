@@ -461,3 +461,52 @@ describe('Given storage write metadata', () => {
     expect(JSON.parse(ports.store.writes[1]).intervalSec).toBe(900)
   })
 })
+
+describe('Given storage failures before checkpoint advancement', () => {
+  it('When the initial store write fails Then keeps previous null and retries the changed event on the next run', async () => {
+    const ports=createFakeCollectorPorts()
+    ports.store.queueResult({ok:false,httpStatus:null,message:'StoreError'})
+    expect(await runOnce(ports)).toEqual({exitCode:3})
+    expect((ports.state.snapshot() as {previous:unknown}).previous).toBeNull()
+    ports.clock.advance(900_000)
+    expect(await runOnce(ports)).toEqual({exitCode:0})
+    expect((ports.store.metas[1] as {changed:boolean}).changed).toBe(true)
+    expect((ports.state.snapshot() as {previous:{status:string}}).previous.status).toBe('no_credentials')
+    ports.clock.advance(900_000)
+    await runOnce(ports)
+    expect((ports.store.metas[2] as {changed:boolean}).changed).toBe(false)
+  })
+
+  it('When persistence fails after a rate limit Then keeps the successful envelope while persisting and respecting the new gate', async () => {
+    const ports=createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage(okUsage)
+    await runOnce(ports)
+    const previous=(ports.state.snapshot() as {previous:unknown}).previous
+    ports.clock.advance(1000)
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage({ok:false,kind:'rate_limited',httpStatus:429,retryAfterSec:600})
+    ports.store.queueResult({ok:false,httpStatus:null,message:'StoreError'})
+    expect(await runOnce(ports)).toEqual({exitCode:3})
+    expect((ports.state.snapshot() as {previous:unknown}).previous).toEqual(previous)
+    expect((ports.state.snapshot() as {gate:{failReason:string}}).gate.failReason).toBe('rate_limited')
+    for(let i=0;i<2;i++) {
+      ports.clock.advance(1000)
+      ports.credentials.queueReads([fileCredential()])
+      await runOnce(ports)
+      expect(ports.usage.calls).toBe(2)
+      expect((ports.state.snapshot() as {gate:{failReason:string}}).gate.failReason).toBe('rate_limited')
+    }
+    expect(JSON.parse(ports.store.writes[2]).status).toBe('rate_limited')
+  })
+
+  it('When a store throws Then keeps the last committed previous envelope', async () => {
+    const ports=createFakeCollectorPorts()
+    await runOnce(ports)
+    const previous=(ports.state.snapshot() as {previous:unknown}).previous
+    ports.store.write=async()=>{throw Error('synthetic failure')}
+    ports.clock.advance(900_000)
+    expect(await runOnce(ports)).toEqual({exitCode:3})
+    expect((ports.state.snapshot() as {previous:unknown}).previous).toEqual(previous)
+  })
+})

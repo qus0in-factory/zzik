@@ -2,7 +2,7 @@
  * 수집기의 한 실행(ADR 0.2 D2, 0.3 D3 제공자 인자 추가). 포트를 주입받아 순서대로 진행한다.
  *
  *   게이트·자격 증명 확인 → usage 호출(게이트가 허용할 때만) → 봉투 생성
- *   → 상태 저장(게이트로 건너뛴 실행도 쓴다: 하트비트) → KV PUT → 로그 한 줄
+ *   → 저장소 쓰기 → 성공한 previous 및 게이트 상태 저장 → 로그 한 줄
  *
  * - 자격 증명이 없거나 만료된 것은 정상 상태 중 하나다(종료 코드 0).
  * - KV 쓰기가 실패하면 재시도 루프 없이 0이 아닌 코드로 끝낸다. 로컬 상태가 기준이다.
@@ -89,7 +89,8 @@ export async function runOnce(ports, options = {}) {
 
   if (gateDecision.allowed === false) {
     // 게이트로 건너뛴 실행: 하트비트 봉투만 쓴다(D2).
-    status = state.previous?.status ?? 'no_credentials'
+    // previous is the last committed envelope; lastRun also tracks failures whose store write failed.
+    status = /** @type {UsageStatus} */ (state.lastRun?.status ?? state.previous?.status ?? 'no_credentials')
     retryAtMs = gateRetryAt(gate)
   } else if (chosen === null) {
     status = 'no_credentials'
@@ -181,21 +182,6 @@ export async function runOnce(ports, options = {}) {
     }
   }
 
-  await ports.state.write({
-    schema: 1,
-    provider,
-    previous: envelope,
-    lastPruneAt: state.lastPruneAt ?? null,
-    gate: {
-      nextAllowedAt: gate.nextAllowedAt ?? null,
-      failReason: gate.failReason ?? null,
-      failCount: gate.failCount ?? 0,
-      authFailCount: gate.authFailCount ?? 0,
-      authDeniedExpiresAt: gate.authDeniedExpiresAt ?? null,
-    },
-    lastRun: { status, tokenExpiresAt: chosen?.expiresAt ?? null },
-  })
-
   let kvResult
   try {
     kvResult = await ports.store.write(JSON.stringify(envelope), {
@@ -209,6 +195,22 @@ export async function runOnce(ports, options = {}) {
   } catch (error) {
     kvResult = { ok: false, httpStatus: null, message: 'StoreWriteError' }
   }
+
+  // Advance the history baseline only after all configured stores acknowledge the write.
+  await ports.state.write({
+    schema: 1,
+    provider,
+    previous: kvResult.ok ? envelope : state.previous,
+    lastPruneAt: state.lastPruneAt ?? null,
+    gate: {
+      nextAllowedAt: gate.nextAllowedAt ?? null,
+      failReason: gate.failReason ?? null,
+      failCount: gate.failCount ?? 0,
+      authFailCount: gate.authFailCount ?? 0,
+      authDeniedExpiresAt: gate.authDeniedExpiresAt ?? null,
+    },
+    lastRun: { status, tokenExpiresAt: chosen?.expiresAt ?? null },
+  })
 
   const prevStatus = state.lastRun?.status ?? null
   const prevTokenExpiresAt = state.lastRun?.tokenExpiresAt ?? null
