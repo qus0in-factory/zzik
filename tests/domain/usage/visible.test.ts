@@ -46,3 +46,24 @@ describe('Given nested redaction paths and placeholder fallback', () => {
     expect(report.others.map(item => item.id)).toEqual(['private_extra'])
   })
 })
+
+describe('Given nested cleanup without envelope metadata (#25)', () => {
+  it('When a JSON-valued field has a nested [가림] Then it is hidden and valid siblings stay', () => {
+    const report = visibleUsageReport(buildUsageView({ details: { nested: { email: '[가림]', count: 0 } } }, { now }))
+    expect(report.others[0].value).toEqual({ kind: 'object', fields: [{ key: 'nested', text: '{"count":0}' }] })
+  })
+  it('When an array element path is redacted Then the slot is removed, not left as null', () => {
+    const raw = { details: { rows: [{ email: 'a' }, { name: 'b' }] } }
+    const report = visibleUsageReport(buildUsageView(raw, { now }), ['details.rows[0]'])
+    expect(report.others[0].value).toEqual({ kind: 'object', fields: [{ key: 'rows', text: '[{"name":"b"}]' }] })
+  })
+  it('When a JSON-valued field has nested null or empty values Then they are hidden but false and zero stay', () => {
+    const raw = { model: { a: { available: true, available_at: null, enabled: false, n: 0, empty: '', list: [null, 1], none: {} } } }
+    const report = visibleUsageReport(buildUsageView(raw, { now }))
+    expect(report.others[0].value).toEqual({ kind: 'object', fields: [{ key: 'a', text: '{"available":true,"enabled":false,"n":0,"list":[1]}' }] })
+  })
+  it('When everything nested is empty or redacted Then the whole item disappears', () => {
+    const report = visibleUsageReport(buildUsageView({ x: { a: { b: null, c: '[가림]' } } }, { now }))
+    expect(report.others).toEqual([])
+  })
+})
