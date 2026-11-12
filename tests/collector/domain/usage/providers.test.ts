@@ -29,7 +29,7 @@ describe('Given the provider contract', () => {
 
   it('When the collector version changes then the contract source matches the runtime value', () => {
     expect(contractSource).toContain(`USAGE_COLLECTOR_VERSION = '${USAGE_COLLECTOR_VERSION}'`)
-    expect(USAGE_COLLECTOR_VERSION).toBe('0.4.0')
+    expect(USAGE_COLLECTOR_VERSION).toBe('0.5.0')
   })
 
   it('When the old USAGE_KEY is gone then no provider-bound key constant remains', () => {

@@ -11,7 +11,7 @@ export const USAGE_KV_KEYS = {
   antigravity: 'usage:antigravity',
 }
 
-export const USAGE_COLLECTOR_VERSION = '0.4.0'
+export const USAGE_COLLECTOR_VERSION = '0.5.0'
 
 /** 제공자 정의의 가림 목록(ADR 0.3 D5). codex는 G2에서 정한다(기본 빈 목록), claude는 비어 있다. */
 export const USAGE_REDACTION_PATHS = {

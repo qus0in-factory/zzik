@@ -9,8 +9,8 @@
  */
 
 export const USAGE_SNAPSHOT_SCHEMA = 1
-export const USAGE_INTERVAL_SEC = 300
-export const USAGE_COLLECTOR_VERSION = '0.4.0'
+export const USAGE_INTERVAL_SEC = 900
+export const USAGE_COLLECTOR_VERSION = '0.5.0'
 
 /** 수집 대상 제공자(ADR 0.3 D3). 제공자 목록은 정적이다. */
 export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity'] as const
