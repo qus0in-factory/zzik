@@ -22,10 +22,13 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(glm, ds, sol, fa
 ## 흐름
 1. opus가 작업을 분해하고, 설계가 필요하면 fable → 설계 확정 후 구현 분배.
 2. 독립 작업은 여러 에이전트에 병렬로 보낸다(같은 파일을 동시에 수정하게 하지 않는다).
-3. **opus 직접 실행 금지**: opus는 코드·설계·스크립트 조사·편집·대기 작업을 직접 수행하지 않고 워커 또는 `.claude/agents/` 전용 서브에이전트에 위임한다.
-4. **서브에이전트 선택 기준**: 대기·요약은 `worker-watcher`, 검수는 `work-reviewer` 전용 서브에이전트만 사용한다. 임의의 `general-purpose` 서브에이전트 사용은 금지한다.
-5. **권한 처리**: 도구 실행 등에서 권한 거부(`blocked`) 발생 시 설정 파일을 자가 수정(우회)하지 말고, 반드시 사용자에게 승인 여부를 묻는다.
-6. 대기·출력 읽기는 `worker-watcher`, 검수는 `work-reviewer`(둘 다 sonnet 서브에이전트, `.claude/agents/`)에 넘긴다. opus는 판정만 보고 통합한다.
+3. 대기·출력 읽기는 `worker-watcher`, 검수는 `work-reviewer`(둘 다 sonnet 서브에이전트, `.claude/agents/`)에 넘긴다. opus는 판정만 보고 통합한다.
+
+## 선제 안전장치
+- **(a) 실데이터 확인 및 픽스처 작성**: 표시·파싱 작업은 워커가 착수 전 `scripts/usage-live-shape.sh` 결과를 보고하고 그 실데이터로 픽스처·테스트를 만든다. opus의 가정을 지시에 그대로 옮기지 않는다.
+- **(b) 검수 관문 (실데이터 필수 대조)**: `work-reviewer`는 표시·파싱 기능이면 실데이터 대조 없이는 통과(`PASS`)를 줄 수 없다.
+- **(c) 배포 완료 알림 게이트**: 배포 후 워커의 기능 대조 보고(실데이터 vs 화면 기대치) 없이는 완료 알림(`discord-notify`)을 보내지 않는다.
+- **(d) opus 역할 제한 및 거버넌스**: opus는 코드·설계·스크립트 조사·편집·대기를 직접 하지 않고 워커 또는 `.claude/agents/` 전용 서브에이전트(`worker-watcher`, `work-reviewer`)에 맡기며 `general-purpose`를 쓰지 않는다. 도구 권한 거부(`blocked`) 시 설정을 스스로 고치지 말고 사용자에게 묻는다.
 
 ## 명령
 ```bash
@@ -46,11 +49,14 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 ## effort 기준 (#1)
 | 대상 | effort | 이유 |
 |---|---|---|
-| opus | medium | 분해·판정 오류가 워커 전체로 퍼진다 |
-| fable | high | 호출이 적어 비용 대비 효과가 크다 |
-| work-reviewer | medium | 검수 누락이 배포로 이어진다 |
-| worker-watcher | low | 대기·요약만 한다 |
-| glm / ds / sol | 기본 유지 | 지시가 구체적이면 충분하다 |
+| opus | medium | 분해·판정 조율자. 운영값 medium 유지 |
+| fable | medium (없는 도구는 default) | 설계 전용. 운영값 medium (미지원 시 default) |
+| work-reviewer | medium | 검수 누락 방지 |
+| worker-watcher | medium | 운영값 medium (2026-11-12 사용자 결정) |
+| glm / ds / sol | medium (없는 도구는 default) | 작업 수행 워커 |
+
+> 현재 운영값은 **'모두 medium, medium이 없는 도구는 default'**(사용자 결정, 2026-11-12).  
+> **원칙**: 품질 보증은 조율자가 아니라 리뷰어 effort와 검수 관문으로 확보한다. 조율자 effort를 올려 과잉 설계·지연을 만들지 않는다. 판단이 무거운 작업(구조 변경·장애 분석)만 해당 작업에 한해 올린다.
 
 ## 워크트리 (병렬 트랙)
 - 같은 파일을 건드릴 수 있는 트랙이 동시에 돌면 레포 내부 `.worktree/`에 워크트리를 만든다(`.gitignore` 등록됨).
