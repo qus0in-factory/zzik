@@ -4,7 +4,7 @@
  * 제공자 정의(claude/codex/antigravity)를 만들어 runCycle에 주입한다. 로직은 이 파일에 두지 않는다.
  *
  * 실행 모드(PM2 상주가 기본):
- *   (기본)       즉시 1회 실행 후 300초마다 runCycle(제공자 수만큼 줄이 생긴다)
+ *   (기본)       즉시 1회 실행 후 900초마다 runCycle(제공자 수만큼 줄이 생긴다)
  *   --once       1회 실행 후 종료한다. 종료 코드는 제공자별 결과 중 가장 큰 값
  *   --dry-run    상태·KV·로그 어디에도 쓰지 않는다(--provider와 같이 쓰면 경로 목록 출력)
  *   --provider <id>   대상 제공자(claude|codex|antigravity). 생략하면 켜진 제공자 전부
@@ -18,6 +18,10 @@
  *     --path <tmp> --namespace-id <id> --remote
  */
 
+import postgres from 'postgres'
+import { createPostgresEnvelopeWriter } from './infra/usage/postgres-envelope-writer.mjs'
+import { createFanoutWriter } from './infra/usage/fanout-writer.mjs'
+import { readStorageConfig } from './domain/usage/storage-config.mjs'
 import { createLogAppender } from './infra/usage/log.mjs'
 import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
 import { createAntigravityUsageClient, ANTIGRAVITY_API_HOSTS } from './infra/usage/antigravity-usage-client.mjs'
@@ -34,7 +38,14 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const VERSION = USAGE_COLLECTOR_VERSION
-const INTERVAL_MS = (Number(process.env.ZZIK_INTERVAL_SEC) > 0 ? Number(process.env.ZZIK_INTERVAL_SEC) : 300) * 1000
+/** @type {{mode:'kv'|'postgres'|'both',intervalSec:number,retentionDays:number}} */
+let storageConfig = {mode:'both',intervalSec:900,retentionDays:30}
+/** @type {ReturnType<typeof postgres>|null} */
+let database = null
+/** @type {ReturnType<typeof createPostgresEnvelopeWriter>|null} */
+let postgresWriter = null
+/** @type {NonNullable<Parameters<typeof runCycle>[0]['maintenance']>|undefined} */
+let maintenance
 const KV_NAMESPACE_ID = process.env.ZZIK_KV_NAMESPACE_ID ?? '5fe6ac40c73c4d05ac2fab052c2100e6'
 const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')
 const LOG_PATH = process.env.ZZIK_LOG_PATH ?? join(homedir(), 'Library', 'Logs', 'zzik', 'usage-collector.log')
@@ -134,7 +145,11 @@ function buildProviderPorts(provider, { credentialsPath }) {
       },
     },
     usage: { fetchUsage: (token, opts) => usageClient.fetchUsage(token, opts) },
-    kv: { write: (value) => kvWriter.write(value) },
+    store: postgresWriter === null || storageConfig.mode === 'kv'
+      ? kvWriter
+      : storageConfig.mode === 'postgres'
+        ? postgresWriter
+        : createFanoutWriter([kvWriter, postgresWriter]),
     state: createStateFile({
       path: join(STATE_DIR, `usage-state.${provider}.json`),
       // 0.2에서 claude 전용으로 쓰던 파일의 일회성 이행(D3).
@@ -162,8 +177,8 @@ function buildProviders(flags) {
 
 /** @param {ParsedFlags} flags @returns {Promise<void>} */
 async function once(flags) {
-  const intervalSec = Number(process.env.ZZIK_INTERVAL_SEC) > 0 ? Number(process.env.ZZIK_INTERVAL_SEC) : 300
-  const { results } = await runCycle({}, buildProviders(flags), {
+  const intervalSec = storageConfig.intervalSec
+  const { results } = await runCycle({maintenance}, buildProviders(flags), {
     dryRun: flags.dryRun,
     collectorVersion: VERSION,
     intervalSec,
@@ -184,6 +199,7 @@ async function once(flags) {
       process.stdout.write(`provider=${result.id} exit=${result.exitCode}\n`)
     }
   }
+  await database?.end({timeout:1})
   process.exit(Math.max(0, ...results.map((result) => result.exitCode)))
 }
 
@@ -198,14 +214,14 @@ function startResident() {
     }
     inFlight = true
     try {
-      const intervalSec = Number(process.env.ZZIK_INTERVAL_SEC) > 0 ? Number(process.env.ZZIK_INTERVAL_SEC) : 300
-      const { results } = await runCycle({}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION, intervalSec })
+      const intervalSec = storageConfig.intervalSec
+      const { results } = await runCycle({maintenance}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION, intervalSec })
       const failures = results.filter((result) => result.exitCode !== 0)
       if (failures.length > 0) {
         process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map((result) => `${result.id}=exit${result.exitCode}`).join(', ')}\n`)
       }
     } catch (error) {
-      process.stderr.write(`[zzik-usage-collector] 주기 실패: ${String(error)}\n`)
+      process.stderr.write('[zzik-usage-collector] 주기 실패: CycleError\n')
     } finally {
       inFlight = false
     }
@@ -213,7 +229,7 @@ function startResident() {
   void tick()
   setInterval(() => {
     void tick()
-  }, INTERVAL_MS)
+  }, storageConfig.intervalSec * 1000)
 }
 
 async function main() {
@@ -222,6 +238,31 @@ async function main() {
     process.stderr.write(`오류: ${parsed.error}\n${USAGE_TEXT}\n`)
     process.exit(64)
     return
+  }
+  const configured = readStorageConfig(process.env, {dryRun:parsed.flags.dryRun})
+  if (!configured.ok) {
+    process.stderr.write('Storage configuration error: ' + configured.reason + '\n')
+    process.exit(78)
+    return
+  }
+  storageConfig = configured
+  // Dry-run never creates a DB connection or a retention task.
+  if (!parsed.flags.dryRun && configured.mode !== 'kv') {
+    try {
+      const client = postgres(/** @type {string} */ (process.env.DB_URL), {max:1,idle_timeout:5,connect_timeout:10,prepare:false,onnotice:()=>{}})
+      database = client
+      postgresWriter = createPostgresEnvelopeWriter({execute:(text,params)=>client.unsafe(text,params)})
+      maintenance = {
+        store: postgresWriter,
+        state: createStateFile({path:join(STATE_DIR,'usage-prune.json')}),
+        logger: createLogAppender({path:LOG_PATH}),
+        retentionDays: configured.retentionDays,
+      }
+    } catch {
+      process.stderr.write('Invalid database configuration\n')
+      process.exit(78)
+      return
+    }
   }
   if (parsed.flags.once || parsed.flags.dryRun) {
     await once(parsed.flags)

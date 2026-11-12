@@ -63,13 +63,13 @@ describe('Given the wrangler KV writer adapter', () => {
     expect(args[0]).toBe(expectedBin)
   })
 
-  it('When wrangler exits non-zero then the write fails with the command output', async () => {
-    const execFileImpl = vi.fn(async () => ({ code: 1, stdout: '', stderr: 'wrangler: authentication error' }))
+  it('When wrangler exits non-zero then the write fails with a safe exit code instead of command output', async () => {
+    const execFileImpl = vi.fn(async () => ({ code: 1, stdout: '', stderr: 'wrangler: authentication error postgres://private-connection' }))
     const writer = createWranglerKvWriter({
       namespaceId: NAMESPACE_ID, keyName: KEY, execFileImpl, nodeBin: NODE_BIN, wranglerBin: WRANGLER_BIN, cwd: dir,
     })
     const result = await writer.write(ENVELOPE)
-    expect(result).toEqual({ ok: false, httpStatus: null, message: expect.stringContaining('authentication error') })
+    expect(result).toEqual({ ok: false, httpStatus: null, message: 'WranglerExit1' })
   })
 
   it('When wrangler gets killed or cannot start then the write fails too', async () => {

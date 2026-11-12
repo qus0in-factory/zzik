@@ -11,6 +11,8 @@
  * - 봉투의 provider는 options.provider 그대로다(ADR 0.3 D5).
  */
 
+import { snapshotChanged } from '../../domain/usage/snapshot-change.mjs'
+import { USAGE_COLLECTOR_VERSION } from '../../domain/usage/providers.mjs'
 import { chooseCredential, credentialExpired } from '../../domain/usage/credential-choice.mjs'
 import { buildEnvelope, sha256Hex } from '../../domain/usage/envelope.mjs'
 import { keyPaths } from '../../domain/usage/key-paths.mjs'
@@ -22,7 +24,7 @@ import { gateAllowsCall, gateRetryAt, openGateFor, resetGate } from '../../domai
 /** @typedef {import('../../domain/usage/ports.mjs').CollectorState} CollectorState */
 /** @typedef {import('../../domain/usage/ports.mjs').UsageStatus} UsageStatus */
 
-export const USAGE_INTERVAL_SEC = 300 /** 조립 루트가 intervalSec 옵션을 안 주면 기본값 */
+export const USAGE_INTERVAL_SEC = 900 /** 조립 루트가 intervalSec 옵션을 안 주면 기본값 */
 const EXIT_OK = 0
 const EXIT_KV_FAILURE = 3
 
@@ -45,6 +47,7 @@ function normalizeState(state) {
     schema: 1,
     provider: state.provider ?? null,
     previous: state.previous ?? null,
+    lastPruneAt: state.lastPruneAt ?? null,
     gate: { ...base.gate, ...(typeof state.gate === 'object' && state.gate !== null ? state.gate : {}) },
     lastRun: {
       status: state.lastRun?.status ?? null,
@@ -60,7 +63,7 @@ function normalizeState(state) {
  */
 export async function runOnce(ports, options = {}) {
   const dryRun = options.dryRun === true
-  const collectorVersion = options.collectorVersion ?? '0.3.0'
+  const collectorVersion = options.collectorVersion ?? USAGE_COLLECTOR_VERSION
   const provider = options.provider ?? 'claude'
   const nowMs = ports.clock.now()
   const state = normalizeState(await ports.state.read())
@@ -150,7 +153,7 @@ export async function runOnce(ports, options = {}) {
     previous: state.previous,
     intervalSec: options.intervalSec ?? USAGE_INTERVAL_SEC,
     collectorVersion,
-    provider: /** @type {'claude'|'codex'} */ (provider),
+    provider: /** @type {'claude'|'codex'|'antigravity'} */ (provider),
     rawRedacted: /** @type {string[]|undefined} */ (rawRedactedPaths ?? undefined),
     kvTokenExpiresAtMs: null,
   })
@@ -182,6 +185,7 @@ export async function runOnce(ports, options = {}) {
     schema: 1,
     provider,
     previous: envelope,
+    lastPruneAt: state.lastPruneAt ?? null,
     gate: {
       nextAllowedAt: gate.nextAllowedAt ?? null,
       failReason: gate.failReason ?? null,
@@ -194,9 +198,16 @@ export async function runOnce(ports, options = {}) {
 
   let kvResult
   try {
-    kvResult = await ports.kv.write(JSON.stringify(envelope))
+    kvResult = await ports.store.write(JSON.stringify(envelope), {
+      provider, status: envelope.status, runAt: envelope.runAt, fetchedAt: envelope.fetchedAt,
+      rawSha256: envelope.rawText === null ? null : sha256Hex(envelope.rawText),
+      collectorVersion: envelope.collectorVersion,
+      changed: snapshotChanged(state.previous === null ? null : {
+        status: state.previous.status, rawSha256: state.previous.rawText === null ? null : sha256Hex(state.previous.rawText),
+      }, {status:envelope.status,rawSha256:envelope.rawText === null ? null : sha256Hex(envelope.rawText)}),
+    })
   } catch (error) {
-    kvResult = { ok: false, httpStatus: null, message: `갑작스러운 오류: ${String(error)}` }
+    kvResult = { ok: false, httpStatus: null, message: 'StoreWriteError' }
   }
 
   const prevStatus = state.lastRun?.status ?? null
