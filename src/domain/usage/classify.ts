@@ -1,4 +1,4 @@
-import type { RawUsage, UsageIssue } from './types'
+import type { UsageIssue } from './types'
 
 /**
  * raw 최상위 키를 창(primary/secondary)·항목(metric)·기타로 분류한다 (시나리오 C1~C3).
@@ -94,11 +94,12 @@ function entry(
   }
 }
 
-export function classifyUsageKeys(raw: RawUsage): ClassificationResult {
+export function classifyUsageKeys(raw: Record<string, unknown>): ClassificationResult {
   const entries: ClassifiedUsageEntry[] = []
   const issues: UsageIssue[] = []
 
   for (const [key, value] of Object.entries(raw)) {
+    if (key === 'limits' || key === 'weekly_scoped_shares') continue
     if (value === null) {
       entries.push(WINDOW_IDS.includes(key) ? entry('window', key, {}) : entry('metric', key, {}))
       continue
@@ -124,5 +125,27 @@ export function classifyUsageKeys(raw: RawUsage): ClassificationResult {
     entries.push(entry('other', key, {}, toOtherValue(value)))
   }
 
+
+  // Scoped limits are the current API representation; prefer them over legacy keys.
+  if (Array.isArray(raw['limits'])) {
+    for (const limit of raw['limits']) {
+      if (!isRecord(limit) || limit['kind'] !== 'weekly_scoped') continue
+      const scope = limit['scope']
+      if (!isRecord(scope)) continue
+      const model = scope['model']
+      const displayName = isRecord(model) ? model['display_name'] : null
+      const name = typeof displayName === 'string' && displayName.trim()
+        ? displayName : scope['surface']
+      if (typeof name !== 'string') continue
+      const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+      if (!slug) continue
+      const key = 'seven_day_' + slug
+      const fields = readRawEntry({ utilization: limit['percent'], resets_at: limit['resets_at'] })
+      const existing = entries.findIndex((item) => item.key === key)
+      if (existing !== -1) entries.splice(existing, 1)
+      entries.push(entry('metric', key, fields))
+      if (fields.utilizationInvalid) issues.push({ code: 'invalid_utilization', key })
+    }
+  }
   return { entries, issues }
 }
