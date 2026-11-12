@@ -22,6 +22,7 @@ import { createLogAppender } from './infra/usage/log.mjs'
 import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
 import { createAntigravityUsageClient, ANTIGRAVITY_API_HOSTS } from './infra/usage/antigravity-usage-client.mjs'
 import { DEFAULT_ANTIGRAVITY_AUTH_PATH, readAntigravityCredentials } from './infra/usage/antigravity-credentials-file.mjs'
+import { runAgyQuotaCli } from './infra/usage/agy-quota-cli-runner.mjs'
 import { createCodexUsageClient } from './infra/usage/codex-usage-client.mjs'
 import { createWranglerKvWriter } from './infra/usage/wrangler-kv-writer.mjs'
 import { createStateFile } from './infra/usage/state-file.mjs'
@@ -116,7 +117,7 @@ function buildProviderPorts(provider, { credentialsPath }) {
   const kvWriter = createWranglerKvWriter({ namespaceId: KV_NAMESPACE_ID, keyName: USAGE_KV_KEYS[providerId] })
   const usageClient =
     provider === 'antigravity'
-      ? createAntigravityUsageClient({ fetchImpl: globalThis.fetch, host: ANTIGRAVITY_HOST, project: process.env.ZZIK_ANTIGRAVITY_PROJECT ?? 'default-cli-project' })
+      ? createAntigravityUsageClient({ fetchImpl: globalThis.fetch, host: ANTIGRAVITY_HOST, quotaCli: () => runAgyQuotaCli({ path: process.env.ZZIK_AGY_CLI_PATH ?? 'agy', enabled: process.env.ZZIK_AGY_CLI_ENABLED !== '0' }) })
       : provider === 'codex'
       ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
       : createClaudeUsageClient({ fetchImpl: globalThis.fetch })

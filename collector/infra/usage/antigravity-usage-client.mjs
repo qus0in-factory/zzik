@@ -1,7 +1,11 @@
 import { parseRetryAfter } from '../../domain/usage/retry-after.mjs'
+import { argonBucketFromQuota, mergeArgonIntoSummary } from '../../domain/usage/agy-quota-cli.mjs'
 
-/** User-approved exception to ADR 0.3 D4; required by the Antigravity API. */
-export const ANTIGRAVITY_USER_AGENT = 'Antigravity/1.0'
+/**
+ * User-approved exception to ADR 0.3 D4 (ADR 0.4, 변경 사유 2026-11-13): the summary API filters the returned
+ * groups by User-Agent, and only the antigravity/hub family includes the Gemini group.
+ */
+export const ANTIGRAVITY_USER_AGENT = 'antigravity/hub/2.9.1'
 export const ANTIGRAVITY_API_HOSTS = ['cloudcode-pa.googleapis.com', 'daily-cloudcode-pa.googleapis.com']
 /** @typedef {import('../../domain/usage/ports.mjs').UsageCallResult} UsageCallResult */
 
@@ -18,12 +22,13 @@ function errorStatus(body) {
 }
 
 /** @param {{
- * fetchImpl: typeof fetch, host?: string, project?: string,
- * nowMs?: () => number, timeoutMs?: number
+ * fetchImpl: typeof fetch, host?: string,
+ * nowMs?: () => number, timeoutMs?: number,
+ * quotaCli?: () => Promise<string|null>
  * }} deps
  * @returns {{ fetchUsage(token: string, options?: {accountId?: string|null}): Promise<UsageCallResult> }}
  */
-export function createAntigravityUsageClient({ fetchImpl, host = 'cloudcode-pa.googleapis.com', project = 'default-cli-project', nowMs = Date.now, timeoutMs = 10_000 }) {
+export function createAntigravityUsageClient({ fetchImpl, host = 'cloudcode-pa.googleapis.com', nowMs = Date.now, timeoutMs = 10_000, quotaCli }) {
   if (!ANTIGRAVITY_API_HOSTS.includes(host)) throw new TypeError('Invalid Antigravity API host')
   return {
     async fetchUsage(token) {
@@ -31,7 +36,7 @@ export function createAntigravityUsageClient({ fetchImpl, host = 'cloudcode-pa.g
         const res = await fetchImpl('https://' + host + '/v1internal:retrieveUserQuotaSummary', {
           method: 'POST',
           headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': ANTIGRAVITY_USER_AGENT },
-          body: JSON.stringify({ project }),
+          body: '{}',
           redirect: 'manual',
           signal: AbortSignal.timeout(timeoutMs),
         })
@@ -43,7 +48,7 @@ export function createAntigravityUsageClient({ fetchImpl, host = 'cloudcode-pa.g
         let body = null
         try { body = JSON.parse(text) } catch { /* non-JSON must not be retained */ }
         const object = body !== null && typeof body === 'object' && !Array.isArray(body)
-        if (res.status === 200 && object) return { ok: true, bodyText: text, httpStatus: 200, retryAfterSec: null }
+        if (res.status === 200 && object) return { ok: true, bodyText: await withArgon(text, quotaCli), httpStatus: 200, retryAfterSec: null }
         const kind = res.status === 401 || (res.status === 403 && object) ? 'auth_required'
           : res.status === 429 ? 'rate_limited' : 'upstream_error'
         return {
@@ -57,5 +62,20 @@ export function createAntigravityUsageClient({ fetchImpl, host = 'cloudcode-pa.g
         return { ok: false, kind: timeout ? 'upstream_error' : 'network_error', httpStatus: null, retryAfterSec: null, diag: timeout ? 'timeout' : undefined }
       }
     },
+  }
+}
+
+/**
+ * Argon 주간 버킷 합성(방안 B). CLI 실패·출력 없음·파싱 실패는 모두 원본 본문을 돌려준다
+ * (Argon 카드만 생략되고 다른 카드에는 영향이 없다).
+ * @param {string} bodyText @param {(() => Promise<string|null>)|undefined} quotaCli @returns {Promise<string>}
+ */
+async function withArgon(bodyText, quotaCli) {
+  if (quotaCli === undefined) return bodyText
+  try {
+    const bucket = argonBucketFromQuota(await quotaCli())
+    return bucket === null ? bodyText : mergeArgonIntoSummary(bodyText, bucket)
+  } catch {
+    return bodyText
   }
 }
