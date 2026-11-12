@@ -117,7 +117,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_sonnet', 'extra_usage'])
   })
 
-  it('When limit and non-limit keys are mixed then cards plus other items cover populated keys exactly once', () => {
+  it('When limit and non-limit keys are mixed then only limit cards render and others are excluded from the screen', () => {
     const mixedRaw = {
       five_hour: { utilization: 10, resets_at: '2026-11-11T14:00:00.000Z' },
       seven_day: null,
@@ -132,10 +132,9 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
 
     expect(cardIds()).toEqual(['five_hour', 'extra_usage'])
-    expect(otherIds()).toEqual(['note', 'blob', 'list'])
-    const rendered = [...cardIds(), ...otherIds()]
-    expect(rendered).toHaveLength(5)
-    expect(rendered.slice().sort()).toEqual(['five_hour', 'extra_usage', 'note', 'blob', 'list'].sort())
+    expect(otherIds()).toEqual([])
+    expect(screen.queryByTestId('usage-other')).toBeNull()
+    expect(screen.queryByText('기타 항목')).toBeNull()
   })
 })
 
@@ -192,6 +191,24 @@ describe('Given an empty report', () => {
     render(<UsageDashboard provider="claude" status="ready" report={{ status: 'unknown', windows: [], metrics: [], others: [], issues: [], raw: {} }} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
     expect(screen.getByText('표시할 사용량이 없습니다')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('When report has only other entries and 0 windows/metrics then empty message shows and no headings remain', () => {
+    const reportWithOthersOnly = {
+      status: 'unknown' as const,
+      windows: [],
+      metrics: [],
+      others: [{ id: 'plan_type', label: 'Plan Type', value: { kind: 'value' as const, text: 'pro' } }],
+      issues: [],
+      raw: {},
+    }
+    render(<UsageDashboard provider="claude" status="ready" report={reportWithOthersOnly} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
+    expect(screen.getByText('표시할 사용량이 없습니다')).toBeTruthy()
+    expect(screen.queryByText('사용 창')).toBeNull()
+    expect(screen.queryByText('모델·기능별 한도')).toBeNull()
+    expect(screen.queryByText('기타 항목')).toBeNull()
+    expect(screen.queryAllByTestId('usage-card')).toHaveLength(0)
+    expect(screen.queryAllByTestId('usage-other')).toHaveLength(0)
   })
 })
 
@@ -301,13 +318,29 @@ describe('Given the collection note and 320px layout (ADR 0.3 v2 D8)', () => {
 })
 
 describe('Given live provider reports after the display policy', () => {
-  it.each(['claude', 'codex'] as const)('When %s renders Then only domain-selected cards appear and Raw JSON has no control or panel', provider => {
-    const report = provider === 'claude' ? buildUsageView(liveClaude, { now: NOW }) : buildCodexUsageView(liveCodex, { now: NOW })
-    render(<UsageDashboard provider={provider} status="ready" report={report} errorMessage={null} />)
-    expect(cardIds()).toEqual(provider === 'claude' ? ['five_hour', 'seven_day', 'seven_day_fable'] : ['rate_limit.primary_window'])
-    expect(otherIds()).toEqual(provider === 'claude'
-      ? ['extra_usage', 'spend', 'member_dashboard_available', 'seven_day_breakdown']
-      : ['plan_type', 'model_usage', 'credits', 'spend_control', 'rate_limit_reset_credits'])
+  it('When Claude renders Then only 5시간·주간·Fable 주간 cards appear and other items/Raw JSON are absent', () => {
+    const report = buildUsageView(liveClaude, { now: NOW })
+    render(<UsageDashboard provider="claude" status="ready" report={report} errorMessage={null} />)
+    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_fable'])
+    expect(screen.getByText('5시간 한도')).toBeTruthy()
+    expect(screen.getByText('주간 한도')).toBeTruthy()
+    expect(screen.getByText('Fable 주간')).toBeTruthy()
+    expect(otherIds()).toEqual([])
+    expect(screen.queryByTestId('usage-other')).toBeNull()
+    expect(screen.queryByText('기타 항목')).toBeNull()
+    expect(screen.queryByText('정보 없음')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
+    expect(document.querySelector('pre')).toBeNull()
+  })
+
+  it('When Codex renders Then only 주간 card appears and other items/Raw JSON are absent', () => {
+    const report = buildCodexUsageView(liveCodex, { now: NOW })
+    render(<UsageDashboard provider="codex" status="ready" report={report} errorMessage={null} />)
+    expect(cardIds()).toEqual(['rate_limit.primary_window'])
+    expect(screen.getByText('주간 한도')).toBeTruthy()
+    expect(otherIds()).toEqual([])
+    expect(screen.queryByTestId('usage-other')).toBeNull()
+    expect(screen.queryByText('기타 항목')).toBeNull()
     expect(screen.queryByText('정보 없음')).toBeNull()
     expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
     expect(document.querySelector('pre')).toBeNull()
