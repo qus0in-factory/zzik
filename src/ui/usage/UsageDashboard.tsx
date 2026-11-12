@@ -7,7 +7,6 @@ import { Badge } from '@ui/components/ui/badge'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { LimitCard } from './LimitCard'
 import { OtherItems } from './OtherItems'
-import { RawJson } from './RawJson'
 import { StatusBar } from './StatusBar'
 import { READY_BADGE } from './status-label'
 
@@ -32,11 +31,9 @@ export interface UsageDashboardProps {
   staleNoteText?: string | null
   /** 수집 상태별 안내(ADR 0.3 v2 D4 표) — app에서 계산된 문구 */
   collectionNote?: string | null
-  /** 봉투가 가린 키 경로(H3) — Raw 보기에 개수만 알린다 */
-  rawRedacted?: readonly string[] | null
 }
 
-/** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도 → 기타 항목 → 원본 JSON. */
+/** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도 → 기타 항목. */
 export function UsageDashboard({
   provider,
   title,
@@ -51,7 +48,6 @@ export function UsageDashboard({
   lastSuccessText = null,
   staleNoteText = null,
   collectionNote = null,
-  rawRedacted = null,
 }: UsageDashboardProps): ReactNode {
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
@@ -73,7 +69,7 @@ export function UsageDashboard({
     )
   }
 
-  const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0)
+  const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0 && report.others.length === 0)
   const badge =
     status === 'stale'
       ? '오래된 데이터'
@@ -125,14 +121,14 @@ export function UsageDashboard({
 
       {!empty && report !== null && (
         <>
-          <div>
+          {report.windows.length > 0 && <div>
             <h3 className="mb-2 text-base font-semibold">사용 창</h3>
             <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {report.windows.map((item) => (
                 <ActiveLimitCard key={item.id} item={item} />
               ))}
             </div>
-          </div>
+          </div>}
           {report.metrics.length > 0 && (
             <div>
               <h3 className="mb-2 text-base font-semibold">{metricsTitle}</h3>
@@ -147,7 +143,6 @@ export function UsageDashboard({
       )}
 
       {report !== null && <OtherItems others={report.others} />}
-      {report !== null && <RawJson raw={report.raw} provider={provider} rawRedacted={rawRedacted} />}
     </section>
   )
 }

@@ -1,3 +1,4 @@
+import { visibleUsageReport } from './visible'
 import { elapsedPercent, cycleSeconds } from './elapsed'
 import { classifyUsageKeys, isKnownMetricId, WINDOW_IDS } from './classify'
 import { aggregateUsageLevel, usageLevelOf } from './level'
@@ -91,5 +92,5 @@ export function buildUsageView(raw: unknown, options: BuildUsageViewOptions = {}
 
   const status = aggregateUsageLevel([...windows, ...metrics].map((item) => ({ status: item.status, expired: item.expired })))
 
-  return { status, windows, metrics, others, issues, raw: data }
+  return visibleUsageReport({ status, windows, metrics, others, issues, raw: data })
 }

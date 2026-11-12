@@ -39,7 +39,7 @@ describe('Given an unknown usage key', () => {
 
   it('When a metric id is unlisted then the report marks it unknown and a known id is not', () => {
     const report = buildUsageView(
-      { seven_day_haiku: { utilization: 44, resets_at: '2026-11-15T03:00:00.000Z' }, seven_day_cowork: null },
+      { seven_day_haiku: { utilization: 44, resets_at: '2026-11-15T03:00:00.000Z' }, seven_day_cowork: { utilization: 0 } },
       { now: NOW },
     )
     expect(report.metrics.find((m) => m.id === 'seven_day_haiku')).toMatchObject({ unknown: true })

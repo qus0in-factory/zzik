@@ -9,6 +9,7 @@ import type { UsageIssue, UsageOtherValue } from './types'
  */
 
 const MAX_DEPTH = 4
+const STATUS_FIELDS = ['allowed', 'limit_reached'] as const
 const WINDOW_FIELDS = ['limit_window_seconds', 'reset_at', 'reset_after_seconds'] as const
 
 export interface CodexWindowEntry {
@@ -142,7 +143,7 @@ export function scanCodexUsage(raw: unknown, options: { fetchedAt?: string | nul
     const fields = Object.entries(value)
       .filter(([field]) => {
         const path = `${key}.${field}`
-        return !windowPaths.has(path) && !hasWindowUnder(path)
+        return !windowPaths.has(path) && !hasWindowUnder(path) && !(STATUS_FIELDS as readonly string[]).includes(field)
       })
       .map(([field, fieldValue]) => ({ key: field, text: toText(fieldValue) }))
     if (fields.length > 0) otherEntries.push({ id: key, value: { kind: 'object', fields } })
