@@ -5,13 +5,14 @@ import normalRaw from '../../fixtures/claude-usage.normal.json'
 import { NOW } from '../../fakes/usage-ports'
 
 describe('Given the provider registry (D8)', () => {
-  it('When listing providers then claude comes before codex and only those two exist', () => {
-    expect(USAGE_PROVIDERS).toEqual(['claude', 'codex'])
+  it('When listing providers then claude comes before codex and antigravity follows', () => {
+    expect(USAGE_PROVIDERS).toEqual(['claude', 'codex', 'antigravity'])
   })
 
   it.each([
     ['claude', true],
     ['codex', true],
+    ['antigravity', true],
     ['nope', false],
     ['', false],
     [undefined, false],
@@ -56,5 +57,13 @@ describe('Given the per-provider view builder', () => {
   it('When the raw payload is empty then each provider still yields a shaped report', () => {
     expect(buildProviderUsageView('claude', null, { now: NOW })).toMatchObject({ status: 'unknown', windows: [], metrics: [] })
     expect(buildProviderUsageView('codex', null, { now: NOW })).toMatchObject({ status: 'unknown', windows: [], metrics: [] })
+  })
+})
+
+describe('Given Antigravity registration', () => {
+  it('When selected Then uses bucket normalization and its own metadata', () => {
+    const report=buildProviderUsageView('antigravity', {groups:[{buckets:[{bucketId:'safe',window:'5h',remainingFraction:0.5}]}]}, {now:NOW})
+    expect(report.windows[0]).toMatchObject({id:'safe',usedPercent:50})
+    expect(USAGE_PROVIDER_META.antigravity).toMatchObject({title:'Antigravity',clientName:'Antigravity',sectionId:'usage-antigravity'})
   })
 })

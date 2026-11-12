@@ -1,3 +1,4 @@
+import { buildAntigravityUsageView } from './antigravity-view'
 import { buildCodexUsageView } from './codex-view'
 import type { UsageReport } from './types'
 import { buildUsageView } from './view'
@@ -8,7 +9,7 @@ import { buildUsageView } from './view'
  * 화면 컴포넌트는 제공자별 분기를 갖지 않고 이 등록부만 본다.
  */
 
-export const USAGE_PROVIDERS = ['claude', 'codex'] as const
+export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity'] as const
 
 export type UsageProvider = (typeof USAGE_PROVIDERS)[number]
 
@@ -28,6 +29,15 @@ export interface UsageProviderMeta {
 }
 
 export const USAGE_PROVIDER_META: Record<UsageProvider, UsageProviderMeta> = {
+  antigravity: {
+    id: 'antigravity',
+    title: 'Antigravity',
+    metricsTitle: '추가 한도',
+    clientName: 'Antigravity',
+    refreshHint: '이 Mac에서 Antigravity(agy)를 실행하면 갱신된다',
+    sectionId: 'usage-antigravity',
+    ariaLabel: 'Antigravity 사용량',
+  },
   claude: {
     id: 'claude',
     title: 'Claude',
@@ -56,6 +66,7 @@ export interface UsageViewOptions {
 
 /** 제공자별 정규화기 선택. ui와 app은 이 함수만 호출한다. */
 export function buildProviderUsageView(provider: UsageProvider, raw: unknown, options: UsageViewOptions): UsageReport {
+  if (provider === 'antigravity') return buildAntigravityUsageView(raw, options)
   if (provider === 'codex') return buildCodexUsageView(raw, options)
   return buildUsageView(raw, { now: options.now })
 }

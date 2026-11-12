@@ -45,7 +45,7 @@ describe('Given a Hono API router', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store')
   })
 
-  it.each(['claude', 'codex'])('When GET /api/usage/%s is requested Then the matching provider key is read', async (provider) => {
+  it.each(['claude', 'codex', 'antigravity'])('When GET /api/usage/%s is requested Then the matching provider key is read', async (provider) => {
     const s = setup()
     const envelope = JSON.stringify({ schema: 1, provider })
     s.store.result = { ok: true, value: envelope }
@@ -103,5 +103,20 @@ describe('Given a Hono API router', () => {
   it.each(['/', '/any/path', '/assets/app.js'])('When requesting %s Then assets handle it without auth or storage', async (path) => {
     const s = setup(); const res = await s.app.request(path)
     expect(await res.text()).toBe('SPA'); expect(s.assets.calls).toBe(1); expect(s.verifier.tokens).toEqual([]); expect(s.store.reads).toBe(0)
+  })
+})
+
+describe('Given Antigravity routing', () => {
+  it('When provider case differs Then rejects before storage', async () => {
+    const s=setup()
+    const response=await s.app.request('/api/usage/Antigravity',{headers:{'Cf-Access-Jwt-Assertion':'jwt'}})
+    expect(response.status).toBe(404)
+    expect(s.store.reads).toBe(0)
+  })
+  it('When the stored envelope belongs to Codex Then returns 502 for Antigravity', async () => {
+    const s=setup()
+    s.store.result={ok:true,value:JSON.stringify({schema:1,provider:'codex'})}
+    const response=await s.app.request('/api/usage/antigravity',{headers:{'Cf-Access-Jwt-Assertion':'jwt'}})
+    expect(response.status).toBe(502)
   })
 })

@@ -129,3 +129,14 @@ describe('Given the auth_rejected fixture scenario (ADR 0.3 v2)', () => {
     expect(parseFixtureUsageName('?fixture=auth_rejected')).toBe('auth_rejected')
   })
 })
+
+describe('Given Antigravity DEV scenarios', () => {
+  it.each(['normal','limited','unknown-keys'])('When selecting %s Then returns buckets and rebases resetTime', async name => {
+    const gateway=createFixtureUsageGateway({getFixtureName:()=>name,now:LATER_CLOCK})
+    const result=await gateway.fetchUsage('antigravity')
+    expect(result.ok).toBe(true)
+    if(!result.ok) return
+    const groups=result.usage?.groups as Array<{buckets:Array<{resetTime?:string}>}>
+    expect(groups[0].buckets[1].resetTime).toBe('2026-11-21T14:30:00.000Z')
+  })
+})

@@ -94,3 +94,12 @@ describe('Given card heading levels and unverified labels (ADR 0.3 D8)', () => {
     expect(screen.getByText('3시간 한도')).toBeTruthy()
   })
 })
+
+describe('Given Antigravity fractional usage', () => {
+  it('When rendering Then formats the display without floating point artifacts or changing the actual progress', () => {
+    const percent=(1-0.8)*100
+    render(<LimitCard item={{id:'safe',label:'Model group · 5시간 한도',usedPercent:percent,resetsAt:null,expired:false,status:'normal'}} />)
+    expect(screen.getByText('20%')).toBeTruthy()
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(String(percent))
+  })
+})
