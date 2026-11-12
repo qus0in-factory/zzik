@@ -108,3 +108,23 @@ describe('Given the cycle budget (v2: 주기 예산 240초)', () => {
     expect(results.every((result) => result.skippedBudget === undefined)).toBe(true)
   })
 })
+
+describe('Given a three-provider cycle', () => {
+  it('When all are within budget Then writes each provider once in order', async () => {
+    const providers=['claude','codex','antigravity'].map(id=>makeProviderPorts(id))
+    const {results}=await runCycle({},providers)
+    expect(results.map(result=>result.id)).toEqual(['claude','codex','antigravity'])
+    for(const provider of providers) {
+      expect(provider.ports.kv.calls).toBe(1)
+      expect(JSON.parse(provider.ports.kv.writes[0]).provider).toBe(provider.id)
+    }
+  })
+  it('When two providers exhaust the budget Then skips the third without API or KV calls', async () => {
+    let now=COLLECTOR_NOW
+    const providers=['claude','codex','antigravity'].map(id=>makeProviderPorts(id))
+    const {results}=await runCycle({clock:{now:()=>now},runOnce:async(ports,options)=>{now+=121_000;return runOnce(ports,options)}},providers,{cycleBudgetMs:240_000})
+    expect(results[2]).toMatchObject({id:'antigravity',skippedBudget:true})
+    expect(providers[2].ports.usage.calls).toBe(0)
+    expect(providers[2].ports.kv.calls).toBe(0)
+  })
+})

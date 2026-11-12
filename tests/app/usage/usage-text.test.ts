@@ -64,3 +64,10 @@ describe('Given a healthy or unknown collection status', () => {
     for (const status of statuses) expect(composeCollectionNote('claude', status, null)).toBeNull()
   })
 })
+
+describe('Given Antigravity credential guidance', () => {
+  it.each(['token_expired','no_credentials'] as const)('When status is %s Then names Antigravity as the owner of renewal', status => {
+    expect(composeCollectionNote('antigravity',status,null)).toContain('Antigravity')
+    expect(composeCollectionNote('antigravity',status,null)).not.toContain('Claude Code')
+  })
+})

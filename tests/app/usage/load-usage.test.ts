@@ -153,3 +153,15 @@ describe('Given envelope redaction paths', () => {
     expect(view.report.raw).toEqual(usage)
   })
 })
+
+describe('Given Antigravity envelope metadata', () => {
+  it('When loaded Then uses bucket normalization and forwards redaction metadata', () => {
+    const view=buildUsageLoadView({
+      usage:{groups:[{buckets:[{bucketId:'safe',remainingFraction:0.5,window:'5h'}]}],description:'private-placeholder'},
+      rawText:null,
+      collection:collectionMeta({provider:'antigravity',rawRedacted:['description']}),
+    },NOW,'antigravity')
+    expect(view.report.windows[0]).toMatchObject({id:'safe',usedPercent:50})
+    expect(view.report.others).toEqual([])
+  })
+})
