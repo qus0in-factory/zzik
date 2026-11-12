@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { buildUsageView } from '../../../src/domain/usage/view'
-import raw from '../../fixtures/claude-usage.scoped-limits.json'
+import raw from '../../fixtures/claude-usage.synthetic-scoped-limits.json'
 const now = new Date('2026-11-12T12:00:00Z')
-describe('Given live Claude scoped limits structure', () => {
+describe('Given synthetic Claude scoped limits cases', () => {
   it('When building the report Then exposes Fable with weekly progress without duplicate windows or array issues', () => {
     const report = buildUsageView(raw, { now })
     expect(report.windows).toHaveLength(2)

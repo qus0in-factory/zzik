@@ -105,10 +105,10 @@ export function classifyUsageKeys(raw: Record<string, unknown>): ClassificationR
       continue
     }
     if (!isRecord(value)) {
-      // 배열·원시값은 항목 형태가 아니다. 기타 항목으로 보여 주고 형식 문제를 기록한다.
+      // boolean 메타데이터는 유효한 기타 값이다. 나머지 배열·원시값은 형식 문제를 기록한다.
       const text = Array.isArray(value) ? JSON.stringify(value) : String(value)
       entries.push(entry('other', key, {}, { kind: 'value', text }))
-      issues.push({ code: 'invalid_entry', key })
+      if (typeof value !== 'boolean') issues.push({ code: 'invalid_entry', key })
       continue
     }
     const fields = readRawEntry(value)
