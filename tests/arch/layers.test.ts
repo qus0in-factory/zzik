@@ -71,6 +71,14 @@ export interface LayerViolation {
  * assembly: 조립 루트 파일(src/main.tsx, worker/index.ts)에서의 허용.
  */
 const PACKAGE_ALLOWED: Record<string, readonly { root: string; layer?: Layer; assembly?: boolean }[]> = {
+  postgres: [
+    { root: 'collector', assembly: true },
+    { root: 'worker', assembly: true },
+  ],
+  'drizzle-orm': [
+    { root: 'worker', layer: 'infra' },
+    { root: 'worker', assembly: true },
+  ],
   hono: [
     { root: 'worker', layer: 'ui' },
     { root: 'worker', assembly: true },
@@ -239,7 +247,7 @@ export function findViolations(files: SourceFile[] = loadSourceFiles()): LayerVi
 
       if (target.kind === 'external') {
         // 수집기 전체는 node: 내장 모듈만 허용한다(A7). 조립 루트(collector/main.mjs)도 포함.
-        if (root === 'collector' && !statement.spec.startsWith('node:')) {
+        if (root === 'collector' && !statement.spec.startsWith('node:') && !(statement.spec === 'postgres' && layer === null && file.path.endsWith('/collector/main.mjs'))) {
           found.push({ file: relative(BASE, file.path), root, layer, spec: statement.spec, reason: 'collector-external-import' })
           continue
         }
@@ -514,5 +522,20 @@ describe('Given the package allowlist (스택 부록 A7)', () => {
     const clean = probe('src/ui/clean.tsx', "import type { UsageReport } from '@domain/usage/types'\n")
     const violating = probe('src/ui/bad.tsx', "import { BAD } from '@infra/usage/x'\n")
     expect(summarize(findViolations([clean, violating]))).toEqual([['forbidden-direction', '@infra/usage/x']])
+  })
+})
+
+describe('Given database isolation from the frontend', () => {
+  it('When frontend source imports are inspected Then no shared/db schema or database package reaches src', () => {
+    const sources=loadSourceFiles().filter(file=>contextOf(file.path).root==='src')
+    for(const file of sources) {
+      const forbidden=importsOf(file.text,file.path).filter(item=>item.spec.includes('shared/db') || ['drizzle-orm','postgres'].includes(packageNameOf(item.spec)))
+      expect(forbidden.map(item=>item.spec)).toEqual([])
+    }
+  })
+  it('When postgres imports appear Then only the two composition roots are allowed', () => {
+    expect(findViolations([probe('collector/infra/usage/bad.mjs', "import postgres from 'postgres'")])).not.toEqual([])
+    expect(findViolations([probe('collector/main.mjs', "import postgres from 'postgres'")])).toEqual([])
+    expect(findViolations([probe('worker/infra/bad.ts', "import postgres from 'postgres'")])).not.toEqual([])
   })
 })

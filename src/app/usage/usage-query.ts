@@ -3,8 +3,8 @@ import type { Query } from '@tanstack/react-query'
 import type { UsageGateway, UsageGatewayResult, UsageGatewaySuccess, UsageGatewayFailureReason } from '@domain/usage/gateway'
 import type { UsageProvider } from '@domain/usage/providers'
 
-/** 주기(스택 부록 A4): 60초 refetchInterval. 제공자마다 독립으로 돈다. */
-export const USAGE_POLL_INTERVAL_MS = 60_000
+/** 주기(스택 부록 A4): 900초 refetchInterval (ADR 0.5 Neon Free). 제공자마다 독립으로 돈다. */
+export const USAGE_POLL_INTERVAL_MS = 900_000
 /** 세션 만료로 폴링을 멈출 때 refetchInterval이 되돌리는 값. */
 export const POLLING_STOPPED = false
 /** 전체 무효화에 쓰는 접두 키. 제공자별 키는 이 접두 아래에 있다(D8). */

@@ -33,11 +33,11 @@ describe('Given a healthy run', () => {
 
     const result = await run(ports)
     expect(result.exitCode).toBe(0)
-    expect(ports.kv.calls).toBe(1)
+    expect(ports.store.calls).toBe(1)
     expect(ports.state.writeCount()).toBe(1)
     expect(ports.logger.entries).toHaveLength(1)
 
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope).toMatchObject({
       schema: 1,
       provider: 'claude',
@@ -58,7 +58,7 @@ describe('Given a healthy run', () => {
     ports.usage.queueUsage(okUsage)
     await run(ports)
 
-    const allRecords = [ports.state.snapshot(), ...ports.kv.writes, ...ports.logger.entries.map((e: Record<string, unknown>) => JSON.stringify(e))]
+    const allRecords = [ports.state.snapshot(), ...ports.store.writes, ...ports.logger.entries.map((e: Record<string, unknown>) => JSON.stringify(e))]
     for (const record of allRecords) {
       expect(String(record)).not.toContain(USAGE_TOKEN)
       expect(String(record)).not.toContain('sk-ant')
@@ -73,7 +73,7 @@ describe('Given a healthy run', () => {
 
     const result = await run(ports)
     expect(result.exitCode).toBe(0)
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.status).toBe('rate_limited')
     expect(envelope.retryAt).toBe(new Date(COLLECTOR_NOW + 600_000).toISOString())
     expect(envelope.rawText).toBeNull()
@@ -86,7 +86,7 @@ describe('Given a healthy run', () => {
     ports.credentials.queueReads([fileCredential()])
     ports.usage.queueUsage({ ok: false, kind: 'rate_limited', httpStatus: 429, retryAfterSec: 7200 })
     await run(ports)
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.retryAt).toBe(new Date(COLLECTOR_NOW + 7_200_000).toISOString())
   })
 
@@ -94,12 +94,12 @@ describe('Given a healthy run', () => {
     const ports = createFakeCollectorPorts()
     ports.credentials.queueReads([fileCredential()])
     ports.usage.queueUsage(okUsage)
-    ports.kv.queueResult({ ok: false, httpStatus: 403, message: 'forbidden' })
+    ports.store.queueResult({ ok: false, httpStatus: 403, message: 'forbidden' })
 
     const result = await run(ports)
     expect(result.exitCode === 0).toBe(false)
     expect(ports.state.writeCount()).toBe(1)
-    expect(ports.kv.calls).toBe(1)
+    expect(ports.store.calls).toBe(1)
     expect(ports.logger.entries[0]).toMatchObject({ kvOk: false, kvReason: 'forbidden' })
   })
 })
@@ -111,7 +111,7 @@ describe('Given credential problems', () => {
     const result = await run(ports)
     expect(ports.usage.calls).toBe(0)
     expect(result.exitCode).toBe(0)
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.status).toBe('token_expired')
     expect(envelope.called).toBe(false)
     expect(envelope.retryAt).toBeNull()
@@ -124,7 +124,7 @@ describe('Given credential problems', () => {
     const result = await run(ports)
     expect(ports.usage.calls).toBe(0)
     expect(result.exitCode).toBe(0)
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.status).toBe('no_credentials')
     expect(envelope.called).toBe(false)
   })
@@ -142,7 +142,7 @@ describe('Given an auth_required denial and a token refresh', () => {
     ports.credentials.queueReads([fileCredential(futureExpiresAt)])
     await run(ports)
     expect(ports.usage.calls).toBe(1)
-    const skippedEnvelope = JSON.parse(ports.kv.writes[1] as string) as Record<string, unknown>
+    const skippedEnvelope = JSON.parse(ports.store.writes[1] as string) as Record<string, unknown>
     expect(skippedEnvelope.called).toBe(false)
     // v2: 401 + 만료 전 토큰 = auth_rejected(서버 거부), 문구 표도 분리된다.
     expect(skippedEnvelope.status).toBe('auth_rejected')
@@ -155,9 +155,9 @@ describe('Given an auth_required denial and a token refresh', () => {
     ports.usage.queueUsage(okUsage)
     await run(ports)
     expect(ports.usage.calls).toBe(2)
-    const okEnvelope = JSON.parse(ports.kv.writes[2] as string) as Record<string, unknown>
+    const okEnvelope = JSON.parse(ports.store.writes[2] as string) as Record<string, unknown>
     expect(okEnvelope.status).toBe('ok')
-    expect(ports.kv.calls).toBe(3)
+    expect(ports.store.calls).toBe(3)
 
     // 토큰 갱신은 로그에 token_refreshed로만 남는다.
     expect(ports.logger.entries[2]).toMatchObject({ tokenRefreshed: true })
@@ -194,7 +194,7 @@ describe('Given an already blocked gate from state', () => {
     const result = await run(ports)
     expect(ports.usage.calls).toBe(0)
     expect(result.exitCode).toBe(0)
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.called).toBe(false)
     expect(envelope.status).toBe('rate_limited')
     expect(envelope.rawText).toBe(BODY)
@@ -210,7 +210,7 @@ describe('Given dry-run', () => {
 
     const result = await run(ports, { dryRun: true })
     expect(result.exitCode).toBe(0)
-    expect(ports.kv.calls).toBe(0)
+    expect(ports.store.calls).toBe(0)
     expect(ports.state.writeCount()).toBe(0)
     expect(ports.logger.entries).toHaveLength(0)
     const report = result.dryRunReport as { status: string; called: boolean; keys: string[]; sha256: string }
@@ -279,7 +279,7 @@ describe('Given the Codex provider run (ADR 0.3 D8 run Once)', () => {
     ports.usage.queueUsage({ ok: true, bodyText: BODY, httpStatus: 200, retryAfterSec: null })
     const result = await run(ports, { provider: 'codex' })
     expect(result.exitCode).toBe(0)
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.provider).toBe('codex')
     expect(ports.logger.entries[0]).toMatchObject({ provider: 'codex', status: 'ok' })
     // 상태 파일에도 제공자가 적혀 상태 격리를 상기시킨다.
@@ -295,7 +295,7 @@ describe('Given the Codex provider run (ADR 0.3 D8 run Once)', () => {
     const result = await run(ports, { provider: 'codex' })
     expect(ports.usage.calls).toBe(1)
     expect(result.exitCode).toBe(0)
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.status).toBe('auth_required')
     expect(envelope.tokenExpiresAt).toBeNull()
   })
@@ -311,7 +311,7 @@ describe('Given the Codex provider run (ADR 0.3 D8 run Once)', () => {
     ports.credentials.queueReads([fileCredential()])
     ports.usage.queueUsage({ ok: false, kind: 'upstream_error', httpStatus: 200, retryAfterSec: null })
     await run(ports, { provider: 'codex' })
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.status).toBe('upstream_error')
     expect(envelope.httpStatus).toBe(200)
     expect(envelope.rawText).toBe(BODY) // 이전 성공 본문 유지
@@ -324,7 +324,7 @@ describe('Given the auth rejection split (v2 D4·H2)', () => {
     ports.credentials.queueReads([fileCredential(futureExpiresAt, 'codex-token')])
     ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
     await run(ports, { provider: 'claude' })
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.status).toBe('auth_rejected')
     expect(envelope.tokenExpiresAt).toBe(new Date(futureExpiresAt).toISOString())
   })
@@ -334,7 +334,7 @@ describe('Given the auth rejection split (v2 D4·H2)', () => {
     ports.credentials.queueReads([{ source: 'codex', token: 'jwt-without-exp', expiresAt: null }])
     ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
     await run(ports, { provider: 'codex' })
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(envelope.status).toBe('auth_required')
   })
 
@@ -343,14 +343,14 @@ describe('Given the auth rejection split (v2 D4·H2)', () => {
     ports.credentials.queueReads([fileCredential(futureExpiresAt, 'tok1')])
     ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
     await run(ports, { provider: 'codex' })
-    expect(JSON.parse(ports.kv.writes[0] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_000).toISOString())
+    expect(JSON.parse(ports.store.writes[0] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_000).toISOString())
 
     // 게이트가 풀린 뒤(1시간 경과) 같은 토큰이 또 거부되면 수열이 이어진다(+7200).
     ports.clock.advance(3_600_000 + 1)
     ports.credentials.queueReads([fileCredential(futureExpiresAt, 'tok1')])
     ports.usage.queueUsage({ ok: false, kind: 'auth_required', httpStatus: 401, retryAfterSec: null })
     await run(ports, { provider: 'codex' })
-    expect(JSON.parse(ports.kv.writes[1] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_001 + 7_200_000).toISOString()) // 2번째 거부: 1h 뒤 + 7200초(2시간)
+    expect(JSON.parse(ports.store.writes[1] as string).retryAt).toBe(new Date(COLLECTOR_NOW + 3_600_001 + 7_200_000).toISOString()) // 2번째 거부: 1h 뒤 + 7200초(2시간)
   })
 })
 
@@ -360,7 +360,7 @@ describe('Given the identifier redaction (v2 D5·H3)', () => {
     ports.credentials.queueReads([fileCredential(futureExpiresAt)])
     ports.usage.queueUsage({ ok: true, bodyText: JSON.stringify({ rate_limit: { account_email: 'a@b.c', used_percent: 5 } }), httpStatus: 200, retryAfterSec: null })
     const result = await run(ports, { provider: 'codex', redactionPaths: ['rate_limit.account_email'] })
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(JSON.parse(envelope.rawText as string)).toEqual({ rate_limit: { account_email: '[가림]', used_percent: 5 } })
     expect(envelope.rawRedacted).toEqual(['rate_limit.account_email'])
     expect(result.exitCode).toBe(0)
@@ -371,7 +371,7 @@ describe('Given the identifier redaction (v2 D5·H3)', () => {
     ports.credentials.queueReads([fileCredential(futureExpiresAt)])
     ports.usage.queueUsage({ ok: true, bodyText: JSON.stringify({ tokens: { email: 'a@b.c' } }), httpStatus: 200, retryAfterSec: null })
     await run(ports, { provider: 'codex', redactionPaths: [] })
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     expect(JSON.parse(envelope.rawText as string)).toEqual({ tokens: { email: 'a@b.c' } })
     expect(envelope.rawRedacted).toBeUndefined()
   })
@@ -435,7 +435,7 @@ describe('Given the G2 confirmed codex redaction list (2026-11-12 실측)', () =
       retryAfterSec: null,
     })
     await run(ports, { provider: 'codex', redactionPaths: USAGE_REDACTION_PATHS_CODEX_FROM_PROVIDERS.codex })
-    const envelope = JSON.parse(ports.kv.writes[0] as string) as Record<string, unknown>
+    const envelope = JSON.parse(ports.store.writes[0] as string) as Record<string, unknown>
     const serialized = JSON.stringify(envelope)
     expect(serialized).not.toContain('user-9f31')
     expect(serialized).not.toContain('acct-123')
@@ -447,5 +447,66 @@ describe('Given the G2 confirmed codex redaction list (2026-11-12 실측)', () =
     expect(parsed.rate_limit).toMatchObject({ primary_window: { used_percent: 20 } }) // 구조·나머지 값 보존
     expect(envelope.rawRedacted).toEqual(['user_id', 'account_id', 'email'])
     expect(ports.usage.lastAccountId).toBeNull() // 계정 헤더 미지정 시 전송 없음
+  })
+})
+
+describe('Given storage write metadata', () => {
+  it('When no credentials exist Then writes the envelope metadata and marks only the first status/hash as changed', async () => {
+    const ports=createFakeCollectorPorts()
+    await runOnce(ports)
+    expect(ports.store.metas[0]).toMatchObject({provider:'claude',status:'no_credentials',rawSha256:null,changed:true,collectorVersion:'0.6.0'})
+    ports.clock.advance(900000)
+    await runOnce(ports)
+    expect(ports.store.metas[1]).toMatchObject({changed:false})
+    expect(JSON.parse(ports.store.writes[1]).intervalSec).toBe(900)
+  })
+})
+
+describe('Given storage failures before checkpoint advancement', () => {
+  it('When the initial store write fails Then keeps previous null and retries the changed event on the next run', async () => {
+    const ports=createFakeCollectorPorts()
+    ports.store.queueResult({ok:false,httpStatus:null,message:'StoreError'})
+    expect(await runOnce(ports)).toEqual({exitCode:3})
+    expect((ports.state.snapshot() as {previous:unknown}).previous).toBeNull()
+    ports.clock.advance(900_000)
+    expect(await runOnce(ports)).toEqual({exitCode:0})
+    expect((ports.store.metas[1] as {changed:boolean}).changed).toBe(true)
+    expect((ports.state.snapshot() as {previous:{status:string}}).previous.status).toBe('no_credentials')
+    ports.clock.advance(900_000)
+    await runOnce(ports)
+    expect((ports.store.metas[2] as {changed:boolean}).changed).toBe(false)
+  })
+
+  it('When persistence fails after a rate limit Then keeps the successful envelope while persisting and respecting the new gate', async () => {
+    const ports=createFakeCollectorPorts()
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage(okUsage)
+    await runOnce(ports)
+    const previous=(ports.state.snapshot() as {previous:unknown}).previous
+    ports.clock.advance(1000)
+    ports.credentials.queueReads([fileCredential()])
+    ports.usage.queueUsage({ok:false,kind:'rate_limited',httpStatus:429,retryAfterSec:600})
+    ports.store.queueResult({ok:false,httpStatus:null,message:'StoreError'})
+    expect(await runOnce(ports)).toEqual({exitCode:3})
+    expect((ports.state.snapshot() as {previous:unknown}).previous).toEqual(previous)
+    expect((ports.state.snapshot() as {gate:{failReason:string}}).gate.failReason).toBe('rate_limited')
+    for(let i=0;i<2;i++) {
+      ports.clock.advance(1000)
+      ports.credentials.queueReads([fileCredential()])
+      await runOnce(ports)
+      expect(ports.usage.calls).toBe(2)
+      expect((ports.state.snapshot() as {gate:{failReason:string}}).gate.failReason).toBe('rate_limited')
+    }
+    expect(JSON.parse(ports.store.writes[2]).status).toBe('rate_limited')
+  })
+
+  it('When a store throws Then keeps the last committed previous envelope', async () => {
+    const ports=createFakeCollectorPorts()
+    await runOnce(ports)
+    const previous=(ports.state.snapshot() as {previous:unknown}).previous
+    ports.store.write=async()=>{throw Error('synthetic failure')}
+    ports.clock.advance(900_000)
+    expect(await runOnce(ports)).toEqual({exitCode:3})
+    expect((ports.state.snapshot() as {previous:unknown}).previous).toEqual(previous)
   })
 })

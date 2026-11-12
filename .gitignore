@@ -4,3 +4,4 @@ dist/
 .pnpm-store
 .worktree/
 .env
+.dev.vars

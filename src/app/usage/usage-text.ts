@@ -68,7 +68,7 @@ export function composeCollectionNote(
         ? '수집 중 오류가 발생했습니다. 다음 주기에 다시 시도합니다.'
         : `수집 중 오류가 발생했습니다(HTTP ${meta.httpStatus}). 다음 주기에 다시 시도합니다.`
     case 'network_error':
-      return '네트워크 오류로 수집하지 못했습니다. 다음 주기에 다시 시도합니다.'
+      return USAGE_PROVIDER_META[provider].networkErrorNote ?? '네트워크 오류로 수집하지 못했습니다. 다음 주기에 다시 시도합니다.'
     case 'collector_down':
       return '수집기가 응답하지 않습니다. Mac 절전 또는 프로세스 종료일 수 있습니다.'
     case 'stale':

@@ -2,7 +2,7 @@
  * 수집기의 한 실행(ADR 0.2 D2, 0.3 D3 제공자 인자 추가). 포트를 주입받아 순서대로 진행한다.
  *
  *   게이트·자격 증명 확인 → usage 호출(게이트가 허용할 때만) → 봉투 생성
- *   → 상태 저장(게이트로 건너뛴 실행도 쓴다: 하트비트) → KV PUT → 로그 한 줄
+ *   → 저장소 쓰기 → 성공한 previous 및 게이트 상태 저장 → 로그 한 줄
  *
  * - 자격 증명이 없거나 만료된 것은 정상 상태 중 하나다(종료 코드 0).
  * - KV 쓰기가 실패하면 재시도 루프 없이 0이 아닌 코드로 끝낸다. 로컬 상태가 기준이다.
@@ -11,6 +11,8 @@
  * - 봉투의 provider는 options.provider 그대로다(ADR 0.3 D5).
  */
 
+import { snapshotChanged } from '../../domain/usage/snapshot-change.mjs'
+import { USAGE_COLLECTOR_VERSION } from '../../domain/usage/providers.mjs'
 import { chooseCredential, credentialExpired } from '../../domain/usage/credential-choice.mjs'
 import { buildEnvelope, sha256Hex } from '../../domain/usage/envelope.mjs'
 import { keyPaths } from '../../domain/usage/key-paths.mjs'
@@ -22,7 +24,7 @@ import { gateAllowsCall, gateRetryAt, openGateFor, resetGate } from '../../domai
 /** @typedef {import('../../domain/usage/ports.mjs').CollectorState} CollectorState */
 /** @typedef {import('../../domain/usage/ports.mjs').UsageStatus} UsageStatus */
 
-export const USAGE_INTERVAL_SEC = 300 /** 조립 루트가 intervalSec 옵션을 안 주면 기본값 */
+export const USAGE_INTERVAL_SEC = 900 /** 조립 루트가 intervalSec 옵션을 안 주면 기본값 */
 const EXIT_OK = 0
 const EXIT_KV_FAILURE = 3
 
@@ -45,6 +47,7 @@ function normalizeState(state) {
     schema: 1,
     provider: state.provider ?? null,
     previous: state.previous ?? null,
+    lastPruneAt: state.lastPruneAt ?? null,
     gate: { ...base.gate, ...(typeof state.gate === 'object' && state.gate !== null ? state.gate : {}) },
     lastRun: {
       status: state.lastRun?.status ?? null,
@@ -60,7 +63,7 @@ function normalizeState(state) {
  */
 export async function runOnce(ports, options = {}) {
   const dryRun = options.dryRun === true
-  const collectorVersion = options.collectorVersion ?? '0.3.0'
+  const collectorVersion = options.collectorVersion ?? USAGE_COLLECTOR_VERSION
   const provider = options.provider ?? 'claude'
   const nowMs = ports.clock.now()
   const state = normalizeState(await ports.state.read())
@@ -86,7 +89,8 @@ export async function runOnce(ports, options = {}) {
 
   if (gateDecision.allowed === false) {
     // 게이트로 건너뛴 실행: 하트비트 봉투만 쓴다(D2).
-    status = state.previous?.status ?? 'no_credentials'
+    // previous is the last committed envelope; lastRun also tracks failures whose store write failed.
+    status = /** @type {UsageStatus} */ (state.lastRun?.status ?? state.previous?.status ?? 'no_credentials')
     retryAtMs = gateRetryAt(gate)
   } else if (chosen === null) {
     status = 'no_credentials'
@@ -150,7 +154,7 @@ export async function runOnce(ports, options = {}) {
     previous: state.previous,
     intervalSec: options.intervalSec ?? USAGE_INTERVAL_SEC,
     collectorVersion,
-    provider: /** @type {'claude'|'codex'} */ (provider),
+    provider: /** @type {'claude'|'codex'|'antigravity'} */ (provider),
     rawRedacted: /** @type {string[]|undefined} */ (rawRedactedPaths ?? undefined),
     kvTokenExpiresAtMs: null,
   })
@@ -178,10 +182,26 @@ export async function runOnce(ports, options = {}) {
     }
   }
 
+  let kvResult
+  try {
+    kvResult = await ports.store.write(JSON.stringify(envelope), {
+      provider, status: envelope.status, runAt: envelope.runAt, fetchedAt: envelope.fetchedAt,
+      rawSha256: envelope.rawText === null ? null : sha256Hex(envelope.rawText),
+      collectorVersion: envelope.collectorVersion,
+      changed: snapshotChanged(state.previous === null ? null : {
+        status: state.previous.status, rawSha256: state.previous.rawText === null ? null : sha256Hex(state.previous.rawText),
+      }, {status:envelope.status,rawSha256:envelope.rawText === null ? null : sha256Hex(envelope.rawText)}),
+    })
+  } catch (error) {
+    kvResult = { ok: false, httpStatus: null, message: 'StoreWriteError' }
+  }
+
+  // Advance the history baseline only after all configured stores acknowledge the write.
   await ports.state.write({
     schema: 1,
     provider,
-    previous: envelope,
+    previous: kvResult.ok ? envelope : state.previous,
+    lastPruneAt: state.lastPruneAt ?? null,
     gate: {
       nextAllowedAt: gate.nextAllowedAt ?? null,
       failReason: gate.failReason ?? null,
@@ -191,13 +211,6 @@ export async function runOnce(ports, options = {}) {
     },
     lastRun: { status, tokenExpiresAt: chosen?.expiresAt ?? null },
   })
-
-  let kvResult
-  try {
-    kvResult = await ports.kv.write(JSON.stringify(envelope))
-  } catch (error) {
-    kvResult = { ok: false, httpStatus: null, message: `갑작스러운 오류: ${String(error)}` }
-  }
 
   const prevStatus = state.lastRun?.status ?? null
   const prevTokenExpiresAt = state.lastRun?.tokenExpiresAt ?? null

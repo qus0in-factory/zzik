@@ -40,7 +40,7 @@ function isoOrNull(ms) {
  *   previous: UsageEnvelope|null,
  *   intervalSec: number,
  *   collectorVersion: string,
- *   provider?: 'claude'|'codex'|'antigravity',
+ *   provider?: 'claude'|'codex'|'antigravity'|'opencode'|'grok'|'ollama',
  *   rawRedacted?: string[],
  *   kvTokenExpiresAtMs?: number|null,
  * }} input

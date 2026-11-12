@@ -9,11 +9,11 @@
  */
 
 export const USAGE_SNAPSHOT_SCHEMA = 1
-export const USAGE_INTERVAL_SEC = 300
-export const USAGE_COLLECTOR_VERSION = '0.4.0'
+export const USAGE_INTERVAL_SEC = 900
+export const USAGE_COLLECTOR_VERSION = '0.6.0'
 
 /** 수집 대상 제공자(ADR 0.3 D3). 제공자 목록은 정적이다. */
-export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity'] as const
+export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'] as const
 export type UsageProvider = (typeof USAGE_PROVIDERS)[number]
 
 /** 제공자별 KV 키(ADR 0.3 D5). 문자열로 키를 조립하지 않는다. */
@@ -21,6 +21,9 @@ export const USAGE_KV_KEYS: Record<UsageProvider, string> = {
   claude: 'usage:claude',
   codex: 'usage:codex',
   antigravity: 'usage:antigravity',
+  opencode: 'usage:opencode',
+  grok: 'usage:grok',
+  ollama: 'usage:ollama',
 }
 
 /** 수집기가 본 상태. Worker·저장소 문제는 봉투에 들어가지 않는다. */

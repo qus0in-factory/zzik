@@ -4,10 +4,10 @@ describe('Given the Antigravity summary client', () => {
   it.each(['cloudcode-pa.googleapis.com', 'daily-cloudcode-pa.googleapis.com'])('When host is %s Then sends a fixed POST with only required headers', async host => {
     let seen: RequestInit | undefined
     let url = ''
-    const client = createAntigravityUsageClient({ host, project: 'fake-project', fetchImpl: async (input, init) => { url = String(input); seen = init; return new Response('{"groups":[]}') } })
+    const client = createAntigravityUsageClient({ host, fetchImpl: async (input, init) => { url = String(input); seen = init; return new Response('{"groups":[]}') } })
     expect(await client.fetchUsage('fake-token')).toMatchObject({ ok: true, bodyText: '{"groups":[]}' })
     expect(url).toBe('https://' + host + '/v1internal:retrieveUserQuotaSummary')
-    expect(seen).toMatchObject({ method: 'POST', redirect: 'manual', body: '{"project":"fake-project"}', headers: { Authorization: 'Bearer fake-token', Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'Antigravity/1.0' } })
+    expect(seen).toMatchObject({ method: 'POST', redirect: 'manual', body: '{}', headers: { Authorization: 'Bearer fake-token', Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'antigravity/hub/2.9.1' } })
     expect(Object.keys(seen?.headers ?? {})).toHaveLength(4)
     expect(seen?.signal).toBeInstanceOf(AbortSignal)
   })
@@ -31,5 +31,31 @@ describe('Given the Antigravity summary client', () => {
   it.each(['TimeoutError','AbortError','Error'])('When fetch throws %s Then uses the shared failure categories', async name => {
     const client = createAntigravityUsageClient({ fetchImpl: async () => { const error = new Error('secret'); error.name = name; throw error } })
     expect(await client.fetchUsage('fake')).toMatchObject({ ok: false, kind: name === 'Error' ? 'network_error' : 'upstream_error' })
+  })
+})
+
+describe('Given Argon synthesis from the agy CLI', () => {
+  const api = '{"groups":[{"displayName":"Gemini Models","buckets":[]}]}'
+  const cli = 'Gemini 4 Argon\tGemini 4 Argon Weekly Limit\t0%\t2026-11-14T06:07:10Z\n'
+  const make = (quotaCli?: () => Promise<string | null>) => createAntigravityUsageClient({ fetchImpl: async () => new Response(api), quotaCli })
+  it('When the CLI returns an Argon row Then the body gains an Argon group', async () => {
+    const result = await make(async () => cli).fetchUsage('t')
+    expect(result.ok && JSON.parse(result.bodyText).groups.map((g: { displayName: string }) => g.displayName)).toEqual(['Gemini Models', 'Gemini 4 Argon'])
+  })
+  it.each([
+    ['null output', async () => null],
+    ['garbage output', async () => 'oops'],
+    ['a throwing CLI', async () => { throw new Error('boom') }],
+  ])('When the CLI gives %s Then the API body is returned untouched and ok', async (_name, quotaCli) => {
+    expect(await make(quotaCli).fetchUsage('t')).toEqual({ ok: true, bodyText: api, httpStatus: 200, retryAfterSec: null })
+  })
+  it('When no CLI is configured Then the CLI is not needed', async () => {
+    expect(await make().fetchUsage('t')).toMatchObject({ ok: true, bodyText: api })
+  })
+  it('When the API call fails Then the CLI is never run', async () => {
+    let ran = 0
+    const client = createAntigravityUsageClient({ fetchImpl: async () => new Response('{}', { status: 500 }), quotaCli: async () => { ran += 1; return cli } })
+    expect(await client.fetchUsage('t')).toMatchObject({ ok: false })
+    expect(ran).toBe(0)
   })
 })
