@@ -21,7 +21,7 @@ describe('Given a known usage key', () => {
 
 describe('Given an unknown usage key', () => {
   it('When the key follows the seven_day pattern then the label is derived from the slug', () => {
-    expect(usageLabelFor('seven_day_haiku')).toEqual({ label: '주간 · Haiku', unknown: true })
+    expect(usageLabelFor('seven_day_new_model')).toEqual({ label: '주간 · New Model', unknown: true })
     expect(usageLabelFor('seven_day_haiku')).toEqual({ label: '주간 · Haiku', unknown: true })
   })
 
