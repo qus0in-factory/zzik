@@ -34,10 +34,11 @@ export function createFakeCollectorPorts(initialState?: unknown): {
     fetchUsage(token: string, options?: { accountId?: string | null }): Promise<FakeUsageResult>
     queueUsage(result: FakeUsageResult): void
   }
-  kv: {
+  store: {
     calls: number
     writes: string[]
-    write(value: string): Promise<FakeKvResult>
+    metas: unknown[]
+    write(value: string, meta?: unknown): Promise<FakeKvResult>
     queueResult(result: FakeKvResult): void
   }
   state: {
@@ -88,12 +89,14 @@ export function createFakeCollectorPorts(initialState?: unknown): {
         usageQueue.push(result)
       },
     },
-    kv: {
+    store: {
       calls: 0,
       writes: [] as string[],
-      async write(value: string): Promise<FakeKvResult> {
-        ports.kv.calls += 1
-        ports.kv.writes.push(value)
+      metas: [] as unknown[],
+      async write(value: string, meta?: unknown): Promise<FakeKvResult> {
+        ports.store.calls += 1
+        ports.store.writes.push(value)
+        ports.store.metas.push(meta)
         return kvQueue.shift() ?? { ok: true }
       },
       queueResult(result: FakeKvResult): void {

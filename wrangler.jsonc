@@ -1,5 +1,6 @@
 {
   "name": "zzik",
+  "compatibility_flags": ["nodejs_compat"],
   "compatibility_date": "2026-11-11",
   "assets": {
     "directory": "./dist",

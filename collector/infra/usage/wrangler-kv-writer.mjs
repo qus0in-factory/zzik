@@ -1,3 +1,4 @@
+import { safeStoreError } from './store-error.mjs'
 /**
  * KV 쓰기 어댑터(운영 제약 개정: Cloudflare REST API 토큰 대신 레포의 wrangler를 실행한다).
  *
@@ -14,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
-/** @typedef {import('../../domain/usage/ports.mjs').KvWriteResult} KvWriteResult */
+/** @typedef {import('../../domain/usage/ports.mjs').StoreWriteResult} StoreWriteResult */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const DEFAULT_WRANGLER_BIN = join(REPO_ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
@@ -42,14 +43,6 @@ const defaultExecFile = (file, args, options) =>
     })
   })
 
-/** @param {string} text @returns {string} */
-function shortTail(text) {
-  const trimmed = String(text ?? '').trim()
-  if (trimmed === '') return ''
-  const last = trimmed.split('\n').slice(-2).join(' ').trim()
-  return last.length > 300 ? `${last.slice(0, 300)}…` : last
-}
-
 /**
  * @param {{
  *   namespaceId: string,
@@ -60,7 +53,7 @@ function shortTail(text) {
  *   cwd?: string,
  *   timeoutMs?: number,
  * }} deps
- * @returns {{ write(value: string): Promise<KvWriteResult> }}
+ * @returns {{ write(value: string): Promise<StoreWriteResult> }}
  */
 export function createWranglerKvWriter({
   namespaceId,
@@ -89,12 +82,11 @@ export function createWranglerKvWriter({
           namespaceId,
           '--remote',
         ]
-        const { code, stdout, stderr } = await execFileImpl(nodeBin, args, { timeout: timeoutMs, cwd })
+        const { code } = await execFileImpl(nodeBin, args, { timeout: timeoutMs, cwd })
         if (code === 0) return { ok: true }
-        const detail = shortTail(stderr) || shortTail(stdout) || `exit ${code}`
-        return { ok: false, httpStatus: null, message: `wrangler exit ${code}: ${detail}` }
+        return { ok: false, httpStatus: null, message: Number.isInteger(code) ? 'WranglerExit' + code : 'WranglerExitError' }
       } catch (error) {
-        return { ok: false, httpStatus: null, message: `갑작스러운 오류: ${String(error)}` }
+        return { ok: false, httpStatus: null, message: safeStoreError(error) }
       } finally {
         rmSync(tempDir, { recursive: true, force: true })
       }

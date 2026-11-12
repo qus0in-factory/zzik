@@ -30,10 +30,10 @@ describe('Given the provider run cycle (ADR 0.3 D3)', () => {
     const codex = makeProviderPorts('codex')
     const { results, exitCode } = await runCycle({ runOnce }, [claude, codex] as never)
     expect(results.map((r) => r.id)).toEqual(['claude', 'codex'])
-    expect(claude.ports.kv.calls).toBe(1)
-    expect(codex.ports.kv.calls).toBe(1)
-    expect(JSON.parse(claude.ports.kv.writes[0] as string).provider).toBe('claude')
-    expect(JSON.parse(codex.ports.kv.writes[0] as string).provider).toBe('codex')
+    expect(claude.ports.store.calls).toBe(1)
+    expect(codex.ports.store.calls).toBe(1)
+    expect(JSON.parse(claude.ports.store.writes[0] as string).provider).toBe('claude')
+    expect(JSON.parse(codex.ports.store.writes[0] as string).provider).toBe('codex')
     expect(exitCode).toBe(0)
   })
 
@@ -48,7 +48,7 @@ describe('Given the provider run cycle (ADR 0.3 D3)', () => {
     }
     const { results, exitCode } = await runCycle({ runOnce: deps.runOnce as never }, [claude, codex] as never)
     expect(results[0]).toMatchObject({ id: 'claude', exitCode: 4 })
-    expect(codex.ports.kv.calls).toBe(1)
+    expect(codex.ports.store.calls).toBe(1)
     expect(exitCode).toBe(4)
     // 예외 격리 로그가 상태 유지에 방해되지 않는다 — 로거에 기록만 남는다.
     expect(claude.ports.logger.entries[0]).toMatchObject({ provider: 'claude', status: 'cycle_error' })
@@ -73,7 +73,7 @@ describe('Given the provider run cycle (ADR 0.3 D3)', () => {
 
   it('When a provider KV write fails then the exit code is the max of the per-provider results', async () => {
     const claude = makeProviderPorts('claude', (ports) => {
-      ports.kv.queueResult({ ok: false, httpStatus: 403, message: 'forbidden' })
+      ports.store.queueResult({ ok: false, httpStatus: 403, message: 'forbidden' })
     })
     const codex = makeProviderPorts('codex')
     const { results, exitCode } = await runCycle({ runOnce }, [claude, codex] as never)
@@ -95,7 +95,7 @@ describe('Given the cycle budget (v2: 주기 예산 240초)', () => {
     const { results, exitCode } = await runCycle({ runOnce: slowRun as never, clock }, [claude, codex] as never, { cycleBudgetMs: 240_000 })
     expect(claude.ports.usage.calls).toBe(1)
     expect(codex.ports.usage.calls).toBe(0) // 예산 초과로 건너뜀
-    expect(codex.ports.kv.calls).toBe(0)
+    expect(codex.ports.store.calls).toBe(0)
     expect(codex.ports.logger.entries[0]).toMatchObject({ provider: 'codex', status: 'skipped_budget' })
     expect(results[1]).toMatchObject({ id: 'codex', exitCode: 0, skippedBudget: true })
     expect(exitCode).toBe(0)
@@ -115,8 +115,8 @@ describe('Given a three-provider cycle', () => {
     const {results}=await runCycle({},providers)
     expect(results.map(result=>result.id)).toEqual(['claude','codex','antigravity'])
     for(const provider of providers) {
-      expect(provider.ports.kv.calls).toBe(1)
-      expect(JSON.parse(provider.ports.kv.writes[0]).provider).toBe(provider.id)
+      expect(provider.ports.store.calls).toBe(1)
+      expect(JSON.parse(provider.ports.store.writes[0]).provider).toBe(provider.id)
     }
   })
   it('When two providers exhaust the budget Then skips the third without API or KV calls', async () => {
@@ -125,6 +125,28 @@ describe('Given a three-provider cycle', () => {
     const {results}=await runCycle({clock:{now:()=>now},runOnce:async(ports,options)=>{now+=121_000;return runOnce(ports,options)}},providers,{cycleBudgetMs:240_000})
     expect(results[2]).toMatchObject({id:'antigravity',skippedBudget:true})
     expect(providers[2].ports.usage.calls).toBe(0)
-    expect(providers[2].ports.kv.calls).toBe(0)
+    expect(providers[2].ports.store.calls).toBe(0)
+  })
+})
+
+describe('Given daily history maintenance', () => {
+  it('When a cycle finishes Then prunes once and persists the checkpoint, but dry-run never prunes', async () => {
+    const { createFakeCollectorPorts, COLLECTOR_NOW } = await import('../../../fakes/collector-ports')
+    const checkpoint=createFakeCollectorPorts()
+    let calls=0
+    const maintenance={state:checkpoint.state,logger:checkpoint.logger,store:{prune:async()=>{calls++;return {ok:true as const,deleted:2}}},retentionDays:30}
+    await runCycle({maintenance,clock:{now:()=>COLLECTOR_NOW}},[])
+    expect(calls).toBe(1)
+    expect(checkpoint.state.snapshot()).toMatchObject({lastPruneAt:new Date(COLLECTOR_NOW).toISOString()})
+    await runCycle({maintenance,clock:{now:()=>COLLECTOR_NOW+1000}},[])
+    expect(calls).toBe(1)
+    await runCycle({maintenance,clock:{now:()=>COLLECTOR_NOW+86400000}},[],{dryRun:true})
+    expect(calls).toBe(1)
+  })
+  it('When pruning fails Then leaves the checkpoint intact and cycle exit successful', async () => {
+    const checkpoint=createFakeCollectorPorts()
+    const result=await runCycle({maintenance:{state:checkpoint.state,logger:checkpoint.logger,store:{prune:async()=>({ok:false as const,message:'Error'})}}},[])
+    expect(result.exitCode).toBe(0)
+    expect(checkpoint.state.writeCount()).toBe(0)
   })
 })

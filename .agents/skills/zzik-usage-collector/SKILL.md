@@ -1,48 +1,58 @@
 ---
 name: zzik-usage-collector
-description: zzik 사용량 수집기를 설치·재시작하거나 상태 확인·장애 대응할 때 사용. PM2 등록·재시작·로그 확인, dry-run, token_expired·rate_limited·no_credentials·KV 쓰기 실패·수집 중단 대응 문구에서 트리거.
+description: zzik 수집기 PM2 설치·재시작·장애 대응 시 사용. ADR 0.5 Postgres/KV 이중 쓰기, 900초 주기, DB_URL·보존 정리·저장 실패·토큰 만료 게이트·dry-run 안전 절차.
 ---
 
 # zzik usage collector 운영
 
-기준: `docs/adr/0.2-claude-usage.md` D2(실행 순서·로컬 파일)·D3(토큰)·D5(백오프·게이트).
+ADR 0.2/0.3/0.4와 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P2/P3 게이트·배포·롤백은 zzik-deploy 스킬 참조.
 
-## 전제 (SSH 전용 무인 운영)
-- 이 Mac은 원격 SSH 전용이라 GUI 승인(Keychain '항상 허용', launchd 백그라운드 항목)이 불가능하다. Keychain을 쓰지 않는다.
-- Claude 자격 증명: `~/.claude/.credentials.json` 파일만 읽는다(Claude Code가 갱신한다. 수집기는 절대 refresh token을 읽지 않는다).
-- KV 쓰기: 이 Mac에 로그인된 wrangler를 수집기가 실행한다(토큰 파일 없음). namespace id는 `collector/ecosystem.config.cjs`의 env에 있다.
-- 데몬: PM2 상주 프로세스가 300초마다 실행한다(실행이 밀리면 그 주기는 스킵).
+## 전제
 
-## 설치·재시작
-- `pnpm install && pm2 start collector/ecosystem.config.cjs && pm2 save` (리포 루트에서. wrangler 어댑터가 repo node_modules를 쓴다).
-- 재시작 `pm2 restart zzik-usage-collector`, 중지 `pm2 stop zzik-usage-collector`, 제거 `pm2 delete zzik-usage-collector && pm2 save`.
-- 게이트·봉투는 상태 파일에 남으므로 재시작해도 카운터가 초기화되지 않는다(정상).
+- SSH 무인 운영. Keychain/GUI 승인 없음. 자격 증명은 제공자별 파일을 읽기만 하며 수집기는 refresh token을 사용하거나 토큰을 갱신하지 않는다.
+- 운영 인스턴스는 .worktree/release의 PM2 zzik-usage-collector 하나다. 개발 워크트리의 실제 --once/상주 실행 금지.
+- P1/P2: ZZIK_STORE=both(기본)로 Postgres+KV 이중 쓰기. kv 모드는 롤백/진단, postgres 단독은 KV 동시 유지가 불필요한 별도 승인 뒤에만 사용한다.
+- DB_URL은 해당 체크아웃의 gitignore .env에서 Node --env-file로 주입한다. ecosystem node_args를 사용하며 PM2 env에 연결 문자열을 복제해 기록하지 않는다. DB_URL/호스트·비밀번호가 포함될 수 있는 오류 원문을 출력하지 않는다.
+- DB max:1, idle_timeout:5, connect_timeout:10, prepare:false. 900초 주기. Free 예산을 위해 300초로 되돌리지 않는다.
+- 이력은 상태/본문 hash 변경 때만 저장하고 30일 이전 이력을 하루 1회 정리한다. 별도 cron·keep-alive 없음.
 
-## 상태 확인
-- 로그(실행당 한 줄): `~/Library/Logs/zzik/usage-collector.log` — 시각, status, called, httpStatus, tokenExpiresAt, kv 결과, status 전이, token_refreshed. `pm2 logs zzik-usage-collector --lines 20 --nostream`도 같은 내용.
-- 상태 파일: `~/Library/Application Support/zzik/usage-state.json` — 마지막 봉투(previous)와 게이트(nextAllowedAt·failCount).
-- KV 실측: `pnpm exec wrangler kv key get usage:claude --namespace-id <id> --remote`
-- status 의미: ok(정상) / rate_limited(429) / token_expired / auth_required(401·403) / no_credentials / upstream_error(5xx·timeout) / network_error.
+## 승인 후 설치·재시작
 
-## dry-run (쓰기 없음 — 상태·KV·로그 미변경)
-- 안전 케이스(네트워크 호출 없음): `node collector/main.mjs --dry-run --credentials-file tests/fixtures/credentials.expired.json` → `status=token_expired`.
-- `node collector/main.mjs --dry-run --credentials-file /nonexistent` → `status=no_credentials`, 종료 코드 0.
-- 인자 없는 dry-run은 실제 자격 증명으로 upstream을 호출한다(아래 금지 참조). `--credentials-file`은 `--dry-run`과만 함께 쓸 수 있다(위반 시 종료 코드 64).
+- release에서 pnpm install --frozen-lockfile. 로컬 .env가 있고 DB_URL이 있는지는 값 없이 boolean으로 확인한다. .env 내용이나 키 목록 전체를 cat하지 않는다.
+- 새 등록: pm2 start collector/ecosystem.config.cjs, pm2 save.
+- 환경 변경 반영: pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --update-env 후 pm2 save. 또는 기존 인스턴스의 명시적 환경 override와 --update-env를 사용하되 ecosystem 추적값과 일치하는지 확인한다.
+- DB_URL 변경은 기존 프로세스 재시작이 필요하다. Node --env-file을 다시 읽도록 한다.
+- 재시작해도 게이트/카운터는 유지된다. 상태를 지워 게이트를 우회하지 않는다.
 
-## 증상별 대응
-| 증상(로그 status) | 대응 |
+## 상태·저장 확인
+
+- 로그: ~/Library/Logs/zzik/usage-collector.log. pm2 logs zzik-usage-collector --lines 20 --nostream.
+- 제공자별 상태: ~/Library/Application Support/zzik/usage-state.provider.json. 이전 봉투/게이트 유지. 하루 1회 정리의 lastPruneAt은 정리 상태에 남는다.
+- DB 상태는 provider/status/run_at/fetched_at 정도만 제한 조회한다. envelope 전문·DB_URL·자격 증명을 출력하지 않는다.
+- scripts/usage-live-shape.sh provider로 DB 형상 확인. 이 스크립트가 내부적으로 사용하는 fetch 출력은 원문이므로 따로 실행해 터미널/파일에 저장하지 않는다.
+- P1의 KV는 롤백 경로다. KV 조회 때도 원문을 저장하지 않고 안전한 상태/형상만 출력한다.
+- kvOk/kvReason는 호환 로그 이름으로, both이면 양쪽 모두 성공해야 kvOk=true다. Postgres 오류는 안전한 code/name만 기록한다.
+- prune 실패는 주기 종료 코드를 실패시키지 않지만 반복되면 DB 연결·보존 용량을 확인한다.
+
+## dry-run
+
+- 개발 체크아웃에서는 --dry-run + 합성 파일/없는 경로만 사용한다. --credentials-file은 --provider 및 --dry-run과 함께 사용.
+- 실제 자격 증명 dry-run은 명시적 승인/실측 지시가 있을 때만 1회. 반복 요청으로 인증/429 게이트를 우회하지 않는다.
+- dry-run은 DB/KV/상태/로그 쓰기를 하지 않으며 DB_URL 없이도 합성 재현이 가능하다.
+
+## 증상 대응
+
+| 상태 | 대응 |
 |---|---|
-| token_expired | 이 Mac에서 Claude Code를 한 번 실행하면 토큰이 갱신되고 다음 주기에 자동 해제. 수집기 조치 없음 |
-| rate_limited | 아무것도 하지 말고 대기. Retry-After와 지수 백오프가 자동으로 게이트를 걸며 재시도해도 실패만 더한다 |
-| no_credentials | `~/.claude/.credentials.json`이 있는지 확인. 없으면 Claude Code 실행 후 다음 주기 |
-| upstream_error(network_error) | 일시적 가능성이 크다. 반복되면 네트워크 상태 확인, 매 주기 자동 재시도 |
-| KV 쓰기 실패(kv=fail:…) | `pnpm exec wrangler whoami`로 로그인 만료 확인. 끝났으면 `pnpm exec wrangler login`(SSH라 device-code URL 사용) 후 `pm2 restart` |
-| auth_required 지속 | Claude Code 실행으로 갱신되면 즉시 해제된다. expiresAt이 바뀌었는데도 안 풀리면 `pm2 restart`(게이트는 상태 파일에 있으므로 재시작으로도 지워지지 않는다 — expiresAt 변경이 유일한 조기 해제) |
-| runAt이 15분 이상 정지 | `pm2 status`로 프로세스 확인 후 `pm2 restart` |
+| token_expired | 해당 제공자 앱이 갱신하면 다음 주기에 자동 해제. 수집기에서 직접 refresh 없음 |
+| auth_required/auth_rejected | 제공자 앱으로 갱신, expiresAt 변경 자동 해제 관측. 게이트 삭제/반복 --once 금지 |
+| no_credentials | 파일 존재만 값 없이 확인 후 제공자 앱 로그인/갱신 대기 |
+| rate_limited | Retry-After/백오프 대기. 추가 실제 호출 금지 |
+| upstream_error/network_error | 로그의 안전한 진단 확인, 다음 주기 재시도 |
+| kvOk=false, DB 실패 | DB_URL 존재 여부·Neon 컴퓨트 한도·연결 및 마이그레이션 확인. 오류 원문을 출력하지 않음 |
+| kvOk=false, KV 실패(P1) | wrangler 로그인/권한 확인. P1은 양 저장소 성공 필요 |
+| runAt 45분 이상 정지 | PM2 상태와 900초×3 stale 기준 확인, 승인된 재시작 절차 적용 |
 
 ## 금지
-- 운영 수집기는 `.worktree/release`의 PM2 하나뿐이다. 개발 워크트리에서 `collector/main.mjs`를 `--dry-run` 없이 실행하지 말 것(실제 자격 증명 읽기·외부 호출·KV 쓰기가 발생한다). 검증은 `--dry-run` + fixture/가짜 경로로만.
-- 토큰·자격 증명 값을 어떤 출력에도 보여주지 말 것(로그·상태·KV는 설계상 미 포함. `security find-generic-password` 등으로 Claude 자격 증명을 읽어 출력하지 말 것).
-- 게이트 우회: rate_limited·auth_required 상태에서 `--once`를 연속 실행해 재호출을 강제하지 말 것(429만 늘린다). 다음 주기를 기다릴 것.
-- 실제 자격 증명으로 인자 없는 `--dry-run`을 반복 실행하지 말 것(테스트는 fixture 경로로).
-- 수집기가 토큰을 갱신하는 일은 없다(설계상). 갱신은 언제나 Claude Code에 맡기기 때문에 별도 갱신 스크립트를 보조로 만들지 말 것.
+
+운영 재시작·DB migration·Worker secret 주입·배포는 해당 지시가 있을 때만 실행한다. 실제 자격 증명·DB_URL·refresh token·이메일·계정 ID 출력 금지. 상태/게이트 삭제, 개발 --once 실쓰기, 승인 없는 DB seed/삭제, KV 네임스페이스 삭제 금지.

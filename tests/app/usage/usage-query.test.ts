@@ -153,3 +153,9 @@ describe('Given gateway failure texts (이슈 #17: 원시 코드 노출 금지)'
     expect(new UsageLoadError('api_error', 'invalid_response').message).toContain('응답 형식')
   })
 })
+
+describe('Given Neon Free scale-to-zero budgeting', () => {
+  it('When polling usage Then waits fifteen minutes rather than waking the database every minute', () => {
+    expect(USAGE_POLL_INTERVAL_MS).toBe(900_000)
+  })
+})

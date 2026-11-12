@@ -20,18 +20,19 @@
  * retryAfterSec는 초 단위(D5).
  */
 
-/** @typedef {{ ok: true } | { ok: false, httpStatus: number|null, message: string }} KvWriteResult */
+/** @typedef {{ ok: true } | { ok: false, httpStatus: number|null, message: string }} StoreWriteResult */
 
 /**
  * @typedef {{ nextAllowedAt: number|null, failReason: string|null, failCount: number, authFailCount: number, authDeniedExpiresAt: number|null }} GateState
- * @typedef {{ provider: string|null, schema: number, previous: UsageEnvelope|null, gate: GateState, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
+ * @typedef {{ provider: string|null, schema: number, previous: UsageEnvelope|null, gate: GateState, lastPruneAt?:string|null, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
  * @typedef {{ provider: string, runAt: string, status: string, called: boolean, httpStatus: number|null, tokenExpiresAt: string|null, kvOk: boolean, kvReason: string|null, transition: string|null, tokenRefreshed: boolean, diag?: string|null }} LogEntry
  */
 
 /** @typedef {{ now(): number }} ClockPort */
 /** @typedef {{ readAll(): Promise<Array<CredentialRead|null>>, warn?: (message: string) => void }} CredentialReaderPort */
 /** @typedef {{ fetchUsage(token: string, options?: { accountId?: string|null }): Promise<UsageCallResult> }} UsageClientPort */
-/** @typedef {{ write(value: string): Promise<KvWriteResult> }} KvWriterPort */
+/** @typedef {{ provider:string, status:string, runAt:string, fetchedAt:string|null, rawSha256:string|null, collectorVersion:string, changed:boolean }} StoreMeta
+ * @typedef {{ write(value: string, meta: StoreMeta): Promise<StoreWriteResult> }} StoreWriterPort */
 /** @typedef {{ read(): Promise<unknown>, write(state: unknown): Promise<void> }} StateStorePort */
 /** @typedef {{ write(entry: LogEntry): Promise<void> }} LoggerPort */
 
@@ -40,7 +41,7 @@
  *   clock: ClockPort,
  *   credentials: CredentialReaderPort,
  *   usage: UsageClientPort,
- *   kv: KvWriterPort,
+ *   store: StoreWriterPort,
  *   state: StateStorePort,
  *   logger: LoggerPort,
  * }} CollectorPorts
