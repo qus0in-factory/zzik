@@ -19,13 +19,13 @@ describe('Given a mounted usage card', () => {
     now = new Date(Date.parse(now) + 60_000).toISOString()
     mounted.rerender(view(12))
     const catRunner = screen.getByTestId('activity-cat')
-    expect(catRunner.style.animationDuration).toBe('0.6s')
+    expect(catRunner.style.getPropertyValue('--cat-lap')).toBe('0.6s')
     expect(catRunner.style.left).toBe('12%')
     expect(screen.queryByText('🐈')).toBeNull()
     expect(catRunner.querySelector('svg')).toBeTruthy()
 
     mounted.rerender(view(22))
-    expect(screen.getByTestId('activity-cat').style.animationDuration).toBe('0.25s')
+    expect(screen.getByTestId('activity-cat').style.getPropertyValue('--cat-lap')).toBe('0.25s')
     expect(screen.getByTestId('activity-cat').style.left).toBe('22%')
 
     act(() => scheduler.runScheduledAt(300_000))
@@ -89,6 +89,17 @@ describe('Given a mounted usage card', () => {
     // 고양이 트랙과 Progress는 동일한 relative 부모 컨테이너를 공유해야 함 (좌표계 일치)
     expect(track?.parentElement).toBe(progress.parentElement)
     expect(catRunner.style.left).toBe('37%')
+
+    // 증가(37% -> 80%) 및 감소(80% -> 20%) 양방향에서 좌표와 transition 스타일 일치 검증
+    mounted.rerender(view(80))
+    expect(catRunner.style.left).toBe('80%')
+
+    mounted.rerender(view(20))
+    expect(catRunner.style.left).toBe('20%')
+
+    // Progress 인디케이터 transition 클래스/속성 확인
+    const indicator = progress.querySelector('[data-slot="progress-indicator"]')
+    expect(indicator?.className).toContain('progress-indicator-transition')
   })
 
   it('When value exceeds 100 Then cat position is clamped to 100%', () => {
@@ -140,7 +151,7 @@ describe('Given a card that unmounts and mounts again (tab switch)', () => {
     advance(60_000)
     mounted.rerender(view(12))
 
-    expect(screen.getByTestId('activity-cat').style.animationDuration).toBe('0.6s')
+    expect(screen.getByTestId('activity-cat').style.getPropertyValue('--cat-lap')).toBe('0.6s')
   })
 
   it('When a running cat remounts before expiry Then it resumes and stops at the original expiry', () => {
@@ -148,12 +159,12 @@ describe('Given a card that unmounts and mounts again (tab switch)', () => {
     const mounted = render(view(10))
     advance(60_000)
     mounted.rerender(view(12))
-    expect(screen.getByTestId('activity-cat').style.animationDuration).toBe('0.6s')
+    expect(screen.getByTestId('activity-cat').style.getPropertyValue('--cat-lap')).toBe('0.6s')
 
     mounted.rerender(view(null))
     advance(120_000)
     mounted.rerender(view(12))
-    expect(screen.getByTestId('activity-cat').style.animationDuration).toBe('0.6s')
+    expect(screen.getByTestId('activity-cat').style.getPropertyValue('--cat-lap')).toBe('0.6s')
 
     act(() => scheduler.runScheduledAt(180_000))
     expect(screen.queryByTestId('activity-cat')).toBeNull()

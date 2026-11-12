@@ -56,7 +56,7 @@ export function LimitCard({ item, titleLevel = 3, lapSeconds = null }: { item: U
           {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
         </div>
         {usedPercent !== null && (
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 pt-5">
             {lapSeconds !== null && (
               <div aria-hidden="true" className="activity-cat-track">
                 <span
@@ -65,7 +65,6 @@ export function LimitCard({ item, titleLevel = 3, lapSeconds = null }: { item: U
                   style={
                     {
                       left: `${Math.max(0, Math.min(100, usedPercent))}%`,
-                      animationDuration: `${lapSeconds}s`,
                       '--cat-lap': `${lapSeconds}s`,
                     } as CSSProperties
                   }
@@ -74,7 +73,7 @@ export function LimitCard({ item, titleLevel = 3, lapSeconds = null }: { item: U
                 </span>
               </div>
             )}
-            {elapsedPercent != null && <span aria-hidden="true" className="absolute z-10 h-full border-l-2 border-foreground" style={{ left: `${elapsedPercent}%`, transform: 'translateX(-50%)' }} />}
+            {elapsedPercent != null && <span aria-hidden="true" className="absolute bottom-0 z-10 h-2 border-l-2 border-foreground" style={{ left: `${elapsedPercent}%`, transform: 'translateX(-50%)' }} />}
             <Progress value={Math.min(usedPercent, 100)} aria-label={`${label} 사용률`} />
           </div>
         )}
