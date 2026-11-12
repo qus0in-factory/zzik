@@ -26,7 +26,9 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(glm, ds, sol, fa
 
 ## 선제 안전장치
 - **(a) 실데이터 확인 및 픽스처 작성**: 표시·파싱 작업은 워커가 착수 전 `scripts/usage-live-shape.sh` 결과를 보고하고 그 실데이터로 픽스처·테스트를 만든다. opus의 가정을 지시에 그대로 옮기지 않는다.
-- **(b) 검수 관문 (실데이터 필수 대조)**: `work-reviewer`는 표시·파싱 기능이면 실데이터 대조 없이는 통과(`PASS`)를 줄 수 없다.
+- **(b) 검수 관문 (두 단계 필수 통과)**: 둘 다 통과해야만 병합 및 배포를 진행할 수 있다.
+  1. **교차 리뷰 (워커)**: 구현 모델과 다른 모델의 Herdr 워커가 독립 리뷰와 실데이터 대조를 수행한다 (예: sol 구현 → ds/gemini 리뷰, ds 구현 → sol/gemini 리뷰; effort medium, 없는 도구는 default).
+  2. **서브에이전트 리뷰 (`work-reviewer`)**: `work-reviewer`(effort high)가 테스트·빌드 실행, 요구사항 및 실데이터 형상 대조를 직접 수행하여 최종 판정(`PASS`/`FIX`)을 내린다. 표시·파싱 기능이면 실데이터 대조 없이는 통과를 줄 수 없다.
 - **(c) 배포 완료 알림 게이트**: 배포 후 워커의 기능 대조 보고(실데이터 vs 화면 기대치) 없이는 완료 알림(`discord-notify`)을 보내지 않는다.
 - **(d) opus 역할 제한 및 거버넌스**: opus는 코드·설계·스크립트 조사·편집·대기를 직접 하지 않고 워커 또는 `.claude/agents/` 전용 서브에이전트(`worker-watcher`, `work-reviewer`)에 맡기며 `general-purpose`를 쓰지 않는다. 도구 권한 거부(`blocked`) 시 설정을 스스로 고치지 말고 사용자에게 묻는다.
 
@@ -51,12 +53,12 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 |---|---|---|
 | opus | medium | 분해·판정 조율자. 운영값 medium 유지 |
 | fable | medium (없는 도구는 default) | 설계 전용. 운영값 medium (미지원 시 default) |
-| work-reviewer | medium | 검수 누락 방지 |
-| worker-watcher | medium | 운영값 medium (2026-11-12 사용자 결정) |
-| glm / ds / sol | medium (없는 도구는 default) | 작업 수행 워커 |
+| work-reviewer | high | 최종 검수 관문. 누락 방지 및 심층 검수 예외(사용자 결정) |
+| worker-watcher | medium | 대기·요약. 운영값 medium (2026-11-12 사용자 결정) |
+| glm / ds / sol | medium (없는 도구는 default) | 작업 수행 및 교차 리뷰 워커 |
 
-> 현재 운영값은 **'모두 medium, medium이 없는 도구는 default'**(사용자 결정, 2026-11-12).  
-> **원칙**: 품질 보증은 조율자가 아니라 리뷰어 effort와 검수 관문으로 확보한다. 조율자 effort를 올려 과잉 설계·지연을 만들지 않는다. 판단이 무거운 작업(구조 변경·장애 분석)만 해당 작업에 한해 올린다.
+> 현재 운영값은 **'work-reviewer=high 예외, 나머지는 모두 medium(medium이 없는 도구는 default)'**(사용자 결정, 2026-11-12).  
+> **원칙**: 품질 보증은 조율자가 아니라 교차 리뷰 및 서브에이전트 리뷰(work-reviewer)의 effort와 2단계 검수 관문으로 확보한다. 조율자 effort를 올려 과잉 설계·지연을 만들지 않는다. 판단이 무거운 작업(구조 변경·장애 분석)만 해당 작업에 한해 올린다.
 
 ## 워크트리 (병렬 트랙)
 - 같은 파일을 건드릴 수 있는 트랙이 동시에 돌면 레포 내부 `.worktree/`에 워크트리를 만든다(`.gitignore` 등록됨).
