@@ -14,6 +14,7 @@ detect() {
   local text="$1"
   # 모델명이 박힌 고유 문자열(상태줄·배너)을 먼저 본다. 대화 본문의 모델 이름 언급으로 오판하지 않게.
   case "$text" in
+    *Grok\ [0-9]*)          echo grok ;;
     *GPT-*-Sol*|*gpt-*-sol*) echo sol ;;
     *Gemini\ [0-9]*)          echo gemini ;;
     *GLM*|*glm*)            echo glm ;;
@@ -39,8 +40,28 @@ herdr pane list --workspace "$ws" \
         echo "$pane: 모델 감지 실패, 건너뜀"
         continue
       fi
-      herdr tab rename "$tab" "$name" >/dev/null
-      herdr pane rename "$pane" "$name" >/dev/null
-      herdr agent rename "$pane" "$name" >/dev/null || echo "$pane: 에이전트 이름 '$name' 지정 실패(중복?)"
-      echo "$pane ($tab) → $name"
+      target="$name"
+      suffix=2
+      while :; do
+        if err="$(herdr agent rename "$pane" "$target" 2>&1)"; then
+          break
+        fi
+        case "$err" in
+          *agent_name_taken*)
+            if [ "$suffix" -gt 20 ]; then
+              echo "$pane: 에이전트 이름 '$name' 재시도 한도 초과"
+              break
+            fi
+            target="${name}${suffix}"
+            suffix=$((suffix + 1))
+            ;;
+          *)
+            echo "$pane: 에이전트 이름 '$target' 지정 실패 ($err)"
+            break
+            ;;
+        esac
+      done
+      herdr tab rename "$tab" "$target" >/dev/null
+      herdr pane rename "$pane" "$target" >/dev/null
+      echo "$pane ($tab) → $target"
     done
