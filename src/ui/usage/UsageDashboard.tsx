@@ -1,3 +1,4 @@
+import { useCardActivity } from '@app/usage/useCardActivity'
 import type { ReactNode } from 'react'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/types'
@@ -128,7 +129,7 @@ export function UsageDashboard({
             <h3 className="mb-2 text-base font-semibold">사용 창</h3>
             <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {report.windows.map((item) => (
-                <LimitCard key={item.id} item={item} titleLevel={4} />
+                <ActiveLimitCard key={item.id} item={item} />
               ))}
             </div>
           </div>
@@ -137,7 +138,7 @@ export function UsageDashboard({
               <h3 className="mb-2 text-base font-semibold">{metricsTitle}</h3>
               <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {report.metrics.map((item) => (
-                  <LimitCard key={item.id} item={item} titleLevel={4} />
+                  <ActiveLimitCard key={item.id} item={item} />
                 ))}
               </div>
             </div>
@@ -149,4 +150,9 @@ export function UsageDashboard({
       {report !== null && <RawJson raw={report.raw} provider={provider} rawRedacted={rawRedacted} />}
     </section>
   )
+}
+
+function ActiveLimitCard({ item }: { item: UsageReport['windows'][number] }): ReactNode {
+  const lapSeconds = useCardActivity(item.id, item.usedPercent)
+  return <LimitCard item={item} titleLevel={4} lapSeconds={lapSeconds} />
 }
