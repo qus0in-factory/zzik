@@ -1,44 +1,46 @@
 ---
 name: zzik-usage-collector
-description: zzik 수집기 PM2 설치·재시작·장애 대응 시 사용. Neon Postgres 단독 저장소(P3 KV 제거 완료), 6개 제공자(claude/codex/antigravity/opencode/grok/ollama), 900초 주기, ZZIK_AGY_CLI_PATH, DB_URL·보존 정리·저장 실패·토큰 만료 게이트·dry-run 안전 절차.
+description: zzik 수집기 PM2 설치·재시작·장애 대응 시 사용. P3 Postgres 단독 저장소·ZZIK_STORE=postgres, 6개 제공자·900초 주기, DB_URL·보존 정리·저장 실패·토큰 만료 게이트·dry-run 안전 절차.
 ---
 
 # zzik usage collector 운영
 
-ADR 0.2/0.3/0.4/0.5/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. 배포·검증·게이트는 zzik-deploy 스킬 참조.
+ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P2/P3 게이트·배포·롤백은 zzik-deploy 스킬 참조.
 
 ## 전제
 
-- SSH 무인 운영. Keychain/GUI 승인 없음. 자격 증명은 제공자별 파일·설정을 읽기만 하며 수집기는 refresh token을 직접 사용하거나 토큰을 임의 갱신하지 않는다.
-- 운영 인스턴스는 `.worktree/release`의 PM2 `zzik-usage-collector` 하나다. 개발 워크트리의 실제 `--once`/상주 실행 금지.
-- 저장소: Postgres(Neon) 단독 저장소(`usage_snapshot`, `usage_event`). P3 완료로 기존 Cloudflare KV 이중 쓰기 및 KV 어댑터는 완전히 제거되었다.
-- 대상 제공자 (6개): `claude`, `codex`, `antigravity`, `opencode`, `grok`, `ollama`. 매 주기마다 `usage_snapshot`에 6개 행이 갱신된다.
-- Antigravity CLI: Antigravity의 Argon 주간 한도는 CLI 러너(`agy -p /quota`)로 수집한다. `ZZIK_AGY_CLI_PATH` 환경변수(기본값 `agy`)를 지정하거나 PM2 환경 PATH에 `agy`가 포함되어야 한다. `ZZIK_AGY_CLI_ENABLED=0`이면 CLI 호출을 건너뛰고 Argon 카드만 안전하게 생략된다.
-- DB_URL은 해당 체크아웃의 gitignore `.env`에서 Node `--env-file`로 주입한다. ecosystem `node_args`를 사용하며 PM2 env에 연결 문자열을 복제해 기록하지 않는다. DB_URL/호스트·비밀번호가 포함될 수 있는 오류 원문을 출력하지 않는다.
-- DB 설정: max:1, idle_timeout:5, connect_timeout:10, prepare:false. 900초 주기. Free 예산(100 CU-h/월)을 위해 300초로 되돌리지 않는다.
+- SSH 무인 운영. Keychain/GUI 승인 없음. 자격 증명은 제공자별 파일을 읽기만 하며 수집기는 refresh token을 사용하거나 토큰을 갱신하지 않는다.
+- 운영 인스턴스는 .worktree/release의 PM2 zzik-usage-collector 하나다. 개발 워크트리의 실제 --once/상주 실행 금지.
+- P3 구현 완료: Postgres 단독 저장소다. ecosystem은 ZZIK_STORE=postgres이며 미지정 시에도 postgres다. kv/both 등 다른 값은 종료 78로 거부한다. KV writer/fanout은 없다.
+- 제공자는 claude,codex,antigravity,opencode,grok,ollama 6개이며 ZZIK_AGY_CLI_PATH는 실행 가능한 agy 절대경로를 유지한다.
+- 운영 반영 전 release가 P2 코드이면 both가 남아 있을 수 있다. P3 반영 시 ecosystem 기반 --update-env·save로 postgres를 적용하고 runtime/saved 설정을 값 노출 없이 대조한다.
+- DB_URL은 해당 체크아웃의 gitignore .env에서 Node --env-file로 주입한다. ecosystem node_args를 사용하며 PM2 env에 연결 문자열을 복제해 기록하지 않는다. DB_URL/호스트·비밀번호가 포함될 수 있는 오류 원문을 출력하지 않는다.
+- DB max:1, idle_timeout:5, connect_timeout:10, prepare:false. 900초 주기. Free 예산을 위해 300초로 되돌리지 않는다.
 - 이력은 상태/본문 hash 변경 때만 저장하고 30일 이전 이력을 하루 1회 정리한다. 별도 cron·keep-alive 없음.
 
 ## 승인 후 설치·재시작
 
-- release에서 `pnpm install --frozen-lockfile`. 로컬 `.env`가 있고 DB_URL이 있는지는 값 없이 boolean으로 확인한다. `.env` 내용이나 키 목록 전체를 cat하지 않는다.
-- 새 등록: `pm2 start collector/ecosystem.config.cjs`, `pm2 save`.
-- 환경 변경 반영: `pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --update-env` 후 `pm2 save`.
-- DB_URL 및 `ZZIK_AGY_CLI_PATH` 변경은 기존 프로세스 재시작이 필요하다. Node `--env-file` 및 환경변수를 다시 읽도록 한다.
+- release에서 pnpm install --frozen-lockfile. 로컬 .env가 있고 DB_URL이 있는지는 값 없이 boolean으로 확인한다. .env 내용이나 키 목록 전체를 cat하지 않는다.
+- 새 등록: pm2 start collector/ecosystem.config.cjs, pm2 save.
+- 환경 변경 반영: pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --update-env 후 pm2 save. 또는 기존 인스턴스의 명시적 환경 override와 --update-env를 사용하되 ecosystem 추적값과 일치하는지 확인한다.
+- DB_URL·ZZIK_AGY_CLI_PATH 변경은 기존 프로세스 재시작이 필요하다. Node --env-file을 다시 읽도록 한다.
 - 재시작해도 게이트/카운터는 유지된다. 상태를 지워 게이트를 우회하지 않는다.
 
 ## 상태·저장 확인
 
-- 로그: `~/Library/Logs/zzik/usage-collector.log`. `pm2 logs zzik-usage-collector --lines 20 --nostream`.
-- 제공자별 상태: `~/Library/Application Support/zzik/usage-state.<provider>.json`. 이전 봉투/게이트 유지. 하루 1회 정리의 `lastPruneAt`은 정리 상태에 남는다.
-- DB 상태: `provider`, `status`, `run_at`, `fetched_at` 등 제한된 메타데이터만 조회. `usage_snapshot` 테이블 6행의 `run_at`이 900초(15분)마다 전진하는지 확인. envelope 전문·DB_URL·자격 증명을 출력하지 않는다.
-- 실데이터 형상 확인: `scripts/usage-live-shape.sh [claude|codex|antigravity|opencode|grok|ollama]`로 Postgres envelope 형상 확인. 이 스크립트가 내부적으로 사용하는 fetch 출력은 원문이므로 따로 실행해 터미널/파일에 저장하지 않는다.
+- 로그: ~/Library/Logs/zzik/usage-collector.log. pm2 logs zzik-usage-collector --lines 20 --nostream.
+- 제공자별 상태: ~/Library/Application Support/zzik/usage-state.provider.json. 이전 봉투/게이트 유지. 하루 1회 정리의 lastPruneAt은 정리 상태에 남는다.
+- DB 상태는 provider/status/run_at/fetched_at 정도만 제한 조회한다. envelope 전문·DB_URL·자격 증명을 출력하지 않는다.
+- scripts/usage-live-shape.sh provider로 DB 형상 확인. 이 스크립트가 내부적으로 사용하는 fetch 출력은 원문이므로 따로 실행해 터미널/파일에 저장하지 않는다.
+- kvOk/kvReason·kv= 표기는 기존 로그와의 호환 이름이며 Postgres 저장 결과만 뜻한다. kvOk=true는 Postgres 쓰기 성공이다. 실패하면 DB_URL 존재 여부·Neon 한도·연결·마이그레이션을 점검한다. 오류는 안전한 code/name만 기록한다.
+- usage_snapshot은 정확히 6행이고 각 envelope의 jsonb_typeof가 object인지 확인한다. provider/status/run_at 갱신과 정상 저장 로그를 대조한다.
 - prune 실패는 주기 종료 코드를 실패시키지 않지만 반복되면 DB 연결·보존 용량을 확인한다.
 
 ## dry-run
 
-- 개발 체크아웃에서는 `--dry-run` + 합성 파일/없는 경로만 사용한다. `--credentials-file`은 `--provider` 및 `--dry-run`과 함께 사용.
+- 개발 체크아웃에서는 --dry-run + 합성 파일/없는 경로만 사용한다. --credentials-file은 --provider 및 --dry-run과 함께 사용.
 - 실제 자격 증명 dry-run은 명시적 승인/실측 지시가 있을 때만 1회. 반복 요청으로 인증/429 게이트를 우회하지 않는다.
-- dry-run은 DB/상태/로그 쓰기를 하지 않으며 DB_URL 없이도 합성 재현이 가능하다.
+- dry-run은 DB 연결·DB/상태/로그 쓰기·보존 정리를 하지 않으며 DB_URL 없이도 합성 재현이 가능하다.
 
 ## 증상 대응
 
@@ -49,10 +51,9 @@ ADR 0.2/0.3/0.4/0.5/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. 배
 | no_credentials | 파일 존재만 값 없이 확인 후 제공자 앱 로그인/갱신 대기 |
 | rate_limited | Retry-After/백오프 대기. 추가 실제 호출 금지 |
 | upstream_error/network_error | 로그의 안전한 진단 확인, 다음 주기 재시도 |
-| DB 저장 실패 (dbOk=false) | DB_URL 존재 여부·Neon 컴퓨트 한도·네트워크 연결 및 마이그레이션 확인. 오류 원문을 출력하지 않음 |
-| Argon 쿼터 누락 | `ZZIK_AGY_CLI_PATH` 경로 및 실행 권한 확인. PM2 환경 PATH에 agy가 있는지 확인 |
+| kvOk=false, Postgres 저장 실패 | DB_URL 존재 여부·Neon 컴퓨트 한도·연결 및 마이그레이션 확인. 오류 원문을 출력하지 않음 |
 | runAt 45분 이상 정지 | PM2 상태와 900초×3 stale 기준 확인, 승인된 재시작 절차 적용 |
 
 ## 금지
 
-운영 재시작·DB migration·Worker secret 주입·배포는 해당 지시가 있을 때만 실행한다. 실제 자격 증명·DB_URL·refresh token·이메일·계정 ID 출력 금지. 상태/게이트 삭제, 개발 `--once` 실쓰기, 승인 없는 DB seed/삭제 금지.
+운영 재시작·DB migration·Worker secret 주입·배포는 해당 지시가 있을 때만 실행한다. 실제 자격 증명·DB_URL·refresh token·이메일·계정 ID 출력 금지. 상태/게이트 삭제, 개발 --once 실쓰기, 승인 없는 DB seed/삭제, KV 네임스페이스 삭제 금지.

@@ -38,8 +38,8 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(sol, fable, gemi
 ```bash
 herdr agent list                                          # 상태 확인 (idle/done이면 투입 가능)
 herdr agent prompt sol "<작업>" --wait --timeout 600000     # 전송 후 완료 대기
-herdr agent prompt glm "<작업>"                            # 병렬: --wait 없이 보내고
-herdr agent wait glm --timeout 600000                     #       나중에 대기
+herdr agent prompt sol2 "<작업>"                           # 병렬: --wait 없이 보내고
+herdr agent wait sol2 --timeout 600000                    #       나중에 대기
 herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 ```
 - 응답이 길면 "결과를 /tmp/<이름>.md에 쓰고 경로만 답하라"고 요청 후 파일을 읽는다.

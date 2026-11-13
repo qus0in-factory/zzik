@@ -35,3 +35,62 @@ describe('Given the herdr label detection', () => {
     expect(detect('claude', '')).toBe('')
   })
 })
+
+describe('Given the labeling run with a fake herdr', () => {
+  async function run(extraEnv: Record<string, string> = {}, args: string[] = []) {
+    const { mkdtempSync, writeFileSync, chmodSync, readFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'fake-herdr-'))
+    const log = join(dir, 'calls.log')
+    const agents = {
+      result: {
+        agents: [
+          { pane_id: 'w:p1', tab_id: 'w:t1', agent: 'codex', name: null, workspace_id: 'w' },
+          { pane_id: 'w:p2', tab_id: 'w:t2', agent: 'agy', name: null, workspace_id: 'w' },
+          { pane_id: 'w:p3', tab_id: 'w:t3', agent: 'codex', name: 'sol', workspace_id: 'w' },
+        ],
+      },
+    }
+    writeFileSync(join(dir, 'agents.json'), JSON.stringify(agents))
+    writeFileSync(
+      join(dir, 'herdr'),
+      `#!/usr/bin/env bash
+echo "$*" >> "${log}"
+case "$1 $2" in
+  "agent list") cat "${dir}/agents.json" ;;
+  "pane read") echo "" ;;
+  "agent rename") [ "$4" = "sol" ] && { echo "agent_name_taken" >&2; exit 1; }; exit 0 ;;
+  "tab rename") exit 1 ;;
+  "pane rename") exit 0 ;;
+esac
+`,
+    )
+    chmodSync(join(dir, 'herdr'), 0o755)
+    const result = spawnSync('bash', ['scripts/herdr-label-models.sh', ...args, 'w'], {
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, HERDR_ENV: '1', HERDR_WORKSPACE_ID: 'w', ...extraEnv },
+      encoding: 'utf8',
+    })
+    return { out: result.stdout, err: result.stderr, status: result.status, calls: readFileSync(log, 'utf8') }
+  }
+
+  it('When the name is taken and tab rename fails Then it retries with a suffix and still handles the next pane', async () => {
+    const { out, err, status, calls } = await run()
+    expect(status).toBe(0)
+    expect(calls).toContain('agent rename w:p1 sol')
+    expect(calls).toContain('agent rename w:p1 sol2')
+    expect(err).toContain('탭 라벨 지정 실패')
+    expect(out).toContain('w:p1 (w:t1) → sol2')
+    expect(out).toContain('w:p2 (w:t2) → gemini')
+  })
+  it('When a pane already has a name Then it is skipped without any rename call', async () => {
+    const { out, calls } = await run()
+    expect(out).toContain('w:p3: 이미 이름 있음(sol), 건너뜀')
+    expect(calls).not.toContain('rename w:p3')
+  })
+  it('When --dry-run Then nothing is renamed', async () => {
+    const { out, calls } = await run({}, ['--dry-run'])
+    expect(out).toContain('[dry-run] → sol')
+    expect(calls).not.toContain('rename')
+  })
+})

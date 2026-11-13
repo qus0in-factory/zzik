@@ -30,13 +30,13 @@ herdr agent list | grep -o '"name":"[^"]*"'
 ```
 
 ## 실패 처리
-- "모델 감지 실패, 건너뜀": 하단 상태줄에 버전 붙은 모델 표시가 없음. 해당 패널을 `herdr pane read <pane> --source recent-unwrapped --lines 200`으로 확인 후 `herdr agent rename`으로 수동 지정한다. 해당 패널을 `herdr pane read <pane> --source recent-unwrapped --lines 200`으로 직접 확인 후 수동으로 rename.
+- "모델 감지 실패, 건너뜀": 하단 상태줄에 버전 붙은 모델 표시가 없음. 해당 패널을 `herdr pane read <pane> --source recent-unwrapped --lines 200`으로 확인 후 `herdr agent rename`으로 수동 지정한다.
 - 에이전트 이름 지정 실패: `agent_name_taken` 에러 시 `gemini2`, `sonnet2`처럼 숫자를 자동으로 붙여 최대 20회까지 재시도한다. 그 외 에러는 tab/pane rename을 생략하고 건너뛴다.
 - 새 모델: 스크립트 `detect()`에 `agent` 종류별 분기 또는 하단 상태줄 패턴을 추가한다(소문자·버전 없는 단어 패턴 금지). 테스트: `tests/scripts/herdr-label-models.test.ts`.
 
 ## 운영 규칙
 - 탭·패널·에이전트 이름은 모델 약칭으로 통일한다: `opus`, `sol`, `fable`, `gemini`, `grok`, `sonnet`.
 - 수동 rename 대신 스크립트로 수행하고, `SELF_LABEL`을 반드시 지정한다.
-- 다른 에이전트에 작업을 보낼 때는 pane ID 대신 약칭을 쓴다: `herdr agent prompt glm "..." --wait`.
+- 다른 에이전트에 작업을 보낼 때는 pane ID 대신 약칭을 쓴다: `herdr agent prompt sol "..." --wait`.
 - `/model` 변경이나 에이전트 재시작 후에는 스크립트를 다시 실행한다.
-- 같은 모델이 둘 이상이면 `glm2`처럼 숫자를 붙인다.
+- 같은 모델이 둘 이상이면 `sol2`처럼 숫자를 붙인다.
