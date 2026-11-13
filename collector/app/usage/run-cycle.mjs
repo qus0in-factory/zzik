@@ -2,13 +2,13 @@ import { shouldPrune } from '../../domain/usage/prune-schedule.mjs'
 import { emptyCollectorState } from './run-once.mjs'
 import { runOnce } from './run-once.mjs'
 
-/** 실행 예외로 끝난 제공자의 종료 코드(4). KV 실패(3)보다 크고 정상(0)보다 크다. */
+/** 실행 예외로 끝난 제공자의 종료 코드(4). 저장소 실패(3)보다 크고 정상(0)보다 크다. */
 export const EXIT_RUN_FAILURE = 4
 
 /** 주기 예산(ADR 0.3 v2): 한 주기(제공자 전체)의 상한 240초. */
 export const CYCLE_BUDGET_MS = 240_000
 
-/** 로그 전용 상태: 예산 초과로 제공자를 건너뛸 때(봉투·KV 없음). */
+/** 로그 전용 상태: 예산 초과로 제공자를 건너뛸 때(봉투·저장 없음). */
 export const SKIPPED_BUDGET_STATUS = 'skipped_budget'
 
 /**

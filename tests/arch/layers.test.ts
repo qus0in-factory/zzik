@@ -420,8 +420,8 @@ describe('Given an injected layer violation', () => {
   })
 
   it('When collector/app imports collector/infra then detection fails the rule (mjs 포함)', () => {
-    expect(summarize(findViolations([probe('collector/app/probe.mjs', "import { write } from '../infra/usage/wrangler-kv-writer.mjs'\n")]))).toEqual([
-      ['forbidden-direction', '../infra/usage/wrangler-kv-writer.mjs'],
+    expect(summarize(findViolations([probe('collector/app/probe.mjs', "import { write } from '../infra/usage/postgres-envelope-writer.mjs'\n")]))).toEqual([
+      ['forbidden-direction', '../infra/usage/postgres-envelope-writer.mjs'],
     ])
   })
 

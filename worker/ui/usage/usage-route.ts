@@ -7,7 +7,7 @@ import { respond } from '../respond'
 /**
  * 제공자별 조회 경로(ADR 0.3 D7). 판정 순서는 설정 → 인증 → 경로(제공자 확인 포함) →
  * 메서드 → 저장소다. /api/usage는 claude의 별칭(0.3 동안 유지, 다음 버전에서 삭제).
- * KV 키는 domain(app)의 표에서 고른다 — 요청 문자열로 조립하지 않는다.
+ * 제공자는 domain(app)의 허용 목록으로 검증하고 저장소 포트에 전달한다.
  */
 export function createUsageRoute(store: SnapshotStore): Hono {
   const app = new Hono()

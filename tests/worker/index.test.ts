@@ -8,14 +8,13 @@ import type { SnapshotDatabase } from '../../worker/infra/usage/postgres-snapsho
 
 const env: Env = {
   ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com', ACCESS_AUD: 'aud', ALLOWED_EMAIL: 'owner@example.com',
-  USAGE_KV: { async get() { throw new Error('KV must not be read in P2') } },
   ASSETS: { async fetch() { return new Response('SPA') } },
 }
 const verify = () => ({ async verify() { return { ok: true as const, claims: { email: 'owner@example.com' } } } })
 let cleanup: (() => Promise<void>) | undefined
 afterEach(async () => { await cleanup?.(); cleanup = undefined })
 
-describe('Given the P2 Worker entrypoint', () => {
+describe('Given the PostgreSQL-only Worker entrypoint', () => {
   it('When DB_URL exists Then reads PostgreSQL and schedules connection close with waitUntil', async () => {
     const test = await createTestDb()
     cleanup = test.close

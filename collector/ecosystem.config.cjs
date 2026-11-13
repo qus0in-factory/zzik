@@ -3,7 +3,7 @@
  * 등록: pm2 start collector/ecosystem.config.cjs && pm2 save
  *
  * 상주 프로세스가 내부 setInterval(900s, ADR D2 주기)마다 runOnce를 돈다.
- * wrangler KV 어댑터는 repo의 node_modules를 쓰므로 PM2가 이 파일을 시작한 위치에서
+ * 수집기는 repo의 의존성과 .env를 쓰므로 PM2가 이 파일을 시작한 위치에서
  * node_modules가 보여야 한다(리포 루트에서 실행하는 것이 기본이다).
  */
 const path = require('node:path')
@@ -23,9 +23,7 @@ module.exports = {
         ZZIK_AGY_CLI_PATH: '/Users/young-mini/.local/bin/agy',
         ZZIK_CODEX_AUTH_PATH: '/Users/young-mini/.codex/auth.json',
         ZZIK_INTERVAL_SEC: '900',
-        ZZIK_STORE: 'both',
-        CLOUDFLARE_ACCOUNT_ID: 'c89ea66c04742e4f6f1feb8dd8e5b775',
-        WRANGLER_SEND_METRICS: 'false',
+        ZZIK_STORE: 'postgres',
       },
       time: true,
     },
