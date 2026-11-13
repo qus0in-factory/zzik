@@ -13,6 +13,11 @@ describe('Given a stored snapshot', () => {
   it('When the envelope has no provider field Then it is corrupt', () => {
     expect(parseStoredSnapshot('{"schema":1}', 'claude')).toEqual({ ok: false, reason: 'snapshot_corrupt' })
   })
+  it('When a valid envelope is double encoded Then it is corrupt rather than silently unwrapped', () => {
+    const envelope = { schema: 1, provider: 'claude', rawText: '{}' }
+    expect(parseStoredSnapshot(JSON.stringify(JSON.stringify(envelope)), 'claude'))
+      .toEqual({ ok: false, reason: 'snapshot_corrupt' })
+  })
   it.each(['{', 'null', '[]', '1', '"text"'])('When stored value is %s Then it is corrupt', (raw) => {
     expect(parseStoredSnapshot(raw, 'claude')).toEqual({ ok: false, reason: 'snapshot_corrupt' })
   })
