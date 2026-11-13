@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import ky from 'ky'
+import ky, { TimeoutError } from 'ky'
 import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 
 /** A3: ky 인스턴스는 조립 루트가 ky.create({ fetch: 가짜, … })로 만들어 주입한다. */
@@ -62,6 +62,11 @@ describe('Given a ky HTTP usage gateway (ADR 0.3 D7)', () => {
     Object.defineProperty(response, 'type', { value: 'opaqueredirect' })
     const gateway = makeGateway(async () => response, 'https://test/api/usage')
     await expect(gateway.fetchUsage('codex')).resolves.toEqual({ ok: false, reason: 'session_expired', message: null })
+  })
+
+  it('When ky times out Then reports a slow server response rather than an offline network', async () => {
+    const gateway = makeGateway(async () => { throw new TimeoutError(new Request('https://test/api/usage/claude')) }, 'https://test/api/usage')
+    await expect(gateway.fetchUsage('claude')).resolves.toEqual({ ok: false, reason: 'api_error', message: 'request_timeout' })
   })
 
   it('When fetch throws then it reports network_error without leaking details', async () => {

@@ -1,4 +1,5 @@
 import type ky from 'ky'
+import { TimeoutError } from 'ky'
 import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'
 import type { UsageProvider } from '@domain/usage/providers'
 import { decodeUsageSnapshot } from '@domain/usage/snapshot'
@@ -15,7 +16,8 @@ export function createHttpUsageGateway(client: typeof ky, basePath = '/api/usage
       let response: Response
       try {
         response = await client.get(`${basePath}/${provider}`)
-      } catch {
+      } catch (error) {
+        if (error instanceof TimeoutError) return { ok: false, reason: 'api_error', message: 'request_timeout' }
         return { ok: false, reason: 'network_error', message: null }
       }
       if (response.type === 'opaqueredirect') return { ok: false, reason: 'session_expired', message: null }

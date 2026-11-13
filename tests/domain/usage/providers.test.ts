@@ -31,7 +31,7 @@ describe('Given the provider registry (D8)', () => {
       id: 'claude',
       title: 'Claude',
       metricsTitle: '모델·기능별 한도',
-      refreshHint: '이 Mac에서 Claude Code를 실행하면 갱신된다',
+      refreshHint: '수집기가 15분마다 자동으로 갱신합니다.',
       sectionId: 'usage-claude',
       ariaLabel: 'Claude 사용량',
     })
@@ -39,7 +39,7 @@ describe('Given the provider registry (D8)', () => {
       id: 'codex',
       title: 'ChatGPT (Codex)',
       metricsTitle: '추가 한도',
-      refreshHint: '이 Mac에서 Codex를 실행하면 갱신된다',
+      refreshHint: '수집기가 15분마다 자동으로 갱신합니다.',
       sectionId: 'usage-codex',
       ariaLabel: 'ChatGPT 사용량',
     })
@@ -83,5 +83,12 @@ describe('Given OpenCode, Grok and Ollama registration', () => {
   })
   it.each(['opencode', 'grok', 'ollama'] as const)('When %s is selected Then its own normalizer runs, not the claude one', (provider) => {
     expect(buildProviderUsageView(provider, null, { now: NOW }).issues).toEqual([{ code: 'invalid_shape' }])
+  })
+})
+
+
+describe('Given automatic collection on the collector Mac', () => {
+  it.each(USAGE_PROVIDERS)('When %s shows refresh guidance Then describes the fifteen minute collector', provider => {
+    expect(USAGE_PROVIDER_META[provider].refreshHint).toBe('수집기가 15분마다 자동으로 갱신합니다.')
   })
 })

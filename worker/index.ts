@@ -11,8 +11,8 @@ import type { RequestContext } from './app/usage/with-request-resource'
 import type { AccessConfig, AccessTokenVerifier } from './domain/access/verifier'
 import type { Env } from './infra/env'
 
-const connect: DatabaseConnector = url => {
-  const client = postgres(url, { max: 1, prepare: false, connect_timeout: 10 })
+const connect: DatabaseConnector = (url, options) => {
+  const client = postgres(url, options)
   return { db: drizzle(client), close: () => client.end({ timeout: 1 }) }
 }
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>

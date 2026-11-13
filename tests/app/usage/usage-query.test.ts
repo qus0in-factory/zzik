@@ -159,3 +159,11 @@ describe('Given Neon Free scale-to-zero budgeting', () => {
     expect(USAGE_POLL_INTERVAL_MS).toBe(900_000)
   })
 })
+
+
+describe('Given a slow usage server', () => {
+  it('When a request times out Then does not claim the device is offline', () => {
+    expect(describeGatewayFailure('api_error', 'request_timeout')).toContain('응답 시간이 초과')
+    expect(describeGatewayFailure('api_error', 'request_timeout')).not.toContain('네트워크')
+  })
+})
