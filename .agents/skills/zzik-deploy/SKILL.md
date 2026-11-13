@@ -14,7 +14,7 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 
 - Worker는 postgres.js 직접 TCP, drizzle, nodejs_compat를 사용한다. 풀러 연결 문자열 권장, prepare:false. DB_URL 누락 시 인증 후 503 storage_unavailable이다(Access 설정 실패 500과 구분). schema 변경은 별도 승인 후 마이그레이션하며 운영 프로세스가 자동 migrate하지 않는다.
 - Neon Free 기준은 100 CU-h/월, 최소 0.25 CU, 5분 suspend, 보수적인 0.5GB·30일 보존(공식 저장 한도 1GB)이다. 오토스케일 상한 2 CU 추정이므로 월 CU-h를 관측한다. 900초의 약 61 CU-h 산식은 각성 중 0.25 CU 유지 전제다.
 - P2 대조·배포 검증 후 사용자 승인으로 P3의 24시간 관측 대기는 생략했다. 실제 인증 Cloudflare DB 요청·브라우저 화면 검증의 미완료 여부는 운영 보고에 별도 기록한다.
-- **롤백**: KV 네임스페이스 삭제 전까지만 가능하다. 먼저 P2 코드와 ZZIK_STORE=both 설정의 수집기를 복구하고 --update-env·save → 첫 주기 양 저장소 성공 및 KV 최신성 확인 → 이전 KV 읽기 Worker로 되돌린다. P3 수집기가 운영 중이면 KV는 갱신되지 않으므로 Worker만 단독으로 되돌리지 않는다. 네임스페이스 자체 삭제는 코드 배포·검증 후 별도 사용자 지시가 있을 때만 수행한다.
+- **롤백**: 기존 KV 네임스페이스는 삭제 완료됐다. P2 both 수집기·KV 읽기 Worker로의 롤백은 불가능하며, Postgres 저장소와 호환되는 버전으로만 복구한다.
 
 ## 2. release 배포
 
@@ -28,6 +28,8 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 
 
 ## 3. 배포 후 검증
 
+- **배포 전 게이트**: release에서 실제 DB_URL을 .env로 주입해 `node --env-file=.env node_modules/vitest/vitest.mjs run tests/worker/infra/usage/db.workerd.test.ts`를 opt-in 실행한다. 실제 workerd→DB 경로의 6개 제공자 200·디코딩 성공을 확인한다. skip은 통과가 아니며 비밀값·원문은 출력하지 않는다.
+- **완료·삭제 게이트**: 배포 후 인증된 브라우저에서 API 응답과 6개 제공자 화면을 확인하기 전에는 배포 완료를 보고하지 않는다. 302/404나 로컬 workerd 통과로 대신하지 않는다. 미검증 항목이 있으면 삭제 등 비가역 작업은 금지한다.
 - 쿠키 없는 요청 /, /api/usage, /api/usage/claude, /api/usage/codex, /api/usage/antigravity, /api/usage/opencode, /api/usage/grok, /api/usage/ollama 모두 302, Location에 cdn-cgi/access/login 포함, 본문 앱 데이터 없음 확인. 헤더·본문 전문은 출력하지 않는다.
 - scripts/verify-zzik.sh qus0in으로 workers.dev 404(또는 DNS 미해석·Access 302) 확인. 기본 스크립트 stdout에 Location 전문이 있으므로 안전한 PASS/FAIL/status만 추려 출력한다.
 - 스크립트는 /만 검사한다. API는 위 7개 경로도 각각 확인한다.

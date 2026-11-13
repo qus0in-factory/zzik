@@ -18,11 +18,30 @@ describe('Given the OpenCode usage view (설계 7절, 합성 값)', () => {
     expect(report.metrics).toEqual([])
     expect(report.others).toEqual([])
   })
-  it('When normal Then only weekly has an elapsed bar', () => {
+  it('When normal Then weekly and monthly have an elapsed bar, rolling does not', () => {
     const [rolling, weekly, monthly] = buildOpencodeUsageView(normal, { now }).windows
     expect(rolling.elapsedPercent).toBeNull()
-    expect(monthly.elapsedPercent).toBeNull()
     expect(weekly.elapsedPercent).toBeCloseTo(100 * (1 - 2.5 / 7))
+    // 11-01 ~ 12-01 = 30일, 지금은 11-11 12:00 → 10.5일 경과
+    expect(monthly.elapsedPercent).toBeCloseTo((100 * 10.5) / 30)
+  })
+  it.each([
+    ['2026-12-01T00:00:00.000Z', 30], // 11월
+    ['2026-03-01T00:00:00.000Z', 28], // 2월(평년)
+    ['2028-03-01T00:00:00.000Z', 29], // 2월(윤년)
+    ['2026-01-01T00:00:00.000Z', 31], // 12월
+    ['2026-03-31T00:00:00.000Z', 31], // 2/31 없음 → 2/28로 보정 (2/28~3/31)
+    ['2026-01-15T06:30:00.000Z', 31], // 시각 유지
+  ])('When monthly resets at %s Then the cycle is %i days of the previous calendar month', (resetsAt, days) => {
+    const report = buildOpencodeUsageView({ usage: { monthly: { percent: 5, resetsAt } } }, { now })
+    // 리셋 1초 전: 경과율은 (주기-1초)/주기 → 주기 길이를 역산
+    const at = new Date(new Date(resetsAt).getTime() - 1000)
+    const elapsed = buildOpencodeUsageView({ usage: { monthly: { percent: 5, resetsAt } } }, { now: at }).windows[0].elapsedPercent
+    expect(elapsed).toBeCloseTo(100 * (1 - 1 / (days * 86_400)), 6)
+  })
+  it('When monthly or rolling has no resetsAt Then no elapsed bar', () => {
+    const report = buildOpencodeUsageView({ usage: { rolling: { percent: 1, resetsAt: '2026-11-11T17:00:00.000Z' }, monthly: { percent: 5 } } }, { now })
+    expect(report.windows.map((window) => window.elapsedPercent)).toEqual([null, null])
   })
   it('When the table order differs from the response order Then the table order wins', () => {
     const report = buildOpencodeUsageView({ usage: { monthly: { percent: 1 }, rolling: { percent: 2 } } }, { now })
