@@ -19,7 +19,8 @@ module.exports = {
       max_restarts: 20,
       restart_delay: 30000,
       env: {
-        ZZIK_PROVIDERS: 'claude,codex,antigravity', // 사용자 승인 활성화: ADR 0.4 D5, G2b 대조 후 배포
+        ZZIK_PROVIDERS: 'claude,codex,antigravity,opencode,grok,ollama', // 사용자 승인: ADR 0.6 G2a 통과
+        ZZIK_AGY_CLI_PATH: '/Users/young-mini/.local/bin/agy',
         ZZIK_CODEX_AUTH_PATH: '/Users/young-mini/.codex/auth.json',
         ZZIK_INTERVAL_SEC: '900',
         ZZIK_STORE: 'both',
