@@ -20,6 +20,7 @@ export function usageQueryKey(provider: UsageProvider): readonly ['usage', Usage
  * 원시 코드(`invalid_response`, `http_502` 등)를 화면에 그대로 노출하지 않는다.
  */
 export const USAGE_ERROR_CODE_TEXT: Record<string, string> = {
+  request_timeout: '사용량 서버의 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.',
   invalid_response: '사용량 응답 형식이 올바르지 않습니다. 잠시 후 다시 시도해 주세요.',
   snapshot_corrupt: '저장된 사용량 값이 손상되었습니다. 수집기가 다음 값을 쓸 때까지 기다려 주세요.',
   storage_unavailable: '저장된 사용량을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.',

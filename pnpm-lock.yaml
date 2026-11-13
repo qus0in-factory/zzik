@@ -245,9 +245,15 @@ importers:
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       jsdom:
         specifier: ^31.0.0
         version: 31.0.0
+      miniflare:
+        specifier: 5.20261109.0-beta
+        version: 5.20261109.0-beta(@types/node@24.19.2)
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
