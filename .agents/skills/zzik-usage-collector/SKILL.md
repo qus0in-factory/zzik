@@ -1,6 +1,6 @@
 ---
 name: zzik-usage-collector
-description: zzik 수집기 PM2 설치·재시작·장애 대응 시 사용. Neon Postgres 단독 저장소(P3 KV 제거 완료), 6개 제공자(claude/codex/antigravity/opencode/grok/ollama), 900초 주기, ZZIK_AGY_CLI_PATH, DB_URL·보존 정리·저장 실패·토큰 만료 게이트·dry-run 안전 절차.
+description: zzik 수집기 PM2 설치·재시작·장애 대응 시 사용. Postgres+KV 이중 쓰기(`ZZIK_STORE=both`, P2 완료·P3 KV 제거 미진행), 6개 제공자(claude/codex/antigravity/opencode/grok/ollama), 900초 주기, ZZIK_AGY_CLI_PATH, DB_URL·보존 정리·저장 실패·토큰 만료 게이트·dry-run 안전 절차.
 ---
 
 # zzik usage collector 운영
@@ -11,7 +11,7 @@ ADR 0.2/0.3/0.4/0.5/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. 배
 
 - SSH 무인 운영. Keychain/GUI 승인 없음. 자격 증명은 제공자별 파일·설정을 읽기만 하며 수집기는 refresh token을 직접 사용하거나 토큰을 임의 갱신하지 않는다.
 - 운영 인스턴스는 `.worktree/release`의 PM2 `zzik-usage-collector` 하나다. 개발 워크트리의 실제 `--once`/상주 실행 금지.
-- 저장소: Postgres(Neon) 단독 저장소(`usage_snapshot`, `usage_event`). P3 완료로 기존 Cloudflare KV 이중 쓰기 및 KV 어댑터는 완전히 제거되었다.
+- 저장소: P2 완료·P3 미진행: Worker는 Postgres(Neon)에서 읽고, 수집기는 `ZZIK_STORE=both`로 KV와 Postgres에 이중 쓰기한다(KV 제거는 P3에서). 이 스킬의 KV 관련 절차는 P3 전까지 유효하다. 저장 대상은 Postgres(`usage_snapshot`, `usage_event`)와 Cloudflare KV다.
 - 대상 제공자 (6개): `claude`, `codex`, `antigravity`, `opencode`, `grok`, `ollama`. 매 주기마다 `usage_snapshot`에 6개 행이 갱신된다.
 - Antigravity CLI: Antigravity의 Argon 주간 한도는 CLI 러너(`agy -p /quota`)로 수집한다. `ZZIK_AGY_CLI_PATH` 환경변수(기본값 `agy`)를 지정하거나 PM2 환경 PATH에 `agy`가 포함되어야 한다. `ZZIK_AGY_CLI_ENABLED=0`이면 CLI 호출을 건너뛰고 Argon 카드만 안전하게 생략된다.
 - DB_URL은 해당 체크아웃의 gitignore `.env`에서 Node `--env-file`로 주입한다. ecosystem `node_args`를 사용하며 PM2 env에 연결 문자열을 복제해 기록하지 않는다. DB_URL/호스트·비밀번호가 포함될 수 있는 오류 원문을 출력하지 않는다.

@@ -12,12 +12,12 @@ description: Herdr 워크스페이스의 각 에이전트 패널에서 실행 �
 ```bash
 SELF_LABEL=<내 모델 약칭> scripts/herdr-label-models.sh [workspace_id]
 ```
-- `SELF_LABEL`: 스크립트를 실행하는 자기 패널의 약칭(예: Opus면 `opus`). 자기 화면에는 다른 모델명이 섞여 오판할 수 있으므로 항상 지정한다.
+- `SELF_LABEL`: 스크립트를 실행하는 자기 패널의 약칭(예: Opus면 `opus`). 자기 화면에는 버전 붙은 모델 표시가 없거나 다른 모델명이 섞일 수 있으므로 항상 지정한다.
 - workspace_id 생략 시 `$HERDR_WORKSPACE_ID`.
 
 ## 동작
 1. 에이전트가 있는 패널만 골라 `herdr pane read --source visible`로 화면을 읽는다.
-2. 화면 하단(마지막 상태줄)부터 위로 거슬러 올라가며 약칭 판별: `Grok [0-9]`→`grok`, `GPT-*-Sol`·`-Sol`→`sol`, `Gemini [0-9]`→`gemini`, GLM→`glm`, DeepSeek→`ds`, Sonnet(`Claude*Sonnet*`·`Sonnet`)→`sonnet`, Fable→`fable`, Opus→`opus`. 하단 상태줄을 우선 매칭해 이전 `/model` 전환 기록(예: Fable→Sonnet)이나 대화 본문의 모델 언급으로 인한 오판을 방지한다.
+2. 화면 하단(마지막 상태줄·배너)부터 위로 거슬러 올라가며 **버전이 붙은 배너·상태줄 표기만** 매칭해 약칭을 정한다: `Grok <버전> xAI|·`→`grok`, `GPT-<버전>-Sol`→`sol`, `Gemini <버전>`→`gemini`, `GLM <버전>`→`glm`, `DeepSeek <버전>`→`ds`, `Sonnet|Fable|Opus <버전>` 뒤에 ` with `·` ·`·` (`가 오면 각각 `sonnet`·`fable`·`opus`(예: `Fable 5.2 with high effort · Claude Max`). 대화 본문에 인용된 "Sonnet 5.5"처럼 배너 문맥이 없는 문장은 매칭하지 않는다. 소문자·버전 없는 단어(`sonnet`, `opus`, `-sol` 등)는 대화·경로·`/model` 전환 기록에 흔해 오탐(opus 패널이 sonnet으로 나옴)이 되므로 쓰지 않는다. 모델 표시가 없는 패널은 이름을 바꾸지 않고 건너뛴다(자기 패널은 `SELF_LABEL`).
 3. `herdr agent rename` 성공 시 `herdr tab rename`, `herdr pane rename`으로 세 곳 모두 지정 (`agent_name_taken` 외 실패 시에는 tab/pane 변경 및 출력 생략).
 
 ## 결과 확인
@@ -27,9 +27,9 @@ herdr agent list | grep -o '"name":"[^"]*"'
 ```
 
 ## 실패 처리
-- "모델 감지 실패, 건너뜀": 모델명이 화면 밖으로 밀림. 해당 패널을 `herdr pane read <pane> --source recent-unwrapped --lines 200`으로 직접 확인 후 수동으로 rename.
+- "모델 감지 실패, 건너뜀": 버전 붙은 모델 표시가 화면에 없음(밀려났거나 표시 형식이 다름). 해당 패널을 `herdr pane read <pane> --source recent-unwrapped --lines 200`으로 직접 확인 후 수동으로 rename.
 - 에이전트 이름 지정 실패: `agent_name_taken` 에러 시 `gemini2`, `sonnet2`처럼 숫자를 자동으로 붙여 최대 20회까지 재시도한다. 그 외 에러는 tab/pane rename을 생략하고 건너뛴다.
-- 새 모델: 스크립트 `detect()`의 `case`에 패턴 한 줄 추가.
+- 새 모델: 스크립트 `detect()`의 `case`에 버전이 붙은 패턴 한 줄 추가(소문자 단어 패턴 금지).
 
 ## 운영 규칙
 - 탭·패널·에이전트 이름은 모델 약칭으로 통일한다: `opus`, `sol`, `fable`, `gemini`, `grok`, `sonnet`.

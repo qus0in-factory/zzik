@@ -1,6 +1,6 @@
 ---
 name: zzik-deploy
-description: zzik 배포·배포 후 검증·수집기 재시작 시 사용. Postgres(Neon) 단독 저장소(P3 KV 제거 완료), 6개 제공자(claude/codex/antigravity/opencode/grok/ollama), 900초 주기, ZZIK_AGY_CLI_PATH, release 배포, 미인증 302·workers.dev 404 검증 절차.
+description: zzik 배포·배포 후 검증·수집기 재시작 시 사용. Worker Postgres 읽기·수집기 KV+Postgres 이중 쓰기(P2 완료, P3 KV 제거 미진행), 6개 제공자(claude/codex/antigravity/opencode/grok/ollama), 900초 주기, ZZIK_AGY_CLI_PATH, release 배포, 미인증 302·workers.dev 404 검증 절차.
 ---
 
 # zzik 배포 · 검증
@@ -9,7 +9,7 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 구조는 
 
 ## 1. 저장소 구조 및 운영 기준 (Postgres / Neon)
 
-- **저장소 상태**: P3(KV 제거) 완료에 따라 Neon Postgres 단독 저장소 체계다. Worker의 KV 바인딩 및 수집기의 KV 쓰기는 완전히 제거되었으며, 모든 읽기/쓰기는 Postgres(`usage_snapshot`, `usage_event`)로 일원화된다.
+- **저장소 상태**: P2 완료·P3 미진행: Worker는 Postgres(Neon)에서 읽고, 수집기는 `ZZIK_STORE=both`로 KV와 Postgres에 이중 쓰기한다(KV 제거는 P3에서). 이 스킬의 KV 관련 절차는 P3 전까지 유효하다. Worker의 KV 바인딩(`USAGE_KV`)과 수집기의 KV 쓰기 경로는 아직 남아 있다.
 - **제공자 (6개)**: `claude`, `codex`, `antigravity`, `opencode`, `grok`, `ollama`. 매 주기 6개 행이 갱신된다.
 - **주기 및 예산**: 수집 주기와 UI 자동 조회 주기 모두 900초(15분)를 유지한다. Neon Free 한도(100 CU-h/월, 최소 0.25 CU, 5분 suspend, 1GB 저장소)를 초과하지 않도록 300초로 임의 축소하지 않는다.
 - **Antigravity CLI**: Antigravity의 Argon 주간 한도는 CLI(`agy -p /quota`)로 수집하므로, 배포 및 수집기 실행 환경에 `ZZIK_AGY_CLI_PATH`(기본값 `agy`)가 올바르게 설정되어야 한다(`ZZIK_AGY_CLI_ENABLED=0`이면 생략).
@@ -39,7 +39,7 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 구조는 
 
 ## 4. 기능 대조 · 수집기 운영
 
-- **실데이터 형상 대조**: `scripts/usage-live-shape.sh [provider]` (claude, codex, antigravity, opencode, grok, ollama 지원)로 Postgres에 저장된 envelope를 읽어 화면/픽스처 기대치와 대조. `.env`가 있는 체크아웃에서만 실행하며 원문 파이프를 중간 파일로 남기지 않는다.
+- **실데이터 형상 대조**: `scripts/usage-live-shape.sh [provider]` (claude, codex, antigravity, opencode, grok, ollama 지원)로 저장소(Postgres)에 기록된 envelope를 읽어 화면/픽스처 기대치와 대조. `.env`가 있는 체크아웃에서만 실행하며 원문 파이프를 중간 파일로 남기지 않는다.
 - **카드 및 지표 대조**: 배포본의 실제 load/visible 변환 로직으로 DB 봉투를 변환해 제공자별 카드 라벨/사용률/리셋 시각을 대조한다 (`rawRedacted` 및 Argon 카드 포함 여부 확인).
-- **PM2 운영 수집기**: cwd는 `.worktree/release`. 900초 주기, 6개 제공자 정상 수집(`usage_snapshot` 6개 행 run_at 전진), Postgres 저장 성공 확인.
+- **PM2 운영 수집기**: cwd는 `.worktree/release`. 900초 주기, 6개 제공자 수집, `ZZIK_STORE=both`에서 KV·Postgres(`usage_snapshot` 행 run_at 전진) 양쪽 저장 성공 확인.
 - 배포·운영 명령은 워커 에이전트가 실행하고 설계·검수 에이전트는 결과를 확인한다.
