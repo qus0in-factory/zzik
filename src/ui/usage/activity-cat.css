@@ -92,14 +92,67 @@
   }
 }
 
+/* 자는 고양이: 막대 시작점(0%)에서 왼쪽 가장자리 기준으로 놓고 호흡만 한다 */
+.activity-cat-runner[data-cat-state='sleeping'] {
+  transform: none;
+}
+.activity-cat-runner[data-cat-state='sleeping'] .activity-cat-svg {
+  animation: none;
+}
+.cat-sleep-body {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: cat-breathe 3.2s ease-in-out infinite;
+}
+.cat-sleep-z {
+  animation: cat-z-float 3.2s ease-in-out infinite;
+}
+@keyframes cat-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.06); }
+}
+@keyframes cat-z-float {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50% { opacity: 0.9; transform: translateY(-1px); }
+}
+
+/* 정지 자세: 최근 변화가 없을 때. reduced-motion에서도 숨기지 않고 같은 자세로 둔다. */
+.activity-cat-runner[data-cat-state='idle'] .activity-cat-svg,
+.activity-cat-runner[data-cat-state='idle'] .cat-leg,
+.activity-cat-runner[data-cat-state='idle'] .cat-part-tail {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .activity-cat-track {
-    display: none;
-  }
   .activity-cat-runner,
   .activity-cat-svg,
   .cat-leg,
-  .cat-part-tail {
+  .cat-part-tail,
+  .cat-sleep-body,
+  .cat-sleep-z {
     animation: none;
   }
+}
+
+/* 막대·고양이 색: 단계(data-bar-level)별 CSS 변수. 색은 UI가 옮길 뿐 판정은 app이 한다. */
+.usage-bar {
+  --bar-color: var(--usage-neutral);
+}
+.usage-bar[data-bar-level='ok'] {
+  --bar-color: var(--usage-ok);
+}
+.usage-bar[data-bar-level='caution'] {
+  --bar-color: var(--usage-caution);
+}
+.usage-bar[data-bar-level='danger'] {
+  --bar-color: var(--usage-danger);
+}
+.usage-bar [data-slot='progress'] {
+  background-color: color-mix(in oklab, var(--bar-color) 22%, transparent);
+}
+.usage-bar [data-slot='progress-indicator'] {
+  background-color: var(--bar-color);
+}
+.usage-bar .activity-cat-runner {
+  color: var(--bar-color);
 }

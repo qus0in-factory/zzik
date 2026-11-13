@@ -3,14 +3,6 @@ import type { UsageOther, UsageReport } from './types'
 /** Collector-independent display fallback when envelope metadata is unavailable. */
 export const REDACTED_VALUE = '[가림]'
 
-function hasValue(value: unknown): boolean {
-  if (value === null || value === undefined) return false
-  if (typeof value === 'string') return value.trim().length > 0 && value.trim() !== REDACTED_VALUE
-  if (Array.isArray(value)) return value.some(hasValue)
-  if (typeof value === 'object') return Object.values(value).some(hasValue)
-  return true // zero and false are data
-}
-
 function normalizePath(path: string): string {
   return path.replace(/\[(\d+)\]/g, '.$1')
 }
@@ -20,15 +12,26 @@ function isRedacted(path: string, paths: readonly string[]): boolean {
   return paths.some(redacted => normalized === redacted || normalized.startsWith(redacted + '.'))
 }
 
-/** Remove nested redacted fields before formatting JSON-valued other fields. */
-function omitRedacted(value: unknown, path: string, paths: readonly string[]): unknown {
-  if (isRedacted(path, paths)) return undefined
-  if (Array.isArray(value)) return value.map((item, index) => omitRedacted(item, path + '.' + index, paths))
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).flatMap(([key, item]) => {
-      const next = omitRedacted(item, path + '.' + key, paths)
-      return next === undefined ? [] : [[key, next]]
-    }))
+/**
+ * JSON 값 안쪽을 표시용으로 정리한다. 가림 경로, `[가림]` 상수, null, 빈 문자열과 비워진 컨테이너는
+ * 통째로 제거하고(배열은 자리를 남기지 않는다) 0과 false는 데이터로 남긴다. 경로의 배열 인덱스는 원본 기준이다.
+ */
+function cleanValue(value: unknown, path: string, paths: readonly string[]): unknown {
+  if (isRedacted(path, paths) || value === null || value === undefined) return undefined
+  if (typeof value === 'string') return value.trim().length === 0 || value.trim() === REDACTED_VALUE ? undefined : value
+  if (Array.isArray(value)) {
+    const items = value.flatMap((item, index) => {
+      const next = cleanValue(item, path + '.' + index, paths)
+      return next === undefined ? [] : [next]
+    })
+    return items.length > 0 ? items : undefined
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value).flatMap(([key, item]) => {
+      const next = cleanValue(item, path + '.' + key, paths)
+      return next === undefined ? [] : [[key, next] as const]
+    })
+    return entries.length > 0 ? Object.fromEntries(entries) : undefined
   }
   return value
 }
@@ -37,8 +40,8 @@ function visibleText(text: string, path: string, paths: readonly string[]): stri
   if (isRedacted(path, paths)) return null
   let parsed: unknown
   try { parsed = JSON.parse(text) } catch { parsed = text }
-  const value = omitRedacted(parsed, path, paths)
-  if (!hasValue(value)) return null
+  const value = cleanValue(parsed, path, paths)
+  if (value === undefined) return null
   return value !== parsed ? JSON.stringify(value) : text
 }
 
