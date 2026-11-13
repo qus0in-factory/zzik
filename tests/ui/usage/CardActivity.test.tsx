@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, act, cleanup } from '@testing-library/react'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
@@ -7,13 +8,13 @@ import { buildUsageView } from '@domain/usage/view'
 import { createFakeUsageGateway, createFakeUsageScheduler, NOW_ISO } from '../../fakes/usage-ports'
 afterEach(cleanup)
 describe('Given a mounted usage card', () => {
-  it('When values change Then runs at the new speed and stops at expiry', () => {
+  it('When values change Then runs at the new speed and rests in idle pose at expiry', () => {
     let now = NOW_ISO
     const scheduler = createFakeUsageScheduler()
     const deps = { gateway: createFakeUsageGateway(), scheduler, clock: { nowIso: () => now } }
     const view = (value: number) => <UsageGatewayProvider deps={deps}><UsageDashboard provider="claude" status="ready" errorMessage={null} report={buildUsageView({ five_hour: { utilization: value } })} /></UsageGatewayProvider>
     const mounted = render(view(10))
-    expect(screen.queryByTestId('activity-cat')).toBeNull()
+    expect(screen.getByTestId('activity-cat').getAttribute('data-cat-state')).toBe('idle')
     expect(screen.queryByText('🐈')).toBeNull()
 
     now = new Date(Date.parse(now) + 60_000).toISOString()
@@ -21,6 +22,7 @@ describe('Given a mounted usage card', () => {
     const catRunner = screen.getByTestId('activity-cat')
     expect(catRunner.style.getPropertyValue('--cat-lap')).toBe('0.6s')
     expect(catRunner.style.left).toBe('12%')
+    expect(catRunner.getAttribute('data-cat-state')).toBe('running')
     expect(screen.queryByText('🐈')).toBeNull()
     expect(catRunner.querySelector('svg')).toBeTruthy()
 
@@ -29,10 +31,10 @@ describe('Given a mounted usage card', () => {
     expect(screen.getByTestId('activity-cat').style.left).toBe('22%')
 
     act(() => scheduler.runScheduledAt(300_000))
-    expect(screen.queryByTestId('activity-cat')).toBeNull()
+    expect(screen.getByTestId('activity-cat').getAttribute('data-cat-state')).toBe('idle')
   })
 
-  it('When value is zero or changes to zero Then cat is hidden', () => {
+  it('When value is zero or changes to zero Then the cat sleeps (and no card means no cat)', () => {
     let now = NOW_ISO
     const scheduler = createFakeUsageScheduler()
     const deps = { gateway: createFakeUsageGateway(), scheduler, clock: { nowIso: () => now } }
@@ -42,7 +44,7 @@ describe('Given a mounted usage card', () => {
       </UsageGatewayProvider>
     )
     const mounted = render(view(0))
-    expect(screen.queryByTestId('activity-cat')).toBeNull()
+    expect(screen.getByTestId('activity-cat').getAttribute('data-cat-state')).toBe('sleeping')
 
     // 0 -> 10: 양수 변화로 활성화
     now = new Date(Date.parse(now) + 60_000).toISOString()
@@ -57,7 +59,7 @@ describe('Given a mounted usage card', () => {
     // 12 -> 0: 활성 중 0으로 떨어지면 즉시 숨김
     now = new Date(Date.parse(now) + 60_000).toISOString()
     mounted.rerender(view(0))
-    expect(screen.queryByTestId('activity-cat')).toBeNull()
+    expect(screen.getByTestId('activity-cat').getAttribute('data-cat-state')).toBe('sleeping')
 
     // 0 -> 15: 다시 양수 변화 시 재활성화
     now = new Date(Date.parse(now) + 60_000).toISOString()
@@ -145,7 +147,7 @@ describe('Given a card that unmounts and mounts again (tab switch)', () => {
   it('When the value changed while away Then the cat runs from the retained baseline', () => {
     const { view, advance } = setup()
     const mounted = render(view(10))
-    expect(screen.queryByTestId('activity-cat')).toBeNull()
+    expect(screen.getByTestId('activity-cat').getAttribute('data-cat-state')).toBe('idle')
 
     mounted.rerender(view(null))
     advance(60_000)
@@ -167,6 +169,42 @@ describe('Given a card that unmounts and mounts again (tab switch)', () => {
     expect(screen.getByTestId('activity-cat').style.getPropertyValue('--cat-lap')).toBe('0.6s')
 
     act(() => scheduler.runScheduledAt(180_000))
-    expect(screen.queryByTestId('activity-cat')).toBeNull()
+    expect(screen.getByTestId('activity-cat').getAttribute('data-cat-state')).toBe('idle')
+  })
+})
+
+describe('Given the cat and bar presentation rules', () => {
+  const dashboard = (utilization: number) => (
+    <UsageGatewayProvider deps={{ gateway: createFakeUsageGateway(), scheduler: createFakeUsageScheduler(), clock: { nowIso: () => NOW_ISO } }}>
+      <UsageDashboard provider="claude" status="ready" errorMessage={null} report={buildUsageView({ five_hour: { utilization } })} />
+    </UsageGatewayProvider>
+  )
+  it('When the value is positive without recent change Then the idle cat shows with top padding and no lap speed', () => {
+    render(dashboard(30))
+    const cat = screen.getByTestId('activity-cat')
+    expect(cat.getAttribute('data-cat-state')).toBe('idle')
+    expect(cat.style.getPropertyValue('--cat-lap')).toBe('')
+    expect(screen.getByTestId('usage-bar').className).toContain('pt-5')
+  })
+  it('When the value is 0 Then the cat sleeps at the bar start in neutral gray, padding kept', () => {
+    render(dashboard(0))
+    const cat = screen.getByTestId('activity-cat')
+    expect(cat.getAttribute('data-cat-state')).toBe('sleeping')
+    expect(cat.style.left).toBe('0%')
+    expect(cat.querySelector('.cat-sleep-z')).toBeTruthy()
+    expect(screen.getByTestId('usage-bar').className).toContain('pt-5')
+    expect(screen.getByTestId('usage-bar').getAttribute('data-bar-level')).toBe('neutral')
+  })
+  it('When the bar has a level Then the state is in the aria-label as text, not only color', () => {
+    render(dashboard(95))
+    expect(screen.getByTestId('usage-bar').getAttribute('data-bar-level')).toBe('danger')
+    expect(screen.getByRole('progressbar').getAttribute('aria-label')).toContain('상태 위험')
+  })
+  it('When reduced motion is requested Then the cat stays and every cat animation stops, sleeping breathing included', () => {
+    const css = readFileSync('src/ui/usage/activity-cat.css', 'utf8')
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion'))
+    expect(reduced).not.toContain('display: none')
+    expect(reduced).toContain('animation: none')
+    expect(reduced).toContain('.cat-sleep-body')
   })
 })

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { USAGE_PROVIDERS, USAGE_KV_KEYS, USAGE_COLLECTOR_VERSION } from '../../../../shared/usage-contract'
-import { USAGE_PROVIDERS as COLLECTOR_PROVIDERS, USAGE_KV_KEYS as COLLECTOR_KEYS, USAGE_COLLECTOR_VERSION as COLLECTOR_VERSION, parseProvidersEnv } from '../../../../collector/domain/usage/providers.mjs'
+import { USAGE_PROVIDERS, USAGE_COLLECTOR_VERSION } from '../../../../shared/usage-contract'
+import { USAGE_PROVIDERS as COLLECTOR_PROVIDERS, USAGE_COLLECTOR_VERSION as COLLECTOR_VERSION, parseProvidersEnv } from '../../../../collector/domain/usage/providers.mjs'
 
 const BASE = fileURLToPath(new URL('../../../../', import.meta.url))
 const contractSource = readFileSync(join(BASE, 'shared', 'usage-contract.ts'), 'utf8')
@@ -16,15 +16,13 @@ describe('Given the provider contract', () => {
     expect(contractSource).toContain("['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'] as const")
     expect(providersSource).toContain("['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama']")
     expect(COLLECTOR_PROVIDERS).toEqual([...USAGE_PROVIDERS])
-    expect(COLLECTOR_KEYS).toEqual(USAGE_KV_KEYS)
     expect(COLLECTOR_VERSION).toBe(USAGE_COLLECTOR_VERSION)
     expect([...USAGE_PROVIDERS]).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
   })
 
-  it('When the KV keys are compared then each provider maps to its own key', () => {
-    expect(contractSource).toContain("claude: 'usage:claude'")
-    expect(contractSource).toContain("codex: 'usage:codex'")
-    expect(USAGE_KV_KEYS).toEqual({ claude: 'usage:claude', codex: 'usage:codex', antigravity: 'usage:antigravity', opencode: 'usage:opencode', grok: 'usage:grok', ollama: 'usage:ollama' })
+  it('When providers address database rows Then neither contract exports a KV key mapping', () => {
+    expect(contractSource).not.toContain('export const USAGE_KV_KEYS')
+    expect(providersSource).not.toContain('export const USAGE_KV_KEYS')
   })
 
   it('When the collector version changes then the contract source matches the runtime value', () => {

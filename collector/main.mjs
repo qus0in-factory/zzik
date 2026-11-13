@@ -6,21 +6,19 @@
  * 실행 모드(PM2 상주가 기본):
  *   (기본)       즉시 1회 실행 후 900초마다 runCycle(제공자 수만큼 줄이 생긴다)
  *   --once       1회 실행 후 종료한다. 종료 코드는 제공자별 결과 중 가장 큰 값
- *   --dry-run    상태·KV·로그 어디에도 쓰지 않는다(--provider와 같이 쓰면 경로 목록 출력)
+ *   --dry-run    상태·DB·로그 어디에도 쓰지 않는다(--provider와 같이 쓰면 경로 목록 출력)
  *   --provider <id>   대상 제공자(claude|codex|antigravity|opencode|grok|ollama). 생략하면 켜진 제공자 전부
  *   --credentials-file <path>  자격 증명 파일 재현(--provider와 --dry-run이 함께 있을 때만)
  *
  * 제공자 목록: env ZZIK_PROVIDERS(기본 전체 6개). 하나의 제공자 실패가 다른
  * 제공자를 막지 않는다(예외 격리, 제공자별 상태 파일·게이트).
  *
- * KV 쓰기는 이 Mac에 로그인된 wrangler를 실행한다(키는 제공자 id에서 정해진다):
- *   node node_modules/wrangler/bin/wrangler.js kv key put usage:<provider> \
- *     --path <tmp> --namespace-id <id> --remote
+ * 저장소는 Postgres 단독이다. DB_URL은 Node --env-file로 주입하며,
+ * 수집기 연결은 유휴 5초 후 닫혀 Neon의 suspend를 방해하지 않는다.
  */
 
 import postgres from 'postgres'
 import { createPostgresEnvelopeWriter } from './infra/usage/postgres-envelope-writer.mjs'
-import { createFanoutWriter } from './infra/usage/fanout-writer.mjs'
 import { readStorageConfig } from './domain/usage/storage-config.mjs'
 import { createLogAppender } from './infra/usage/log.mjs'
 import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
@@ -33,26 +31,24 @@ import { readOllamaLocalCredentials } from './infra/usage/ollama-local-credentia
 import { createOpencodeDbCredentialReader, DEFAULT_OPENCODE_DB_PATH } from './infra/usage/opencode-db-credentials.mjs'
 import { runAgyQuotaCli } from './infra/usage/agy-quota-cli-runner.mjs'
 import { createCodexUsageClient } from './infra/usage/codex-usage-client.mjs'
-import { createWranglerKvWriter } from './infra/usage/wrangler-kv-writer.mjs'
 import { createStateFile } from './infra/usage/state-file.mjs'
 import { DEFAULT_CREDENTIALS_PATH, readCredentialsFile } from './infra/usage/claude-credentials-file.mjs'
 import { DEFAULT_CODEX_AUTH_PATH, readCodexCredentials } from './infra/usage/codex-credentials-file.mjs'
 import { runCycle } from './app/usage/run-cycle.mjs'
 import { buildProviderBundles } from './app/usage/provider-bundles.mjs'
-import { USAGE_KV_KEYS, USAGE_COLLECTOR_VERSION, USAGE_REDACTION_PATHS, USAGE_PROVIDERS as PROVIDER_IDS, parseProvidersEnv } from './domain/usage/providers.mjs'
+import { USAGE_COLLECTOR_VERSION, USAGE_REDACTION_PATHS, USAGE_PROVIDERS as PROVIDER_IDS, parseProvidersEnv } from './domain/usage/providers.mjs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const VERSION = USAGE_COLLECTOR_VERSION
-/** @type {{mode:'kv'|'postgres'|'both',intervalSec:number,retentionDays:number}} */
-let storageConfig = {mode:'both',intervalSec:900,retentionDays:30}
+/** @type {{mode:'postgres',intervalSec:number,retentionDays:number}} */
+let storageConfig = {mode:'postgres',intervalSec:900,retentionDays:30}
 /** @type {ReturnType<typeof postgres>|null} */
 let database = null
 /** @type {ReturnType<typeof createPostgresEnvelopeWriter>|null} */
 let postgresWriter = null
 /** @type {NonNullable<Parameters<typeof runCycle>[0]['maintenance']>|undefined} */
 let maintenance
-const KV_NAMESPACE_ID = process.env.ZZIK_KV_NAMESPACE_ID ?? '5fe6ac40c73c4d05ac2fab052c2100e6'
 const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')
 const LOG_PATH = process.env.ZZIK_LOG_PATH ?? join(homedir(), 'Library', 'Logs', 'zzik', 'usage-collector.log')
 
@@ -119,7 +115,7 @@ function parseArgs(argv) {
     } else return { error: `알 수 없는 인자: ${arg}`, flags: null }
   }
   if (flags.credentialsPath !== null && (flags.dryRun !== true || flags.provider === null)) {
-    return { error: '--credentials-file은 --provider와 --dry-run이 함께 있을 때만 쓴다(시험 자격 증명으로 다른 제공자의 KV에 쓰는 일을 막는다)', flags: null }
+    return { error: '--credentials-file은 --provider와 --dry-run이 함께 있을 때만 쓴다(시험 자격 증명으로 다른 제공자의 저장소에 쓰는 일을 막는다)', flags: null }
   }
   if (flags.codexAccountHeader === true && flags.dryRun !== true) {
     return { error: '--codex-account-header는 --dry-run과 함께만 쓴다(G2 진단용)', flags: null }
@@ -128,15 +124,13 @@ function parseArgs(argv) {
 }
 
 /**
- * 제공자 하나의 포트 묶음(ADR 0.3 D3의 표). 자격 증명 포트·usage 포트·KV 키·상태 파일이
- * 제공자별로 다르고 나머지(시계, 로거, KV 어댑터)는 공유한다.
+ * 제공자 하나의 포트 묶음(ADR 0.3 D3의 표). 자격 증명 포트·usage 포트·상태 파일이
+ * 제공자별로 다르고 나머지(시계, 로거, Postgres 어댑터)는 공유한다.
  * @param {string} provider
  * @param {{ credentialsPath: string|null }} options
  * @returns {CollectorPorts}
  */
 function buildProviderPorts(provider, { credentialsPath }) {
-  const providerId = /** @type {keyof typeof USAGE_KV_KEYS} */ (provider)
-  const kvWriter = createWranglerKvWriter({ namespaceId: KV_NAMESPACE_ID, keyName: USAGE_KV_KEYS[providerId] })
   const usageClient =
     provider === 'grok'
       ? createGrokUsageClient({ fetchImpl: globalThis.fetch })
@@ -167,11 +161,8 @@ function buildProviderPorts(provider, { credentialsPath }) {
       },
     },
     usage: { fetchUsage: (token, opts) => usageClient.fetchUsage(token, opts) },
-    store: postgresWriter === null || storageConfig.mode === 'kv'
-      ? kvWriter
-      : storageConfig.mode === 'postgres'
-        ? postgresWriter
-        : createFanoutWriter([kvWriter, postgresWriter]),
+    // Dry-run never invokes this port and must not construct a DB connection.
+    store: postgresWriter ?? { write: async () => ({ ok: false, httpStatus: null, message: 'DatabaseNotInitialized' }) },
     state: createStateFile({
       path: join(STATE_DIR, `usage-state.${provider}.json`),
       // 0.2에서 claude 전용으로 쓰던 파일의 일회성 이행(D3).
@@ -269,7 +260,7 @@ async function main() {
   }
   storageConfig = configured
   // Dry-run never creates a DB connection or a retention task.
-  if (!parsed.flags.dryRun && configured.mode !== 'kv') {
+  if (!parsed.flags.dryRun) {
     try {
       const client = postgres(/** @type {string} */ (process.env.DB_URL), {max:1,idle_timeout:5,connect_timeout:10,prepare:false,onnotice:()=>{}})
       database = client

@@ -25,6 +25,7 @@
 /**
  * @typedef {{ nextAllowedAt: number|null, failReason: string|null, failCount: number, authFailCount: number, authDeniedExpiresAt: number|null }} GateState
  * @typedef {{ provider: string|null, schema: number, previous: UsageEnvelope|null, gate: GateState, lastPruneAt?:string|null, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
+ * kvOk/kvReason는 운영 로그 호환 이름이며 현재 Postgres 저장 결과를 뜻한다.
  * @typedef {{ provider: string, runAt: string, status: string, called: boolean, httpStatus: number|null, tokenExpiresAt: string|null, kvOk: boolean, kvReason: string|null, transition: string|null, tokenRefreshed: boolean, diag?: string|null }} LogEntry
  */
 

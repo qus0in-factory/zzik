@@ -5,9 +5,9 @@
  *   → 저장소 쓰기 → 성공한 previous 및 게이트 상태 저장 → 로그 한 줄
  *
  * - 자격 증명이 없거나 만료된 것은 정상 상태 중 하나다(종료 코드 0).
- * - KV 쓰기가 실패하면 재시도 루프 없이 0이 아닌 코드로 끝낸다. 로컬 상태가 기준이다.
- * - --dry-run은 상태·KV·로그 어디에도 쓰지 않고 provider, status, 키 경로 목록, 본문 sha256만 되돌린다.
- * - 토큰은 usage 포트에만 흐르고 봉투·상태·KV·로그 어디에도 남지 않는다.
+ * - 저장소 쓰기가 실패하면 재시도 루프 없이 0이 아닌 코드로 끝낸다. 로컬 상태가 기준이다.
+ * - --dry-run은 상태·DB·로그 어디에도 쓰지 않고 provider, status, 키 경로 목록, 본문 sha256만 되돌린다.
+ * - 토큰은 usage 포트에만 흐르고 봉투·상태·DB·로그 어디에도 남지 않는다.
  * - 봉투의 provider는 options.provider 그대로다(ADR 0.3 D5).
  */
 
@@ -26,7 +26,7 @@ import { gateAllowsCall, gateRetryAt, openGateFor, resetGate } from '../../domai
 
 export const USAGE_INTERVAL_SEC = 900 /** 조립 루트가 intervalSec 옵션을 안 주면 기본값 */
 const EXIT_OK = 0
-const EXIT_KV_FAILURE = 3
+const EXIT_STORE_FAILURE = 3
 
 /** 로컬 상태 파일의 기본 형태(D2 usage-state.json). @returns {CollectorState} */
 export function emptyCollectorState() {
@@ -182,9 +182,9 @@ export async function runOnce(ports, options = {}) {
     }
   }
 
-  let kvResult
+  let storeResult
   try {
-    kvResult = await ports.store.write(JSON.stringify(envelope), {
+    storeResult = await ports.store.write(JSON.stringify(envelope), {
       provider, status: envelope.status, runAt: envelope.runAt, fetchedAt: envelope.fetchedAt,
       rawSha256: envelope.rawText === null ? null : sha256Hex(envelope.rawText),
       collectorVersion: envelope.collectorVersion,
@@ -193,14 +193,14 @@ export async function runOnce(ports, options = {}) {
       }, {status:envelope.status,rawSha256:envelope.rawText === null ? null : sha256Hex(envelope.rawText)}),
     })
   } catch (error) {
-    kvResult = { ok: false, httpStatus: null, message: 'StoreWriteError' }
+    storeResult = { ok: false, httpStatus: null, message: 'StoreWriteError' }
   }
 
   // Advance the history baseline only after all configured stores acknowledge the write.
   await ports.state.write({
     schema: 1,
     provider,
-    previous: kvResult.ok ? envelope : state.previous,
+    previous: storeResult.ok ? envelope : state.previous,
     lastPruneAt: state.lastPruneAt ?? null,
     gate: {
       nextAllowedAt: gate.nextAllowedAt ?? null,
@@ -222,13 +222,13 @@ export async function runOnce(ports, options = {}) {
     called,
     httpStatus: envelope.httpStatus,
     tokenExpiresAt: envelope.tokenExpiresAt,
-    kvOk: kvResult.ok === true,
-    kvReason: kvResult.ok === true ? null : (kvResult.message ?? null),
+    kvOk: storeResult.ok === true,
+    kvReason: storeResult.ok === true ? null : (storeResult.message ?? null),
     transition: prevStatus !== null && prevStatus !== status ? `${prevStatus}→${status}` : null,
     tokenRefreshed:
       prevTokenExpiresAt !== null && newTokenExpiresAt !== null && prevTokenExpiresAt !== newTokenExpiresAt,
     diag: called === false ? null : (diag ?? null),
   })
 
-  return { exitCode: kvResult.ok === true ? EXIT_OK : EXIT_KV_FAILURE }
+  return { exitCode: storeResult.ok === true ? EXIT_OK : EXIT_STORE_FAILURE }
 }

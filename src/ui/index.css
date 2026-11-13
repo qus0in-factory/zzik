@@ -37,6 +37,19 @@
   --input: oklch(0.9 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 0.75rem;
+  /* 사용량 막대 단계 색(라이트): 흰 카드 배경에서 3:1 이상 */
+  --usage-neutral: oklch(0.62 0 0);
+  --usage-ok: oklch(0.55 0.15 150);
+  --usage-caution: oklch(0.66 0.16 65);
+  --usage-danger: oklch(0.55 0.23 27);
+}
+
+.dark {
+  /* 어두운 배경용으로 밝기를 올린다 */
+  --usage-neutral: oklch(0.7 0 0);
+  --usage-ok: oklch(0.72 0.17 150);
+  --usage-caution: oklch(0.78 0.16 70);
+  --usage-danger: oklch(0.68 0.22 27);
 }
 
 @theme inline {
