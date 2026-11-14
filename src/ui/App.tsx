@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { t } from '@shared/messages'
 import { useProviderOrder } from '@app/usage/ProviderOrderContext'
 import { BackToTop } from '@ui/components/BackToTop'
+import { Footer } from '@ui/components/Footer'
 import { PaceChips } from '@ui/usage/PaceChips'
 import { UsageSection } from '@ui/usage/UsageSection'
 
@@ -56,7 +57,7 @@ export default function App() {
   const { mainRef, captureTops } = useSectionFlip(order)
   useEntranceGuard()
   return (
-    <div className="min-h-svh">
+    <div className="flex min-h-svh flex-col">
       <header className="border-b bg-card">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <h1 className="flex items-center gap-3 text-xl font-semibold tracking-tight">
@@ -65,12 +66,13 @@ export default function App() {
           </h1>
         </div>
       </header>
-      <main ref={mainRef} className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <main ref={mainRef} className="mx-auto w-full flex-1 max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <PaceChips onBeforeMove={captureTops} />
         {order.map((provider) => (
           <UsageSection key={provider} provider={provider} />
         ))}
       </main>
+      <Footer />
       <BackToTop />
     </div>
   )

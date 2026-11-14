@@ -4,12 +4,12 @@
 
 ## @lobehub/icons-static-svg 1.102.0
 
-- 사용 위치: `src/ui/usage/provider-icon-paths.ts` — 제공자 로고 path 데이터 6개를 복사해 사용한다.
+- 사용 위치: `src/ui/usage/provider-icon-paths.ts` — 제공자 로고 path 데이터 6개를 복사해 사용한다. `src/ui/components/GithubMark.tsx` — GitHub Octocat 마크 path(`github.svg`) 1개를 복사해 푸터 링크에 사용한다.
 - 패키지: `@lobehub/icons-static-svg` 1.102.0 (npm `license` 필드: MIT)
 - 저장소: https://github.com/lobehub/lobe-icons
 - 저작권: Copyright (c) 2023 LobeHub
 - 비고: npm 배포 tarball에는 LICENSE 파일이 포함되어 있지 않아, 패키지가 가리키는 저장소의 MIT 전문을 아래에 보존한다.
-- 로고의 상표권은 각 소유자(Anthropic, OpenAI, Google, OpenCode, xAI, Ollama)에게 있다. MIT 라이선스는 아이콘 파일의 배포 조건이며 상표 사용 허락을 뜻하지 않는다.
+- 로고의 상표권은 각 소유자(Anthropic, OpenAI, Google, OpenCode, xAI, Ollama, GitHub)에게 있다. MIT 라이선스는 아이콘 파일의 배포 조건이며 상표 사용 허락을 뜻하지 않는다.
 
 ```
 MIT License

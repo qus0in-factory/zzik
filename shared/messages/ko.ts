@@ -16,6 +16,8 @@ export const ko = {
   'action.refresh': '새로고침',
   'action.refresh.aria': '사용량 새로고침(저장된 값을 다시 읽습니다)',
   'action.backToTop': '맨 위로',
+  'footer.version': 'v{version}',
+  'footer.repo': '저장소 열기',
 
   // 제공자
   'provider.claude.title': 'Claude',
