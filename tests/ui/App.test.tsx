@@ -51,6 +51,14 @@ describe('Given the dashboard with six providers', () => {
     }
   })
 
+  it('When the data arrives Then pace chips show used / expected for the longest-cycle window and skip providers without one', async () => {
+    renderApp()
+    const chips = await screen.findAllByTestId(/^usage-pace-/)
+    expect(chips.length).toBeGreaterThan(0)
+    for (const chip of chips) expect(chip.textContent).toMatch(/·(월|주) \d+% \/ \d+%$/)
+    expect(chips.every((chip) => ['true', 'false'].includes(chip.getAttribute('data-over-pace') ?? ''))).toBe(true)
+  })
+
   it('When both queries resolve Then six provider sections render side by side in fixed order', async () => {
     renderApp()
     await screen.findByTestId('usage-section-claude')

@@ -42,6 +42,7 @@ export function buildCodexUsageView(raw: unknown, options: CodexViewOptions): Us
       unknown: label.unknown,
       usedPercent: entry.usedPercent,
       elapsedPercent: elapsedPercent(entry.resetsAt, entry.limitWindowSeconds, now),
+      cycleSeconds: entry.limitWindowSeconds,
       resetsAt: entry.resetsAt,
       expired: isResetExpired(entry.resetsAt, now),
       status: usageLevelOf(entry.usedPercent),

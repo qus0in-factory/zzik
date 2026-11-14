@@ -206,5 +206,15 @@ describe('Given the gerbil and bar presentation rules', () => {
     expect(reduced).not.toContain('display: none')
     expect(reduced).toContain('animation: none')
     expect(reduced).toContain('.gerbil-sleep-body')
+    // idle 꼬리 규칙은 특이도가 높아 reduced-motion에서도 같은 선택자로 꺼야 한다
+    expect(reduced).toContain(".activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail")
+  })
+  it('When idle Then only the tail sways (legs and body stay still); sleeping keeps no tail animation', () => {
+    const css = readFileSync('src/ui/usage/activity-gerbil.css', 'utf8')
+    const idleTail = /\.activity-gerbil-runner\[data-gerbil-state='idle'\] \.gerbil-part-tail \{\s*animation: gerbil-tail-sway[^;]*infinite;/
+    expect(css).toMatch(idleTail)
+    expect(css).toMatch(/@keyframes gerbil-tail-sway/)
+    expect(css).toMatch(/\.activity-gerbil-runner\[data-gerbil-state='idle'\] \.gerbil-leg \{\s*animation: none;/)
+    expect(css).toMatch(/\.gerbil-part-tail \{\s*transform-origin: 9\.5px 9\.5px;/)
   })
 })

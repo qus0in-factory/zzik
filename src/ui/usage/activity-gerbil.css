@@ -52,7 +52,7 @@
 
 /* 꼬리 살랑 */
 .gerbil-part-tail {
-  transform-origin: 9px 9px;
+  transform-origin: 9.5px 9.5px;
   animation: gerbil-tail-wag var(--gerbil-lap, 0.6s) ease-in-out infinite;
 }
 
@@ -118,9 +118,17 @@
 
 /* 정지 자세: 최근 변화가 없을 때. reduced-motion에서도 숨기지 않고 같은 자세로 둔다. */
 .activity-gerbil-runner[data-gerbil-state='idle'] .activity-gerbil-svg,
-.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg,
-.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail {
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg {
   animation: none;
+}
+
+/* 정지 자세에서도 꼬리만 느리고 부드럽게 살랑거린다(뿌리 기준 회전). */
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail {
+  animation: gerbil-tail-sway 2.4s ease-in-out infinite;
+}
+@keyframes gerbil-tail-sway {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -129,7 +137,8 @@
   .gerbil-leg,
   .gerbil-part-tail,
   .gerbil-sleep-body,
-  .gerbil-sleep-z {
+  .gerbil-sleep-z,
+  .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail {
     animation: none;
   }
 }

@@ -40,6 +40,7 @@ export function makeWindow(
     usedPercent: input.usedPercent,
     resetsAt: input.resetsAt,
     elapsedPercent: elapsedPercent(input.resetsAt, input.cycleSeconds, now),
+    cycleSeconds: input.cycleSeconds,
     expired: isResetExpired(input.resetsAt, now),
     status: usageLevelOf(input.usedPercent),
     resetText: formatResetRemaining(input.resetsAt, now),
