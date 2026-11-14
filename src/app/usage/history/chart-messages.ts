@@ -18,6 +18,22 @@ export function percentText(percent: number): string {
   return `${Math.round(percent)}%`
 }
 
+/** uPlot x축 눈금은 초 단위 epoch를 받는다. 현지 시각 기준으로 한국어 눈금 문구를 만든다. */
+export function formatAxisTime(seconds: number): string {
+  const date = new Date(seconds * 1000)
+  return t('chart.axis.time', { hour: String(date.getHours()).padStart(2, '0'), minute: String(date.getMinutes()).padStart(2, '0') })
+}
+
+export function formatAxisDate(seconds: number): string {
+  const date = new Date(seconds * 1000)
+  return t('chart.axis.date', { month: date.getMonth() + 1, day: date.getDate() })
+}
+
+/** 날짜가 바뀌는 첫 눈금에는 날짜를 함께 붙인다. */
+export function formatAxisDayBoundary(seconds: number): string {
+  return t('chart.axis.dayBoundary', { date: formatAxisDate(seconds), time: formatAxisTime(seconds) })
+}
+
 export const CHART_MESSAGES = {
   title: (providerTitle: string, rangeText: string): string => t('chart.title', { provider: providerTitle, range: rangeText }),
   regionLabel: (providerTitle: string): string => t('chart.regionLabel', { provider: providerTitle }),
@@ -29,6 +45,7 @@ export const CHART_MESSAGES = {
   peakNone: t('chart.peak.none'),
   valueNone: t('chart.value.none'),
   gapText: '—',
+  cursorTime: t('chart.cursor.time'),
   stopNoValues: (label: string): string => t('chart.stop.noValues', { label }),
   stopValues: (label: string, named: string): string => t('chart.stop.values', { label, values: named }),
   percentTick: (value: number): string => `${value}%`,

@@ -105,6 +105,35 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
     expect(view.table.find((row) => row.id === 'five_hour')?.resets).toBeGreaterThanOrEqual(1)
   })
 
+  it('Then a low-change two-sample record with no snapshot time keeps a flat tail up to now', () => {
+    const sample = (id: string, iso: string): UsageHistorySample => ({
+      id, runAt: iso, status: 'ok', fetchedAt: iso, intervalSec: 900,
+      values: [{ id: 'included', usedPercent: 40, resetsAt: null, cycleSeconds: null }],
+    })
+    const samples = [sample('1', '2026-11-14T00:00:00.000Z'), sample('2', '2026-11-14T00:15:00.000Z')]
+    const view = buildChartView(input({ tailEnd: null }, { samples, anchor: null, seriesOrder: ['included'], labels: { included: 'Included' } }))
+    // 스냅샷 시각이 없어도 now(00:30)까지 마지막 값 40%가 유지된다
+    expect(view.stops.at(-1)?.t).toBe(NOW)
+    expect(view.stops.at(-1)?.values.find((v) => v.seriesId === 'included')?.percent).toBe(40)
+    expect(view.series.find((s) => s.id === 'included')?.hidden).toBe(false)
+  })
+
+  it('Then series/table/description/empty are filtered to the selected range (B2)', () => {
+    const old: UsageHistorySample = {
+      id: '1', runAt: '2026-11-04T00:30:00.000Z', status: 'ok', fetchedAt: '2026-11-04T00:30:00.000Z', intervalSec: 900,
+      values: [{ id: 'five_hour', usedPercent: 55, resetsAt: null, cycleSeconds: null }],
+    }
+    const day = buildChartView(input({ range: '24h' }, { samples: [old], anchor: null }))
+    expect(day.series).toHaveLength(0)
+    expect(day.table).toHaveLength(0)
+    expect(day.empty).toBe('no_points')
+    expect(day.description).toContain('표시할 이력이 없습니다')
+    const month = buildChartView(input({ range: '30d' }, { samples: [old], anchor: null }))
+    expect(month.series.length).toBeGreaterThan(0)
+    expect(month.table).toHaveLength(1)
+    expect(month.empty).toBe('none')
+  })
+
   it('Then nearestStopIndex snaps to the closest stop and -1 when there are none', () => {
     const view = buildChartView(input())
     expect(nearestStopIndex(view, view.stops[0].x)).toBe(0)

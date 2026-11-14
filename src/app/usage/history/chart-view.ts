@@ -172,16 +172,53 @@ function allPoints(segments: Segments): { t: number; p: number }[] {
   return segments.flatMap((segment) => segment.points)
 }
 
+/**
+ * uPlot에 넘기는 정렬 데이터(ADR 5.3절 구간 기반). ChartView 계약(T0 동결)을 바꾸지 않도록
+ * 뷰와 함께 WeakMap으로 넘긴다. stops는 슬라이더·표·툴팁용 시점 목록으로 그대로 둔다.
+ * - times: 초 단위 오름차순. 구간 점 + 구간 사이 null 슬롯 + from/to 경계.
+ * - columns: 보이는 계열별 값. 구간 밖·끊김은 null.
+ * - dots: 단일점 구간의 열별 times 인덱스(반지름 2px 점으로 그린다).
+ */
+export interface ChartAlignedData {
+  times: number[]
+  columns: (number | null)[][]
+  dots: number[][]
+  from: number
+  to: number
+}
+const alignedByView = new WeakMap<ChartView, ChartAlignedData>()
+export function chartAlignedData(view: ChartView): ChartAlignedData | null {
+  return alignedByView.get(view) ?? null
+}
+
 /** 레코드 + 카드 라벨 + 설정 + 크기 → ChartView. T2가 HistoryDeps.buildView로 주입한다. */
 export function buildChartView(input: ChartViewInput): ChartView {
-  const { providerTitle, range, record, tailEnd, hidden, shown, cardLabels, size, nowMs } = input
+  const { providerTitle, range, record, hidden, shown, cardLabels, size, nowMs } = input
   const from = nowMs - RANGE_MS[range]
   const to = nowMs
+  const effectiveTail = input.tailEnd ?? nowMs
   const plot = chartPlot(size.width, size.height)
   const hiddenSet = new Set(hidden)
   const shownSet = new Set(shown)
 
-  const built = buildSeries({ anchor: record.anchor, samples: record.samples, tailEnd })
+  // B2: 선택 범위 [from, to] 안의 표본만 쓴다. anchor는 from 직전 경계를 채우도록 from으로 옮겨 포함한다.
+  const inRange = (sample: UsageHistorySample): boolean => {
+    const t = sampleTime(sample)
+    return t !== null && t >= from && t <= to
+  }
+  const samples = record.samples.filter(inRange)
+  const anchorTime = record.anchor === null ? null : sampleTime(record.anchor)
+  const boundaryIso = new Date(from).toISOString()
+  const anchor: UsageHistorySample | null =
+    record.anchor !== null && record.anchor.values !== null && anchorTime !== null
+      ? anchorTime < from
+        ? { ...record.anchor, runAt: boundaryIso, fetchedAt: boundaryIso }
+        : anchorTime <= to ? record.anchor : null
+      : null
+  const tailEnd = Math.max(from, Math.min(to, effectiveTail))
+
+  // 스냅샷 시각을 못 받으면 now까지 마지막 값을 유지한 수평선(꼬리)을 이어 그린다.
+  const built = buildSeries({ anchor, samples, tailEnd })
   const byId = new Map(built.map((item) => [item.id, item]))
   // seriesOrder는 추가만 한다 — 숨김·범위·정렬로 슬롯이 바뀌지 않는다
   const order = [...record.seriesOrder]
@@ -193,7 +230,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
     if (data === undefined) continue
     const slot = slotForOrdinal(order.indexOf(id))
     const isHidden = slot === 0 ? !shownSet.has(id) : hiddenSet.has(id)
-    // 선 path 문자열은 만들지 않는다 — uPlot이 stops의 null 간격으로 직접 그린다(계약 필드는 유지).
+    // 선 path 문자열은 만들지 않는다 — uPlot이 정렬 데이터로 직접 그린다(계약 필드는 유지).
     const paths: string[] = []
     const dots: { x: number; y: number }[] = []
     if (!isHidden) {
@@ -209,15 +246,44 @@ export function buildChartView(input: ChartViewInput): ChartView {
 
   const visible = series.filter((s) => !s.hidden)
 
+  // B1: 정렬 데이터는 buildSeries 구간 점들로 만들고, 인접한 구간 사이에 null 슬롯을 넣어
+  // C1 만료 리셋·C2 조기 리셋·C3 계열 소멸·C4 실패 끊김을 uPlot의 틈으로 그린다.
+  const timeSet = new Set<number>([from, to])
+  const forcedNulls = visible.map(() => new Set<number>())
+  visible.forEach((s, column) => {
+    const segments = byId.get(s.id)!.segments
+    for (const segment of segments) {
+      for (const point of segment.points) timeSet.add(Math.max(from, Math.min(to, point.t)))
+    }
+    for (let i = 1; i < segments.length; i += 1) {
+      const previous = segments[i - 1].points
+      const prevEnd = previous[previous.length - 1].t
+      const nextStart = segments[i].points[0].t
+      const gap = nextStart > prevEnd ? (prevEnd + nextStart) / 2 : prevEnd + 1
+      if (gap > from && gap < to) {
+        timeSet.add(gap)
+        forcedNulls[column].add(gap)
+      }
+    }
+  })
+  const timesMs = [...timeSet].sort((a, b) => a - b)
+  const columns = visible.map((s, column) => timesMs.map((t) => (forcedNulls[column].has(t) ? null : valueAt(byId.get(s.id)!.segments, t))))
+  const dots = visible.map((s) =>
+    byId.get(s.id)!.segments
+      .filter((segment) => segment.points.length === 1)
+      .map((segment) => timesMs.indexOf(Math.max(from, Math.min(to, segment.points[0].t))))
+      .filter((index) => index >= 0),
+  )
+
   const stopTimes = new Set<number>()
   let lastSampleT = from
-  for (const sample of record.samples) {
+  for (const sample of samples) {
     const t = sampleTime(sample)
     if (t === null || t > to) continue
     if (t > lastSampleT) lastSampleT = t
     if (sample.values !== null && t >= from) stopTimes.add(t)
   }
-  const tailStop = tailEnd === null ? to : Math.max(from, Math.min(to, tailEnd))
+  const tailStop = Math.max(from, Math.min(to, tailEnd))
   if (series.length > 0 && tailStop > lastSampleT) stopTimes.add(tailStop)
   const times = [...stopTimes].sort((a, b) => a - b)
 
@@ -265,7 +331,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   if (empty === 'no_points') description += CHART_MESSAGES.noPointsSuffix
   if (empty === 'all_hidden') description += CHART_MESSAGES.allHiddenSuffix
 
-  return {
+  const view: ChartView = {
     range,
     width: size.width,
     height: size.height,
@@ -279,6 +345,8 @@ export function buildChartView(input: ChartViewInput): ChartView {
     table,
     empty,
   }
+  alignedByView.set(view, { times: timesMs.map((t) => t / 1000), columns, dots, from: from / 1000, to: to / 1000 })
+  return view
 }
 
 /** 포인터 x에 가장 가까운 시점 인덱스. 비면 -1, 거리가 같으면 뒤쪽. ui는 이 함수만 부른다. */

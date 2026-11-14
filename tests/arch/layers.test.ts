@@ -103,6 +103,8 @@ const PACKAGE_ALLOWED: Record<string, readonly { root: string; layer?: Layer; as
     { root: 'src', layer: 'app' },
     { root: 'src', assembly: true },
   ],
+  // 차트 라이브러리는 지연 청크의 ui 레이어에서만 쓴다(app·domain·infra에서 import하면 차단).
+  uplot: [{ root: 'src', layer: 'ui' }],
 }
 
 function packageNameOf(spec: string): string {
@@ -475,6 +477,15 @@ describe('Given the package allowlist (스택 부록 A7)', () => {
     expect(summarize(findViolations([probe('src/ui/probe.tsx', "import { useQuery } from '@tanstack/react-query'\n")]))).toEqual([
       ['package-not-allowed', '@tanstack/react-query'],
     ])
+  })
+
+  it('When src/app or src/infra imports uplot Then detection fails the package rule', () => {
+    expect(summarize(findViolations([probe('src/app/probe.ts', "import uPlot from 'uplot'\n")]))).toEqual([['package-not-allowed', 'uplot']])
+    expect(summarize(findViolations([probe('src/infra/probe.ts', "import uPlot from 'uplot'\n")]))).toEqual([['package-not-allowed', 'uplot']])
+  })
+
+  it('When src/ui imports uplot Then it is allowed', () => {
+    expect(findViolations([probe('src/ui/usage/history/probe.tsx', "import uPlot from 'uplot'\n")])).toEqual([])
   })
 
   it('When src/app imports Query and Zustand then both are allowed', () => {
