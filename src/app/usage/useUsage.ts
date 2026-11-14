@@ -23,6 +23,8 @@ export interface UsageUiState {
   staleNoteText: string | null
   /** 수집 상태별 안내(D4 표). 정상이거나 봉투가 없으면 null */
   collectionNote: string | null
+  /** 데이터가 있는 상태에서 재조회 중(새로고침 버튼 스피너용). 첫 로딩은 status 'loading'이 맡는다 */
+  refreshing: boolean
 }
 
 export interface UsageUiStateValue {
@@ -95,8 +97,10 @@ export function useUsage(provider: UsageProvider): UsageUiStateValue {
   }, [view, effectiveError])
 
   const lastSuccessAt = view?.lastSuccessAt ?? null
+  const refreshing = view !== null && query.isFetching
   const state = useMemo<UsageUiState>(() => ({
     status,
+    refreshing,
     report: view?.report ?? null,
     lastSuccessAt,
     errorMessage,
@@ -104,7 +108,7 @@ export function useUsage(provider: UsageProvider): UsageUiStateValue {
     lastSuccessText: composeLastSuccessText(lastSuccessAt, nowIso),
     staleNoteText: status === 'stale' ? composeStaleNoteText(lastSuccessAt, nowIso) : null,
     collectionNote: composeCollectionNote(provider, view?.collectionStatus ?? null, view?.collectionMeta ?? null),
-  }), [status, view, lastSuccessAt, errorMessage, nowIso, provider])
+  }), [status, refreshing, view, lastSuccessAt, errorMessage, nowIso, provider])
 
   // 수동 새로고침은 진행 중 호출을 취소하지 않는다(cancelRefetch: false → 합쳐진다).
   // 실패(취소·오류)는 refetchFailure로 잡아 stale 매핑에 쓴다.

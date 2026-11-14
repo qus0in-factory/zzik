@@ -29,6 +29,7 @@ export function UsageSection({ provider }: { provider: UsageProvider }): ReactNo
       lastSuccessText={state.lastSuccessText}
       staleNoteText={state.staleNoteText}
       collectionNote={state.collectionNote}
+      refreshing={state.refreshing}
     />
   )
 }

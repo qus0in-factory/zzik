@@ -18,7 +18,7 @@ function SummaryChip({ provider }: { provider: UsageProvider }): ReactNode {
       <a
         href={`#${meta.sectionId}`}
         data-testid={`usage-summary-${provider}`}
-        className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-sm font-medium hover:bg-accent"
+        className="fade-in inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-sm font-medium hover:bg-accent"
       >
         <span className="truncate">{meta.title}</span>
         <span aria-hidden="true">·</span>
