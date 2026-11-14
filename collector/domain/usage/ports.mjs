@@ -24,7 +24,7 @@
 
 /**
  * @typedef {{ nextAllowedAt: number|null, failReason: string|null, failCount: number, authFailCount: number, authDeniedExpiresAt: number|null }} GateState
- * @typedef {{ provider: string|null, schema: number, previous: UsageEnvelope|null, gate: GateState, lastPruneAt?:string|null, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
+ * @typedef {{ provider: string|null, schema: number, previous: UsageEnvelope|null, lastEventAt?:string|null, gate: GateState, lastPruneAt?:string|null, lastRun: { status: string|null, tokenExpiresAt: number|null } }} CollectorState
  * kvOk/kvReason는 운영 로그 호환 이름이며 현재 Postgres 저장 결과를 뜻한다.
  * @typedef {{ provider: string, runAt: string, status: string, called: boolean, httpStatus: number|null, tokenExpiresAt: string|null, kvOk: boolean, kvReason: string|null, transition: string|null, tokenRefreshed: boolean, diag?: string|null, source?: string|null }} LogEntry
  */
@@ -32,7 +32,7 @@
 /** @typedef {{ now(): number }} ClockPort */
 /** @typedef {{ readAll(): Promise<Array<CredentialRead|null>>, warn?: (message: string) => void }} CredentialReaderPort */
 /** @typedef {{ fetchUsage(token: string, options?: { accountId?: string|null }): Promise<UsageCallResult> }} UsageClientPort */
-/** @typedef {{ provider:string, status:string, runAt:string, fetchedAt:string|null, rawSha256:string|null, collectorVersion:string, changed:boolean }} StoreMeta
+/** @typedef {{ provider:string, status:string, runAt:string, fetchedAt:string|null, rawSha256:string|null, collectorVersion:string, changed:boolean, heartbeat?:boolean }} StoreMeta
  * @typedef {{ write(value: string, meta: StoreMeta): Promise<StoreWriteResult> }} StoreWriterPort */
 /** @typedef {{ read(): Promise<unknown>, write(state: unknown): Promise<void> }} StateStorePort */
 /** @typedef {{ write(entry: LogEntry): Promise<void> }} LoggerPort */
