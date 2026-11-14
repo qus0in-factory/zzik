@@ -11,7 +11,7 @@ import { useUsage } from '@app/usage/useUsage'
  */
 function PaceChip({ provider }: { provider: UsageProvider }): ReactNode {
   const { state } = useUsage(provider)
-  const pace = state.report === null ? null : summaryPaceOf(state.report.windows)
+  const pace = state.report === null ? null : summaryPaceOf(state.report.windows, provider)
   if (pace === null) return null
   const meta = providerMetaFor(provider)
   const used = Math.round(pace.usedPercent)

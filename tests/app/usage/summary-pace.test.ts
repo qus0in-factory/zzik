@@ -12,6 +12,7 @@ import ollama from '../../fixtures/ollama-usage.normal.json'
 import grok from '../../fixtures/grok-usage.normal.json'
 import codex from '../../fixtures/codex-usage.normal.json'
 import antigravity from '../../fixtures/antigravity-usage.normal.json'
+import geminiArgon from '../../fixtures/antigravity-usage.gemini-argon.json'
 import claude from '../../fixtures/claude-usage.normal.json'
 
 const now = new Date('2026-11-11T12:00:00Z')
@@ -34,11 +35,28 @@ describe('Given the summary pace picker (가장 긴 주기 한도 하나)', () =
     expect(summaryPaceOf(buildOllamaUsageView(ollama, { now }).windows)?.unit).toBe('월')
     expect(summaryPaceOf(buildGrokUsageView(grok, { now }).windows)?.unit).toBe('주')
   })
-  it('When Codex or Antigravity have a weekly window Then it is picked', () => {
-    for (const windows of [buildCodexUsageView(codex, { now }).windows, buildAntigravityUsageView(antigravity, { now }).windows]) {
-      const picked = summaryPaceOf(windows)
-      expect(picked === null || picked.unit === '주').toBe(true)
-    }
+  it('When Codex has a weekly window Then it is picked', () => {
+    const picked = summaryPaceOf(buildCodexUsageView(codex, { now }).windows)
+    expect(picked === null || picked.unit === '주').toBe(true)
+  })
+  describe('Antigravity는 Gemini 주간(gemini-weekly) 한도만 따른다 (실데이터 id: gemini-weekly·gemini-5h·3p-weekly·argon-weekly)', () => {
+    // 실데이터 형상 그대로: Gemini 사용 10%, Claude·GPT 40%, Argon 90% 로 두어 다른 창이 뽑히면 값이 달라진다.
+    const raw = structuredClone(geminiArgon)
+    const fractions: Record<string, number> = { 'gemini-weekly': 0.9, '3p-weekly': 0.6, 'argon-weekly': 0.1 }
+    for (const group of raw.groups) for (const bucket of group.buckets) if (bucket.bucketId in fractions) bucket.remainingFraction = fractions[bucket.bucketId]
+    const windows = buildAntigravityUsageView(raw, { now: new Date('2026-11-11T12:00:00Z') }).windows
+    it('When Gemini, Claude·GPT and Argon weeklies exist Then only the Gemini weekly is used', () => {
+      expect(windows.map((window) => window.id)).toEqual(expect.arrayContaining(['gemini-weekly', '3p-weekly', 'argon-weekly']))
+      const picked = summaryPaceOf(windows, 'antigravity')
+      expect(picked?.unit).toBe('주')
+      expect(picked?.usedPercent).toBeCloseTo(10)
+    })
+    it('When there is no Gemini weekly (Claude·GPT only) Then no chip', () => {
+      expect(summaryPaceOf(buildAntigravityUsageView(antigravity, { now }).windows, 'antigravity')).toBeNull()
+    })
+    it('When the provider is not antigravity Then ids are not filtered', () => {
+      expect(summaryPaceOf(windows)?.usedPercent).toBeCloseTo(90)
+    })
   })
   it.each([
     ['사용률이 예상보다 크면', 60, 50, true],

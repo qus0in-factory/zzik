@@ -1,3 +1,4 @@
+import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageWindow } from '@domain/usage/types'
 
 const DAY = 86_400
@@ -20,12 +21,18 @@ function unitOf(window: UsageWindow): '월' | '주' | null {
   return null
 }
 
+/** Antigravity는 Gemini 모델 창(bucketId `gemini-*`)만 따른다. Claude·GPT(`3p-*`)·Argon 등 다른 모델 창은 칩 선택에서 제외한다. */
+function eligible(window: UsageWindow, provider: UsageProvider | undefined): boolean {
+  return provider !== 'antigravity' || window.id.startsWith('gemini-')
+}
+
 /**
  * 가장 긴 주기 한도 하나를 고른다: 월간이 있으면 월간, 없으면 주간. 같은 주기가 여럿이면 사용률이 가장 높은 것.
  * 월·주 한도가 없거나 사용률·경과율을 알 수 없으면 null(칩 생략). 월간의 경과율이 없다고 주간으로 대신하지 않는다.
  */
-export function summaryPaceOf(windows: readonly UsageWindow[]): SummaryPace | null {
+export function summaryPaceOf(windows: readonly UsageWindow[], provider?: UsageProvider): SummaryPace | null {
   const tagged = windows.flatMap((window) => {
+    if (!eligible(window, provider)) return []
     const unit = unitOf(window)
     return unit === null ? [] : [{ window, unit }]
   })
