@@ -9,13 +9,13 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(sol, beam, grok,
 | 에이전트 | 역할 | 맡기는 일 |
 |---|---|---|
 | `opus` | 총괄 | 작업 분해, 분배, 결과 검수·통합, 최종 판단과 사용자 보고 |
-| `sol` | 백엔드/수집기 구현·조사·교차 리뷰 (Codex GPT-6.1-Sol) | 설계에 따른 구현, Postgres/DB 연동, 수집기 인프라, 까다로운 디버깅, 외부 API/CLI·동작 원리 조사, 실데이터 검증, 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high). 탐색·테스트·측정은 terra 서브에이전트에 위임(`.codex/agents/`) |
+| `sol` | 백엔드/수집기 구현·조사·교차 리뷰 (Codex GPT-6.1-Sol) | 설계에 따른 구현, Postgres/DB 연동, 수집기 인프라, 까다로운 디버깅, 외부 API/CLI·동작 원리 조사, 실데이터 검증, 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high). 탐색·테스트·측정은 sol 내부 보조 서브에이전트(`.codex/agents/` terra) 활용 허용 |
 | `beam` | 경량 구현/잡무·배포 실행 (OpenCode, Beam Free) | 소규모 구현, UI 패치 배포 실행, 워크트리 정리, 리뷰 지적 반영. 설계·핵심 경로 구현 제외 |
 | `grok` | 구현·교차 리뷰 (Grok Build CLI, Grok 4.7) | 기능 구현, 테스트 보강, 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high) |
 | `hydro` | 경량 구현·문서·하네스 동기화 (Antigravity CLI, Gemini 4 Hydrogen) | 범위가 명확한 소규모 구현, 문서·하네스·스킬 동기화, 테스트 보강, 리뷰 지적 반영. 설계·운영 배포 제외 |
 | `fable` | 설계·핵심 경로 리뷰(effort high) — **현재 미배치** | (패널 재오픈 시) 아키텍처·인터페이스·데이터 모델 설계, 설계 리뷰·핵심 경로 리뷰. **구현·검색·테스트·잡무 금지**. 설계는 Herdr fable 패널 또는 fable-designer 서브에이전트(effort high)로 호출 |
 | `ds` | 경량 구현/잡무 (OpenCode, DeepSeek V4.1 Flash via Ollama Cloud) — **현재 미배치** | (패널 재오픈 시) 범위가 명확한 소규모 구현, 테스트 보강, 하네스·스크립트·문서 동기화, 리뷰 지적 반영. 설계·운영 배포·대규모 구조 변경 제외 |
-| `.claude/agents/` 전용 서브에이전트<br>(`worker-watcher`, `work-reviewer`) | 대기·최종 판정 전용 | `worker-watcher`(대기·요약)와 `work-reviewer`(최종 판정)만 사용. 구현·리뷰는 Claude Code 서브에이전트(sonnet)에 직접 위임하지 않고 Herdr 워커끼리 협업 |
+| `.claude/agents/` 전용 서브에이전트<br>(`worker-watcher`, `work-reviewer`, `fable-designer`) | 대기·최종 판정·설계 예외 | opus는 구현·리뷰를 Claude Code 서브에이전트(sonnet)에 직접 위임하지 않고 Herdr 워커끼리 협업한다. 예외는 `worker-watcher`(대기·요약), `work-reviewer`(최종 판정), `fable-designer`(설계 예외)이며, 각 워커가 자기 도구 안에서 쓰는 내부 보조 서브에이전트(예: sol의 `.codex/agents/` terra)는 허용 |
 
 ## fable 사용 제한 (설계·핵심 리뷰)
 - fable은 설계와 핵심 경로 리뷰에만 쓴다. 구현·검색·테스트·잡무는 금지한다.
