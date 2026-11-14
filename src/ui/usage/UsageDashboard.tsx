@@ -1,15 +1,18 @@
 import { useCardActivity } from '@app/usage/useCardActivity'
 import type { ReactNode } from 'react'
+import type { UsageCollectionStatus } from '@app/usage/load-usage'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/types'
 import type { UsageUiStatus } from '@app/usage/useUsage'
-import { Badge } from '@ui/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { cardPresentation } from '@app/usage/card-presentation'
 import { LimitCard } from './LimitCard'
 import { StatusBar } from './StatusBar'
-import { READY_BADGE } from './status-label'
+import { providerStatusOf } from '@app/usage/provider-status'
+import { ProviderIcon } from './ProviderIcon'
+import { ProviderStatusLight } from './ProviderStatusLight'
+import type { ProviderStatus } from '@app/usage/provider-status'
 
 export interface UsageDashboardProps {
   provider: UsageProvider
@@ -34,6 +37,8 @@ export interface UsageDashboardProps {
   collectionNote?: string | null
   /** 데이터가 있는 상태에서 재조회 중 — 새로고침 버튼만 바뀌고 본문은 그대로다 */
   refreshing?: boolean
+  /** 수집기 상태(상태등 판정용). 봉투가 없으면 null */
+  collectionStatus?: UsageCollectionStatus | null
 }
 
 /** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도. */
@@ -52,6 +57,7 @@ export function UsageDashboard({
   staleNoteText = null,
   collectionNote = null,
   refreshing = false,
+  collectionStatus = null,
 }: UsageDashboardProps): ReactNode {
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
@@ -63,11 +69,14 @@ export function UsageDashboard({
   if (status === 'loading') {
     return (
       <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-24 space-y-4">
-        {title !== undefined && <h2 className="text-xl font-semibold tracking-tight">{title}</h2>}
-        <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center justify-between gap-3">
-          <Skeleton data-testid="usage-skeleton" className="h-[22px] w-14 rounded-full" />
-          <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
-        </div>
+        {title !== undefined && (
+          <SectionTitle provider={provider} title={title} light={null}>
+            <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center gap-3">
+              <Skeleton data-testid="usage-skeleton" className="h-5 w-40" />
+              <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
+            </div>
+          </SectionTitle>
+        )}
         <div aria-hidden="true">
           <Skeleton data-testid="usage-skeleton" className="mb-2 h-6 w-16" />
           <div data-testid="usage-skeleton-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -91,24 +100,16 @@ export function UsageDashboard({
   }
 
   const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0)
-  const badge =
-    status === 'stale'
-      ? '오래된 데이터'
-      : status === 'error'
-        ? '오류'
-        : report === null
-          ? '데이터 없음'
-          : READY_BADGE[report.status]
+  const light = providerStatusOf({ status, reportStatus: report?.status ?? null, collectionStatus, issueCount: report?.issues.length ?? 0, lastSuccessText })
 
   return (
     <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">
-      {title !== undefined && <h2 className="text-xl font-semibold tracking-tight">{title}</h2>}
-      <StatusBar badge={badge} lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
-
-      {refreshHint !== null && status !== 'ready' && collectionNote === null && (
-        <p data-testid="provider-hint" className="text-sm text-muted-foreground">
-          {refreshHint}
-        </p>
+      {title !== undefined ? (
+        <SectionTitle provider={provider} title={title} light={light}>
+          <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
+        </SectionTitle>
+      ) : (
+        <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
       )}
 
       {collectionNote !== null && (
@@ -119,9 +120,16 @@ export function UsageDashboard({
 
       {status === 'error' && (
         <div role="alert" className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
-          <span data-testid="usage-error-text" className="min-w-0 break-words text-sm">
-            {errorMessage ?? '사용량을 불러오지 못했습니다'}
-          </span>
+          <div className="min-w-0 space-y-1">
+            <span data-testid="usage-error-text" className="block break-words text-sm">
+              {errorMessage ?? '사용량을 불러오지 못했습니다'}
+            </span>
+            {refreshHint !== null && collectionNote === null && (
+              <span data-testid="provider-hint" className="block text-xs text-muted-foreground">
+                {refreshHint}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onRetry ?? undefined}
@@ -135,6 +143,11 @@ export function UsageDashboard({
       {status === 'stale' && (
         <div role="status" aria-live="polite" className="rounded-lg border p-3 text-sm text-muted-foreground">
           {staleNoteText !== null && <span>{staleNoteText}</span>}
+          {refreshHint !== null && collectionNote === null && (
+            <span data-testid="provider-hint" className="block text-xs">
+              {refreshHint}
+            </span>
+          )}
         </div>
       )}
 
@@ -163,6 +176,20 @@ export function UsageDashboard({
         </>
       )}
     </section>
+  )
+}
+
+/** 섹션 제목 줄: 왼쪽 아이콘 · 제목 · 연결 상태등, 오른쪽 children(마지막 수집 시각 + 새로고침). 좁으면 줄바꿈.  light가 null(로딩 스켈레톤)이면 같은 크기의 자리표시를 둔다. */
+function SectionTitle({ provider, title, light, children }: { provider: UsageProvider; title: string; light: ProviderStatus | null; children?: ReactNode }): ReactNode {
+  return (
+    <div className="flex min-h-[34px] flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="flex items-center gap-2">
+        <ProviderIcon provider={provider} />
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
+      </div>
+      {children}
+    </div>
   )
 }
 

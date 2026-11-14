@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/view'
 import { buildUsageLoadView } from './load-usage'
+import type { UsageCollectionStatus } from './load-usage'
 import { describeGatewayFailure, usageQueryOptions, UsageLoadError } from './usage-query'
 import { composeCollectionNote, composeLastSuccessText, composeStaleNoteText } from './usage-text'
 import { useUsageDeps } from './UsageGatewayContext'
@@ -25,6 +26,8 @@ export interface UsageUiState {
   collectionNote: string | null
   /** 데이터가 있는 상태에서 재조회 중(새로고침 버튼 스피너용). 첫 로딩은 status 'loading'이 맡는다 */
   refreshing: boolean
+  /** 수집기 상태(봉투 기준, 상태등 판정용). 봉투가 없으면(목 데이터) null */
+  collectionStatus: UsageCollectionStatus | null
 }
 
 export interface UsageUiStateValue {
@@ -101,6 +104,7 @@ export function useUsage(provider: UsageProvider): UsageUiStateValue {
   const state = useMemo<UsageUiState>(() => ({
     status,
     refreshing,
+    collectionStatus: view?.collectionStatus ?? null,
     report: view?.report ?? null,
     lastSuccessAt,
     errorMessage,

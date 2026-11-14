@@ -116,6 +116,26 @@ describe('Given the codex fixture gateway (ADR 0.3 D6/D8)', () => {
   })
 })
 
+describe('Given the collection envelope of normal fixtures (마지막 수집 시각 표시)', () => {
+  it('When the scenario is normal Then the envelope says ok with a fetchedAt 7 minutes before now, so the last-collection text shows', async () => {
+    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=normal', now: ANCHOR_CLOCK })
+    const result = await gateway.fetchUsage('claude')
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.collection).toMatchObject({ status: 'ok', provider: 'claude', httpStatus: 200 })
+    expect(Date.parse(ANCHOR_CLOCK()) - Date.parse(result.collection?.fetchedAt ?? '')).toBe(7 * 60_000)
+  })
+})
+
+describe('Given the antigravity normal fixture', () => {
+  it('Then it carries the Gemini weekly bucket so all six pace chips show in the demo', async () => {
+    const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=normal', now: ANCHOR_CLOCK })
+    const result = await gateway.fetchUsage('antigravity')
+    if (!result.ok) throw new Error('expected ok')
+    const ids = (result.usage?.groups as { buckets: { bucketId: string }[] }[]).flatMap((group) => group.buckets.map((bucket) => bucket.bucketId))
+    expect(ids).toContain('gemini-weekly')
+  })
+})
+
 describe('Given the auth_rejected fixture scenario (ADR 0.3 v2)', () => {
   it('When the scenario is auth_rejected then the envelope says the server rejected the token', async () => {
     const gateway = createFixtureUsageGateway({ getSearch: () => '?fixture=auth_rejected', now: ANCHOR_CLOCK })

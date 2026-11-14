@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import App from '@ui/App'
 import agyRaw from '../fixtures/antigravity-usage.normal.json'
 import grokRaw from '../fixtures/grok-usage.normal.json'
@@ -56,7 +56,7 @@ describe('Given the dashboard with six providers', () => {
     await waitFor(() => expect(screen.queryByTestId('usage-pace-skeleton')).toBeNull())
     const chips = await screen.findAllByTestId(/^usage-pace-/)
     expect(chips.length).toBeGreaterThan(0)
-    for (const chip of chips) expect(chip.textContent).toMatch(/·(월|주) \d+% \/ \d+%$/)
+    for (const chip of chips) expect(chip.textContent).toMatch(/(M|W) \d+% \/ \d+%$/)
     expect(chips.every((chip) => ['true', 'false'].includes(chip.getAttribute('data-over-pace') ?? ''))).toBe(true)
   })
 
@@ -80,15 +80,31 @@ describe('Given the dashboard with six providers', () => {
     expect(screen.getByText('Code Review Rate Limit · 1시간 한도')).toBeTruthy()
   })
 
-  it('When the summary renders Then both provider chips link to their sections (D8)', async () => {
+  it('When it renders Then each section title carries its icon and a status light with sr-only text and tooltip, and the old summary chips and badges are gone', async () => {
     renderApp()
-    const claudeChip = await screen.findByTestId('usage-summary-claude')
-    const codexChip = screen.getByTestId('usage-summary-codex')
-    expect(screen.getByTestId('usage-summary-antigravity').getAttribute('href')).toBe('#usage-antigravity')
-    expect(claudeChip.getAttribute('href')).toBe('#usage-claude')
-    expect(codexChip.getAttribute('href')).toBe('#usage-codex')
-    expect(claudeChip.textContent).toContain('Claude')
-    expect(codexChip.textContent).toContain('ChatGPT (Codex)')
+    const claude = await screen.findByTestId('usage-section-claude')
+    await within(claude).findByText('37%')
+    expect(within(claude).getByTestId('provider-icon-claude').getAttribute('aria-hidden')).toBe('true')
+    const light = within(claude).getByTestId('provider-status')
+    expect(light.getAttribute('data-level')).toBe('ok')
+    expect(light.getAttribute('title')).toMatch(/^정상( · 마지막 수집 .+)?$/)
+    expect(light.querySelector('.sr-only')?.textContent).toBe(light.getAttribute('title'))
+    expect(screen.queryByRole('navigation', { name: '제공자 요약' })).toBeNull()
+    expect(screen.queryByTestId('usage-summary-claude')).toBeNull()
+    // '정상' 문구는 상태등의 sr-only 하나뿐이다(섹션 안 배지는 없다)
+    expect(within(claude).getAllByText('정상').map((node) => node.className)).toEqual(['sr-only'])
+  })
+
+  it('When the pace chips render Then they show an icon named after the provider plus W/M numbers, without the provider name text', async () => {
+    renderApp()
+    await waitFor(() => expect(screen.queryByTestId('usage-pace-skeleton')).toBeNull())
+    const chip = await screen.findByTestId('usage-pace-claude')
+    expect(chip.textContent?.trim()).toMatch(/^Claude\s*W \d+% \/ \d+%$|^W \d+% \/ \d+%$/)
+    expect(chip.textContent).not.toContain('·')
+    const icon = within(chip).getByRole('img', { name: 'Claude' })
+    expect(icon.getAttribute('aria-label')).toBe('Claude')
+    expect(chip.getAttribute('title')).toContain('Claude')
+    expect(chip.getAttribute('href')).toBe('#usage-claude')
   })
 
   it('When one provider fails Then the other section still shows its cards (D8 격리)', async () => {
@@ -105,6 +121,6 @@ describe('Given the dashboard with six providers', () => {
     const codexSection = await screen.findByTestId('usage-section-codex')
     expect(codexSection.textContent).toContain('읽지 못했습니다')
     expect(screen.getByText('37%')).toBeTruthy()
-    expect(screen.getByTestId('usage-summary-codex').textContent).toContain('오류')
+    expect(within(codexSection).getByTestId('provider-status').getAttribute('data-level')).toBe('danger')
   })
 })

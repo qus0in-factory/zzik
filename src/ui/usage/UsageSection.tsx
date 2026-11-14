@@ -30,6 +30,7 @@ export function UsageSection({ provider }: { provider: UsageProvider }): ReactNo
       staleNoteText={state.staleNoteText}
       collectionNote={state.collectionNote}
       refreshing={state.refreshing}
+      collectionStatus={state.collectionStatus}
     />
   )
 }

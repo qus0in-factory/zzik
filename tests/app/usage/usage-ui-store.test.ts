@@ -3,16 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { act } from 'react'
 import { cleanup, renderHook } from '@testing-library/react'
 import { createUsageUiStore, useFixtureChoice, useUsageUiStore } from '@app/usage/usage-ui-store'
-import {
-  usageStatusLabel,
-} from '@ui/usage/status-label'
-import type { UsageReport } from '@domain/usage/types'
 
 afterEach(cleanup)
-
-function report(status: UsageReport['status']): UsageReport {
-  return { status, windows: [], metrics: [], others: [], issues: [], raw: null }
-}
 
 describe('Given the usage UI client store', () => {
   it('When a store is created with ?fixture=warn then the fixture choice starts there (A5 초기값)', () => {
@@ -40,22 +32,4 @@ describe('Given the usage UI client store', () => {
   })
 
 
-})
-
-describe('Given the status label mapping used by summary chips', () => {
-  it.each([
-    ['loading', null, '불러오는 중'],
-    ['error', null, '오류'],
-    ['ready', report('normal'), '정상'],
-    ['ready', report('warn'), '주의'],
-    ['ready', report('limit'), '한도 도달'],
-    ['ready', report('unknown'), '데이터 없음'],
-    ['stale', report('normal'), '오래된 데이터'],
-  ] as const)('When the state is %s then the chip label is %s', (status, value, expected) => {
-    expect(usageStatusLabel(status, value)).toBe(expected)
-  })
-
-  it('When a ready state has no report then it reads as no data', () => {
-    expect(usageStatusLabel('ready', null)).toBe('데이터 없음')
-  })
 })

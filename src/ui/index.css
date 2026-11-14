@@ -12,6 +12,15 @@
   src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
 }
 
+/* 제목 전용 글꼴 A2z(에이투지체, 눈누 projectnoonnu/2601-6@1.0, OFL): 제목에 쓰는 600만 선언해 전송량을 줄인다. 한글 파일명은 퍼센트 인코딩. docs/design/fonts-and-icons.md */
+@font-face {
+  font-family: 'A2z';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/%EC%97%90%EC%9D%B4%ED%88%AC%EC%A7%80%EC%B2%B4-6SemiBold.woff2') format('woff2');
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -49,6 +58,7 @@
 
 @theme inline {
   --font-sans: 'Inter', 'Pretendard Variable', system-ui, sans-serif;
+  --font-heading: 'A2z', 'Inter', 'Pretendard Variable', system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -74,4 +84,5 @@
 @layer base {
   * { @apply border-border outline-ring/50; }
   body { @apply m-0 bg-background font-sans text-foreground; overflow-wrap: anywhere; }
+  h1, h2, h3, h4 { font-family: var(--font-heading); }
 }
