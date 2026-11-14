@@ -1,4 +1,5 @@
 import type { UsageLabel } from './labels'
+import { t } from '@shared/messages'
 
 /**
  * Codex 창 라벨 (ADR 0.3 D6).
@@ -9,8 +10,8 @@ import type { UsageLabel } from './labels'
  */
 
 const KNOWN_LABELS: Record<number, string> = {
-  18000: '5시간 한도',
-  604800: '주간 한도',
+  18000: t('label.window.fiveHour'),
+  604800: t('label.window.weekly'),
 }
 
 export interface CodexLabelInput {
@@ -21,9 +22,9 @@ export interface CodexLabelInput {
 }
 
 function durationText(seconds: number): string {
-  if (seconds >= 86400) return `${Math.floor(seconds / 86400)}일`
-  if (seconds >= 3600) return `${Math.floor(seconds / 3600)}시간`
-  return `${Math.floor(seconds / 60)}분`
+  if (seconds >= 86400) return t('time.days', { n: Math.floor(seconds / 86400) })
+  if (seconds >= 3600) return t('time.hours', { n: Math.floor(seconds / 3600) })
+  return t('time.minutes', { n: Math.floor(seconds / 60) })
 }
 
 function capitalize(word: string): string {
@@ -47,7 +48,7 @@ export function codexWindowLabel({ path, topKey, limitWindowSeconds, insideRateL
     ? { label: path, unknown: true }
     : known !== undefined
       ? { label: known, unknown: false }
-      : { label: `${durationText(limitWindowSeconds)} 한도`, unknown: true }
+      : { label: t('label.window.named', { name: durationText(limitWindowSeconds) }), unknown: true }
 
   if (insideRateLimit) return base
   return { label: `${humanizeTopKey(topKey)} · ${base.label}`, unknown: true }

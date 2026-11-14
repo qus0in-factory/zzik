@@ -212,7 +212,8 @@ function targetOf(fromFile: string, spec: string): Target {
   const normalized = spec.split('?')[0].split('#')[0]
   const alias = /^@(ui|app|domain|infra)\/(.*)$/.exec(normalized)
   let abs: string
-  if (alias !== null) abs = join(BASE, 'src', alias[1], alias[2])
+  if (normalized.startsWith('@shared/')) abs = join(BASE, 'shared', normalized.slice('@shared/'.length))
+  else if (alias !== null) abs = join(BASE, 'src', alias[1], alias[2])
   else if (normalized.startsWith('@/')) abs = join(BASE, 'src', normalized.slice(2))
   else if (normalized.startsWith('.')) abs = resolve(dirname(fromFile), normalized)
   else return { kind: 'external' }

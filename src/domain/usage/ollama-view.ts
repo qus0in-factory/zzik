@@ -2,6 +2,7 @@ import { aggregateUsageLevel } from './level'
 import { clampPercent, isoOrNull, isRecord, makeWindow, otherEntries, secondsBetween } from './provider-view-parts'
 import { visibleUsageReport } from './visible'
 import type { UsageIssue, UsageReport, UsageWindow } from './types'
+import { t } from '@shared/messages'
 
 /** Ollama 로컬 `/api/balance` → 포함 크레딧 카드 1장. `purchased`는 한도·리셋이 없어 카드 없이 others로 보존한다. */
 export function buildOllamaUsageView(raw: unknown, options: { now: Date }): UsageReport {
@@ -23,7 +24,7 @@ export function buildOllamaUsageView(raw: unknown, options: { now: Date }): Usag
         makeWindow(
           {
             id: 'included',
-            label: '포함 크레딧',
+            label: t('label.credit.included'),
             usedPercent: clampPercent(((allowance - balance) / allowance) * 100) ?? 0,
             resetsAt: isoOrNull(period['until']),
             cycleSeconds: secondsBetween(period['from'], period['until']),
