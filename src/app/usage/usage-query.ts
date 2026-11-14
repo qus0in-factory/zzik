@@ -29,6 +29,10 @@ export const USAGE_ERROR_CODE_TEXT: Record<string, string> = {
   unauthorized: '로그인이 필요합니다. 페이지를 새로 고친 뒤 다시 로그인해 주세요.',
   not_found: '요청한 제공자의 사용량을 찾을 수 없습니다.',
   method_not_allowed: '지원하지 않는 요청입니다.',
+  invalid_query: '이력 요청 형식이 올바르지 않습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.',
+  scan_version_mismatch: '새 버전이 배포되었습니다. 페이지를 새로 고치면 최신 이력을 볼 수 있습니다.',
+  history_budget: '이력 요청이 너무 많아 잠시 멈췄습니다. 잠시 후 다시 시도해 주세요.',
+  history_conflict: '다른 탭과 이력을 동시에 갱신하고 있습니다. 잠시 후 다시 시도해 주세요.',
 }
 
 const HTTP_CODE = /^http_(\d{3})$/

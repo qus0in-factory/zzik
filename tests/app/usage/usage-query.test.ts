@@ -111,6 +111,9 @@ describe('Given gateway failure texts (이슈 #17: 원시 코드 노출 금지)'
     ['unauthorized', '로그인이 필요합니다'],
     ['not_found', '찾을 수 없습니다'],
     ['method_not_allowed', '지원하지 않는 요청'],
+    ['invalid_query', '이력 요청 형식'],
+    ['scan_version_mismatch', '새 버전이 배포되었습니다'],
+    ['history_budget', '이력 요청이 너무 많아'],
   ] as const)('When the code is %s then the text is user facing', (code, snippet) => {
     const text = describeGatewayFailure('api_error', code)
     expect(text).toContain(snippet)
