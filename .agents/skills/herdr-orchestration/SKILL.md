@@ -12,8 +12,9 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(sol, ds, hy, fab
 | `fable` | 설계·핵심 경로 리뷰(effort high) | 아키텍처·인터페이스·데이터 모델 설계, 설계 리뷰·핵심 경로 리뷰. **구현·검색·테스트·잡무 금지**. 설계는 Herdr fable 패널 또는 fable-designer 서브에이전트(effort high)로 호출 |
 | `sol` | 백엔드/인프라/수집기 구현·조사·교차 리뷰 | 설계에 따른 구현, Postgres/DB 연동, 수집기 인프라, 까다로운 디버깅, 외부 API/CLI·동작 원리 조사, 실데이터 검증, 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high). 탐색·테스트·측정은 terra 서브에이전트에 위임(`.codex/agents/`) |
 | `glm` | 교차 리뷰·구현 평가(OpenCode, GLM-5.3; 리뷰 시 high) | 구현 평가와 독립 교차 리뷰·실데이터 대조. 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high) |
-| `ds` | 경량 구현/잡무 (OpenCode, DeepSeek V4.1 Flash via Ollama Cloud — Ollama 포함 크레딧 차감) | 범위가 명확한 소규모 구현, 테스트 보강, 하네스·스크립트·문서 동기화, 리뷰 지적 반영. 설계·운영 배포·대규모 구조 변경은 맡기지 않음 |
+| `ds` | 경량 구현/잡무 (OpenCode, DeepSeek V4.1 Flash via Ollama Cloud — Ollama 포함 크레딧 차감) | 범위가 명확한 소규모 구현, 테스트 보강, 하네스·스크립트·문서 동기화, 리뷰 지적 반영. beam과 번갈아 나눠 맡는다. 설계·운영 배포·대규모 구조 변경은 맡기지 않음 |
 | `hy` | 경량 구현/잡무 보조(평가 중) | 범위가 명확한 소규모 구현, 테스트 보강, 문서 동기화. 설계·운영 배포 제외, effort 기본 |
+| `beam` | 경량 구현/잡무·배포 실행(OpenCode, Beam Free) | ds와 소규모 작업을 번갈아 나눠 맡는다(Ollama 크레딧 절약). UI 패치 배포 실행, 워크트리 정리. 설계·핵심 경로 구현 제외 |
 | Claude Code 서브에이전트<br>(`model: sonnet`) | 구현·탐색·테스트 위임 | opus·fable이 Agent 도구로 sonnet을 호출한다. Herdr 패널이 아니며 워커 수에 세지 않는다 |
 
 ## fable 사용 제한 (설계·핵심 리뷰)
