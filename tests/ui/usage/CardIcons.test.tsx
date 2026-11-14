@@ -65,6 +65,49 @@ describe('Given the raw property name info button', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByTestId('usage-card-info-content')).toBeNull())
   })
+  it('When the pointer hovers a mouse over the button Then it opens and closes on leave, unless it was pinned by a click', () => {
+    open()
+    const button = screen.getAllByTestId('usage-card-info')[0]
+    fireEvent.pointerEnter(button, { pointerType: 'mouse' })
+    expect(screen.getAllByTestId('usage-card-info-content')[0].textContent).toBe('five_hour')
+    fireEvent.pointerLeave(button, { pointerType: 'mouse' })
+    expect(screen.queryByTestId('usage-card-info-content')).toBeNull()
+    fireEvent.click(button) // 탭·클릭은 고정
+    fireEvent.pointerLeave(button, { pointerType: 'mouse' })
+    expect(screen.getAllByTestId('usage-card-info-content')).toHaveLength(1)
+  })
+  it('When the user taps outside Then the pinned bubble closes', () => {
+    open()
+    fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+    expect(screen.getAllByTestId('usage-card-info-content')).toHaveLength(1)
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByTestId('usage-card-info-content')).toBeNull()
+  })
+  it('When there is room above Then the bubble sits above the button, otherwise below', () => {
+    const original = HTMLElement.prototype.getBoundingClientRect
+    try {
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        return { top: 200, height: 24, bottom: 224, left: 0, right: 0, width: 0, x: 0, y: 200, toJSON: () => ({}) } as DOMRect
+      }
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      expect(screen.getAllByTestId('usage-card-info-content')[0].getAttribute('data-side')).toBe('top')
+      cleanup()
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        return { top: 4, height: 24, bottom: 28, left: 0, right: 0, width: 0, x: 0, y: 4, toJSON: () => ({}) } as DOMRect
+      }
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      expect(screen.getAllByTestId('usage-card-info-content')[0].getAttribute('data-side')).toBe('bottom')
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original
+    }
+  })
+  it('Then the bubble is decorative (the sr-only description carries the text) and has no radix dependency', () => {
+    open()
+    fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+    expect(screen.getAllByTestId('usage-card-info-content')[0].getAttribute('aria-hidden')).toBe('true')
+  })
   it('When the button receives keyboard focus Then the tooltip opens', async () => {
     open()
     screen.getAllByTestId('usage-card-info')[0].focus()

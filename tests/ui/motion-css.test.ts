@@ -27,7 +27,7 @@ describe('Given the shared motion rules', () => {
     expect(css).not.toMatch(/\.bar-enter\s*\{[^}]*\b(?:forwards|both)\b/)
   })
   it('Then the entrance and fade-in are also switched off when reduced motion is requested', () => {
-    for (const selector of ['.bar-enter', '.activity-gerbil-runner']) expect(reduced).toContain(selector)
+    for (const selector of ['.bar-enter', '.activity-gerbil-runner', '.info-bubble']) expect(reduced).toContain(selector)
   })
   it('When reduced motion is requested Then fade-in, button, back-to-top and spinner motion are all turned off', () => {
     expect(css).toContain('@media (prefers-reduced-motion: reduce)')
