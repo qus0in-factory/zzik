@@ -20,7 +20,9 @@ describe('Given the header home link (로고 + 제목)', () => {
     const { link } = setup()
     expect(link.tagName).toBe('A')
     expect(link.getAttribute('href')).toBe('/')
-    expect(link.getAttribute('aria-label')).toBe('홈으로 이동')
+    expect(link.hasAttribute('aria-label')).toBe(false) // 접근 이름은 안의 텍스트
+    expect(link.getAttribute('title')).toBe('홈으로 이동')
+    expect(screen.getByRole('link', { name: 'Zzik : AI 사용량 대시보드' })).toBe(link)
     expect(link.textContent).toBe('Zzik : AI 사용량 대시보드')
     expect(link.querySelector('img')).toBeTruthy()
   })

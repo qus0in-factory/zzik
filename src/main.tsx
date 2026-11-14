@@ -12,6 +12,8 @@ import { createProviderOrderStore } from '@app/usage/provider-order-store'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
 import { createDisabledHistoryDeps, HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
 import type { HistoryDeps } from '@app/usage/history/HistoryDepsContext'
+import { emptyChartViewBuilder } from '@app/usage/history/chart-view-input'
+import type { ChartViewBuilder } from '@app/usage/history/chart-view-input'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
@@ -43,6 +45,9 @@ const usageDeps: UsageDeps = {
 // 이력 infra(IndexedDB·HTTP 게이트웨이)·동기화 모듈은 동적 import 뒤에 있어 번들에서 빠진다(네트워크·IndexedDB 접근 0).
 // 켜지면 게이트웨이·캐시·저장소 어댑터를 만들어 app에 주입한다. DEV 목 모드(?fixture=)는 합성 표본 픽스처 게이트웨이를 쓴다.
 // 차트 뷰 빌더(T3)는 배선 때 buildView로 넣는다.
+// 차트 뷰 빌더(T3)는 지연 청크에서만 온다. 버튼에 포인터·포커스가 닿는 preload로 미리 받고, 그전에는 빈 뷰를 돌려준다 —
+// 메인 번들에는 차트 코드·uPlot이 들어가지 않는다.
+let viewBuilder: ChartViewBuilder = emptyChartViewBuilder
 async function loadHistoryDeps(): Promise<HistoryDeps> {
   if (!__HISTORY_ENABLED__) return createDisabledHistoryDeps()
   const [prefsModule, syncModule, storage, fixtureGateway, httpGateway, idbCache] = await Promise.all([
@@ -66,6 +71,11 @@ async function loadHistoryDeps(): Promise<HistoryDeps> {
     budget: syncModule.createHistoryBudget({ now: () => Date.now() }),
     memory: new Map(),
     inflight: new Map(),
+    buildView: (input) => viewBuilder(input),
+    preload: () =>
+      import('@ui/usage/history/lazy-chart').then((module) => {
+        viewBuilder = module.buildChartView
+      }),
     nowMs: () => Date.now(),
   }
 }

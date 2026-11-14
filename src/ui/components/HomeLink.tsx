@@ -17,7 +17,7 @@ export function HomeLink({ children, navigate = defaultNavigate }: { children: R
   return (
     <a
       href="/"
-      aria-label={t('action.home')}
+      // 접근 이름은 링크 안의 제목 텍스트(h1 이름)다. '홈으로 이동'은 title(설명)로만 둔다 — aria-label로 덮으면 헤딩 이름이 바뀐다.
       title={t('action.home')}
       data-testid="home-link"
       onClick={onClick}

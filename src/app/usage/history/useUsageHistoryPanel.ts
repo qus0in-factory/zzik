@@ -64,6 +64,8 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   const [open, setOpen] = useState(() => deps.enabled && readOpenPanels(deps.session).includes(provider))
   const [size, setSize] = useState<{ width: number; height: number }>({ ...DEFAULT_CHART_SIZE })
   const [progress, setProgress] = useState<string | null>(null)
+  /** 지연 청크의 뷰 빌더가 준비되면 올라가 뷰를 다시 만든다(빌더가 늦게 도착해도 빈 뷰에 머물지 않게). */
+  const [builderTick, setBuilderTick] = useState(0)
 
   const summaryQuery = useQuery({ ...historySummaryQueryOptions(deps.gateway), enabled: deps.enabled })
   const snapshot = useQuery({ ...usageQueryOptions(usageDeps.gateway, provider), enabled: deps.enabled })
@@ -145,8 +147,19 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     })
   }, [deps.enabled, deps.session, provider])
   const onIntent = useCallback(() => {
-    if (deps.enabled) deps.preload?.()
+    if (deps.enabled) void Promise.resolve(deps.preload?.()).then(() => setBuilderTick((tick) => tick + 1))
   }, [deps])
+  // 패널이 열리면(호버·포커스 없이 열려도) 뷰 빌더를 받아 둔다.
+  useEffect(() => {
+    if (!deps.enabled || !open) return
+    let active = true
+    void Promise.resolve(deps.preload?.()).then(() => {
+      if (active) setBuilderTick((tick) => tick + 1)
+    })
+    return () => {
+      active = false
+    }
+  }, [deps, open])
 
   const button: ChartButtonState = !deps.enabled
     ? { label: (t('chart.open') as ChartButtonState['label']), expanded: false, disabled: true, hint: null, panelId, onToggle: toggle, onIntent }
@@ -181,7 +194,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   const buildView = resolveViewBuilder(deps)
   const view = useMemo(
     () => (record === null ? null : buildView({ provider, providerTitle: meta.title, record, tailEnd, range, hidden: hidden ?? NONE, shown: shown ?? NONE, cardLabels, size, nowMs: deps.nowMs() })),
-    [buildView, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size],
+    [buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size],
   )
 
   if (!deps.enabled || !open) return { button, panel: null }

@@ -28,7 +28,6 @@ const texts = new Map(SRC_FILES.map((path) => [path, readFileSync(path, 'utf8')]
 const HARDCODED_ALLOWLIST: Record<string, string> = {
   'src/app/usage/UsageGatewayContext.tsx': '조립 루트가 의존을 주입하지 않았을 때 던지는 개발자용 오류',
   'src/app/usage/history/chart-view.ts': '동결된 ui↔app 계약 타입(ADR 0.7 T0)의 라벨 리터럴 유니온 — 값은 이력 문구 모듈이 t()로 옮길 때까지 타입에만 남는다',
-  'src/app/usage/history/HistoryDepsContext.tsx': '조립 루트가 이력 의존을 주입하지 않았을 때 던지는 개발자용 오류',
   'src/infra/usage/fixture-usage-gateway.ts': 'DEV 전용 목 게이트웨이의 시나리오 오류 메시지',
 }
 
