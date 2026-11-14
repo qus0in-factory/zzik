@@ -5,6 +5,7 @@
 import type { HistoryCacheRecord, ChartRange } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { ChartView } from './chart-view'
+import { historyMessages } from './history-messages'
 
 export interface ChartViewInput {
   provider: UsageProvider
@@ -29,16 +30,14 @@ export type ChartViewBuilder = (input: ChartViewInput) => ChartView
 
 export const DEFAULT_CHART_SIZE = { width: 640, height: 240 } as const
 
-const RANGE_TEXT: Record<ChartRange, string> = { '24h': '24시간', '7d': '7일', '30d': '30일' }
-
 /** 아직 T3의 구현이 없을 때의 자리 구현: 그릴 것이 없는 빈 뷰. */
 export const emptyChartViewBuilder: ChartViewBuilder = (input) => ({
   range: input.range,
   width: input.size.width,
   height: input.size.height,
   plot: { x: 40, y: 8, width: Math.max(0, input.size.width - 48), height: Math.max(0, input.size.height - 32) },
-  title: `${input.providerTitle} 사용률 추이 · 최근 ${RANGE_TEXT[input.range]}`,
-  description: `${input.providerTitle} 사용률 추이: 표시할 이력이 없습니다.`,
+  title: historyMessages.chartTitle(input.providerTitle, input.range),
+  description: historyMessages.emptyDescription(input.providerTitle),
   xTicks: [],
   yTicks: [],
   series: [],

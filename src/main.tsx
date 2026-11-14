@@ -8,17 +8,11 @@ import App from '@ui/App'
 import { createAppQueryClient } from '@app/query-client'
 import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
-import { HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
+import { createDisabledHistoryDeps, HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
 import type { HistoryDeps } from '@app/usage/history/HistoryDepsContext'
-import { createChartPrefsStore, CHART_PREFS_KEY } from '@app/usage/history/chart-prefs-store'
-import { createHistoryBudget } from '@app/usage/history/sync-history'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
-import { browserLocalKeyValue, browserSessionKeyValue, subscribeStorageKey } from '@infra/usage/browser-storage'
-import { createFixtureUsageHistoryGateway } from '@infra/usage/fixture-usage-history-gateway'
-import { createHttpUsageHistoryGateway } from '@infra/usage/http-usage-history-gateway'
-import { browserIndexedDb, createIdbHistoryCache } from '@infra/usage/idb-history-cache'
 import { createFixtureUsageGateway } from '@infra/usage/fixture-usage-gateway'
 import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 
@@ -39,21 +33,35 @@ const usageDeps: UsageDeps = {
       ),
 }
 
-// 이력 계층(ADR 0.7): 게이트웨이·IndexedDB 캐시·저장소 어댑터를 만들어 app에 주입한다.
-// DEV 목 모드(?fixture=)에서는 T1 API 없이 합성 표본 픽스처 게이트웨이를 쓴다. 차트 뷰 빌더(T3)는 배선 때 buildView로 넣는다.
-const chartPrefs = createChartPrefsStore(browserLocalKeyValue())
-subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
-const historyDeps: HistoryDeps = {
-  gateway: devFixtureRequested
-    ? createFixtureUsageHistoryGateway()
-    : createHttpUsageHistoryGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })),
-  cache: createIdbHistoryCache(browserIndexedDb()),
-  session: browserSessionKeyValue(),
-  prefs: chartPrefs,
-  budget: createHistoryBudget({ now: () => Date.now() }),
-  memory: new Map(),
-  inflight: new Map(),
-  nowMs: () => Date.now(),
+// 이력 계층(ADR 0.7): 기능 플래그 `__HISTORY_ENABLED__`(빌드 시 주입, 기본 꺼짐)가 꺼져 있으면 비활성 의존만 쓰고,
+// 이력 infra(IndexedDB·HTTP 게이트웨이)·동기화 모듈은 동적 import 뒤에 있어 번들에서 빠진다(네트워크·IndexedDB 접근 0).
+// 켜지면 게이트웨이·캐시·저장소 어댑터를 만들어 app에 주입한다. DEV 목 모드(?fixture=)는 합성 표본 픽스처 게이트웨이를 쓴다.
+// 차트 뷰 빌더(T3)는 배선 때 buildView로 넣는다.
+async function loadHistoryDeps(): Promise<HistoryDeps> {
+  if (!__HISTORY_ENABLED__) return createDisabledHistoryDeps()
+  const [prefsModule, syncModule, storage, fixtureGateway, httpGateway, idbCache] = await Promise.all([
+    import('@app/usage/history/chart-prefs-store'),
+    import('@app/usage/history/sync-history'),
+    import('@infra/usage/browser-storage'),
+    import('@infra/usage/fixture-usage-history-gateway'),
+    import('@infra/usage/http-usage-history-gateway'),
+    import('@infra/usage/idb-history-cache'),
+  ])
+  const chartPrefs = prefsModule.createChartPrefsStore(storage.browserLocalKeyValue())
+  storage.subscribeStorageKey(prefsModule.CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
+  return {
+    enabled: true,
+    gateway: devFixtureRequested
+      ? fixtureGateway.createFixtureUsageHistoryGateway()
+      : httpGateway.createHttpUsageHistoryGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })),
+    cache: idbCache.createIdbHistoryCache(idbCache.browserIndexedDb()),
+    session: storage.browserSessionKeyValue(),
+    prefs: chartPrefs,
+    budget: syncModule.createHistoryBudget({ now: () => Date.now() }),
+    memory: new Map(),
+    inflight: new Map(),
+    nowMs: () => Date.now(),
+  }
 }
 
 // 개발 목 모드에서 픽스처 선택이 바뀌면 캐시를 무효화해 다음 조회가 바뀐 시나리오를 가져온다.
@@ -67,14 +75,19 @@ if (devFixtureRequested) {
   })
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <UsageGatewayProvider deps={usageDeps}>
-        <HistoryDepsProvider deps={historyDeps}>
-          <App />
-        </HistoryDepsProvider>
-      </UsageGatewayProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-)
+async function start(): Promise<void> {
+  const historyDeps = await loadHistoryDeps()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <UsageGatewayProvider deps={usageDeps}>
+          <HistoryDepsProvider deps={historyDeps}>
+            <App />
+          </HistoryDepsProvider>
+        </UsageGatewayProvider>
+      </QueryClientProvider>
+    </StrictMode>,
+  )
+}
+
+void start()
