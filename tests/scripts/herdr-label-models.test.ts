@@ -15,6 +15,7 @@ const filler = (n: number) => Array.from({ length: n }, (_, i) => `대화 본문
 describe('Given the herdr label detection', () => {
   it('When the agent kind is unambiguous Then the kind decides without reading the screen', () => {
     expect(detect('codex', 'Opus 5.5 · 인용문')).toBe('sol')
+    expect(detect('grok', 'Opus 5.5 · 인용문')).toBe('grok')
   })
   it('When agy shows a Gemini Hydrogen status line Then it is hydro, otherwise gemini', () => {
     expect(detect('agy', `${filler(10)}\n  Gemini 4 Hydrogen · high`)).toBe('hydro')
@@ -35,8 +36,8 @@ describe('Given the herdr label detection', () => {
     const screen = `"Gemini 4 Hydrogen"로 바꿨다\nSonnet 5.5 로 전환 기록\n${filler(8)}\n? for shortcuts`
     expect(detect('agy', screen)).toBe('')
   })
-  it('When opencode shows a model in the bottom lines Then Grok or GPT-Sol is told apart', () => {
-    expect(detect('opencode', `${filler(10)}\n  ┃  Build auto · Grok 4.7 xAI · high`)).toBe('grok')
+  it('When opencode shows a model in the bottom lines Then Grok is no longer detected and GPT-Sol is told apart', () => {
+    expect(detect('opencode', `${filler(10)}\n  ┃  Build auto · Grok 4.7 xAI · high`)).toBe('')
     expect(detect('opencode', `${filler(10)}\n  GPT-6.1-Sol medium · ~/zzik`)).toBe('sol')
     expect(detect('opencode', filler(10))).toBe('')
   })
