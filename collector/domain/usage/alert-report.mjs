@@ -50,9 +50,10 @@ export function buildAlertReport(provider, rawText, nowMs, rawRedacted) {
     // just-reset zero can still carry the former reset timestamp.
     const codexWindows = provider === 'codex' ? readCodexWindows(raw, {fetchedAt:new Date(nowMs).toISOString()}).windows : []
     const values = scan.series.map(value => { const codex = codexWindows.find(w => w.path === value.id); return codex ? {...value,resetsAt:codex.resetsAt} : value })
-    const limits = values.map(value => ({ ...value, label: labelOf(provider, value, raw), elapsedPercent: elapsedPercent(value.resetsAt, value.cycleSeconds, new Date(nowMs)), expired: value.resetsAt !== null && Date.parse(value.resetsAt) < nowMs }))
+    const limits = values.filter(value => provider !== 'claude' || value.id !== 'extra_usage').map(value => ({ ...value, label: labelOf(provider, value, raw), elapsedPercent: elapsedPercent(value.resetsAt, value.cycleSeconds, new Date(nowMs)), expired: value.resetsAt !== null && Date.parse(value.resetsAt) < nowMs }))
     // Claude scoped metrics are not windows in the dashboard summary.
     const windows = provider === 'claude' ? limits.filter(w => w.id === 'five_hour' || w.id === 'seven_day') : provider === 'codex' ? limits.filter(w => w.id === 'rate_limit' || w.id.startsWith('rate_limit.')) : limits
-    return { provider, nowMs, limits, primaryId: summaryWindowOf(windows, provider)?.id ?? null }
+    const spend = provider === 'claude' && raw.extra_usage !== null && typeof raw.extra_usage === 'object' ? raw.extra_usage.spend_limit_reached : null
+    return { provider, nowMs, limits, spendLimitReached: typeof spend === 'boolean' && !rawRedacted.some(p => p === 'extra_usage' || p === 'extra_usage.spend_limit_reached') ? spend : null, primaryId: summaryWindowOf(windows, provider)?.id ?? null }
   } catch { return null }
 }

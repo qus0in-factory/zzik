@@ -25,6 +25,7 @@ export function diffAlerts(prevState, nextReport) {
   const events = /** @type {AlertEvent[]} */([])
   const { nowMs, provider } = nextReport
   for (const item of nextReport.limits) {
+    if (provider === 'claude' && item.id === 'extra_usage') continue
     if (item.expired && item.usedPercent > 0) continue
     const old = Object.hasOwn(prevState.windows,item.id) ? prevState.windows[item.id] : null
     const from = old?.notifiedLevel ?? 'normal', to = levelOf(item)
@@ -38,10 +39,13 @@ export function diffAlerts(prevState, nextReport) {
   const currentPrimary = nextReport.limits.find(w => w.id === nextReport.primaryId)
   const oldPrimary = prevState.primaryId === null ? null : prevState.windows[prevState.primaryId]
   const currentOld = nextReport.limits.find(w => w.id === prevState.primaryId)
-  if (currentPrimary && oldPrimary && currentOld && summaryUnitOf(currentPrimary) === summaryUnitOf(currentOld) && currentOld.usedPercent === 0 && oldPrimary.usedPercent > 0 && oldPrimary.resetsAt !== null && Date.parse(oldPrimary.resetsAt) <= nowMs) {
+  if (currentPrimary && oldPrimary && currentOld && currentOld.id !== 'extra_usage' && summaryUnitOf(currentPrimary) === summaryUnitOf(currentOld) && currentOld.usedPercent === 0 && oldPrimary.usedPercent > 0 && oldPrimary.resetsAt !== null && Date.parse(oldPrimary.resetsAt) <= nowMs) {
     const clearing = events.findIndex(e => e.id === currentOld.id && e.kind === 'level')
     if (clearing >= 0) events.splice(clearing, 1)
     events.push({ provider, ...currentOld, kind:'reset', from:oldPrimary.level, to:'normal', nowMs })
+  }
+  if (provider === 'claude' && typeof prevState.spendLimitReached === 'boolean' && typeof nextReport.spendLimitReached === 'boolean' && prevState.spendLimitReached !== nextReport.spendLimitReached) {
+    events.push({provider,id:'extra_usage',label:'추가 지출',kind:'spend',from:prevState.spendLimitReached ? 'limit' : 'normal',to:nextReport.spendLimitReached ? 'limit' : 'normal',usedPercent:null,elapsedPercent:null,resetsAt:null,nowMs})
   }
   return events
 }
@@ -51,12 +55,14 @@ export function diffAlerts(prevState, nextReport) {
 export function nextAlertState(prevState, report, events) {
   const previous = validState(prevState) ? prevState.windows : {}
   const entries = new Map(Object.entries(previous))
+  if (report.provider === 'claude') entries.delete('extra_usage')
   for (const item of report.limits) {
+    if (report.provider === 'claude' && item.id === 'extra_usage') continue
     if (item.expired && item.usedPercent > 0) continue
     const old = Object.hasOwn(previous,item.id) ? previous[item.id] : null
     const sent = events.find(e => e.id === item.id)
     const level = levelOf(item)
     entries.set(item.id, { level, usedPercent:item.usedPercent, resetsAt:item.resetsAt, cycleSeconds:item.cycleSeconds, notifiedLevel:sent?.to ?? old?.notifiedLevel ?? (validState(prevState) ? 'normal' : level), notifiedAt:sent ? report.nowMs : old?.notifiedAt ?? null })
   }
-  return { version:1, primaryId:report.primaryId ?? (validState(prevState) ? prevState.primaryId : null), windows:Object.fromEntries(entries) }
+  return { version:1, spendLimitReached: typeof report.spendLimitReached === 'boolean' ? report.spendLimitReached : validState(prevState) ? prevState.spendLimitReached ?? null : null, primaryId:report.primaryId ?? (validState(prevState) ? prevState.primaryId : null), windows:Object.fromEntries(entries) }
 }
