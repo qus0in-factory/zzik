@@ -34,14 +34,14 @@ function badgeFor(barLevel: CardPresentation['barLevel'], usedPercent: number | 
  * 한도 카드: 라벨·원래 키·퍼센트·진행률·배지·리셋 문구. 판정 없이 뷰 모델을 그린다.
  * 제목 단계는 섹션 구조(제공자 h2 → 블록 h3 → 카드 h4)에 맞춰 주입한다.
  */
-export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION }: { item: UsageLimitItem; titleLevel?: 3 | 4; presentation?: CardPresentation }): ReactNode {
+export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION, enterIndex = 0 }: { item: UsageLimitItem; titleLevel?: 3 | 4; presentation?: CardPresentation; enterIndex?: number }): ReactNode {
   const { id, label, unknown = false, usedPercent, expired, resetText, elapsedPercent } = item
   const percentText = usedPercent === null ? null : new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(usedPercent)
   const { barLevel, barLevelText, gerbil } = presentation
   const badge = badgeFor(barLevel, usedPercent)
   const Heading = titleLevel === 4 ? 'h4' : 'h3'
   return (
-    <Card data-testid="usage-card" data-card-id={id} className="fade-in min-w-0 gap-3">
+    <Card data-testid="usage-card" data-card-id={id} className="fade-in min-w-0 gap-3" style={{ '--enter-index': enterIndex } as CSSProperties}>
       <CardHeader className="gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <Heading data-testid="usage-card-label" className="break-words text-base leading-none font-semibold">
@@ -64,7 +64,7 @@ export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION
           {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
         </div>
         {usedPercent !== null && (
-          <div data-testid="usage-bar" data-bar-level={barLevel} className="usage-bar relative min-w-0 pt-5">
+          <div data-testid="usage-bar" data-bar-level={barLevel} className="usage-bar relative min-w-0 pt-[1.625rem]">
             <div aria-hidden="true" className="activity-gerbil-track">
                 <span
                   data-testid="activity-gerbil"
