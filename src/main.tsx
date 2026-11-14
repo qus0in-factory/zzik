@@ -12,6 +12,7 @@ import { ViewModeProvider } from '@app/usage/ViewModeContext'
 import { createViewModeStore } from '@app/usage/view-mode-store'
 import { createProviderOrderStore } from '@app/usage/provider-order-store'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
+import { CHART_PREFS_KEY, createChartPrefsStore } from '@app/usage/history/chart-prefs-store'
 import { createDisabledHistoryDeps, HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
 import type { HistoryDeps } from '@app/usage/history/HistoryDepsContext'
 import { emptyChartViewBuilder } from '@app/usage/history/chart-view-input'
@@ -55,16 +56,15 @@ const usageDeps: UsageDeps = {
 let viewBuilder: ChartViewBuilder = emptyChartViewBuilder
 async function loadHistoryDeps(): Promise<HistoryDeps> {
   if (!__HISTORY_ENABLED__) return createDisabledHistoryDeps()
-  const [prefsModule, syncModule, storage, fixtureGateway, httpGateway, idbCache] = await Promise.all([
-    import('@app/usage/history/chart-prefs-store'),
+  const [syncModule, storage, fixtureGateway, httpGateway, idbCache] = await Promise.all([
     import('@app/usage/history/sync-history'),
     import('@infra/usage/browser-storage'),
     import('@infra/usage/fixture-usage-history-gateway'),
     import('@infra/usage/http-usage-history-gateway'),
     import('@infra/usage/idb-history-cache'),
   ])
-  const chartPrefs = prefsModule.createChartPrefsStore(storage.browserLocalKeyValue())
-  storage.subscribeStorageKey(prefsModule.CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
+  const chartPrefs = createChartPrefsStore(storage.browserLocalKeyValue())
+  storage.subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
   return {
     enabled: true,
     gateway: devFixtureRequested

@@ -5,7 +5,7 @@
 import { USAGE_HISTORY_PAGE_LIMIT } from '../../../../shared/usage-history-contract'
 import type { UsageHistoryPage, UsageHistoryQuery, UsageHistorySample } from '../../../../shared/usage-history-contract'
 import type { HistoryCacheStore, UsageHistoryGateway, UsageHistoryGatewayFailure } from '@domain/usage/history/ports'
-import { applyBackfill, applyForward, coverageOf, isForwardStale, validateRecord, withSync } from '@domain/usage/history/record'
+import { applyBackfill, applyForward, coverageOf, HISTORY_RECORD_MAX_AGE_MS, HISTORY_RECORD_MAX_SAMPLES, isForwardStale, validateRecord, withSync } from '@domain/usage/history/record'
 import type { Coverage } from '@domain/usage/history/record'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
@@ -71,7 +71,7 @@ export interface SyncArgs {
 }
 
 export type SyncOutcome =
-  | { ok: true; record: HistoryCacheRecord; skipped: boolean; persisted: boolean }
+  | { ok: true; record: HistoryCacheRecord; skipped: boolean; persisted: boolean; /** 표본 상한·31일 보존 경계에 닿아 백필을 마쳤다(더 과거는 보존하지 않는다) */ backfillComplete?: boolean }
   | { ok: false; reason: 'gateway'; failure: UsageHistoryGatewayFailure; record: HistoryCacheRecord | null }
   | { ok: false; reason: 'version_mismatch' | 'budget' | 'conflict'; record: HistoryCacheRecord | null }
 
@@ -109,10 +109,13 @@ export async function syncHistory(deps: SyncDeps, args: SyncArgs): Promise<SyncO
     }
     const result = await deps.cache.update(provider, wrapped)
     if (result.ok) return { written: result.written, record: computed }
-    // 저장소 오류: 이번 세션은 메모리로(quota면 비운다). 읽은 값을 기준으로 다시 계산한다.
+    // 저장소 오류: 이번 세션은 메모리로 옮겨 계속한다. **현재 레코드를 먼저 읽어 메모리에 둔 뒤에** quota면 캐시를 비운다
+    // (순서가 거꾸로면 비운 뒤 읽어 null이 되어 레코드가 유실된다, ADR 0.7 6.1·6.2).
     persisted = false
+    const current = await readCurrentForMemory()
+    if (current !== null) deps.memory.set(provider, current)
     if (result.reason === 'quota') await deps.cache.remove(provider)
-    const next = mutate(await readCurrentForMemory())
+    const next = mutate(current)
     if (next !== null) deps.memory.set(provider, next)
     return { written: next !== null, record: next }
   }
@@ -181,7 +184,9 @@ export async function syncHistory(deps: SyncDeps, args: SyncArgs): Promise<SyncO
   }
 
   // 백필: 선택 범위의 시작이 coveredFrom보다 앞일 때만, 하루 조각씩 과거 쪽으로
-  const wantFrom = args.wantFromMs
+  // 보존 경계(31일)보다 과거는 어차피 정리되므로 목표를 그 안으로 자른다.
+  const wantFrom = args.wantFromMs === null ? null : Math.max(args.wantFromMs, deps.nowMs() - HISTORY_RECORD_MAX_AGE_MS)
+  let backfillComplete = false
   if (record !== null && wantFrom !== null && record.coveredFrom !== null && wantFrom < Date.parse(record.coveredFrom)) {
     const total = Math.ceil((Date.parse(record.coveredFrom) - wantFrom) / BACKFILL_CHUNK_MS)
     let done = 0
@@ -215,8 +220,16 @@ export async function syncHistory(deps: SyncDeps, args: SyncArgs): Promise<SyncO
       publish(record)
       done += 1
       deps.onProgress?.(Math.min(done, total), total)
+      // 표본 상한(4,000)에 닿으면 가장 오래된 표본이 정리되어 coveredFrom이 더 과거로 가지 못한다 — 같은 조각을 되풀이하지 않고 완료로 본다.
+      if (record.coveredFrom === null || Date.parse(record.coveredFrom) >= Date.parse(until) || record.samples.length >= HISTORY_RECORD_MAX_SAMPLES) {
+        backfillComplete = true
+        deps.onProgress?.(total, total)
+        break
+      }
     }
+    // 목표가 보존 경계로 잘렸고 그 경계까지 채웠다면 더 과거는 보존하지 않으므로 완료로 본다.
+    if (args.wantFromMs !== null && args.wantFromMs < wantFrom && record !== null && record.coveredFrom !== null && Date.parse(record.coveredFrom) <= wantFrom) backfillComplete = true
   }
 
-  return record === null ? { ok: false, reason: 'gateway', failure: { ok: false, reason: 'api_error', message: null }, record: null } : { ok: true, record, skipped: unchanged && wantFrom === null, persisted }
+  return record === null ? { ok: false, reason: 'gateway', failure: { ok: false, reason: 'api_error', message: null }, record: null } : { ok: true, record, skipped: unchanged && wantFrom === null, persisted, ...(backfillComplete ? { backfillComplete } : {}) }
 }

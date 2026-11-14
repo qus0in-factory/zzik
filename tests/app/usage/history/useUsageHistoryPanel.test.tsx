@@ -10,7 +10,7 @@ import type { HistoryDeps } from '@app/usage/history/HistoryDepsContext'
 import { createChartPrefsStore, prefsOf } from '@app/usage/history/chart-prefs-store'
 import { emptyChartViewBuilder } from '@app/usage/history/chart-view-input'
 import type { ChartViewInput } from '@app/usage/history/chart-view-input'
-import { CHART_OPEN_KEY, useUsageHistoryPanel } from '@app/usage/history/useUsageHistoryPanel'
+import { CHART_OPEN_KEY, readOpenPanels, useUsageHistoryPanel } from '@app/usage/history/useUsageHistoryPanel'
 import { createHistoryBudget } from '@app/usage/history/sync-history'
 import { createRecord, applyForward } from '@domain/usage/history/record'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
@@ -224,6 +224,20 @@ describe('Given a view builder that arrives late (지연 청크)', () => {
     const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
     await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
     await waitFor(() => expect((result.current.panel?.state as { view: { title: string } }).view.title).toBe('LOADED'))
+  })
+})
+
+describe('Given the sessionStorage open-panel list (N4: 정규화)', () => {
+  const read = (open: unknown) => readOpenPanels(createMemoryKeyValue({ [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open }) }))
+  it('Then only known providers survive, duplicates are removed and at most six remain', () => {
+    expect(read(['claude', 'nope', 'claude', 7, null, 'codex'])).toEqual(['claude', 'codex'])
+    expect(read(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'claude', 'x'])).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
+    expect(read(Array.from({ length: 20 }, () => 'grok'))).toEqual(['grok'])
+  })
+  it('Then broken storage yields an empty list', () => {
+    expect(readOpenPanels(createMemoryKeyValue({ [CHART_OPEN_KEY]: '{oops' }))).toEqual([])
+    expect(readOpenPanels(createMemoryKeyValue({ [CHART_OPEN_KEY]: JSON.stringify({ v: 2, open: ['claude'] }) }))).toEqual([])
+    expect(read('claude')).toEqual([])
   })
 })
 
