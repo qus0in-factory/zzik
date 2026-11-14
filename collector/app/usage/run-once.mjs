@@ -11,6 +11,7 @@
  * - 봉투의 provider는 options.provider 그대로다(ADR 0.3 D5).
  */
 
+import { eventHeartbeatDue } from '../../domain/usage/event-heartbeat.mjs'
 import { buildAlertReport } from '../../domain/usage/alert-report.mjs'
 import { diffAlerts, nextAlertState } from './diff-alerts.mjs'
 import { snapshotChanged } from '../../domain/usage/snapshot-change.mjs'
@@ -37,6 +38,7 @@ export function emptyCollectorState() {
     schema: 1,
     provider: null,
     previous: null,
+    lastEventAt: null,
     alerts: null,
     gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null },
     lastRun: { status: null, tokenExpiresAt: null },
@@ -51,6 +53,7 @@ function normalizeState(state) {
     schema: 1,
     provider: state.provider ?? null,
     previous: state.previous ?? null,
+    lastEventAt: typeof state.lastEventAt === 'string' ? state.lastEventAt : null,
     alerts: state.alerts ?? null,
     lastPruneAt: state.lastPruneAt ?? null,
     gate: { ...base.gate, ...(typeof state.gate === 'object' && state.gate !== null ? state.gate : {}) },
@@ -205,15 +208,22 @@ export async function runOnce(ports, options = {}) {
     }
   }
 
+  const changed = snapshotChanged(state.previous === null ? null : {
+    status: state.previous.status,
+    rawSha256: state.previous.rawText === null ? null : sha256Hex(state.previous.rawText),
+  }, {
+    status: envelope.status,
+    rawSha256: envelope.rawText === null ? null : sha256Hex(envelope.rawText),
+  })
+  const heartbeat = eventHeartbeatDue(state.lastEventAt, nowMs)
   let storeResult
   try {
     storeResult = await ports.store.write(JSON.stringify(envelope), {
       provider, status: envelope.status, runAt: envelope.runAt, fetchedAt: envelope.fetchedAt,
       rawSha256: envelope.rawText === null ? null : sha256Hex(envelope.rawText),
       collectorVersion: envelope.collectorVersion,
-      changed: snapshotChanged(state.previous === null ? null : {
-        status: state.previous.status, rawSha256: state.previous.rawText === null ? null : sha256Hex(state.previous.rawText),
-      }, {status:envelope.status,rawSha256:envelope.rawText === null ? null : sha256Hex(envelope.rawText)}),
+      changed,
+      heartbeat,
     })
   } catch (error) {
     storeResult = { ok: false, httpStatus: null, message: 'StoreWriteError' }
@@ -226,6 +236,7 @@ export async function runOnce(ports, options = {}) {
     schema: 1,
     provider,
     previous: storeResult.ok ? envelope : state.previous,
+    lastEventAt: storeResult.ok && (changed || heartbeat) ? envelope.runAt : state.lastEventAt ?? null,
     alerts: storeResult.ok ? nextAlerts : state.alerts ?? null,
     lastPruneAt: state.lastPruneAt ?? null,
     gate: {
@@ -253,6 +264,7 @@ export async function runOnce(ports, options = {}) {
     tokenExpiresAt: envelope.tokenExpiresAt,
     source: provider === 'antigravity' ? (chosen === null ? 'none' : 'cli') : null,
     stateOk,
+    heartbeat: storeResult.ok === true && heartbeat,
     kvOk: storeResult.ok === true,
     kvReason: storeResult.ok === true ? null : (storeResult.message ?? null),
     transition: prevStatus !== null && prevStatus !== status ? `${prevStatus}→${status}` : null,
