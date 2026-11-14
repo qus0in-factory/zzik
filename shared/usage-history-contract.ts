@@ -14,7 +14,7 @@ export const USAGE_HISTORY_LIMIT_MAX = 100
 /** 클라이언트가 보내는 기본 쪽 크기(G0-A2로 확정). */
 export const USAGE_HISTORY_PAGE_LIMIT = 50
 /** "충분히 쌓임" 판정에 필요한 ok 이벤트 수(10절). 변화가 드문 제공자도 열리도록 2건으로 완화. */
-export const USAGE_HISTORY_MIN_OK_EVENTS = 2
+export const USAGE_HISTORY_MIN_OK_EVENTS = 1
 
 /**
  * 표본 값의 의미 버전. 스캔 규칙(shared/usage-scan)이 바뀌어 같은 원문에서 다른 값이 나오게 되면 올린다.

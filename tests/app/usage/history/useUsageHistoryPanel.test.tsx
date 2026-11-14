@@ -78,8 +78,6 @@ describe('Given the history panel button state (10절)', () => {
   })
   it.each([
     [[], '아직 기록된 이력이 없습니다'],
-    [[{ provider: 'claude', okCount: 1, firstOkAt: '2026-11-10T00:00:00.000Z', lastOkAt: '2026-11-14T00:00:00.000Z' }], '변화 기록이 2건 이상 쌓이면 볼 수 있습니다 (현재 1건)'],
-    [[{ provider: 'claude', okCount: 2, firstOkAt: '2026-11-14T00:00:00.000Z', lastOkAt: '2026-11-14T04:00:00.000Z' }], '첫 기록 후 6시간이 지나면 볼 수 있습니다 (약 2시간 남음)'],
   ] as const)('When the summary is %j Then disabled with the reason', async (summary, hint) => {
     const h = harness({ summary: [...summary] })
     const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })

@@ -1,8 +1,8 @@
-/** "충분히 쌓임" 판정(ADR 0.7 10절). ok 이벤트 2건 이상 그리고 첫 ok부터 마지막 ok까지 6시간 이상. 실패 이벤트는 세지 않는다. */
+/** "충분히 쌓임" 판정(ADR 0.7 10절). ok 이벤트 1건 이상이면 바로 연다(마지막 값은 now까지 수평선으로 이어 그린다). 실패 이벤트는 세지 않는다. */
 import { USAGE_HISTORY_MIN_OK_EVENTS } from '../../../../shared/usage-history-contract'
 import type { UsageHistorySummaryEntry } from '../../../../shared/usage-history-contract'
 
-export const HISTORY_MIN_SPAN_MS = 6 * 3_600_000
+export const HISTORY_MIN_SPAN_MS = 0
 
 export type HistoryEligibility =
   | { eligible: true }
