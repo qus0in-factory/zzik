@@ -10,6 +10,8 @@ import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
 import { HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
 import type { HistoryDeps } from '@app/usage/history/HistoryDepsContext'
+import { emptyChartViewBuilder } from '@app/usage/history/chart-view-input'
+import type { ChartViewBuilder } from '@app/usage/history/chart-view-input'
 import { createChartPrefsStore, CHART_PREFS_KEY } from '@app/usage/history/chart-prefs-store'
 import { createHistoryBudget } from '@app/usage/history/sync-history'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
@@ -43,6 +45,9 @@ const usageDeps: UsageDeps = {
 // DEV 목 모드(?fixture=)에서는 T1 API 없이 합성 표본 픽스처 게이트웨이를 쓴다. 차트 뷰 빌더(T3)는 배선 때 buildView로 넣는다.
 const chartPrefs = createChartPrefsStore(browserLocalKeyValue())
 subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
+// 차트 뷰 빌더(T3)는 지연 청크에서만 온다. 버튼에 포인터·포커스가 닿는 preload로 미리 받고,
+// 그전에는 빈 뷰를 돌려준다 — 메인 번들에는 차트 코드·uPlot이 들어가지 않는다.
+let viewBuilder: ChartViewBuilder = emptyChartViewBuilder
 const historyDeps: HistoryDeps = {
   gateway: devFixtureRequested
     ? createFixtureUsageHistoryGateway()
@@ -53,6 +58,12 @@ const historyDeps: HistoryDeps = {
   budget: createHistoryBudget({ now: () => Date.now() }),
   memory: new Map(),
   inflight: new Map(),
+  buildView: (input) => viewBuilder(input),
+  preload: () => {
+    void import('@ui/usage/history/lazy-chart').then((module) => {
+      viewBuilder = module.buildChartView
+    })
+  },
   nowMs: () => Date.now(),
 }
 
