@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from '@ui/App'
+import { PaceChips } from '@ui/usage/PaceChips'
 import { ProviderOrderProvider } from '@app/usage/ProviderOrderContext'
 import { createProviderOrderStore } from '@app/usage/provider-order-store'
 import type { ProviderOrderPort } from '@app/usage/provider-order'
@@ -15,7 +16,25 @@ import codexRaw from '../../fixtures/codex-usage.normal.json'
 import { createFakeUsageClock, createFakeUsageGateway, createFakeUsageScheduler } from '../../fakes/usage-ports'
 import { makeUsageProviders } from '../../helpers/query'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
+
+/** jsdom에는 레이아웃이 없어 칩 폭·위치를 흉내 낸다: 칩 i는 left = i × 110, 폭 100. */
+function stubChipLayout() {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const list = this.closest('ul')
+    const index = list === null || this.dataset.chipId === undefined ? 0 : [...list.querySelectorAll('[data-chip-id]')].indexOf(this)
+    const left = index * 110
+    return { left, right: left + 100, top: 0, bottom: 30, width: 100, height: 30, x: left, y: 0, toJSON: () => ({}) } as DOMRect
+  })
+}
+const press = (chip: HTMLElement, init: Record<string, unknown>) => fireEvent.pointerDown(chip, { button: 0, isPrimary: true, pointerId: 1, ...init })
+const moveTo = (init: Record<string, unknown>) => fireEvent.pointerMove(window, { pointerId: 1, ...init })
+const release = (init: Record<string, unknown> = {}) => fireEvent.pointerUp(window, { pointerId: 1, ...init })
+
 
 function renderApp(saved: unknown[] | null = null) {
   const gateway = createFakeUsageGateway()
@@ -132,3 +151,128 @@ describe('Given the draggable pace chips (순서 = 패널 순서)', () => {
     expect(card.hasAttribute('data-entered')).toBe(true)
   })
 })
+
+describe('Given pointer edge cases (검수 FIX)', () => {
+  it('When a touch press moves only vertically before the long-press fires Then the drag is cancelled and the click is not swallowed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderApp()
+    await ready()
+    stubChipLayout()
+    const claude = screen.getByTestId('usage-pace-claude')
+    press(claude, { pointerType: 'touch', clientX: 50, clientY: 10 })
+    moveTo({ pointerType: 'touch', clientX: 50, clientY: 40 }) // 세로로 30px: 스크롤로 본다
+    await act(async () => { vi.advanceTimersByTime(500) })
+    expect(claude.closest('li')?.getAttribute('data-grabbed')).toBe('false')
+    release()
+    const notPrevented = fireEvent.click(claude)
+    expect(notPrevented).toBe(true)
+  })
+  it('When a touch press stays still past the long-press time Then the drag starts', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderApp()
+    await ready()
+    stubChipLayout()
+    const claude = screen.getByTestId('usage-pace-claude')
+    press(claude, { pointerType: 'touch', clientX: 50, clientY: 10 })
+    moveTo({ pointerType: 'touch', clientX: 52, clientY: 12 }) // 8px 이내 흔들림은 허용
+    await act(async () => { vi.advanceTimersByTime(400) })
+    expect(claude.closest('li')?.getAttribute('data-grabbed')).toBe('true')
+    release()
+  })
+  it('When a mouse drag crosses the threshold and far enough in ONE pointermove Then the drop already reorders (같은 이벤트로 목표 계산)', async () => {
+    const app = renderApp()
+    await ready()
+    stubChipLayout()
+    const claude = screen.getByTestId('usage-pace-claude')
+    press(claude, { pointerType: 'mouse', clientX: 50, clientY: 10 })
+    moveTo({ pointerType: 'mouse', clientX: 50 + 230, clientY: 10 }) // 칩 두 개 건너편
+    release({ clientX: 280 })
+    expect(chipOrder().slice(0, 3)).toEqual(['codex', 'antigravity', 'claude'])
+    expect(app.stored).toEqual(app.store.getState().order)
+  })
+  it('When the pointer is released without crossing the threshold Then nothing moves and the click goes through', async () => {
+    renderApp()
+    await ready()
+    stubChipLayout()
+    const claude = screen.getByTestId('usage-pace-claude')
+    press(claude, { pointerType: 'mouse', clientX: 50, clientY: 10 })
+    moveTo({ pointerType: 'mouse', clientX: 52, clientY: 10 })
+    release()
+    expect(chipOrder()[0]).toBe('claude')
+    expect(fireEvent.click(claude)).toBe(true)
+  })
+  it('When the component unmounts during a press or drag Then window listeners are removed and no late timer fires', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const added: string[] = []
+    const removed: string[] = []
+    const add = vi.spyOn(window, 'addEventListener')
+    const remove = vi.spyOn(window, 'removeEventListener')
+    const app = renderApp()
+    await ready()
+    stubChipLayout()
+    const claude = screen.getByTestId('usage-pace-claude')
+    press(claude, { pointerType: 'touch', clientX: 50, clientY: 10 })
+    for (const call of add.mock.calls) if (['pointermove', 'pointerup', 'pointercancel'].includes(call[0] as string)) added.push(call[0] as string)
+    cleanup()
+    for (const call of remove.mock.calls) if (['pointermove', 'pointerup', 'pointercancel'].includes(call[0] as string)) removed.push(call[0] as string)
+    expect(added.sort()).toEqual(['pointercancel', 'pointermove', 'pointerup'])
+    expect(removed.sort()).toEqual(added)
+    await act(async () => { vi.advanceTimersByTime(1000) }) // 길게 누르기 타이머가 남아 있었다면 여기서 터진다
+    expect(app.store.getState().order[0]).toBe('claude')
+  })
+  it('When a drag ends Then the pointer capture is released', async () => {
+    renderApp()
+    await ready()
+    stubChipLayout()
+    const claude = screen.getByTestId('usage-pace-claude')
+    const capture = vi.fn()
+    const release_ = vi.fn()
+    Object.assign(claude, { setPointerCapture: capture, releasePointerCapture: release_, hasPointerCapture: () => true })
+    press(claude, { pointerType: 'mouse', clientX: 50, clientY: 10 })
+    moveTo({ pointerType: 'mouse', clientX: 70, clientY: 10 })
+    expect(capture).toHaveBeenCalledWith(1)
+    release()
+    expect(release_).toHaveBeenCalledWith(1)
+  })
+  it('When the long-press context menu fires on a pending touch or a drag Then it is prevented; a normal right click is not', async () => {
+    renderApp()
+    await ready()
+    stubChipLayout()
+    const claude = screen.getByTestId('usage-pace-claude')
+    expect(fireEvent.contextMenu(claude)).toBe(true)
+    press(claude, { pointerType: 'touch', clientX: 50, clientY: 10 })
+    expect(fireEvent.contextMenu(claude)).toBe(false)
+    release()
+  })
+})
+
+describe('Given keyboard blur and reset (검수 FIX)', () => {
+  it('When a keyboard grab loses focus Then the cancel is announced', async () => {
+    renderApp()
+    await ready()
+    const claude = screen.getByTestId('usage-pace-claude')
+    claude.focus()
+    fireEvent.keyDown(claude, { key: ' ' })
+    fireEvent.keyDown(claude, { key: 'ArrowRight' })
+    fireEvent.blur(claude)
+    expect(live()).toContain('취소')
+    expect(chipOrder()[0]).toBe('claude')
+  })
+  it('When the order is reset Then the section FLIP is armed first (onBeforeMove)', async () => {
+    const store = createProviderOrderStore({ load: () => ['ollama', 'claude'], save: () => {}, clear: () => {} })
+    const gateway = createFakeUsageGateway()
+    const providers = makeUsageProviders({ gateway, clock: createFakeUsageClock(), scheduler: createFakeUsageScheduler() })
+    const before = vi.fn()
+    render(
+      <providers.wrapper>
+        <ProviderOrderProvider store={store}>
+          <PaceChips onBeforeMove={before} />
+        </ProviderOrderProvider>
+      </providers.wrapper>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '제공자 순서 초기화' }))
+    expect(before).toHaveBeenCalledTimes(1)
+    expect(store.getState().customized).toBe(false)
+  })
+})
+
