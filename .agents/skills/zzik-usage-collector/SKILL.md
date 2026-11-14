@@ -33,6 +33,7 @@ ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P
 - 제공자별 상태: ~/Library/Application Support/zzik/usage-state.provider.json. 이전 봉투/게이트 유지. 하루 1회 정리의 lastPruneAt은 정리 상태에 남는다.
 - agy 토큰 저장소(file/keychain) 점검: Antigravity 로그의 `source=cli`와 CLI 실패 진단만 보고, 토큰 파일·Keychain 값은 읽지 않는다. 저장소가 바뀌어도 수집기는 agy를 신뢰한다.
 - DB 상태는 provider/status/run_at/fetched_at 정도만 제한 조회한다. envelope 전문·DB_URL·자격 증명을 출력하지 않는다.
+- 알림 리셋 판정: 저장된 리셋 시각 30분 이내의 0%만 리셋 참조로 쓰고, 리셋 시각이 지난 첫 관측에서 참조를 비운다(근거: ADR 0.8).
 - scripts/usage-live-shape.sh provider로 DB 형상 확인. 이 스크립트가 내부적으로 사용하는 fetch 출력은 원문이므로 따로 실행해 터미널/파일에 저장하지 않는다.
 - kvOk/kvReason·kv= 표기는 기존 로그와의 호환 이름이며 Postgres 저장 결과만 뜻한다. kvOk=true는 Postgres 쓰기 성공이다. 실패하면 DB_URL 존재 여부·Neon 한도·연결·마이그레이션을 점검한다. 오류는 안전한 code/name만 기록한다.
 - usage_snapshot은 정확히 6행이고 각 envelope의 jsonb_typeof가 object인지 확인한다. provider/status/run_at 갱신과 정상 저장 로그를 대조한다.
