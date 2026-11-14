@@ -38,9 +38,17 @@ function renderApp(client = createTestQueryClient()) {
 }
 
 describe('Given the dashboard with six providers', () => {
-  it('When it renders Then Hello Young-In is the main heading (U9 계약 유지)', () => {
+  it('When it renders Then the header h1 is the dashboard title with the gerbil logo, and no filler copy remains', () => {
     renderApp()
-    expect(screen.getByRole('heading', { name: 'Hello Young-In', level: 1 })).toBeTruthy()
+    const heading = screen.getByRole('heading', { name: 'Zzik : AI 사용량 대시보드', level: 1 })
+    expect(heading.closest('header')).not.toBeNull()
+    // 제목 텍스트와 중복되는 장식 이미지라 alt는 비워 스크린리더가 제목만 읽게 한다
+    const logo = heading.querySelector('img')
+    expect(logo?.getAttribute('src')).toBe('/icon-192.png')
+    expect(logo?.getAttribute('alt')).toBe('')
+    for (const filler of ['Hello Young-In', '구독 사용량을 한눈에 확인하는 공간입니다.', '개인 대시보드']) {
+      expect(screen.queryByText(filler)).toBeNull()
+    }
   })
 
   it('When both queries resolve Then six provider sections render side by side in fixed order', async () => {
