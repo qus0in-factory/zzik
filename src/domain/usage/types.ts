@@ -9,6 +9,8 @@ export interface UsageWindow {
   /** 라벨이 실측으로 확인되지 않은 창(미확인 배지) */
   unknown?: boolean
   elapsedPercent: number | null
+  /** 한도 주기(초). 응답·표에서 알 수 없으면 null(요약 칩이 월·주 한도를 고를 때 쓴다) */
+  cycleSeconds?: number | null
   usedPercent: number | null
   resetsAt: string | null
   expired: boolean
