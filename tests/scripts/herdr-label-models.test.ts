@@ -51,6 +51,9 @@ describe('Given the herdr label detection', () => {
     expect(detect('opencode', `Hy4 로 전환 기록\n${filler(10)}\n? for shortcuts`)).toBe('')
     expect(detect('opencode', `${filler(10)}\n  Hy · 버전 없음`)).toBe('')
   })
+  it('When opencode shows Beam Free in the bottom lines Then it is beam', () => {
+    expect(detect('opencode', `${filler(10)}\n  Build auto · Beam Free OpenCode Go`)).toBe('beam')
+  })
   it('When opencode shows a GLM model in the bottom lines Then it is glm', () => {
     expect(detect('opencode', `${filler(10)}\n  GLM-5.3 · OpenCode · high`)).toBe('glm')
     expect(detect('opencode', `${filler(10)}\n  GLM 5.3`)).toBe('')
