@@ -32,7 +32,7 @@ export function BackToTop(): ReactNode {
       aria-label="맨 위로"
       title="맨 위로"
       onClick={() => window.scrollTo(prefersReducedMotion() ? { top: 0 } : { top: 0, behavior: 'smooth' })}
-      className="back-to-top motion-button fixed right-4 bottom-4 z-50 rounded-full shadow-lg sm:right-6 sm:bottom-6"
+      className="back-to-top motion-button fixed right-4 bottom-4 z-50 rounded-full shadow-lg max-[391px]:right-2 max-[391px]:bottom-2 max-[391px]:size-8 sm:right-6 sm:bottom-6"
     >
       <ArrowUp aria-hidden="true" />
     </Button>

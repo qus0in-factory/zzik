@@ -43,6 +43,12 @@ function queryTopButton() {
 }
 
 describe('Given the back-to-top floating button (등장/퇴장 트랜지션)', () => {
+  it('When the viewport is 390px or narrower Then the button shrinks and hugs the page gutter instead of covering the card corner', () => {
+    render(<BackToTop />)
+    const { className } = screen.getByTestId('back-to-top')
+    for (const rule of ['max-[391px]:size-8', 'max-[391px]:right-2', 'max-[391px]:bottom-2']) expect(className).toContain(rule)
+  })
+
   it('When hidden Then it stays mounted for the exit transition but is out of the accessibility tree and unfocusable', () => {
     render(<BackToTop />)
     const hidden = screen.getByTestId('back-to-top')

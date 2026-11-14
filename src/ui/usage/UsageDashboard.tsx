@@ -68,20 +68,23 @@ export function UsageDashboard({
           <Skeleton data-testid="usage-skeleton" className="h-[22px] w-14 rounded-full" />
           <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
         </div>
-        <Skeleton data-testid="usage-skeleton" aria-hidden="true" className="h-6 w-16" />
-        <div data-testid="usage-skeleton-grid" aria-hidden="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {[0, 1].map((index) => (
-            <Card key={index} data-testid="usage-skeleton-card" className="min-w-0 gap-3">
-              <CardHeader className="gap-1.5">
-                <Skeleton data-testid="usage-skeleton" className="h-4 w-28" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Skeleton data-testid="usage-skeleton" className="h-6 w-16" />
-                <Skeleton data-testid="usage-skeleton" className="mt-5 h-2 w-full" />
-                <Skeleton data-testid="usage-skeleton" className="h-4 w-24" />
-              </CardContent>
-            </Card>
-          ))}
+        <div aria-hidden="true">
+          <Skeleton data-testid="usage-skeleton" className="mb-2 h-6 w-16" />
+          <div data-testid="usage-skeleton-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[0, 1].map((index) => (
+              <Card key={index} data-testid="usage-skeleton-card" className="min-w-0 gap-3">
+                <CardHeader className="gap-1.5">
+                  <Skeleton data-testid="usage-skeleton" className="h-6 w-28" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton data-testid="usage-skeleton" className="h-6 w-16" />
+                  <Skeleton data-testid="usage-skeleton" className="mt-5 h-2 w-full" />
+                  <Skeleton data-testid="usage-skeleton" className="h-4 w-24" />
+                  <Skeleton data-testid="usage-skeleton" className="h-4 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
     )

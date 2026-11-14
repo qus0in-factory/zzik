@@ -154,11 +154,15 @@ describe('Given the loading state', () => {
     expect(screen.getByRole('heading', { name: 'Claude', level: 2 })).toBeTruthy()
     expect(within(section).getByTestId('usage-skeleton-status')).toBeTruthy()
     const grid = within(section).getByTestId('usage-skeleton-grid')
+    // 실제 화면의 '사용 창' 소제목(h-6 + mb-2) 자리가 격자 바로 위에 있어 첫 카드 top이 같다
+    const placeholder = grid.parentElement?.firstElementChild
+    expect(placeholder?.className).toContain('mb-2')
+    expect(placeholder?.className).toContain('h-6')
     expect(grid.className).toContain('sm:grid-cols-2')
     expect(grid.querySelectorAll('[data-testid="usage-skeleton-card"]').length).toBe(2)
     // 실제 카드와 같은 외형(테두리 카드)이라 데이터가 들어와도 높이가 비슷하다
     expect(grid.querySelector('[data-testid="usage-skeleton-card"]')?.className).toContain('rounded-xl')
-    expect(grid.getAttribute('aria-hidden')).toBe('true')
+    expect(grid.parentElement?.getAttribute('aria-hidden')).toBe('true')
   })
   it('When data is on screen and a refresh runs Then no skeleton, the button is disabled with a spinner and busy state', () => {
     const onRetry = vi.fn()
