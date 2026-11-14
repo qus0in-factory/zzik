@@ -73,6 +73,14 @@ describe('Given the uPlot history chart panel', () => {
     expect(table?.querySelector('thead')?.textContent).toContain('5시간 한도')
   })
 
+  it('Then moving the range input updates aria-valuetext to the selected stop (N1)', () => {
+    setup()
+    const input = screen.getByRole('slider') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '0' } })
+    expect(input.value).toBe('0')
+    expect(input.getAttribute('aria-valuetext')).toBe(makeView().stops[0].valueText)
+  })
+
   it('Then no duplicate uPlot legend is present and one custom tooltip starts hidden', () => {
     const { container } = setup()
     expect(container.querySelector('.u-legend')).toBeNull()

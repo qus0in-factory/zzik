@@ -118,6 +118,22 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
     expect(view.series.find((s) => s.id === 'included')?.hidden).toBe(false)
   })
 
+  it('Then series/table/description/empty are filtered to the selected range (B2)', () => {
+    const old: UsageHistorySample = {
+      id: '1', runAt: '2026-11-04T00:30:00.000Z', status: 'ok', fetchedAt: '2026-11-04T00:30:00.000Z', intervalSec: 900,
+      values: [{ id: 'five_hour', usedPercent: 55, resetsAt: null, cycleSeconds: null }],
+    }
+    const day = buildChartView(input({ range: '24h' }, { samples: [old], anchor: null }))
+    expect(day.series).toHaveLength(0)
+    expect(day.table).toHaveLength(0)
+    expect(day.empty).toBe('no_points')
+    expect(day.description).toContain('표시할 이력이 없습니다')
+    const month = buildChartView(input({ range: '30d' }, { samples: [old], anchor: null }))
+    expect(month.series.length).toBeGreaterThan(0)
+    expect(month.table).toHaveLength(1)
+    expect(month.empty).toBe('none')
+  })
+
   it('Then nearestStopIndex snaps to the closest stop and -1 when there are none', () => {
     const view = buildChartView(input())
     expect(nearestStopIndex(view, view.stops[0].x)).toBe(0)

@@ -4,6 +4,7 @@
  */
 import type uPlot from 'uplot'
 import type { ChartView } from '@app/usage/history/chart-view'
+import { chartAlignedData } from '@app/usage/history/chart-view'
 import type { ChartRange } from '@domain/usage/history/types'
 import { formatAxisDate, formatAxisDayBoundary, formatAxisTime } from '@app/usage/history/chart-messages'
 
@@ -44,8 +45,14 @@ export function xAxisValues(range: ChartRange) {
   }
 }
 
-/** uPlot 시간축은 초 단위다. 결측·리셋으로 난 틈(percent null)은 그대로 null 간격이 된다. */
+/**
+ * uPlot 정렬 데이터. B1: buildSeries의 segments(구간 점 + 유지점 + anchor 경계)를 쓰고
+ * 구간 사이 null 슬롯으로 C1·C2·C3·C4 끊김을 그린다. stops는 슬라이더·표·툴팁용으로 남긴다.
+ * 손으로 만든 뷰(정렬 데이터 없음)만 기존 stops 경로를 쓴다.
+ */
 export function toUplotData(view: ChartView): uPlot.AlignedData {
+  const aligned = chartAlignedData(view)
+  if (aligned !== null) return [aligned.times, ...aligned.columns] as uPlot.AlignedData
   const visible = view.series.filter((series) => !series.hidden)
   const xs = view.stops.map((stop) => stop.t / 1000)
   const columns = visible.map((series) =>
@@ -56,25 +63,31 @@ export function toUplotData(view: ChartView): uPlot.AlignedData {
 
 /** 슬롯 색·4~8번 파선·숨김 제외를 uPlot series 옵션으로 옮긴다(0번은 x축 자리). */
 export function toUplotSeries(view: ChartView, palette: ChartPalette): uPlot.Series[] {
+  const aligned = chartAlignedData(view)
   const visible = view.series.filter((series) => !series.hidden)
   return [
     {},
-    ...visible.map((series) => ({
-      label: series.label,
-      stroke: palette.slots[series.slot] ?? palette.slots[0],
-      width: 2,
-      dash: series.dash === null ? undefined : series.dash.split(' ').map(Number),
-      spanGaps: false,
-      points: { show: false },
-    } satisfies uPlot.Series)),
+    ...visible.map((series, column) => {
+      // 단일점 구간은 점(지름 4px = 반지름 2px)으로 그린다. 점이 없으면 points를 켜지 않는다.
+      const dotIndices = aligned?.dots[column] ?? []
+      return {
+        label: series.label,
+        stroke: palette.slots[series.slot] ?? palette.slots[0],
+        width: 2,
+        dash: series.dash === null ? undefined : series.dash.split(' ').map(Number),
+        spanGaps: false,
+        points: { show: dotIndices.length > 0, size: 4, filter: dotIndices },
+      } satisfies uPlot.Series
+    }),
   ]
 }
 
 /**
- * y는 0~100 고정, x는 시간(초). 기본 범례는 끄고 우리 범례·툴팁 하나로 통일한다.
+ * y는 0~100 고정, x는 [from, to]로 고정(B2). 기본 범례는 끄고 우리 범례·툴팁 하나로 통일한다.
  * onCursor는 setCursor 훅이 알려주는 최근접 데이터 인덱스를 우리 툴팁에 전달한다.
  */
 export function toUplotOptions(view: ChartView, palette: ChartPalette, onCursor?: (idx: number | null) => void): uPlot.Options {
+  const aligned = chartAlignedData(view)
   return {
     width: view.width,
     height: view.height,
@@ -82,7 +95,10 @@ export function toUplotOptions(view: ChartView, palette: ChartPalette, onCursor?
     legend: { show: false },
     ...(onCursor === undefined ? {} : { hooks: { setCursor: [(self: uPlot) => onCursor(self.cursor.idx ?? null)] } }),
     cursor: { drag: { x: false, y: false } },
-    scales: { x: { time: true }, y: { range: [0, 100] } },
+    scales: {
+      x: { time: true, ...(aligned === null ? {} : { range: [aligned.from, aligned.to] as [number, number] }) },
+      y: { range: [0, 100] },
+    },
     axes: [
       {
         stroke: palette.text,
