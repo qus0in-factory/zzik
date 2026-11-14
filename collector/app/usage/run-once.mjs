@@ -222,6 +222,7 @@ export async function runOnce(ports, options = {}) {
     called,
     httpStatus: envelope.httpStatus,
     tokenExpiresAt: envelope.tokenExpiresAt,
+    source: provider === 'antigravity' ? (chosen === null ? 'none' : 'cli') : null,
     kvOk: storeResult.ok === true,
     kvReason: storeResult.ok === true ? null : (storeResult.message ?? null),
     transition: prevStatus !== null && prevStatus !== status ? `${prevStatus}→${status}` : null,

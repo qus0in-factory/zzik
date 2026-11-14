@@ -39,24 +39,40 @@ export function GerbilSvg({ className }: { className?: string }): ReactNode {
 
 /**
  * 자는 저빌(동그랗게 웅크린 옆모습): 0%일 때 막대 시작점에 놓는다.
- * 눈 감은 선과 작은 z가 있고, 호흡은 CSS(.gerbil-sleep-body)로 은은하게 움직인다.
+ * 몸(.gerbil-sleep-body)은 호흡만 하고, 머리(.gerbil-sleep-head)는 가끔 고개를 들어 왼쪽→오른쪽으로 돌린다.
+ * 깬 구간에는 감은 눈을 숨기고 뜬 눈·눈동자를 좌우로 움직이며, 귀(.gerbil-sleep-ear)가 살짝 선다.
+ * z 3개(.gerbil-sleep-z-1~3)가 크기·투명도·위치를 달리하며 차례로 떠오르고, 깨는 동안 .gerbil-sleep-zzz가 숨는다.
+ * 모든 연출은 CSS keyframes의 transform/opacity만 써서 레이아웃(measure-layout)에 영향이 없다.
  */
 export function SleepingGerbilSvg({ className }: { className?: string }): ReactNode {
   return (
     <svg viewBox="0 0 32 20" fill="currentColor" className={className} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* 둥글게 말린 몸통과 몸을 감싼 꼬리: 호흡만 */}
       <g className="gerbil-sleep-body">
-        {/* 둥글게 말린 몸통과 몸을 감싼 꼬리 */}
         <ellipse cx="13" cy="14" rx="10" ry="5.2" />
         <path d="M3.5 16 C 2 19.4, 10 19.8, 17 18.6 C 11 19, 5.5 18.6, 3.5 16 Z" />
-        {/* 머리, 주둥이, 귀 */}
+      </g>
+      {/* 머리·주둥이·귀·눈: 목(.gerbil-sleep-head의 transform-origin)을 축으로 고개를 들고 좌우로 돌린다 */}
+      <g className="gerbil-sleep-head">
         <circle cx="21.5" cy="13.4" r="3.8" />
         <polygon points="23,12.2 27.4,14.6 23,16" />
-        <circle cx="19.6" cy="10.4" r="1.8" />
-        {/* 눈 감은 선(배경색으로 파냄) */}
-        <path d="M21.6 13 Q 22.8 14 24 13" fill="none" stroke="var(--card)" strokeWidth="0.9" strokeLinecap="round" />
+        {/* 귀: 깨기 시작·끝에 뿌리를 축으로 살짝 선다 */}
+        <g className="gerbil-sleep-ear">
+          <circle cx="19.6" cy="10.4" r="1.8" />
+        </g>
+        {/* 감은 눈(자는 동안) / 뜬 눈 + 눈동자(깬 동안): opacity로 교대 */}
+        <path className="gerbil-sleep-eye-closed" d="M21.6 13 Q 22.8 14 24 13" fill="none" stroke="var(--card)" strokeWidth="0.9" strokeLinecap="round" />
+        <g className="gerbil-sleep-eye-open">
+          <ellipse cx="22.9" cy="12.9" rx="2.2" ry="1.3" fill="var(--card)" />
+          <circle className="gerbil-sleep-eye-pupil" cx="22.9" cy="12.9" r="0.7" />
+        </g>
       </g>
-      {/* z */}
-      <text x="27" y="6" fontSize="5" fontWeight="700" className="gerbil-sleep-z">z</text>
+      {/* zzz: 크기·위치가 다른 z 3개가 서로 다른 위상으로 떠오른다 */}
+      <g className="gerbil-sleep-zzz">
+        <text x="26.5" y="7.5" fontSize="4" fontWeight="700" className="gerbil-sleep-z gerbil-sleep-z-1">z</text>
+        <text x="28.6" y="4.8" fontSize="5.5" fontWeight="700" className="gerbil-sleep-z gerbil-sleep-z-2">z</text>
+        <text x="30.6" y="2.2" fontSize="7" fontWeight="700" className="gerbil-sleep-z gerbil-sleep-z-3">z</text>
+      </g>
     </svg>
   )
 }
