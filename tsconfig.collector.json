@@ -4,12 +4,14 @@
     "lib": ["ES2022"],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
     "skipLibCheck": true,
     "strict": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": { "@shared/*": ["./shared/*"] }
   },
   "include": [
     "collector/**/*.mjs",

@@ -71,6 +71,7 @@ export function buildUsageView(raw: unknown, options: BuildUsageViewOptions = {}
           unknown: !isKnownMetricId(item.key),
           usedPercent,
           elapsedPercent: elapsedPercent(item.resetsAt, cycleSeconds(item.key), now),
+          cycleSeconds: cycleSeconds(item.key),
           resetsAt: item.resetsAt,
           expired: isResetExpired(item.resetsAt, now),
           status: usageLevelOf(usedPercent),
