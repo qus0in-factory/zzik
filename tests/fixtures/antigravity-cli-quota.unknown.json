@@ -1,0 +1,9 @@
+{
+  "source": "agy-quota-cli",
+  "schema": 1,
+  "rows": [
+    { "group": "Gemini Models", "label": "Weekly Limit Remaining", "remainingPercent": 40, "resetsAt": "2026-11-21T01:12:20Z" },
+    { "group": "Gemini Models", "label": "Daily Limit Remaining", "remainingPercent": 75, "resetsAt": "2026-11-15T01:12:20Z" },
+    { "group": "New Models", "label": "Trial Limit Remaining", "remainingPercent": 55, "resetsAt": "2026-11-30T00:00:00Z" }
+  ]
+}

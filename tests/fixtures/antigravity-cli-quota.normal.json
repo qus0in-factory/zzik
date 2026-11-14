@@ -1,0 +1,11 @@
+{
+  "source": "agy-quota-cli",
+  "schema": 1,
+  "rows": [
+    { "group": "Gemini Models", "label": "Weekly Limit Remaining", "remainingPercent": 96, "resetsAt": "2026-11-21T01:12:20Z" },
+    { "group": "Gemini Models", "label": "Five Hour Limit Remaining", "remainingPercent": 86, "resetsAt": "2026-11-14T06:12:20Z" },
+    { "group": "Claude and GPT models", "label": "Weekly Limit Remaining", "remainingPercent": 1, "resetsAt": "2026-11-17T09:54:30Z" },
+    { "group": "Claude and GPT models", "label": "Five Hour Limit Remaining", "remainingPercent": 100, "resetsAt": "2026-11-14T07:25:12Z" },
+    { "group": "Gemini 4 Argon", "label": "Gemini 4 Argon Weekly Limit", "remainingPercent": 100, "resetsAt": "2026-11-21T02:25:12Z" }
+  ]
+}
