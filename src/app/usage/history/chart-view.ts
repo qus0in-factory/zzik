@@ -4,6 +4,21 @@
  * 좌표는 전부 SVG 사용자 단위(px)이고 원점은 SVG 왼쪽 위다.
  */
 import type { ChartRange } from '@domain/usage/history/types'
+import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
+import type { ChartViewInput } from './chart-view-input'
+import { buildSeries } from '@domain/usage/history/series'
+import {
+  CHART_Y_TICKS,
+  chartPlot,
+  dashForSlot,
+  nearestIndex,
+  slotForOrdinal,
+  xForTime,
+  xTickPositions,
+  yForPercent,
+  yTickPositions,
+} from '@domain/usage/history/chart-geometry'
+import { CHART_MESSAGES, CHART_RANGE_TEXT, formatTime, percentText } from './chart-messages'
 
 /** 상태 줄의 차트 버튼 상태. 비활성은 숨기지 않고 사유(hint)를 연결한다. */
 export interface ChartButtonState {
@@ -117,4 +132,156 @@ export interface UsageHistoryPanelProps {
 export interface UsageHistoryPanelBinding {
   button: ChartButtonState
   panel: UsageHistoryPanelProps | null
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * 이하 T3 구현. 위의 타입은 T0에서 동결된 것이므로 건드리지 않는다.
+ * T2의 ChartViewInput(HistoryDeps.buildView가 주입) 시그니처를 그대로 쓴다.
+ * 리셋·결측으로 끊긴 구간은 T2의 buildSeries(5.3절)가 이미 나눠 준 것을 받아 path로 옮긴다.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+const RANGE_MS: Record<ChartRange, number> = {
+  '24h': 24 * 3_600_000,
+  '7d': 7 * 24 * 3_600_000,
+  '30d': 30 * 24 * 3_600_000,
+}
+
+type Segments = ReturnType<typeof buildSeries>[number]['segments']
+
+function sampleTime(sample: UsageHistorySample): number | null {
+  const ms = Date.parse(sample.fetchedAt ?? sample.runAt)
+  return Number.isFinite(ms) ? ms : null
+}
+
+/** 시점 t를 덮는 구간의 "그 시각 이하 마지막 실점" 값. 보간하지 않고, 틈이면 null. */
+function valueAt(segments: Segments, t: number): number | null {
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    const points = segments[i].points
+    if (t < points[0].t || t > points[points.length - 1].t) continue
+    let value = points[0].p
+    for (const point of points) {
+      if (point.t > t) break
+      value = point.p
+    }
+    return value
+  }
+  return null
+}
+
+function allPoints(segments: Segments): { t: number; p: number }[] {
+  return segments.flatMap((segment) => segment.points)
+}
+
+/** 레코드 + 카드 라벨 + 설정 + 크기 → ChartView. T2가 HistoryDeps.buildView로 주입한다. */
+export function buildChartView(input: ChartViewInput): ChartView {
+  const { providerTitle, range, record, tailEnd, hidden, shown, cardLabels, size, nowMs } = input
+  const from = nowMs - RANGE_MS[range]
+  const to = nowMs
+  const plot = chartPlot(size.width, size.height)
+  const hiddenSet = new Set(hidden)
+  const shownSet = new Set(shown)
+
+  const built = buildSeries({ anchor: record.anchor, samples: record.samples, tailEnd })
+  const byId = new Map(built.map((item) => [item.id, item]))
+  // seriesOrder는 추가만 한다 — 숨김·범위·정렬로 슬롯이 바뀌지 않는다
+  const order = [...record.seriesOrder]
+  for (const item of built) if (!order.includes(item.id)) order.push(item.id)
+
+  const series: ChartSeriesView[] = []
+  for (const id of order) {
+    const data = byId.get(id)
+    if (data === undefined) continue
+    const slot = slotForOrdinal(order.indexOf(id))
+    const isHidden = slot === 0 ? !shownSet.has(id) : hiddenSet.has(id)
+    // 선 path 문자열은 만들지 않는다 — uPlot이 stops의 null 간격으로 직접 그린다(계약 필드는 유지).
+    const paths: string[] = []
+    const dots: { x: number; y: number }[] = []
+    if (!isHidden) {
+      for (const segment of data.segments) {
+        if (segment.points.length === 1) {
+          const p = segment.points[0]
+          dots.push({ x: xForTime(p.t, from, to, plot), y: yForPercent(p.p, plot) })
+        }
+      }
+    }
+    series.push({ id, label: cardLabels[id] ?? record.labels[id] ?? id, slot, dash: dashForSlot(slot), hidden: isHidden, paths, dots, endLabel: null })
+  }
+
+  const visible = series.filter((s) => !s.hidden)
+
+  const stopTimes = new Set<number>()
+  let lastSampleT = from
+  for (const sample of record.samples) {
+    const t = sampleTime(sample)
+    if (t === null || t > to) continue
+    if (t > lastSampleT) lastSampleT = t
+    if (sample.values !== null && t >= from) stopTimes.add(t)
+  }
+  const tailStop = tailEnd === null ? to : Math.max(from, Math.min(to, tailEnd))
+  if (series.length > 0 && tailStop > lastSampleT) stopTimes.add(tailStop)
+  const times = [...stopTimes].sort((a, b) => a - b)
+
+  const ordinal = (id: string): number => series.findIndex((s) => s.id === id)
+  const stops: ChartStop[] = times.map((t) => {
+    const label = formatTime(t)
+    const values: ChartStopValue[] = visible
+      .map((s) => {
+        const percent = valueAt(byId.get(s.id)!.segments, t)
+        return { seriesId: s.id, percent, text: percent === null ? CHART_MESSAGES.gapText : percentText(percent), y: percent === null ? null : yForPercent(percent, plot) }
+      })
+      .sort((a, b) => {
+        if (a.percent === null && b.percent === null) return ordinal(a.seriesId) - ordinal(b.seriesId)
+        if (a.percent === null) return 1
+        if (b.percent === null) return -1
+        return b.percent - a.percent || ordinal(a.seriesId) - ordinal(b.seriesId)
+      })
+    const named = values.filter((v) => v.percent !== null).map((v) => `${series[ordinal(v.seriesId)].label} ${v.text}`).join(', ')
+    return { t, x: xForTime(t, from, to, plot), label, values, valueText: named.length > 0 ? CHART_MESSAGES.stopValues(label, named) : CHART_MESSAGES.stopNoValues(label) }
+  })
+
+  const table = series.map((s) => {
+    const segments = byId.get(s.id)!.segments
+    const points = allPoints(segments)
+    const resets = segments.slice(1).filter((segment, i) => segment.points[0].p < segments[i].points[segments[i].points.length - 1].p).length
+    const peakPoint = points.reduce<{ t: number; p: number } | null>((best, p) => (best === null || p.p > best.p ? p : best), null)
+    return {
+      id: s.id,
+      label: s.label,
+      current: points.length > 0 ? percentText(points[points.length - 1].p) : CHART_MESSAGES.valueNone,
+      peak: peakPoint === null ? CHART_MESSAGES.valueNone : `${percentText(peakPoint.p)} (${formatTime(peakPoint.t)})`,
+      low: points.length > 0 ? percentText(Math.min(...points.map((p) => p.p))) : CHART_MESSAGES.valueNone,
+      resets,
+    }
+  })
+
+  const empty: ChartView['empty'] = series.length === 0 ? 'no_points' : visible.length === 0 ? 'all_hidden' : 'none'
+  let description = CHART_MESSAGES.descriptionSpan(formatTime(from), formatTime(to), series.length, visible.length)
+  for (const s of visible) {
+    const points = allPoints(byId.get(s.id)!.segments)
+    const current = points.length > 0 ? percentText(points[points.length - 1].p) : CHART_MESSAGES.currentNone
+    const peak = points.length > 0 ? percentText(Math.max(...points.map((p) => p.p))) : CHART_MESSAGES.peakNone
+    description += CHART_MESSAGES.descriptionSeries(s.label, current, peak)
+  }
+  if (empty === 'no_points') description += CHART_MESSAGES.noPointsSuffix
+  if (empty === 'all_hidden') description += CHART_MESSAGES.allHiddenSuffix
+
+  return {
+    range,
+    width: size.width,
+    height: size.height,
+    plot,
+    title: CHART_MESSAGES.title(providerTitle, CHART_RANGE_TEXT[range]),
+    description,
+    xTicks: xTickPositions(plot).map((x, i) => ({ x, label: formatTime(from + ((to - from) * i) / 4) })),
+    yTicks: yTickPositions(plot).map((y, i) => ({ y, label: CHART_MESSAGES.percentTick(CHART_Y_TICKS[i]) })),
+    series,
+    stops,
+    table,
+    empty,
+  }
+}
+
+/** 포인터 x에 가장 가까운 시점 인덱스. 비면 -1, 거리가 같으면 뒤쪽. ui는 이 함수만 부른다. */
+export function nearestStopIndex(view: ChartView, x: number): number {
+  return nearestIndex(view.stops.map((stop) => stop.x), x)
 }
