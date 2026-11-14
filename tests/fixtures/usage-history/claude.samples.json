@@ -1,6 +1,6 @@
 {
   "provider": "claude",
-  "scanVersion": 1,
+  "scanVersion": 2,
   "anchor": {
     "id": "9000",
     "runAt": "2026-11-13T22:45:00.000Z",

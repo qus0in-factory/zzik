@@ -55,6 +55,11 @@ export function visibleUsageReport(report: UsageReport, rawRedacted: readonly st
   })
   return {
     ...report,
+    ...(report.extraSpend === undefined ? {} : {extraSpend: report.extraSpend == null || isRedacted('extra_usage', paths) ? null : {
+      enabled: isRedacted('extra_usage.is_enabled', paths) ? null : report.extraSpend.enabled,
+      limitReached: isRedacted('extra_usage.spend_limit_reached', paths) ? null : report.extraSpend.limitReached,
+      usedPercent: isRedacted('extra_usage.utilization', paths) ? null : report.extraSpend.usedPercent,
+    }}),
     windows: report.windows.filter(item => item.usedPercent !== null && !isRedacted(item.id, paths)),
     metrics: report.metrics.filter(item => item.usedPercent !== null && !isRedacted(item.id, paths)),
     others,

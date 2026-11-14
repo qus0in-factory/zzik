@@ -1,6 +1,6 @@
 import { isRecord } from './parts.ts';
 export const WINDOW_IDS: readonly string[] = ['five_hour', 'seven_day'];
-export const METRIC_ORDER: readonly string[] = ['seven_day_fable', 'seven_day_opus', 'seven_day_sonnet', 'seven_day_oauth_apps', 'seven_day_cowork', 'extra_usage'];
+export const METRIC_ORDER: readonly string[] = ['seven_day_fable', 'seven_day_opus', 'seven_day_sonnet', 'seven_day_oauth_apps', 'seven_day_cowork'];
 /** utilization의 값을 해석한다. 없으면 null, 숫자가 아니거나 음수·비유한이면 invalid */
 function readUtilization(object: Record<string, unknown>): {
   value: number | null;
@@ -67,6 +67,7 @@ export function scopedLimits(raw: Record<string, unknown>) {
 
 /** The card classifier and history scan share the decision that a key is a limit. */
 export function readClaudeLimit(id: string, value: unknown): (RawEntryFields & {kind: 'window' | 'metric'}) | null {
+  if (id === 'extra_usage') return null
   const fields = value === null ? {utilization:null,resetsAt:null,utilizationInvalid:false} : isRecord(value) ? readRawEntry(value) : null
   if (fields === null) return null
   if (value !== null && !WINDOW_IDS.includes(id) && !isLimitShape(fields)) return null

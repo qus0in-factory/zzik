@@ -218,7 +218,10 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const tailEnd = Math.max(from, Math.min(to, effectiveTail))
 
   // 스냅샷 시각을 못 받으면 now까지 마지막 값을 유지한 수평선(꼬리)을 이어 그린다.
-  const built = buildSeries({ anchor, samples, tailEnd })
+  // 예전·혼합 버전 IndexedDB 기록의 추가 지출 계열은 무시한다(seriesOrder 슬롯은 유지해 색이 안 바뀐다).
+  const built = buildSeries({ anchor, samples, tailEnd }).filter(
+    (s) => input.provider !== 'claude' || s.id !== 'extra_usage',
+  )
   const byId = new Map(built.map((item) => [item.id, item]))
   // seriesOrder는 추가만 한다 — 숨김·범위·정렬로 슬롯이 바뀌지 않는다
   const order = [...record.seriesOrder]

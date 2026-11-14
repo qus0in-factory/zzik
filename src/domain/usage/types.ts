@@ -51,7 +51,14 @@ export interface UsageIssue {
   key?: string
 }
 
+export interface ExtraSpend {
+  enabled: boolean | null
+  limitReached: boolean | null
+  usedPercent: number | null
+}
+
 export interface UsageReport {
+  extraSpend?: ExtraSpend | null
   status: UsageLevel
   windows: UsageWindow[]
   metrics: UsageMetric[]

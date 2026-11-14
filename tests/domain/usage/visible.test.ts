@@ -10,7 +10,7 @@ describe('Given live usage fixtures', () => {
     const report = buildUsageView(claude, { now })
     expect(report.windows.map(item => [item.id, item.label])).toEqual([['five_hour', '5시간 한도'], ['seven_day', '주간 한도']])
     expect(report.metrics.map(item => [item.id, item.label])).toEqual([['seven_day_fable', 'Fable 주간']])
-    expect(report.others.map(item => item.id)).toEqual(['extra_usage', 'spend', 'member_dashboard_available', 'seven_day_breakdown'])
+    expect(report.others.map(item => item.id)).toEqual(['spend', 'member_dashboard_available', 'seven_day_breakdown'])
     expect(report.raw).toEqual(claude)
   })
   it('When Codex is displayed Then empty secondary limits and metadata are omitted', () => {

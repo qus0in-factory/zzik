@@ -22,7 +22,7 @@ describe('Given fixture history inside actual workerd', () => {
         expect(r.status).toBe(200);
         expect(r.headers.get('Cache-Control')).toBe('no-store');
         const page = await r.json() as any;
-        expect(page.scanVersion).toBe(1);
+        expect(page.scanVersion).toBe(2);
         expect(page.samples).toHaveLength(2);
         expect(page.samples[0].values?.length).toBeGreaterThan(0);
         expect(page.samples[1].values).toBeNull();

@@ -13,8 +13,8 @@ describe('Given the Anthropic usage fixture (normal)', () => {
     expect(report.windows.map((w) => w.id)).toEqual(['five_hour', 'seven_day'])
     expect(report.windows[0]).toMatchObject({ usedPercent: 37, status: 'normal', expired: false })
     expect(report.windows[1]).toMatchObject({ usedPercent: 12, status: 'normal', expired: false })
-    expect(report.metrics.map((m) => m.id)).toEqual(['seven_day_sonnet', 'extra_usage'])
-    expect(report.metrics).toHaveLength(2)
+    expect(report.metrics.map((m) => m.id)).toEqual(['seven_day_sonnet'])
+    expect(report.metrics).toHaveLength(1)
     expect(report.status).toBe('normal')
     expect(report.issues).toEqual([])
   })
@@ -65,20 +65,17 @@ describe('Given the Anthropic usage fixture (limited)', () => {
     expect(buildUsageView({ seven_day_cowork: { utilization: 100, resets_at: '2026-11-11T11:30:00.000Z' } }, { now: NOW }).status).toBe('normal')
   })
 
-  it('When a limit has no reset time then it is not expired and counts in aggregate', () => {
+  it('When additional spend has no reset Then it is metadata and does not affect subscription aggregate', () => {
     const report = buildUsageView(limitedRaw, { now: NOW })
-    const extra = report.metrics.find((m) => m.id === 'extra_usage')
-    expect(extra).toMatchObject({ expired: false, resetsAt: null, status: 'limit' })
-    expect(buildUsageView({ extra_usage: { utilization: 100 } }, { now: NOW }).status).toBe('limit')
-  })
-})
+    expect(report.metrics.find(m => m.id === 'extra_usage')).toBeUndefined()
+    expect(buildUsageView({ extra_usage: { utilization: 100 } }, { now: NOW }).status).toBe('unknown')
+  })})
 
 describe('Given unknown keys in the usage fixture', () => {
   it('When metrics are collected then new keys are listed after known ids in lexicographic order', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     expect(report.metrics.map((m) => m.id)).toEqual([
       'seven_day_sonnet',
-      'extra_usage',
       'seven_day_fake',
       'seven_day_haiku',
       'thirty_day',
