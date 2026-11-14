@@ -73,8 +73,8 @@ describe('Given Antigravity credential guidance', () => {
 })
 
 describe('Given OpenCode, Grok and Ollama guidance', () => {
-  it('When Grok token is expired Then it names OpenCode as the renewal owner', () => {
-    expect(composeCollectionNote('grok', 'token_expired', null)).toContain('OpenCode')
+  it('When Grok token is expired Then it names Grok Build as the renewal owner', () => {
+    expect(composeCollectionNote('grok', 'token_expired', null)).toContain('Grok Build')
     expect(composeCollectionNote('opencode', 'no_credentials', null)).toContain('OpenCode')
   })
   it('When Ollama collection has a network error Then points to the collector Mac and automatic retry', () => {

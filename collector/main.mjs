@@ -26,6 +26,7 @@ import { createLogAppender } from './infra/usage/log.mjs'
 import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
 import { createAntigravityCliUsageClient } from './infra/usage/antigravity-cli-usage-client.mjs'
 import { createGrokUsageClient } from './infra/usage/grok-usage-client.mjs'
+import { readGrokBuildCredentials } from './infra/usage/grok-build-credentials-file.mjs'
 import { createOpencodeUsageClient } from './infra/usage/opencode-usage-client.mjs'
 import { createOllamaUsageClient, DEFAULT_OLLAMA_HOST, isAllowedOllamaHost } from './infra/usage/ollama-usage-client.mjs'
 import { readOllamaLocalCredentials } from './infra/usage/ollama-local-credentials.mjs'
@@ -148,7 +149,7 @@ function buildProviderPorts(provider, { credentialsPath, dryRun }) {
     clock: { now: () => Date.now() },
     credentials: {
       readAll: async () => {
-        if (provider === 'grok') return [await readOpencodeDb('xai')]
+        if (provider === 'grok') return [await readGrokBuildCredentials(credentialsPath ?? undefined)]
         if (provider === 'opencode') return [await readOpencodeDb('opencode')]
         if (provider === 'ollama') return [await readOllamaLocalCredentials()]
         if (provider === 'antigravity') return [dryRun ? null : { source: 'cli', token: '', expiresAt: null, accountId: null }]
