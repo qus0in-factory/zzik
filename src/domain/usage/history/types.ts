@@ -7,6 +7,9 @@ import type { UsageProvider } from '../../../../shared/usage-contract'
 /** 차트 범위 탭(8.2·9절). 기본값은 '7d'. */
 export type ChartRange = '24h' | '7d' | '30d'
 
+/** 이력 응답 디코드가 내는 `api_error`의 message. 서버가 보내는 코드가 아니다. */
+export type HistoryDecodeErrorCode = 'invalid_response' | 'scan_version_mismatch'
+
 /**
  * IndexedDB `zzik`/`usage-history` 레코드(6.2절).
  * 불변식 I1~I6은 구현(T2)과 테스트의 기준이다.

@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  USAGE_HISTORY_ANCHOR_ON,
+  USAGE_HISTORY_CURSOR_RE,
+  USAGE_HISTORY_ERROR_STATUS,
+  USAGE_HISTORY_INSTANT_RE,
   USAGE_HISTORY_LIMIT_MAX,
+  USAGE_HISTORY_LIMIT_RE,
   USAGE_HISTORY_MIN_OK_EVENTS,
   USAGE_HISTORY_PAGE_LIMIT,
   USAGE_HISTORY_PATH,
+  USAGE_HISTORY_SCAN_VERSION,
   type UsageHistoryPage,
   type UsageHistorySample,
   type UsageHistoryValue,
@@ -15,6 +21,9 @@ import antigravityFixture from '../fixtures/usage-history/antigravity.samples.js
 import opencodeFixture from '../fixtures/usage-history/opencode.samples.json'
 import grokFixture from '../fixtures/usage-history/grok.samples.json'
 import ollamaFixture from '../fixtures/usage-history/ollama.samples.json'
+import gapFixture from '../fixtures/usage-history/gap.samples.json'
+import emptyPageFixture from '../fixtures/usage-history/empty-page.samples.json'
+import hasMoreFixture from '../fixtures/usage-history/has-more.samples.json'
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const STATUSES: readonly UsageStatus[] = [
@@ -90,10 +99,9 @@ function asPage(value: unknown, expectedProvider: UsageProvider): UsageHistoryPa
   if (!isRecord(value)) throw new Error('page가 객체가 아니다')
   expectKeys(value, ['provider', 'scanVersion', 'samples', 'anchor', 'nextCursor', 'hasMore'])
   expect(value.provider).toBe(expectedProvider)
-  expect(value.scanVersion).toBe(1)
+  expect(value.scanVersion).toBe(USAGE_HISTORY_SCAN_VERSION)
   expect(Array.isArray(value.samples)).toBe(true)
   const samples = (value.samples as unknown[]).map(asSample)
-  expect(samples.length).toBeGreaterThan(0)
   for (let i = 1; i < samples.length; i += 1) {
     const prev = samples[i - 1]
     const next = samples[i]
@@ -103,11 +111,15 @@ function asPage(value: unknown, expectedProvider: UsageProvider): UsageHistoryPa
   if (value.anchor !== null) {
     const anchor = asSample(value.anchor)
     expect(anchor.status).toBe('ok')
-    expect(Date.parse(anchor.runAt)).toBeLessThan(Date.parse(samples[0].runAt))
+    if (samples.length > 0) expect(Date.parse(anchor.runAt)).toBeLessThan(Date.parse(samples[0].runAt))
   }
-  const last = samples[samples.length - 1]
-  expect(value.nextCursor).toBe(`${last.runAt}_${last.id}`)
-  expect(value.hasMore).toBe(false)
+  if (samples.length > 0) {
+    const last = samples[samples.length - 1]
+    expect(value.nextCursor).toBe(`${last.runAt}_${last.id}`)
+  } else {
+    // 픽스처는 after 없이 요청된 빈 쪽이므로 nextCursor가 null이다(ADR 4.2절).
+    expect(value.nextCursor).toBeNull()
+  }
   return value as unknown as UsageHistoryPage
 }
 
@@ -128,6 +140,51 @@ describe('Given the frozen usage history contract (ADR 0.7 T0)', () => {
     expect(USAGE_HISTORY_LIMIT_MAX).toBe(100)
     expect(USAGE_HISTORY_PAGE_LIMIT).toBe(50)
     expect(USAGE_HISTORY_MIN_OK_EVENTS).toBe(4)
+    expect(USAGE_HISTORY_SCAN_VERSION).toBe(1)
+    expect(USAGE_HISTORY_ANCHOR_ON).toBe('1')
+  })
+
+  it('When validating query formats Then the instant, cursor and limit regexes accept and reject the ADR examples', () => {
+    expect(USAGE_HISTORY_INSTANT_RE.test('2026-11-14T00:00:00Z')).toBe(true)
+    expect(USAGE_HISTORY_INSTANT_RE.test('2026-11-14T00:00:00.5Z')).toBe(true)
+    expect(USAGE_HISTORY_INSTANT_RE.test('2026-11-14T00:00:00.123Z')).toBe(true)
+    expect(USAGE_HISTORY_INSTANT_RE.test('2026-11-14')).toBe(false)
+    expect(USAGE_HISTORY_INSTANT_RE.test('2026-11-14T00:00:00+09:00')).toBe(false)
+    expect(USAGE_HISTORY_INSTANT_RE.test('')).toBe(false)
+
+    expect(USAGE_HISTORY_CURSOR_RE.test('2026-11-14T00:00:00.000Z_12')).toBe(true)
+    expect(USAGE_HISTORY_CURSOR_RE.test('2026-11-14T00:00:00Z_12')).toBe(false)
+    expect(USAGE_HISTORY_CURSOR_RE.test('2026-11-14T00:00:00.000Z_0')).toBe(false)
+    expect(USAGE_HISTORY_CURSOR_RE.test('2026-11-14T00:00:00.000Z')).toBe(false)
+
+    expect(USAGE_HISTORY_LIMIT_RE.test('1')).toBe(true)
+    expect(USAGE_HISTORY_LIMIT_RE.test('100')).toBe(true)
+    expect(USAGE_HISTORY_LIMIT_RE.test('0')).toBe(false)
+    expect(USAGE_HISTORY_LIMIT_RE.test('050')).toBe(false)
+    expect(USAGE_HISTORY_LIMIT_RE.test('1.5')).toBe(false)
+  })
+
+  it('When mapping history errors Then the contract carries the eight status codes and their order', () => {
+    expect(Object.keys(USAGE_HISTORY_ERROR_STATUS).sort()).toEqual([
+      'internal_error',
+      'invalid_query',
+      'jwks_unavailable',
+      'method_not_allowed',
+      'misconfigured',
+      'not_found',
+      'storage_unavailable',
+      'unauthorized',
+    ])
+    expect(USAGE_HISTORY_ERROR_STATUS).toMatchObject({
+      misconfigured: 500,
+      unauthorized: 401,
+      jwks_unavailable: 503,
+      not_found: 404,
+      method_not_allowed: 405,
+      invalid_query: 400,
+      storage_unavailable: 503,
+      internal_error: 500,
+    })
   })
 
   it('When loading the synthetic samples Then all six providers satisfy the contract', () => {
@@ -206,5 +263,29 @@ describe('Given the frozen usage history contract (ADR 0.7 T0)', () => {
       expect(page.anchor?.status).toBe('ok')
       expect(Date.parse(page.anchor!.runAt)).toBeLessThan(Date.parse(page.samples[0].runAt))
     }
+  })
+
+  it('When an ok sample has no intervalSec Then the gap page stays valid and keeps the null interval', () => {
+    const page = asPage(gapFixture, 'claude')
+    expect(page.samples).toHaveLength(2)
+    expect(page.samples[0].intervalSec).toBe(900)
+    expect(page.samples[1].status).toBe('ok')
+    expect(page.samples[1].intervalSec).toBeNull()
+    const gapMs = Date.parse(page.samples[1].runAt) - Date.parse(page.samples[0].runAt)
+    expect(gapMs).toBeGreaterThan(1.5 * (page.samples[0].intervalSec ?? 0) * 1000)
+    expect(page.hasMore).toBe(false)
+  })
+
+  it('When a page is empty Then no samples, a null cursor and hasMore false are allowed', () => {
+    const page = asPage(emptyPageFixture, 'claude')
+    expect(page.samples).toEqual([])
+    expect(page.nextCursor).toBeNull()
+    expect(page.hasMore).toBe(false)
+  })
+
+  it('When a page has more Then nextCursor is present so the client can continue', () => {
+    const page = asPage(hasMoreFixture, 'claude')
+    expect(page.hasMore).toBe(true)
+    expect(page.nextCursor).toBe(`${page.samples.at(-1)!.runAt}_${page.samples.at(-1)!.id}`)
   })
 })
