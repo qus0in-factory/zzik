@@ -4,7 +4,7 @@ import { isRecord } from './parts.ts';
 import { isRedacted } from './redaction.ts';
 import { WINDOW_IDS, METRIC_ORDER, readClaudeLimit, scopedLimits, cycleSeconds } from './claude.ts';
 import { readCodexWindows, byWindowLength } from './codex.ts';
-import { readAntigravity, antigravityCycleSeconds } from './antigravity.ts';
+import { readAntigravity, antigravityCycleSeconds, hasAntigravityShape, AGY_QUOTA_RAW_SOURCE } from './antigravity.ts';
 import { readGrok } from './grok.ts';
 import { readOllamaIncluded } from './ollama.ts';
 import { opencodeKeys, readOpencodeWindow } from './opencode.ts';
@@ -55,11 +55,11 @@ export function scanUsageSeries(provider: UsageProvider, raw: unknown, options: 
       series = entries.map(w => ({ id: w.path, usedPercent: w.usedPercent, resetsAt: w.resetsAt, cycleSeconds: w.limitWindowSeconds }));
     }
     else if (provider === 'antigravity') {
-      if (!Array.isArray(raw.groups))
+      if (!hasAntigravityShape(raw))
         return { ok: false, reason: 'invalid_shape' };
       const scan = readAntigravity(raw);
       skipped = scan.problems.filter(p => !hidden(p.path)).length;
-      series = scan.buckets.filter(w => !hidden(w.id) && !hidden(`groups[${w.groupIndex}].buckets[${w.bucketIndex}]`)).sort((a, b) => a.groupIndex - b.groupIndex || (antigravityCycleSeconds(a.window) ?? Infinity) - (antigravityCycleSeconds(b.window) ?? Infinity) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map(w => ({ id: w.id, usedPercent: w.usedPercent, resetsAt: w.resetsAt, cycleSeconds: antigravityCycleSeconds(w.window) }));
+      series = scan.buckets.filter(w => !hidden(w.id) && !hidden(raw.source === AGY_QUOTA_RAW_SOURCE ? `rows[${w.bucketIndex}]` : `groups[${w.groupIndex}].buckets[${w.bucketIndex}]`)).sort((a, b) => a.groupIndex - b.groupIndex || (antigravityCycleSeconds(a.window) ?? Infinity) - (antigravityCycleSeconds(b.window) ?? Infinity) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map(w => ({ id: w.id, usedPercent: w.usedPercent, resetsAt: w.resetsAt, cycleSeconds: antigravityCycleSeconds(w.window) }));
     }
     else if (provider === 'opencode') {
       if (!isRecord(raw.usage))

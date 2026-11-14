@@ -1,4 +1,64 @@
 {
+  "antigravity-cli-quota.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "gemini-5h",
+        "usedPercent": 14,
+        "resetsAt": "2026-11-14T06:12:20Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "gemini-weekly",
+        "usedPercent": 4,
+        "resetsAt": "2026-11-21T01:12:20Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "3p-5h",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-14T07:25:12Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "3p-weekly",
+        "usedPercent": 99,
+        "resetsAt": "2026-11-17T09:54:30Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "argon-weekly",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-21T02:25:12Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "antigravity-cli-quota.unknown.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "gemini-weekly",
+        "usedPercent": 60,
+        "resetsAt": "2026-11-21T01:12:20Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "cli:Gemini Models:Daily Limit Remaining",
+        "usedPercent": 25,
+        "resetsAt": "2026-11-15T01:12:20Z",
+        "cycleSeconds": null
+      },
+      {
+        "id": "cli:New Models:Trial Limit Remaining",
+        "usedPercent": 45,
+        "resetsAt": "2026-11-30T00:00:00Z",
+        "cycleSeconds": null
+      }
+    ]
+  },
   "antigravity-usage.gemini-argon.json": {
     "ok": true,
     "skipped": 0,

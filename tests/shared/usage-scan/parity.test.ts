@@ -4,7 +4,7 @@ import { scanUsageSeries } from '../../../shared/usage-scan/index.ts';
 import { buildUsageLoadView } from '../../../src/app/usage/load-usage';
 import type { UsageProvider } from '../../../shared/usage-contract';
 const dir = new URL('../../fixtures/', import.meta.url);
-const files = readdirSync(dir).filter(name => /^(claude|codex|antigravity|opencode|grok|ollama)-usage.*\.json$/.test(name));
+const files = readdirSync(dir).filter(name => /^(claude|codex|antigravity|opencode|grok|ollama)-(?:usage|cli-quota).*\.json$/.test(name));
 const fetchedAt = '2026-11-11T12:00:00.000Z';
 describe('Given existing provider fixtures', () => {
   it.each(files)('When scanning %s Then series match visible unexpired cards in order', file => {
