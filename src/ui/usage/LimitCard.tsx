@@ -1,14 +1,14 @@
-import './activity-cat.css'
+import './activity-gerbil.css'
 import type { CSSProperties, ReactNode } from 'react'
 import { Badge } from '@ui/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Progress } from '@ui/components/ui/progress'
 import type { UsageLevel } from '@domain/usage/types'
 import type { CardPresentation } from '@app/usage/card-presentation'
-import { CatSvg, SleepingCatSvg } from './CatSvg'
+import { GerbilSvg, SleepingGerbilSvg } from './GerbilSvg'
 
-/** 판정 결과가 없을 때(정적 렌더) 쓰는 기본값: 중립 막대, 자는 고양이, 배지 없음. */
-const NO_PRESENTATION: CardPresentation = { barLevel: 'neutral', barLevelText: '', cat: { mode: 'sleeping', lapSeconds: null } }
+/** 판정 결과가 없을 때(정적 렌더) 쓰는 기본값: 중립 막대, 자는 저빌, 배지 없음. */
+const NO_PRESENTATION: CardPresentation = { barLevel: 'neutral', barLevelText: '', gerbil: { mode: 'sleeping', lapSeconds: null } }
 
 export interface UsageLimitItem {
   id: string
@@ -37,7 +37,7 @@ function badgeFor(barLevel: CardPresentation['barLevel'], usedPercent: number | 
 export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION }: { item: UsageLimitItem; titleLevel?: 3 | 4; presentation?: CardPresentation }): ReactNode {
   const { id, label, unknown = false, usedPercent, expired, resetText, elapsedPercent } = item
   const percentText = usedPercent === null ? null : new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(usedPercent)
-  const { barLevel, barLevelText, cat } = presentation
+  const { barLevel, barLevelText, gerbil } = presentation
   const badge = badgeFor(barLevel, usedPercent)
   const Heading = titleLevel === 4 ? 'h4' : 'h3'
   return (
@@ -65,19 +65,19 @@ export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION
         </div>
         {usedPercent !== null && (
           <div data-testid="usage-bar" data-bar-level={barLevel} className="usage-bar relative min-w-0 pt-5">
-            <div aria-hidden="true" className="activity-cat-track">
+            <div aria-hidden="true" className="activity-gerbil-track">
                 <span
-                  data-testid="activity-cat"
-                  data-cat-state={cat.mode}
-                  className="activity-cat-runner"
+                  data-testid="activity-gerbil"
+                  data-gerbil-state={gerbil.mode}
+                  className="activity-gerbil-runner"
                   style={
                     {
-                      left: cat.mode === 'sleeping' ? '0%' : `${Math.max(0, Math.min(100, usedPercent))}%`,
-                      ...(cat.lapSeconds !== null ? { '--cat-lap': `${cat.lapSeconds}s` } : {}),
+                      left: gerbil.mode === 'sleeping' ? '0%' : `${Math.max(0, Math.min(100, usedPercent))}%`,
+                      ...(gerbil.lapSeconds !== null ? { '--gerbil-lap': `${gerbil.lapSeconds}s` } : {}),
                     } as CSSProperties
                   }
                 >
-                  {cat.mode === 'sleeping' ? <SleepingCatSvg className="activity-cat-svg" /> : <CatSvg className="activity-cat-svg" />}
+                  {gerbil.mode === 'sleeping' ? <SleepingGerbilSvg className="activity-gerbil-svg" /> : <GerbilSvg className="activity-gerbil-svg" />}
                 </span>
               </div>
             {elapsedPercent != null && <span aria-hidden="true" className="absolute bottom-0 z-10 h-2 border-l-2 border-foreground" style={{ left: `${elapsedPercent}%`, transform: 'translateX(-50%)' }} />}

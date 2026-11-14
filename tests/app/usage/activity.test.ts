@@ -10,7 +10,7 @@ describe('Given card observation history', () => {
     expect(activeLap(observeActivity(changed, 12, 120_000), 360_000)).toBeNull()
     expect(activeLap(observeActivity(changed, 22, 120_000), 400_000)).toBe(0.25)
   })
-  it('When an active running cat transitions to zero or null Then stops immediately (lapSeconds null)', () => {
+  it('When an active running gerbil transitions to zero or null Then stops immediately (lapSeconds null)', () => {
     const first = observeActivity(undefined, 10, 0)
     const running = observeActivity(first, 12, 60_000)
     expect(activeLap(running, 60_000)).toBe(0.6)

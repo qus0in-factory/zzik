@@ -1,4 +1,4 @@
-/* 공유 사용률 전환 설정 (Progress 채움과 고양이 위치 이동 동기화) */
+/* 공유 사용률 전환 설정 (Progress 채움과 저빌 위치 이동 동기화) */
 :root {
   --usage-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -7,7 +7,7 @@
   transition: transform var(--usage-transition);
 }
 
-.activity-cat-track {
+.activity-gerbil-track {
   position: absolute;
   top: 0;
   left: 0;
@@ -17,7 +17,7 @@
   pointer-events: none;
 }
 
-.activity-cat-runner {
+.activity-gerbil-runner {
   position: absolute;
   top: 0;
   width: 2rem;
@@ -27,36 +27,36 @@
   transition: left var(--usage-transition);
 }
 
-.activity-cat-svg {
+.activity-gerbil-svg {
   width: 100%;
   height: 100%;
   overflow: visible;
-  animation: cat-body-bob var(--cat-lap, 0.6s) ease-in-out infinite;
+  animation: gerbil-body-bob var(--gerbil-lap, 0.6s) ease-in-out infinite;
 }
 
 /* 다리 교차 스윙 (달리기): transform-box: fill-box로 각 다리 바운딩 박스 기준 상단 관절 회전 */
-.cat-leg {
+.gerbil-leg {
   transform-box: fill-box;
   transform-origin: top center;
 }
 
-.cat-leg-front-left,
-.cat-leg-back-right {
-  animation: cat-leg-swing-a var(--cat-lap, 0.6s) ease-in-out infinite;
+.gerbil-leg-front-left,
+.gerbil-leg-back-right {
+  animation: gerbil-leg-swing-a var(--gerbil-lap, 0.6s) ease-in-out infinite;
 }
 
-.cat-leg-front-right,
-.cat-leg-back-left {
-  animation: cat-leg-swing-b var(--cat-lap, 0.6s) ease-in-out infinite;
+.gerbil-leg-front-right,
+.gerbil-leg-back-left {
+  animation: gerbil-leg-swing-b var(--gerbil-lap, 0.6s) ease-in-out infinite;
 }
 
 /* 꼬리 살랑 */
-.cat-part-tail {
-  transform-origin: 3px 8px;
-  animation: cat-tail-wag var(--cat-lap, 0.6s) ease-in-out infinite;
+.gerbil-part-tail {
+  transform-origin: 9px 9px;
+  animation: gerbil-tail-wag var(--gerbil-lap, 0.6s) ease-in-out infinite;
 }
 
-@keyframes cat-body-bob {
+@keyframes gerbil-body-bob {
   0%, 100% {
     transform: translateY(0);
   }
@@ -65,7 +65,7 @@
   }
 }
 
-@keyframes cat-leg-swing-a {
+@keyframes gerbil-leg-swing-a {
   0%, 100% {
     transform: rotate(25deg);
   }
@@ -74,7 +74,7 @@
   }
 }
 
-@keyframes cat-leg-swing-b {
+@keyframes gerbil-leg-swing-b {
   0%, 100% {
     transform: rotate(-25deg);
   }
@@ -83,7 +83,7 @@
   }
 }
 
-@keyframes cat-tail-wag {
+@keyframes gerbil-tail-wag {
   0%, 100% {
     transform: rotate(-8deg);
   }
@@ -92,49 +92,49 @@
   }
 }
 
-/* 자는 고양이: 막대 시작점(0%)에서 왼쪽 가장자리 기준으로 놓고 호흡만 한다 */
-.activity-cat-runner[data-cat-state='sleeping'] {
+/* 자는 저빌: 막대 시작점(0%)에서 왼쪽 가장자리 기준으로 놓고 호흡만 한다 */
+.activity-gerbil-runner[data-gerbil-state='sleeping'] {
   transform: none;
 }
-.activity-cat-runner[data-cat-state='sleeping'] .activity-cat-svg {
+.activity-gerbil-runner[data-gerbil-state='sleeping'] .activity-gerbil-svg {
   animation: none;
 }
-.cat-sleep-body {
+.gerbil-sleep-body {
   transform-box: fill-box;
   transform-origin: bottom center;
-  animation: cat-breathe 3.2s ease-in-out infinite;
+  animation: gerbil-breathe 3.2s ease-in-out infinite;
 }
-.cat-sleep-z {
-  animation: cat-z-float 3.2s ease-in-out infinite;
+.gerbil-sleep-z {
+  animation: gerbil-z-float 3.2s ease-in-out infinite;
 }
-@keyframes cat-breathe {
+@keyframes gerbil-breathe {
   0%, 100% { transform: scaleY(1); }
   50% { transform: scaleY(1.06); }
 }
-@keyframes cat-z-float {
+@keyframes gerbil-z-float {
   0%, 100% { opacity: 0.35; transform: translateY(0); }
   50% { opacity: 0.9; transform: translateY(-1px); }
 }
 
 /* 정지 자세: 최근 변화가 없을 때. reduced-motion에서도 숨기지 않고 같은 자세로 둔다. */
-.activity-cat-runner[data-cat-state='idle'] .activity-cat-svg,
-.activity-cat-runner[data-cat-state='idle'] .cat-leg,
-.activity-cat-runner[data-cat-state='idle'] .cat-part-tail {
+.activity-gerbil-runner[data-gerbil-state='idle'] .activity-gerbil-svg,
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg,
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail {
   animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .activity-cat-runner,
-  .activity-cat-svg,
-  .cat-leg,
-  .cat-part-tail,
-  .cat-sleep-body,
-  .cat-sleep-z {
+  .activity-gerbil-runner,
+  .activity-gerbil-svg,
+  .gerbil-leg,
+  .gerbil-part-tail,
+  .gerbil-sleep-body,
+  .gerbil-sleep-z {
     animation: none;
   }
 }
 
-/* 막대·고양이 색: 단계(data-bar-level)별 CSS 변수. 색은 UI가 옮길 뿐 판정은 app이 한다. */
+/* 막대·저빌 색: 단계(data-bar-level)별 CSS 변수. 색은 UI가 옮길 뿐 판정은 app이 한다. */
 .usage-bar {
   --bar-color: var(--usage-neutral);
 }
@@ -153,6 +153,6 @@
 .usage-bar [data-slot='progress-indicator'] {
   background-color: var(--bar-color);
 }
-.usage-bar .activity-cat-runner {
+.usage-bar .activity-gerbil-runner {
   color: var(--bar-color);
 }
