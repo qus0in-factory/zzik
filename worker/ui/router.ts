@@ -1,3 +1,5 @@
+import { createUsageHistoryRoute } from './usage/usage-history-route'
+import type { HistoryStore } from '../domain/usage/history-store'
 import { Hono } from 'hono'
 import { authorize } from '../app/access/authorize'
 import type { AccessTokenVerifier, ConfigResult } from '../domain/access/verifier'
@@ -7,6 +9,7 @@ import { createUsageRoute } from './usage/usage-route'
 export interface RouterDependencies {
   config: ConfigResult
   verifier: AccessTokenVerifier
+  history?: HistoryStore
   store: SnapshotStore
   assets: { fetch(request: Request): Promise<Response> }
 }
@@ -20,6 +23,7 @@ export function createRouter(deps: RouterDependencies) {
     if (!auth.ok) return respond({ error: auth.reason === 'unavailable' ? 'jwks_unavailable' : 'unauthorized' }, auth.reason === 'unavailable' ? 503 : 401)
     await next()
   })
+  if(deps.history) app.route('/api/usage-history', createUsageHistoryRoute(deps.history))
   app.route('/api/usage', createUsageRoute(deps.store))
   app.notFound(() => respond({ error: 'not_found' }, 404))
   app.onError(() => respond({ error: 'internal_error' }, 500))

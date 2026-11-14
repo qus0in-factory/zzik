@@ -3,14 +3,7 @@ import type { UsageOther, UsageReport } from './types'
 /** Collector-independent display fallback when envelope metadata is unavailable. */
 export const REDACTED_VALUE = '[가림]'
 
-function normalizePath(path: string): string {
-  return path.replace(/\[(\d+)\]/g, '.$1')
-}
-
-function isRedacted(path: string, paths: readonly string[]): boolean {
-  const normalized = normalizePath(path)
-  return paths.some(redacted => normalized === redacted || normalized.startsWith(redacted + '.'))
-}
+import { normalizePath, isRedacted } from '../../../shared/usage-scan/redaction.ts'
 
 /**
  * JSON 값 안쪽을 표시용으로 정리한다. 가림 경로, `[가림]` 상수, null, 빈 문자열과 비워진 컨테이너는

@@ -12,14 +12,7 @@ export interface BuildUsageViewOptions {
   now?: Date
 }
 
-const KNOWN_METRIC_ORDER: readonly string[] = [
-  'seven_day_fable',
-  'seven_day_opus',
-  'seven_day_sonnet',
-  'seven_day_oauth_apps',
-  'seven_day_cowork',
-  'extra_usage',
-]
+import { METRIC_ORDER as KNOWN_METRIC_ORDER } from '../../../shared/usage-scan/claude.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)

@@ -1,3 +1,4 @@
+import { PostgresHistoryStore } from './infra/usage/postgres-history-store'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { createRouter } from './ui/router'
@@ -33,6 +34,7 @@ export function createWorker(deps: {
         resource => createRouter({
           config,
           verifier: (deps.createVerifier ?? createVerifier)(verifierConfig),
+          history: new PostgresHistoryStore(resource?.db ?? null),
           store: new PostgresSnapshotStore(resource?.db ?? null),
           assets: env.ASSETS,
         }).fetch(request),
