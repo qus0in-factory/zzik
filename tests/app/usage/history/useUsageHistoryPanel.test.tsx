@@ -37,6 +37,7 @@ function harness(options: { events?: UsageHistorySample[]; summary?: UsageHistor
   const prefs = createChartPrefsStore(createMemoryKeyValue())
   const inputs: ChartViewInput[] = []
   const deps: HistoryDeps = {
+    enabled: true,
     gateway,
     cache,
     session,

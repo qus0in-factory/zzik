@@ -5,6 +5,8 @@
 import type { HistoryCacheRecord, ChartRange } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { ChartView } from './chart-view'
+import { t } from '@shared/messages'
+import type { MessageKey } from '@shared/messages'
 
 export interface ChartViewInput {
   provider: UsageProvider
@@ -27,9 +29,10 @@ export interface ChartViewInput {
 
 export type ChartViewBuilder = (input: ChartViewInput) => ChartView
 
-export const DEFAULT_CHART_SIZE = { width: 640, height: 240 } as const
+/** 범위 → 문구 키. */
+export const RANGE_MESSAGE_KEY = { '24h': 'chart.range.24h', '7d': 'chart.range.7d', '30d': 'chart.range.30d' } as const satisfies Record<ChartRange, MessageKey>
 
-const RANGE_TEXT: Record<ChartRange, string> = { '24h': '24시간', '7d': '7일', '30d': '30일' }
+export const DEFAULT_CHART_SIZE = { width: 640, height: 240 } as const
 
 /** 아직 T3의 구현이 없을 때의 자리 구현: 그릴 것이 없는 빈 뷰. */
 export const emptyChartViewBuilder: ChartViewBuilder = (input) => ({
@@ -37,8 +40,8 @@ export const emptyChartViewBuilder: ChartViewBuilder = (input) => ({
   width: input.size.width,
   height: input.size.height,
   plot: { x: 40, y: 8, width: Math.max(0, input.size.width - 48), height: Math.max(0, input.size.height - 32) },
-  title: `${input.providerTitle} 사용률 추이 · 최근 ${RANGE_TEXT[input.range]}`,
-  description: `${input.providerTitle} 사용률 추이: 표시할 이력이 없습니다.`,
+  title: t('chart.title', { provider: input.providerTitle, range: t(RANGE_MESSAGE_KEY[input.range]) }),
+  description: t('chart.empty.description', { provider: input.providerTitle }),
   xTicks: [],
   yTicks: [],
   series: [],

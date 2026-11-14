@@ -1,14 +1,16 @@
+import { readGrok } from '../../../shared/usage-scan/grok.ts'
 import { aggregateUsageLevel } from './level'
-import { clampPercent, isoOrNull, isRecord, makeWindow, otherEntries, secondsBetween } from './provider-view-parts'
+import { isRecord, makeWindow, otherEntries } from './provider-view-parts'
 import { visibleUsageReport } from './visible'
 import type { UsageIssue, UsageOther, UsageReport, UsageWindow } from './types'
+import { t } from '@shared/messages'
 
 /** `config.currentPeriod.type` 표. 주기 계산은 start/end가 정본이라 라벨에만 쓴다. */
 const PERIOD_LABELS: Record<string, string> = {
-  USAGE_PERIOD_TYPE_WEEKLY: '주간 크레딧',
-  USAGE_PERIOD_TYPE_MONTHLY: '월간 크레딧',
+  USAGE_PERIOD_TYPE_WEEKLY: t('label.credit.weekly'),
+  USAGE_PERIOD_TYPE_MONTHLY: t('label.credit.monthly'),
 }
-const UNKNOWN_LABEL = '크레딧 사용률'
+const UNKNOWN_LABEL = t('label.credit.usage')
 /** 카드·시각으로 이미 쓰는 키(others에서 뺀다). */
 const CONSUMED_CONFIG_KEYS = ['creditUsagePercent', 'billingPeriodStart', 'billingPeriodEnd']
 
@@ -22,8 +24,8 @@ export function buildGrokUsageView(raw: unknown, options: { now: Date }): UsageR
 
   const issues: UsageIssue[] = []
   const windows: UsageWindow[] = []
-  const percent = clampPercent(config['creditUsagePercent'])
-  if (percent === null) {
+  const value = readGrok(config)
+  if (value === null) {
     issues.push({ code: 'invalid_utilization', key: 'config.creditUsagePercent' })
   } else {
     const period = isRecord(config['currentPeriod']) ? config['currentPeriod'] : {}
@@ -32,12 +34,9 @@ export function buildGrokUsageView(raw: unknown, options: { now: Date }): UsageR
     windows.push(
       makeWindow(
         {
-          id: 'credits',
+          ...value,
           label: known ? PERIOD_LABELS[type] : UNKNOWN_LABEL,
           unknown: !known,
-          usedPercent: percent,
-          resetsAt: isoOrNull(config['billingPeriodEnd']),
-          cycleSeconds: secondsBetween(config['billingPeriodStart'], config['billingPeriodEnd']),
         },
         options.now,
       ),

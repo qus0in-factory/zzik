@@ -49,7 +49,7 @@ function harness(providersWithRecords: UsageProvider[], syncedThrough: string | 
     await new Promise((resolve) => setTimeout(resolve, 5))
     concurrent -= 1
   }
-  const deps: HistoryDeps = { gateway, cache, session: createMemoryKeyValue(), prefs: createChartPrefsStore(createMemoryKeyValue()), budget: createHistoryBudget({ now: () => NOW }), memory: new Map(), inflight: new Map(), nowMs: () => NOW }
+  const deps: HistoryDeps = { enabled: true, gateway, cache, session: createMemoryKeyValue(), prefs: createChartPrefsStore(createMemoryKeyValue()), budget: createHistoryBudget({ now: () => NOW }), memory: new Map(), inflight: new Map(), nowMs: () => NOW }
   const client = createTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>

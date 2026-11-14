@@ -3,7 +3,9 @@ import type { UsageIssue } from './types'
 /**
  * raw 최상위 키를 창(primary/secondary)·항목(metric)·기타로 분류한다 (시나리오 C1~C3).
  */
-export const WINDOW_IDS: readonly string[] = ['five_hour', 'seven_day']
+export { WINDOW_IDS } from '../../../shared/usage-scan/claude.ts'
+import { readClaudeLimit, scopedLimits } from '../../../shared/usage-scan/claude.ts'
+import type { RawEntryFields } from '../../../shared/usage-scan/claude.ts'
 
 export interface ClassifiedUsageEntry {
   kind: 'window' | 'metric' | 'other'
@@ -23,14 +25,7 @@ export interface ClassificationResult {
   issues: UsageIssue[]
 }
 
-const KNOWN_METRIC_IDS: readonly string[] = [
-  'seven_day_fable',
-  'seven_day_opus',
-  'seven_day_sonnet',
-  'seven_day_oauth_apps',
-  'seven_day_cowork',
-  'extra_usage',
-]
+import { METRIC_ORDER as KNOWN_METRIC_IDS } from '../../../shared/usage-scan/claude.ts'
 
 export function isKnownMetricId(id: string): boolean {
   return KNOWN_METRIC_IDS.includes(id)
@@ -38,34 +33,6 @@ export function isKnownMetricId(id: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-/** utilization의 값을 해석한다. 없으면 null, 숫자가 아니거나 음수·비유한이면 invalid */
-function readUtilization(object: Record<string, unknown>): { value: number | null; invalid: boolean } {
-  const raw = object['utilization']
-  if (raw === undefined || raw === null) return { value: null, invalid: false }
-  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) return { value: raw, invalid: false }
-  return { value: null, invalid: true }
-}
-
-function readResetsAt(object: Record<string, unknown>): string | null {
-  const raw = object['resets_at']
-  return typeof raw === 'string' ? raw : null
-}
-
-interface RawEntryFields {
-  utilization: number | null
-  resetsAt: string | null
-  utilizationInvalid: boolean
-}
-
-function readRawEntry(object: Record<string, unknown>): RawEntryFields {
-  const utilization = readUtilization(object)
-  return { utilization: utilization.value, resetsAt: readResetsAt(object), utilizationInvalid: utilization.invalid }
-}
-
-function isLimitShape(fields: RawEntryFields): boolean {
-  return fields.utilization !== null || fields.resetsAt !== null
 }
 
 function toStringText(value: unknown): string {
@@ -100,8 +67,10 @@ export function classifyUsageKeys(raw: Record<string, unknown>): ClassificationR
 
   for (const [key, value] of Object.entries(raw)) {
     if (key === 'limits' || key === 'weekly_scoped_shares') continue
-    if (value === null) {
-      entries.push(WINDOW_IDS.includes(key) ? entry('window', key, {}) : entry('metric', key, {}))
+    const limit = readClaudeLimit(key, value)
+    if (limit !== null) {
+      entries.push(entry(limit.kind, key, limit))
+      if (limit.utilizationInvalid) issues.push({ code: 'invalid_utilization', key })
       continue
     }
     if (!isRecord(value)) {
@@ -111,41 +80,15 @@ export function classifyUsageKeys(raw: Record<string, unknown>): ClassificationR
       if (typeof value !== 'boolean') issues.push({ code: 'invalid_entry', key })
       continue
     }
-    const fields = readRawEntry(value)
-    if (WINDOW_IDS.includes(key)) {
-      entries.push(entry('window', key, fields))
-      if (fields.utilizationInvalid) issues.push({ code: 'invalid_utilization', key })
-      continue
-    }
-    if (isLimitShape(fields)) {
-      entries.push(entry('metric', key, fields))
-      if (fields.utilizationInvalid) issues.push({ code: 'invalid_utilization', key })
-      continue
-    }
     entries.push(entry('other', key, {}, toOtherValue(value)))
   }
 
 
-  // Scoped limits are the current API representation; prefer them over legacy keys.
-  if (Array.isArray(raw['limits'])) {
-    for (const limit of raw['limits']) {
-      if (!isRecord(limit) || limit['kind'] !== 'weekly_scoped') continue
-      const scope = limit['scope']
-      if (!isRecord(scope)) continue
-      const model = scope['model']
-      const displayName = isRecord(model) ? model['display_name'] : null
-      const name = typeof displayName === 'string' && displayName.trim()
-        ? displayName : scope['surface']
-      if (typeof name !== 'string') continue
-      const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-      if (!slug) continue
-      const key = 'seven_day_' + slug
-      const fields = readRawEntry({ utilization: limit['percent'], resets_at: limit['resets_at'] })
-      const existing = entries.findIndex((item) => item.key === key)
-      if (existing !== -1) entries.splice(existing, 1)
-      entries.push(entry('metric', key, fields))
-      if (fields.utilizationInvalid) issues.push({ code: 'invalid_utilization', key })
-    }
+  for (const item of scopedLimits(raw)) {
+    const existing = entries.findIndex(entry => entry.key === item.key)
+    if (existing !== -1) entries.splice(existing, 1)
+    entries.push(entry('metric', item.key, item))
+    if (item.utilizationInvalid) issues.push({code:'invalid_utilization',key:item.key})
   }
   return { entries, issues }
 }

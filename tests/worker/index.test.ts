@@ -67,3 +67,17 @@ describe('Given the PostgreSQL-only Worker entrypoint', () => {
     expect(closed).toBe(1)
   })
 })
+
+describe('Given history routes in the actual Worker composition',()=>{
+ it('When local PostgreSQL is injected Then both history endpoints are wired and close their resources',async()=>{
+  const test=await createTestDb();cleanup=test.close
+  const pending:Promise<unknown>[]=[];let closed=0
+  const worker=createWorker({createVerifier:verify,connect:()=>({db:test.db as SnapshotDatabase,async close(){closed++}})})
+  for(const path of ['/api/usage-history','/api/usage-history/claude']){
+   const response=await worker.fetch(new Request('https://local'+path,{headers:{'Cf-Access-Jwt-Assertion':'fake'}}),{...env,DB_URL:'local-fixture-only'},{waitUntil:p=>pending.push(p)})
+   expect(response.status).toBe(200);const body=await response.json()
+   if(path.endsWith('claude'))expect(body).toMatchObject({scanVersion:1,samples:[],nextCursor:null});else expect(body.summary).toHaveLength(6)
+  }
+  await Promise.all(pending);expect(closed).toBe(2)
+ })
+})

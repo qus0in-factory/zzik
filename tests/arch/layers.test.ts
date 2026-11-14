@@ -212,7 +212,8 @@ function targetOf(fromFile: string, spec: string): Target {
   const normalized = spec.split('?')[0].split('#')[0]
   const alias = /^@(ui|app|domain|infra)\/(.*)$/.exec(normalized)
   let abs: string
-  if (alias !== null) abs = join(BASE, 'src', alias[1], alias[2])
+  if (normalized.startsWith('@shared/')) abs = join(BASE, 'shared', normalized.slice('@shared/'.length))
+  else if (alias !== null) abs = join(BASE, 'src', alias[1], alias[2])
   else if (normalized.startsWith('@/')) abs = join(BASE, 'src', normalized.slice(2))
   else if (normalized.startsWith('.')) abs = resolve(dirname(fromFile), normalized)
   else return { kind: 'external' }
@@ -538,4 +539,23 @@ describe('Given database isolation from the frontend', () => {
     expect(findViolations([probe('collector/main.mjs', "import postgres from 'postgres'")])).toEqual([])
     expect(findViolations([probe('worker/infra/bad.ts', "import postgres from 'postgres'")])).not.toEqual([])
   })
+})
+
+import { findScanViolations, scanClosure } from '../helpers/scan-architecture'
+const SCAN_DIR=join(SHARED_DIR,'usage-scan')
+const scanProbe=(text:string,name='index.ts')=>({path:join(SCAN_DIR,name),text})
+describe('Given the N1 shared scanner boundary',()=>{
+ it('When real scans are traversed Then imports and calls are pure and the closure is nonempty',()=>{
+  const files=listSourceFiles(SCAN_DIR,/\.ts$/).map(path=>({path,text:readFileSync(path,'utf8')}))
+  expect(files.length).toBeGreaterThan(6);expect(findScanViolations(files,SCAN_DIR)).toEqual([])
+  const closure=scanClosure(files,join(SCAN_DIR,'index.ts'));expect(closure.length).toBeGreaterThan(6)
+  expect(closure.every(p=>p.startsWith(SCAN_DIR+'/')||p===join(SHARED_DIR,'usage-contract.ts'))).toBe(true)
+ })
+ it.each(["import { usageEvent } from '../db/schema'","import { sql } from 'drizzle-orm'","import postgres from 'postgres'","import { USAGE_PROVIDERS } from '../usage-contract.ts'","import type { UsageHistoryValue } from '../usage-history-contract'","import { usageLabelFor } from '../../src/domain/usage/labels'","import { createHash } from 'node:crypto'","await import('../db/schema')","export * from '../db/schema'","await import(dynamicPath)",'Date.now()','new Date()','Math.random()','fetch("x")','console.log("x")'])('When %s is injected Then purity fails',text=>expect(findScanViolations([scanProbe(text)],SCAN_DIR).length).toBeGreaterThan(0))
+ it.each(["import { isRecord } from './parts.ts'","import type { UsageProvider } from '../usage-contract.ts'","const d=new Date('2026-01-01')"] )('When %s is injected Then purity holds',text=>expect(findScanViolations([scanProbe(text)],SCAN_DIR)).toEqual([]))
+ it('When an internal export leads to the DB Then transitive closure exposes it',()=>{
+  const files=[scanProbe("export * from './parts.ts'"),scanProbe("export * from '../db/schema.ts'",'parts.ts')]
+  expect(scanClosure(files,files[0].path)).toContain(join(SHARED_DIR,'db/schema.ts'))
+  expect(findScanViolations(files,SCAN_DIR)).not.toEqual([])
+ })
 })

@@ -11,6 +11,9 @@ import { Skeleton } from '@ui/components/ui/skeleton'
 import { cardPresentation } from '@app/usage/card-presentation'
 import { LimitCard } from './LimitCard'
 import { StatusBar } from './StatusBar'
+import { Sparkles } from 'lucide-react'
+import { t } from '@shared/messages'
+import { cardKindOf } from '@app/usage/card-kind'
 import { providerStatusOf } from '@app/usage/provider-status'
 import { ProviderIcon } from './ProviderIcon'
 import { ProviderStatusLight } from './ProviderStatusLight'
@@ -51,7 +54,7 @@ export interface UsageDashboardProps {
 export function UsageDashboard({
   provider,
   title,
-  metricsTitle = '모델·기능별 한도',
+  metricsTitle = t('section.metrics.model'),
   sectionId,
   ariaLabel,
   refreshHint = null,
@@ -70,7 +73,7 @@ export function UsageDashboard({
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
     'data-provider': provider,
-    'aria-label': ariaLabel ?? title ?? '사용량',
+    'aria-label': ariaLabel ?? title ?? t('section.ariaLabel.default'),
     ...(sectionId !== undefined ? { id: sectionId } : {}),
   } as const
 
@@ -80,13 +83,12 @@ export function UsageDashboard({
         {title !== undefined && (
           <SectionTitle provider={provider} title={title} light={null}>
             <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center gap-3">
-              <Skeleton data-testid="usage-skeleton" className="h-5 w-40" />
+              <Skeleton data-testid="usage-skeleton" className="h-5 w-36" />
               <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
             </div>
           </SectionTitle>
         )}
         <div aria-hidden="true">
-          <Skeleton data-testid="usage-skeleton" className="mb-2 h-6 w-16" />
           <div data-testid="usage-skeleton-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[0, 1].map((index) => (
               <Card key={index} data-testid="usage-skeleton-card" className="min-w-0 gap-3">
@@ -130,7 +132,7 @@ export function UsageDashboard({
         <div role="alert" className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
           <div className="min-w-0 space-y-1">
             <span data-testid="usage-error-text" className="block break-words text-sm">
-              {errorMessage ?? '사용량을 불러오지 못했습니다'}
+              {errorMessage ?? t('section.error.default')}
             </span>
             {refreshHint !== null && collectionNote === null && (
               <span data-testid="provider-hint" className="block text-xs text-muted-foreground">
@@ -143,7 +145,7 @@ export function UsageDashboard({
             onClick={onRetry ?? undefined}
             className="motion-button rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium hover:bg-accent"
           >
-            다시 시도
+            {t('action.retry')}
           </button>
         </div>
       )}
@@ -161,25 +163,27 @@ export function UsageDashboard({
 
       {chartPanel}
 
-      {empty && status === 'ready' && <p className="text-sm text-muted-foreground">표시할 사용량이 없습니다</p>}
+      {empty && status === 'ready' && <p className="text-sm text-muted-foreground">{t('section.empty')}</p>}
 
       {!empty && report !== null && (
         // key: 로딩 → ready 전환 때 카드가 새로 마운트되어 진입 연출(막대·저빌·페이드인)이 다시 재생된다. 새로고침(같은 ready)에서는 같은 노드라 재생하지 않는다.
         <Fragment key="ready">
-          {report.windows.length > 0 && <div>
-            <h3 className="mb-2 text-base font-semibold">사용 창</h3>
+          {report.windows.length > 0 && (
             <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {report.windows.map((item, index) => (
-                <ActiveLimitCard key={item.id} item={item} index={index} />
+                <ActiveLimitCard key={item.id} item={item} index={index} group="window" />
               ))}
             </div>
-          </div>}
+          )}
           {report.metrics.length > 0 && (
             <div>
-              <h3 className="mb-2 text-base font-semibold">{metricsTitle}</h3>
+              <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold">
+                <Sparkles aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                {metricsTitle}
+              </h3>
               <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {report.metrics.map((item, index) => (
-                  <ActiveLimitCard key={item.id} item={item} index={index} />
+                  <ActiveLimitCard key={item.id} item={item} index={index} group="metric" />
                 ))}
               </div>
             </div>
@@ -199,12 +203,13 @@ function SectionTitle({ provider, title, light, children }: { provider: UsagePro
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
       </div>
-      {children}
+      {/* 좁은 화면에서는 항상 다음 줄로 내린다(폰트 로딩 전후 폭 차이로 줄바꿈 여부가 흔들리지 않게) */}
+      {children !== undefined && <div className="basis-full sm:basis-auto">{children}</div>}
     </div>
   )
 }
 
-function ActiveLimitCard({ item, index }: { item: UsageReport['windows'][number]; index: number }): ReactNode {
+function ActiveLimitCard({ item, index, group }: { item: UsageReport['windows'][number]; index: number; group: 'window' | 'metric' }): ReactNode {
   const lapSeconds = useCardActivity(item.id, item.usedPercent)
-  return <LimitCard item={item} titleLevel={4} presentation={cardPresentation(item, lapSeconds)} enterIndex={index} />
+  return <LimitCard item={item} titleLevel={4} presentation={cardPresentation(item, lapSeconds)} enterIndex={index} kind={cardKindOf(item, group)} />
 }

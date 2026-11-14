@@ -17,14 +17,15 @@ export function useHistoryWarmSync(): void {
   const deps = useHistoryDeps()
   const usageDeps = useUsageDeps()
   const client = useQueryClient()
-  const warm = useQuery({ queryKey: historyWarmKey, queryFn: () => deps.cache.listProviders(), staleTime: Infinity })
-  const snapshots = useQueries({ queries: USAGE_PROVIDERS.map((provider) => usageQueryOptions(usageDeps.gateway, provider)) })
+  const warm = useQuery({ queryKey: historyWarmKey, queryFn: () => deps.cache.listProviders(), staleTime: Infinity, enabled: deps.enabled })
+  const snapshots = useQueries({ queries: USAGE_PROVIDERS.map((provider) => ({ ...usageQueryOptions(usageDeps.gateway, provider), enabled: deps.enabled })) })
   const runAtKey = snapshots.map((query) => query.data?.collection?.runAt ?? '-').join(',')
   const providersKey = (warm.data ?? []).join(',')
   const running = useRef(false)
   const again = useRef(false)
 
   useEffect(() => {
+    if (!deps.enabled) return // 플래그가 꺼져 있으면 아무 것도 하지 않는다(리스너도 달지 않는다)
     let cancelled = false
     const drain = async (): Promise<void> => {
       if (running.current) {

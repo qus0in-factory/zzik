@@ -62,8 +62,25 @@
   to { transform: rotate(360deg); }
 }
 
+/* 속성명 말풍선: 짧은 페이드(reduced-motion이면 없음) */
+.info-bubble {
+  animation: fade-in var(--motion-fast) ease-out both;
+}
+
+/* 순서를 바꿔 DOM 노드가 옮겨져도 끝난 진입 연출이 다시 재생되지 않게 한다(App의 useEntranceGuard가 data-entered를 붙인다). */
+.fade-in[data-entered],
+.bar-enter[data-entered],
+.activity-gerbil-runner[data-entered] {
+  animation: none;
+}
+.activity-gerbil-runner[data-entered][data-gerbil-state='idle'] .gerbil-leg,
+.activity-gerbil-runner[data-entered][data-gerbil-state='idle'] .activity-gerbil-svg {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fade-in,
+  .info-bubble,
   .bar-enter,
   .motion-button,
   .back-to-top,

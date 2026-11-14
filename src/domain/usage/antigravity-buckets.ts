@@ -1,4 +1,8 @@
 import type { UsageIssue } from './types'
+import { readAntigravity, readAntigravityCliBucket, hasAntigravityShape, AGY_QUOTA_RAW_SOURCE } from '../../../shared/usage-scan/antigravity.ts'
+import { isRecord } from '../../../shared/usage-scan/parts.ts'
+import { t } from '@shared/messages'
+export { AGY_QUOTA_RAW_SOURCE } from '../../../shared/usage-scan/antigravity.ts'
 
 export interface AntigravityBucket {
   id: string
@@ -8,44 +12,31 @@ export interface AntigravityBucket {
   usedPercent: number
   resetsAt: string | null
 }
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-const nonempty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
 
-/** Keeps API shape handling in one module; never reads clocks or credentials. */
+/** Preserve the card parser's public mapping and display fallback. */
+export function antigravityCliBucket(group: string, label: string): { id: string; window: string } {
+  const mapped = readAntigravityCliBucket(group, label)
+  return { ...mapped, window: mapped.window || t('label.window.unknown') }
+}
+
+/** Add display names and issues to the shared value scan, preserving both stored formats. */
 export function scanAntigravityBuckets(raw: unknown): { buckets: AntigravityBucket[]; issues: UsageIssue[] } {
-  if (!isRecord(raw) || !Array.isArray(raw.groups)) return { buckets: [], issues: [{ code: 'invalid_shape' }] }
-  const counts = new Map<string, number>()
-  for (const group of raw.groups) {
-    if (!isRecord(group) || !Array.isArray(group.buckets)) continue
-    for (const bucket of group.buckets) {
-      if (isRecord(bucket) && nonempty(bucket.bucketId)) counts.set(bucket.bucketId, (counts.get(bucket.bucketId) ?? 0) + 1)
+  if (!hasAntigravityShape(raw)) return { buckets: [], issues: [{ code: 'invalid_shape' }] }
+  const cli = raw.source === AGY_QUOTA_RAW_SOURCE
+  const entries = (cli ? raw.rows : raw.groups) as unknown[]
+  const scan = readAntigravity(raw)
+  const buckets = scan.buckets.map(({ bucketIndex, ...bucket }) => {
+    const entry = entries[cli ? bucketIndex : bucket.groupIndex]
+    const name = isRecord(entry) ? (cli ? entry.group : entry.displayName) : null
+    return {
+      ...bucket,
+      window: bucket.window || t('label.window.unknown'),
+      groupLabel: typeof name === 'string' && name.trim().length > 0 ? name : t('label.group.numbered', { n: bucket.groupIndex + 1 }),
     }
-  }
-  const buckets: AntigravityBucket[] = []
-  const issues: UsageIssue[] = []
-  raw.groups.forEach((group: unknown, groupIndex: number) => {
-    if (!isRecord(group) || !Array.isArray(group.buckets)) {
-      issues.push({ code: 'invalid_entry', key: 'groups[' + groupIndex + ']' })
-      return
-    }
-    const groupLabel = nonempty(group.displayName) ? group.displayName : '그룹 ' + (groupIndex + 1)
-    group.buckets.forEach((bucket: unknown, bucketIndex: number) => {
-      const path = 'groups[' + groupIndex + '].buckets[' + bucketIndex + ']'
-      if (!isRecord(bucket)) { issues.push({ code: 'invalid_entry', key: path }); return }
-      const fraction = bucket.remainingFraction
-      if (typeof fraction !== 'number' || !Number.isFinite(fraction) || fraction < 0 || fraction > 1) {
-        issues.push({ code: 'invalid_utilization', key: path })
-        return
-      }
-      buckets.push({
-        id: nonempty(bucket.bucketId) && counts.get(bucket.bucketId) === 1 ? bucket.bucketId : path,
-        groupIndex, groupLabel,
-        window: nonempty(bucket.window) ? bucket.window : '알 수 없는',
-        usedPercent: Math.max(0, Math.min(100, (1 - fraction) * 100)),
-        resetsAt: typeof bucket.resetTime === 'string' && Number.isFinite(Date.parse(bucket.resetTime)) ? bucket.resetTime : null,
-      })
-    })
   })
+  const issues: UsageIssue[] = scan.problems.map(problem => ({
+    code: problem.kind === 'entry' ? 'invalid_entry' : 'invalid_utilization',
+    key: problem.path,
+  }))
   return { buckets, issues }
 }

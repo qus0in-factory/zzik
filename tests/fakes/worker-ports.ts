@@ -18,3 +18,15 @@ export class FakeStore implements SnapshotStore {
     return this.result
   }
 }
+
+import type {HistoryStore,HistoryRow,HistoryResult} from '../../worker/domain/usage/history-store'
+import type {UsageHistoryQuery,UsageHistorySummaryEntry} from '../../shared/usage-history-contract'
+export class FakeHistoryStore implements HistoryStore {
+ reads=0
+ rows:HistoryRow[]=[]
+ anchor:HistoryRow|null=null
+ unavailable=false
+ async readRows(_provider:UsageProvider,_query:UsageHistoryQuery):Promise<HistoryResult<HistoryRow[]>>{this.reads++;return this.unavailable?{ok:false,reason:'storage_unavailable'}:{ok:true,value:this.rows}}
+ async readAnchorRow():Promise<HistoryResult<HistoryRow|null>>{this.reads++;return this.unavailable?{ok:false,reason:'storage_unavailable'}:{ok:true,value:this.anchor}}
+ async readSummary(providers:readonly UsageProvider[]):Promise<HistoryResult<UsageHistorySummaryEntry[]>>{this.reads++;return this.unavailable?{ok:false,reason:'storage_unavailable'}:{ok:true,value:providers.map(provider=>({provider,okCount:0,firstOkAt:null,lastOkAt:null}))}}
+}

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Loader2 } from 'lucide-react'
+import { History, Loader2, RefreshCw } from 'lucide-react'
+import { t } from '@shared/messages'
 import type { ChartButtonState } from '@app/usage/history/chart-view'
 
 export interface StatusBarProps {
@@ -15,7 +16,12 @@ export interface StatusBarProps {
 export function StatusBar({ lastSuccessText, onRetry = null, refreshing = false, chart = null }: StatusBarProps): ReactNode {
   return (
     <div aria-live="polite" className="flex items-center gap-3">
-      {lastSuccessText !== null && <span className="text-sm text-muted-foreground">{lastSuccessText}</span>}
+      {lastSuccessText !== null && (
+        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <History aria-hidden="true" className="size-4 shrink-0" />
+          {lastSuccessText}
+        </span>
+      )}
       {chart !== null && (
         <>
           <button
@@ -42,11 +48,15 @@ export function StatusBar({ lastSuccessText, onRetry = null, refreshing = false,
           onClick={onRetry}
           disabled={refreshing}
           aria-busy={refreshing}
-          aria-label="사용량 새로고침(저장된 값을 다시 읽습니다)"
+          aria-label={t('action.refresh.aria')}
           className="motion-button inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-progress disabled:opacity-60"
         >
-          {refreshing && <Loader2 data-testid="refresh-spinner" aria-hidden="true" className="refresh-spinner size-3.5" />}
-          새로고침
+          {refreshing ? (
+            <Loader2 data-testid="refresh-spinner" aria-hidden="true" className="refresh-spinner size-4" />
+          ) : (
+            <RefreshCw aria-hidden="true" className="size-4" />
+          )}
+          {t('action.refresh')}
         </button>
       )}
     </div>

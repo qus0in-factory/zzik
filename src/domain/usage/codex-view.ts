@@ -23,12 +23,7 @@ export interface CodexViewOptions {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-function byWindowLength(a: CodexWindowEntry, b: CodexWindowEntry): number {
-  const left = a.limitWindowSeconds ?? Number.POSITIVE_INFINITY
-  const right = b.limitWindowSeconds ?? Number.POSITIVE_INFINITY
-  if (left !== right) return left - right
-  return a.path < b.path ? -1 : a.path > b.path ? 1 : 0
-}
+import { byWindowLength } from '../../../shared/usage-scan/codex.ts'
 
 export function buildCodexUsageView(raw: unknown, options: CodexViewOptions): UsageReport {
   const { now } = options
@@ -58,6 +53,7 @@ export function buildCodexUsageView(raw: unknown, options: CodexViewOptions): Us
       unknown: true,
       usedPercent: entry.usedPercent,
       elapsedPercent: elapsedPercent(entry.resetsAt, entry.limitWindowSeconds, now),
+      cycleSeconds: entry.limitWindowSeconds,
       resetsAt: entry.resetsAt,
       expired: isResetExpired(entry.resetsAt, now),
       status: usageLevelOf(entry.usedPercent),

@@ -5,16 +5,32 @@ import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Progress } from '@ui/components/ui/progress'
 import type { UsageLevel } from '@domain/usage/types'
 import type { CardPresentation } from '@app/usage/card-presentation'
+import type { CardKind } from '@app/usage/card-kind'
+import { t } from '@shared/messages'
+import { CardKindIcon } from './CardKindIcon'
+import { RawIdInfo } from './RawIdInfo'
 import { GerbilSvg, SleepingGerbilSvg } from './GerbilSvg'
 
 /** 판정 결과가 없을 때(정적 렌더) 쓰는 기본값: 중립 막대, 자는 저빌, 배지 없음. */
 const NO_PRESENTATION: CardPresentation = { barLevel: 'neutral', barLevelText: '', gerbil: { mode: 'sleeping', lapSeconds: null } }
+
+/**
+ * 자는 저빌이 깨어나는 시점을 카드마다 흩뿌린다.
+ * id에서 결정적으로 0~7.9s를 뽑아 CSS 변수(--sleep-delay)로 건넨다. JS 타이머 없이 animation-delay만 쓴다.
+ */
+function sleepDelayOf(id: string): number {
+  let hash = 0
+  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) % 997
+  return (hash % 80) / 10
+}
 
 export interface UsageLimitItem {
   id: string
   label: string
   unknown?: boolean
   elapsedPercent?: number | null
+  /** 한도 주기(초). 카드 종류 아이콘 판정에 쓴다 */
+  cycleSeconds?: number | null
   usedPercent: number | null
   resetsAt: string | null
   expired: boolean
@@ -25,8 +41,8 @@ export interface UsageLimitItem {
 
 /** 배지는 막대 단계(barLevel)와 같은 판정에서 나온다. 여유·중립은 배지 없이 aria 문구로만 전달한다. */
 function badgeFor(barLevel: CardPresentation['barLevel'], usedPercent: number | null): { text: string; variant: 'secondary' | 'destructive' } | null {
-  if (barLevel === 'caution') return { text: '주의', variant: 'secondary' }
-  if (barLevel === 'danger') return { text: usedPercent !== null && usedPercent >= 100 ? '한도 도달' : '위험', variant: 'destructive' }
+  if (barLevel === 'caution') return { text: t('badge.caution'), variant: 'secondary' }
+  if (barLevel === 'danger') return { text: usedPercent !== null && usedPercent >= 100 ? t('badge.limit') : t('badge.danger'), variant: 'destructive' }
   return null
 }
 
@@ -34,7 +50,7 @@ function badgeFor(barLevel: CardPresentation['barLevel'], usedPercent: number | 
  * 한도 카드: 라벨·원래 키·퍼센트·진행률·배지·리셋 문구. 판정 없이 뷰 모델을 그린다.
  * 제목 단계는 섹션 구조(제공자 h2 → 블록 h3 → 카드 h4)에 맞춰 주입한다.
  */
-export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION, enterIndex = 0 }: { item: UsageLimitItem; titleLevel?: 3 | 4; presentation?: CardPresentation; enterIndex?: number }): ReactNode {
+export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION, enterIndex = 0, kind = 'unknown' }: { item: UsageLimitItem; titleLevel?: 3 | 4; presentation?: CardPresentation; enterIndex?: number; kind?: CardKind }): ReactNode {
   const { id, label, unknown = false, usedPercent, expired, resetText, elapsedPercent } = item
   const percentText = usedPercent === null ? null : new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(usedPercent)
   const { barLevel, barLevelText, gerbil } = presentation
@@ -44,24 +60,25 @@ export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION
     <Card data-testid="usage-card" data-card-id={id} className="fade-in min-w-0 gap-3" style={{ '--enter-index': enterIndex } as CSSProperties}>
       <CardHeader className="gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
+          <CardKindIcon kind={kind} />
           <Heading data-testid="usage-card-label" className="break-words text-base leading-none font-semibold">
             {label}
           </Heading>
-          <code className="break-all text-xs text-muted-foreground">{id}</code>
-          {unknown && <Badge variant="outline">미확인</Badge>}
+          <RawIdInfo id={id} label={label} />
+          {unknown && <Badge variant="outline">{t('card.unverified')}</Badge>}
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex flex-wrap items-baseline gap-2">
           {usedPercent === null ? (
-            <span className="text-2xl leading-none font-semibold tabular-nums text-muted-foreground">정보 없음</span>
+            <span className="text-2xl leading-none font-semibold tabular-nums text-muted-foreground">{t('card.noValue')}</span>
           ) : (
-            <span aria-label={`${percentText}퍼센트`} className="text-2xl leading-none font-semibold tabular-nums">
+            <span aria-label={t('card.percent.aria', { value: percentText ?? '' })} className="text-2xl leading-none font-semibold tabular-nums">
               {percentText}%
             </span>
           )}
           {badge && <Badge variant={badge.variant}>{badge.text}</Badge>}
-          {expired && <span className="text-xs text-muted-foreground">리셋 지남</span>}
+          {expired && <span className="text-xs text-muted-foreground">{t('card.expired')}</span>}
         </div>
         {usedPercent !== null && (
           <div data-testid="usage-bar" data-bar-level={barLevel} className="usage-bar relative min-w-0 pt-[1.625rem]">
@@ -73,6 +90,7 @@ export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION
                   style={
                     {
                       left: gerbil.mode === 'sleeping' ? '0%' : `${Math.max(0, Math.min(100, usedPercent))}%`,
+                      '--sleep-delay': `${sleepDelayOf(id)}s`,
                       ...(gerbil.lapSeconds !== null ? { '--gerbil-lap': `${gerbil.lapSeconds}s` } : {}),
                     } as CSSProperties
                   }
@@ -81,11 +99,11 @@ export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION
                 </span>
               </div>
             {elapsedPercent != null && <span aria-hidden="true" className="absolute bottom-0 z-10 h-2 border-l-2 border-foreground" style={{ left: `${elapsedPercent}%`, transform: 'translateX(-50%)' }} />}
-            <Progress value={Math.min(usedPercent, 100)} aria-label={barLevelText === '' ? `${label} 사용률` : `${label} 사용률, 상태 ${barLevelText}`}
-              aria-valuetext={barLevelText === '' ? undefined : `${percentText}퍼센트, ${barLevelText}`} />
+            <Progress value={Math.min(usedPercent, 100)} aria-label={barLevelText === '' ? t('card.usage.aria', { label }) : t('card.usage.aria.state', { label, state: barLevelText })}
+              aria-valuetext={barLevelText === '' ? undefined : t('card.valuetext', { value: percentText ?? '', state: barLevelText })} />
           </div>
         )}
-        {elapsedPercent != null && <p className="text-xs text-muted-foreground">기간 경과 {Math.round(elapsedPercent)}%</p>}
+        {elapsedPercent != null && <p className="text-xs text-muted-foreground">{t('card.elapsed', { percent: Math.round(elapsedPercent) })}</p>}
         {resetText !== undefined && <p className="break-words text-xs text-muted-foreground">{resetText}</p>}
       </CardContent>
     </Card>

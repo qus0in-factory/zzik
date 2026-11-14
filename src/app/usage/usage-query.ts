@@ -2,6 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import type { Query } from '@tanstack/react-query'
 import type { UsageGateway, UsageGatewayResult, UsageGatewaySuccess, UsageGatewayFailureReason } from '@domain/usage/gateway'
 import type { UsageProvider } from '@domain/usage/providers'
+import { t } from '@shared/messages'
 
 /** 주기(스택 부록 A4): 900초 refetchInterval (ADR 0.5 Neon Free). 제공자마다 독립으로 돈다. */
 export const USAGE_POLL_INTERVAL_MS = 900_000
@@ -20,19 +21,19 @@ export function usageQueryKey(provider: UsageProvider): readonly ['usage', Usage
  * 원시 코드(`invalid_response`, `http_502` 등)를 화면에 그대로 노출하지 않는다.
  */
 export const USAGE_ERROR_CODE_TEXT: Record<string, string> = {
-  request_timeout: '사용량 서버의 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.',
-  invalid_response: '사용량 응답 형식이 올바르지 않습니다. 잠시 후 다시 시도해 주세요.',
-  snapshot_corrupt: '저장된 사용량 값이 손상되었습니다. 수집기가 다음 값을 쓸 때까지 기다려 주세요.',
-  storage_unavailable: '저장된 사용량을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.',
-  jwks_unavailable: '로그인 확인 키를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.',
-  misconfigured: '서버 설정이 완료되지 않았습니다. 설정을 확인해 주세요.',
-  unauthorized: '로그인이 필요합니다. 페이지를 새로 고친 뒤 다시 로그인해 주세요.',
-  not_found: '요청한 제공자의 사용량을 찾을 수 없습니다.',
-  method_not_allowed: '지원하지 않는 요청입니다.',
-  invalid_query: '이력 요청 형식이 올바르지 않습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.',
-  scan_version_mismatch: '새 버전이 배포되었습니다. 페이지를 새로 고치면 최신 이력을 볼 수 있습니다.',
-  history_budget: '이력 요청이 너무 많아 잠시 멈췄습니다. 잠시 후 다시 시도해 주세요.',
-  history_conflict: '다른 탭과 이력을 동시에 갱신하고 있습니다. 잠시 후 다시 시도해 주세요.',
+  request_timeout: t('error.request_timeout'),
+  invalid_response: t('error.invalid_response'),
+  snapshot_corrupt: t('error.snapshot_corrupt'),
+  storage_unavailable: t('error.storage_unavailable'),
+  jwks_unavailable: t('error.jwks_unavailable'),
+  misconfigured: t('error.misconfigured'),
+  unauthorized: t('error.unauthorized'),
+  not_found: t('error.not_found'),
+  method_not_allowed: t('error.method_not_allowed'),
+  invalid_query: t('error.invalid_query'),
+  scan_version_mismatch: t('error.scan_version_mismatch'),
+  history_budget: t('error.history_budget'),
+  history_conflict: t('error.history_conflict'),
 }
 
 const HTTP_CODE = /^http_(\d{3})$/
@@ -52,16 +53,16 @@ export function describeGatewayFailure(reason: UsageGatewayFailureReason, code: 
   if (http !== null) {
     const status = Number(http[1])
     return status >= 500
-      ? '서버에서 사용량을 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.'
-      : '사용량 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+      ? t('error.server')
+      : t('error.request')
   }
 
-  if (reason === 'session_expired') return 'Access 세션이 만료되었습니다. 페이지를 새로 고친 뒤 다시 로그인해 주세요.'
-  if (reason === 'network_error') return '네트워크에 연결할 수 없습니다.'
+  if (reason === 'session_expired') return t('error.session_expired')
+  if (reason === 'network_error') return t('error.network_error')
 
   // 사람이 쓴 메시지는 그대로 보여 준다. 코드 모양이면 노출하지 않는다.
   if (code !== null && code.length > 0 && !CODE_LIKE.test(code)) return code
-  return '사용량을 불러오지 못했습니다.'
+  return t('error.default')
 }
 
 /**

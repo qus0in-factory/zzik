@@ -22,8 +22,7 @@ import { createPostgresEnvelopeWriter } from './infra/usage/postgres-envelope-wr
 import { readStorageConfig } from './domain/usage/storage-config.mjs'
 import { createLogAppender } from './infra/usage/log.mjs'
 import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
-import { createAntigravityUsageClient, ANTIGRAVITY_API_HOSTS } from './infra/usage/antigravity-usage-client.mjs'
-import { DEFAULT_ANTIGRAVITY_AUTH_PATH, readAntigravityCredentials } from './infra/usage/antigravity-credentials-file.mjs'
+import { createAntigravityCliUsageClient } from './infra/usage/antigravity-cli-usage-client.mjs'
 import { createGrokUsageClient } from './infra/usage/grok-usage-client.mjs'
 import { createOpencodeUsageClient } from './infra/usage/opencode-usage-client.mjs'
 import { createOllamaUsageClient, DEFAULT_OLLAMA_HOST, isAllowedOllamaHost } from './infra/usage/ollama-usage-client.mjs'
@@ -58,12 +57,6 @@ function resolveHomePath(value) {
   return value
 }
 
-const ANTIGRAVITY_AUTH_PATH = process.env.ZZIK_ANTIGRAVITY_AUTH_PATH ? resolveHomePath(process.env.ZZIK_ANTIGRAVITY_AUTH_PATH) : DEFAULT_ANTIGRAVITY_AUTH_PATH
-const ANTIGRAVITY_HOST = process.env.ZZIK_ANTIGRAVITY_API_HOST ?? 'cloudcode-pa.googleapis.com'
-if (!ANTIGRAVITY_API_HOSTS.includes(ANTIGRAVITY_HOST)) {
-  process.stderr.write('Invalid Antigravity API host\n')
-  process.exit(78)
-}
 const OPENCODE_DB_PATH = process.env.ZZIK_OPENCODE_DB_PATH ? resolveHomePath(process.env.ZZIK_OPENCODE_DB_PATH) : DEFAULT_OPENCODE_DB_PATH
 const OLLAMA_HOST = process.env.ZZIK_OLLAMA_HOST ?? DEFAULT_OLLAMA_HOST
 if (!isAllowedOllamaHost(OLLAMA_HOST)) {
@@ -127,10 +120,10 @@ function parseArgs(argv) {
  * 제공자 하나의 포트 묶음(ADR 0.3 D3의 표). 자격 증명 포트·usage 포트·상태 파일이
  * 제공자별로 다르고 나머지(시계, 로거, Postgres 어댑터)는 공유한다.
  * @param {string} provider
- * @param {{ credentialsPath: string|null }} options
+ * @param {{ credentialsPath: string|null, dryRun: boolean }} options
  * @returns {CollectorPorts}
  */
-function buildProviderPorts(provider, { credentialsPath }) {
+function buildProviderPorts(provider, { credentialsPath, dryRun }) {
   const usageClient =
     provider === 'grok'
       ? createGrokUsageClient({ fetchImpl: globalThis.fetch })
@@ -139,7 +132,7 @@ function buildProviderPorts(provider, { credentialsPath }) {
       : provider === 'ollama'
       ? createOllamaUsageClient({ fetchImpl: globalThis.fetch, host: OLLAMA_HOST })
       : provider === 'antigravity'
-      ? createAntigravityUsageClient({ fetchImpl: globalThis.fetch, host: ANTIGRAVITY_HOST, quotaCli: () => runAgyQuotaCli({ path: process.env.ZZIK_AGY_CLI_PATH ?? 'agy', enabled: process.env.ZZIK_AGY_CLI_ENABLED !== '0' }) })
+      ? createAntigravityCliUsageClient({ runQuota: () => runAgyQuotaCli({ path: process.env.ZZIK_AGY_CLI_PATH ?? 'agy', enabled: process.env.ZZIK_AGY_CLI_ENABLED !== '0' }) })
       : provider === 'codex'
       ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
       : createClaudeUsageClient({ fetchImpl: globalThis.fetch })
@@ -155,7 +148,7 @@ function buildProviderPorts(provider, { credentialsPath }) {
         if (provider === 'grok') return [await readOpencodeDb('xai')]
         if (provider === 'opencode') return [await readOpencodeDb('opencode')]
         if (provider === 'ollama') return [await readOllamaLocalCredentials()]
-        if (provider === 'antigravity') return [await readAntigravityCredentials(credentialsPath ?? ANTIGRAVITY_AUTH_PATH, { warn })]
+        if (provider === 'antigravity') return [dryRun ? null : { source: 'cli', token: '', expiresAt: null, accountId: null }]
         if (provider === 'codex') return [await readCodexCredentials(credentialsPath ?? CODEX_AUTH_PATH, { warn })]
         return [await readCredentialsFile(credentialsPath ?? DEFAULT_CREDENTIALS_PATH)]
       },
@@ -184,7 +177,7 @@ function buildProviders(flags) {
     flags: { provider: flags.provider, credentialsPath: flags.credentialsPath, codexAccountHeader: flags.codexAccountHeader },
     envSendAccountId: process.env.ZZIK_CODEX_SEND_ACCOUNT_ID === '1',
     redactionPaths: USAGE_REDACTION_PATHS,
-    buildPorts: (providerId) => buildProviderPorts(providerId, { credentialsPath: flags.credentialsPath }),
+    buildPorts: (providerId) => buildProviderPorts(providerId, { credentialsPath: flags.credentialsPath, dryRun: flags.dryRun }),
   })
 }
 
