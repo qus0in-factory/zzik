@@ -1,0 +1,55 @@
+{
+  "provider": "ollama",
+  "scanVersion": 1,
+  "anchor": null,
+  "samples": [
+    {
+      "id": "9501",
+      "runAt": "2026-11-13T23:00:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:00:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "included",
+          "usedPercent": 40,
+          "resetsAt": "2026-12-01T00:00:00.000Z",
+          "cycleSeconds": 2592000
+        }
+      ]
+    },
+    {
+      "id": "9502",
+      "runAt": "2026-11-13T23:15:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:15:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "included",
+          "usedPercent": 41,
+          "resetsAt": "2026-12-01T00:00:00.000Z",
+          "cycleSeconds": 2592000
+        }
+      ]
+    },
+    {
+      "id": "9503",
+      "runAt": "2026-11-13T23:30:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:30:00.000Z",
+      "intervalSec": 900,
+      "values": []
+    },
+    {
+      "id": "9504",
+      "runAt": "2026-11-13T23:45:00.000Z",
+      "status": "network_error",
+      "fetchedAt": "2026-11-13T23:30:00.000Z",
+      "intervalSec": 900,
+      "values": null
+    }
+  ],
+  "nextCursor": "2026-11-13T23:45:00.000Z_9504",
+  "hasMore": false
+}

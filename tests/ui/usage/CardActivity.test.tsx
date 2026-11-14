@@ -205,11 +205,15 @@ describe('Given the gerbil and bar presentation rules', () => {
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion'))
     expect(reduced).not.toContain('display: none')
     expect(reduced).toContain('animation: none')
-    expect(reduced).toContain('.gerbil-sleep-body')
+    // 호흡·고개·zzz·z 3개·눈·귀 애니메이션을 모두 같은 선택자로 꺼야 한다
+    for (const part of ['.gerbil-sleep-body', '.gerbil-sleep-head', '.gerbil-sleep-zzz', '.gerbil-sleep-z', '.gerbil-sleep-z-1', '.gerbil-sleep-z-2', '.gerbil-sleep-z-3', '.gerbil-sleep-ear', '.gerbil-sleep-eye-closed', '.gerbil-sleep-eye-open', '.gerbil-sleep-eye-pupil']) expect(reduced).toContain(part)
     // idle 꼬리 규칙은 특이도가 높아 reduced-motion에서도 같은 선택자로 꺼야 한다
     expect(reduced).toContain(".activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail")
     // 진입 연출(다리·몸)도 같은 이유로 idle 선택자로 꺼야 한다
     for (const part of ['.gerbil-leg-front-left', '.gerbil-leg-front-right', '.activity-gerbil-svg']) expect(reduced).toContain(`.activity-gerbil-runner[data-gerbil-state='idle'] ${part}`)
+    // 정지 상태에서는 움직이는 z 없이 첫 z 하나만 고정 표시한다
+    expect(reduced).toMatch(/\.gerbil-sleep-z-1\s*\{[^}]*opacity:\s*0\.8/)
+    expect(reduced).toMatch(/\.gerbil-sleep-z-2,\s*\.gerbil-sleep-z-3\s*\{[^}]*opacity:\s*0\s*;/)
   })
   it('When idle Then the tail sways ±20° every 1.3s around its root; legs and body only run during the entrance', () => {
     const css = readFileSync('src/ui/usage/activity-gerbil.css', 'utf8')
@@ -226,6 +230,133 @@ describe('Given the gerbil and bar presentation rules', () => {
     expect(css).toMatch(/@keyframes gerbil-enter\s*\{\s*from\s*\{\s*left:\s*0%/)
     expect(css).toMatch(/\.activity-gerbil-runner\s*\{[^}]*animation:\s*gerbil-enter var\(--motion-enter\) ease-out backwards/)
     expect(css).toMatch(/\.activity-gerbil-runner\s*\{[^}]*width:\s*2\.5rem;\s*height:\s*1\.5625rem;/)
+  })
+})
+
+describe('Given the sleeping gerbil motion', () => {
+  const css = readFileSync('src/ui/usage/activity-gerbil.css', 'utf8')
+  const zeroCards = (
+    <UsageGatewayProvider deps={{ gateway: createFakeUsageGateway(), scheduler: createFakeUsageScheduler(), clock: { nowIso: () => NOW_ISO } }}>
+      <UsageDashboard
+        provider="claude"
+        status="ready"
+        errorMessage={null}
+        report={buildUsageView({ five_hour: { utilization: 0 }, seven_day: { utilization: 0 }, seven_day_sonnet: { utilization: 0 } })}
+      />
+    </UsageGatewayProvider>
+  )
+
+  it('When usage is 0 Then three z letters of different sizes/positions and a liftable head are rendered', () => {
+    render(zeroCards)
+    const gerbil = screen.getAllByTestId('activity-gerbil')[0]
+    const zs = [...gerbil.querySelectorAll('.gerbil-sleep-z')]
+    expect(zs).toHaveLength(3)
+    expect(new Set(zs.map((z) => z.getAttribute('font-size'))).size).toBe(3)
+    expect(new Set(zs.map((z) => z.getAttribute('x'))).size).toBe(3)
+    for (const n of [1, 2, 3]) expect(gerbil.querySelector(`.gerbil-sleep-z-${n}`)).toBeTruthy()
+    expect(gerbil.querySelector('.gerbil-sleep-head')).toBeTruthy()
+    expect(gerbil.querySelector('.gerbil-sleep-zzz')).toBeTruthy()
+    // 깬 구간에 바뀌는 표정 단서: 감은 눈·뜬 눈·눈동자·귀
+    expect(gerbil.querySelector('.gerbil-sleep-ear')).toBeTruthy()
+    expect(gerbil.querySelector('.gerbil-sleep-eye-closed')).toBeTruthy()
+    expect(gerbil.querySelector('.gerbil-sleep-eye-open')).toBeTruthy()
+    expect(gerbil.querySelector('.gerbil-sleep-eye-pupil')).toBeTruthy()
+    // SVG 크기·좌표계는 그대로 (레이아웃 측정에 영향 없음)
+    expect(gerbil.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 32 20')
+  })
+
+  it('Then each z floats on its own 2.5~3.5s cycle with a distinct delay, using only transform/opacity', () => {
+    const float = /@keyframes gerbil-z-float\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(float).not.toBe('')
+    expect(float).toContain('transform:')
+    expect(float).toContain('opacity:')
+    for (const prop of ['width', 'height', 'top:', 'left:', 'margin', 'padding']) expect(float).not.toContain(prop)
+    const durations: number[] = []
+    const delays: string[] = []
+    for (const n of [1, 2, 3]) {
+      const rule = new RegExp(`\\.gerbil-sleep-z-${n}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+      const match = /animation:\s*gerbil-z-float\s+([\d.]+)s\s+ease-in-out\s+(-?[\d.]+)s\s+infinite/.exec(rule)
+      expect(match).toBeTruthy()
+      const seconds = Number(match?.[1])
+      expect(seconds).toBeGreaterThanOrEqual(2.5)
+      expect(seconds).toBeLessThanOrEqual(3.5)
+      durations.push(seconds)
+      delays.push(match?.[2] ?? '')
+    }
+    expect(new Set(durations).size).toBeGreaterThanOrEqual(2)
+    expect(new Set(delays).size).toBe(3)
+  })
+
+  it('Then the wake cycle is 12~20s, looks around for 1.5~2s with transform only, and hides zzz meanwhile', () => {
+    const cycle = Number(/--sleep-cycle:\s*(\d+)s/.exec(css)?.[1])
+    expect(cycle).toBeGreaterThanOrEqual(12)
+    expect(cycle).toBeLessThanOrEqual(20)
+    const wake = /@keyframes gerbil-wake\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(wake).not.toBe('')
+    expect(wake).toContain('translateY(-')
+    expect(wake).toContain('translateX(-')
+    expect(wake).toContain('translateX(2.4px)')
+    expect(wake).toContain('rotate(-')
+    expect(wake).toContain('rotate(1')
+    for (const prop of ['width', 'height', 'top:', 'left:', 'margin', 'padding']) expect(wake).not.toContain(prop)
+    // 16s 주기의 82%~92% 구간만 깨어 있음 = 1.6s
+    expect(((92 - 82) / 100) * cycle).toBeGreaterThanOrEqual(1.5)
+    expect(((92 - 82) / 100) * cycle).toBeLessThanOrEqual(2)
+    const hide = /@keyframes gerbil-zzz-hide\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(hide).toContain('opacity: 0')
+    expect(hide).toContain('opacity: 1')
+    expect(css).toMatch(/\.gerbil-sleep-head\s*\{[^}]*animation:\s*gerbil-wake var\(--sleep-cycle/)
+    expect(css).toMatch(/\.gerbil-sleep-zzz\s*\{[^}]*animation:\s*gerbil-zzz-hide var\(--sleep-cycle/)
+    expect(css).toContain('var(--sleep-delay, 0s)')
+  })
+
+  it('Then the head and pupil turn at least 3px apart at the real 40x25 size', () => {
+    // viewBox 0 0 32 20 → 실제 40x25px 이므로 1 SVG 단위 = 1.25px
+    const pxPerUnit = 40 / 32
+    const wake = /@keyframes gerbil-wake\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    const headXs = [...wake.matchAll(/translateX\((-?[\d.]+)px\)/g)].map((m) => Number(m[1]))
+    expect((Math.max(...headXs) - Math.min(...headXs)) * pxPerUnit).toBeGreaterThanOrEqual(3)
+    const pupil = /@keyframes gerbil-pupil-look\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    const pupilXs = [...pupil.matchAll(/translateX\((-?[\d.]+)px\)/g)].map((m) => Number(m[1]))
+    expect(pupilXs.some((x) => Math.abs(x) >= 1.5)).toBe(true)
+    expect((Math.max(...pupilXs) - Math.min(...pupilXs)) * pxPerUnit).toBeGreaterThanOrEqual(3)
+  })
+
+  it('Then the closed eye hides and an open eye with a roaming pupil shows only while awake', () => {
+    const closed = /@keyframes gerbil-eye-closed\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    const open = /@keyframes gerbil-eye-open\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(closed).toMatch(/82%,\s*92%\s*\{\s*opacity:\s*0/)
+    expect(closed).toContain('opacity: 1')
+    expect(open).toMatch(/82%,\s*92%\s*\{\s*opacity:\s*1/)
+    expect(open).toContain('opacity: 0')
+    expect(css).toMatch(/\.gerbil-sleep-eye-closed\s*\{[^}]*animation:\s*gerbil-eye-closed var\(--sleep-cycle/)
+    expect(css).toMatch(/\.gerbil-sleep-eye-open\s*\{[^}]*opacity:\s*0/)
+    expect(css).toMatch(/\.gerbil-sleep-eye-pupil\s*\{[^}]*animation:\s*gerbil-pupil-look var\(--sleep-cycle/)
+  })
+
+  it('Then the ear perks up as a small cue at the start and end of the wake window', () => {
+    const ear = /@keyframes gerbil-ear-perk\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(ear).toContain('rotate(-')
+    expect(ear).toContain('translateY(-')
+    expect(css).toMatch(/\.gerbil-sleep-ear\s*\{[^}]*animation:\s*gerbil-ear-perk var\(--sleep-cycle/)
+  })
+
+  it('Then every new wake/eye/ear keyframe animates only transform/opacity', () => {
+    for (const name of ['gerbil-wake', 'gerbil-zzz-hide', 'gerbil-z-float', 'gerbil-eye-closed', 'gerbil-eye-open', 'gerbil-pupil-look', 'gerbil-ear-perk']) {
+      const body = new RegExp(`@keyframes ${name}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? ''
+      expect(body).not.toBe('')
+      expect(body).toMatch(/transform:|opacity:/)
+      for (const prop of ['width', 'height', 'top:', 'left:', 'margin', 'padding']) expect(body).not.toContain(prop)
+    }
+  })
+
+  it('When several sleeping cards are shown Then each gets a different --sleep-delay so they do not wake together', () => {
+    render(zeroCards)
+    const runners = screen.getAllByTestId('activity-gerbil')
+    expect(runners).toHaveLength(3)
+    const delays = runners.map((runner) => runner.style.getPropertyValue('--sleep-delay'))
+    for (const delay of delays) expect(delay).toMatch(/^\d+(\.\d+)?s$/)
+    expect(new Set(delays).size).toBe(3)
   })
 })
 
