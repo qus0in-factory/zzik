@@ -34,7 +34,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
   it('When rendering then only populated limit keys get cards (U2)', () => {
     const report = buildUsageView(unknownKeysRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
-    expect(screen.getAllByTestId('usage-card')).toHaveLength(7)
+    expect(screen.getAllByTestId('usage-card')).toHaveLength(6)
     expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
     expect(screen.queryByText(/Raw JSON/)).toBeNull()
     expect(screen.getByText('주간 · Haiku')).toBeTruthy()
@@ -88,7 +88,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
       />,
     )
     expect(screen.getByLabelText('Claude 사용량')).toBeTruthy()
-    expect(screen.getAllByRole('heading', { level: 4 })).toHaveLength(7)
+    expect(screen.getAllByRole('heading', { level: 4 })).toHaveLength(6)
   })
 
   it('When a report is ready then card ids match populated domain entries in order', () => {
@@ -99,7 +99,6 @@ describe('Given the usage dashboard with the unknown keys report', () => {
       'five_hour',
       'seven_day',
       'seven_day_sonnet',
-      'extra_usage',
       'seven_day_fake',
       'seven_day_haiku',
       'thirty_day',
@@ -108,13 +107,13 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     expect(cardIds()).toEqual([...report.windows.map((item) => item.id), ...report.metrics.map((item) => item.id)])
     expect(new Set(cardIds()).size).toBe(expected.length)
     expect(otherIds()).toEqual([])
-    expect([...cardIds(), ...otherIds()].sort()).toEqual(Object.entries(unknownKeysRaw).filter(([, value]) => value !== null).map(([key]) => key).sort())
+    expect([...cardIds(), ...otherIds()].sort()).toEqual(Object.entries(unknownKeysRaw).filter(([key, value]) => value !== null && key !== 'extra_usage').map(([key]) => key).sort())
   })
 
   it('When the normal fixture renders then its card ids are the documented order', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
-    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_sonnet', 'extra_usage'])
+    expect(cardIds()).toEqual(['five_hour', 'seven_day', 'seven_day_sonnet'])
   })
 
   it('When limit and non-limit keys are mixed then only limit cards render and others are excluded from the screen', () => {
@@ -131,7 +130,7 @@ describe('Given the usage dashboard with the unknown keys report', () => {
     const report = buildUsageView(mixedRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="ready" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage={null} />)
 
-    expect(cardIds()).toEqual(['five_hour', 'extra_usage'])
+    expect(cardIds()).toEqual(['five_hour'])
     expect(otherIds()).toEqual([])
     expect(screen.queryByTestId('usage-other')).toBeNull()
     expect(screen.queryByText('기타 항목')).toBeNull()
@@ -194,7 +193,7 @@ describe('Given the error state', () => {
     const report = buildUsageView(normalRaw, { now: NOW })
     render(<UsageDashboard provider="claude" status="error" report={report} lastSuccessText="마지막 수집 11:58 (2분 전)" errorMessage="사용량을 불러오지 못했습니다" />)
     expect(screen.getByRole('alert').textContent).toContain('사용량을 불러오지 못했습니다')
-    expect(screen.getAllByTestId('usage-card')).toHaveLength(4)
+    expect(screen.getAllByTestId('usage-card')).toHaveLength(3)
   })
 })
 
@@ -368,7 +367,7 @@ describe('Given live provider reports after the display policy', () => {
     expect(otherIds()).toEqual([])
     expect(screen.queryByTestId('usage-other')).toBeNull()
     expect(screen.queryByText('기타 항목')).toBeNull()
-    expect(screen.queryByText('정보 없음')).toBeNull()
+    expect(within(screen.getByTestId('extra-spend')).getByText('정보 없음')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
     expect(document.querySelector('pre')).toBeNull()
   })

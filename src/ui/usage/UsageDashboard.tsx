@@ -1,3 +1,5 @@
+import { extraSpendPresentation } from '@app/usage/extra-spend'
+import { ExtraSpendRow } from './ExtraSpendRow'
 import { useCardActivity } from '@app/usage/useCardActivity'
 import { Fragment } from 'react'
 import type { ReactNode } from 'react'
@@ -129,6 +131,7 @@ export function UsageDashboard({
     )
   }
 
+  const extraSpend = extraSpendPresentation(report?.extraSpend)
   const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0)
   const light = providerStatusOf({ status, reportStatus: report?.status ?? null, collectionStatus, issueCount: report?.issues.length ?? 0, lastSuccessText })
 
@@ -183,7 +186,7 @@ export function UsageDashboard({
 
       {chartPanel}
 
-      {empty && status === 'ready' && <p className="text-sm text-muted-foreground">{t('section.empty')}</p>}
+      {empty && extraSpend === null && status === 'ready' && <p className="text-sm text-muted-foreground">{t('section.empty')}</p>}
 
       {!empty && report !== null && (
         // key: 로딩 → ready 전환 때 카드가 새로 마운트되어 진입 연출(막대·저빌·페이드인)이 다시 재생된다. 새로고침(같은 ready)에서는 같은 노드라 재생하지 않는다.
@@ -225,6 +228,7 @@ export function UsageDashboard({
           )}
         </Fragment>
       )}
+      {extraSpend !== null && <ExtraSpendRow view={extraSpend} />}
     </section>
   )
 }

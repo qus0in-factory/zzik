@@ -1,6 +1,6 @@
 {
   "provider": "claude",
-  "scanVersion": 1,
+  "scanVersion": 2,
   "anchor": null,
   "samples": [],
   "nextCursor": null,

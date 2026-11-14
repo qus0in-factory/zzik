@@ -76,7 +76,7 @@ describe('Given history routes in the actual Worker composition',()=>{
   for(const path of ['/api/usage-history','/api/usage-history/claude']){
    const response=await worker.fetch(new Request('https://local'+path,{headers:{'Cf-Access-Jwt-Assertion':'fake'}}),{...env,DB_URL:'local-fixture-only'},{waitUntil:p=>pending.push(p)})
    expect(response.status).toBe(200);const body=await response.json()
-   if(path.endsWith('claude'))expect(body).toMatchObject({scanVersion:1,samples:[],nextCursor:null});else expect(body.summary).toHaveLength(6)
+   if(path.endsWith('claude'))expect(body).toMatchObject({scanVersion:2,samples:[],nextCursor:null});else expect(body.summary).toHaveLength(6)
   }
   await Promise.all(pending);expect(closed).toBe(2)
  })

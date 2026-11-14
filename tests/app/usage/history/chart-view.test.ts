@@ -53,19 +53,19 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
     expect(view.plot).toEqual({ x: 34, y: 10, width: 560, height: 206 })
     expect(view.yTicks.map((t) => t.label)).toEqual(['0%', '25%', '50%', '75%', '100%'])
     expect(view.xTicks).toHaveLength(5)
-    expect(view.description).toContain('계열 3개 중 3개 표시')
+    expect(view.description).toContain('계열 2개 중 2개 표시')
   })
 
   it('Then slots 1~3 are solid, no SVG paths are built (uPlot draws) and gaps surface as null stop values', () => {
     const view = buildChartView(input())
-    expect(view.series.map((s) => s.id)).toEqual(ORDER)
-    expect(view.series.map((s) => s.slot)).toEqual([1, 2, 3])
-    expect(view.series.map((s) => s.dash)).toEqual([null, null, null])
+    expect(view.series.map((s) => s.id)).toEqual(ORDER.filter(id => id !== 'extra_usage'))
+    expect(view.series.map((s) => s.slot)).toEqual([1, 2])
+    expect(view.series.map((s) => s.dash)).toEqual([null, null])
     expect(view.series.every((s) => s.paths.length === 0)).toBe(true)
     // 23:45 표본에서 extra_usage가 사라져(C3) 그 시점 값은 틈(null)이다 → uPlot data의 null 간격
     const gap = view.stops[2].values.find((v) => v.seriesId === 'extra_usage')
-    expect(gap?.percent).toBeNull()
-    expect(gap?.text).toBe('—')
+    expect(gap).toBeUndefined()
+    expect(view.table.map(s => s.id)).not.toContain('extra_usage')
   })
 
   it('Then stops are the sample times plus one tail, never thinned, with un-interpolated values', () => {
@@ -92,7 +92,7 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
     expect(hidden?.paths).toEqual([])
     expect(hidden?.endLabel).toBeNull()
     expect(view.stops[0].values.every((v) => v.seriesId !== 'five_hour')).toBe(true)
-    expect(view.description).toContain('계열 3개 중 2개 표시')
+    expect(view.description).toContain('계열 2개 중 1개 표시')
   })
 
   it('Then hiding every series yields the all_hidden empty state', () => {
@@ -101,7 +101,7 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
 
   it('Then the summary table has a row per series including hidden ones and counts resets', () => {
     const view = buildChartView(input({ hidden: ['seven_day'] }))
-    expect(view.table).toHaveLength(3)
+    expect(view.table).toHaveLength(2)
     expect(view.table.find((row) => row.id === 'five_hour')?.resets).toBeGreaterThanOrEqual(1)
   })
 
@@ -131,5 +131,23 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
     expect(view.series[8].dash).toBe('4 4')
     expect(view.series[8].hidden).toBe(true)
     expect(view.stops[0].values.every((v) => v.seriesId !== 'i')).toBe(true)
+  })
+})
+
+
+describe('Given a legacy IndexedDB record containing extra_usage', () => {
+  it('When the Claude chart is built Then spending is absent from lines, tooltip, table and description', () => {
+    const view = buildChartView(input({}, {scanVersion: 1}))
+    expect(view.series.map(s => s.id)).not.toContain('extra_usage')
+    expect(view.table.map(s => s.id)).not.toContain('extra_usage')
+    expect(view.stops.every(s => s.values.every(v => v.seriesId !== 'extra_usage'))).toBe(true)
+    expect(view.description).not.toContain('추가 사용량')
+  })
+})
+
+describe('Given persisted color order before spending was removed', () => {
+  it('When extra_usage occupied the first slot Then remaining series keep their old ordinals', () => {
+    const view = buildChartView(input({}, {seriesOrder:['extra_usage','five_hour','seven_day']}))
+    expect(view.series.map(s => [s.id,s.slot])).toEqual([['five_hour',2],['seven_day',3]])
   })
 })

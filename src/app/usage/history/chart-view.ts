@@ -181,7 +181,9 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const hiddenSet = new Set(hidden)
   const shownSet = new Set(shown)
 
-  const built = buildSeries({ anchor: record.anchor, samples: record.samples, tailEnd })
+  // Ignore stale financial series from old or mixed-version IndexedDB records.
+  // Keep seriesOrder ordinals so remaining series retain their existing colors.
+  const built = buildSeries({ anchor: record.anchor, samples: record.samples, tailEnd }).filter(s => input.provider !== 'claude' || s.id !== 'extra_usage')
   const byId = new Map(built.map((item) => [item.id, item]))
   // seriesOrder는 추가만 한다 — 숨김·범위·정렬로 슬롯이 바뀌지 않는다
   const order = [...record.seriesOrder]

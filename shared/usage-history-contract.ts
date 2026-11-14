@@ -22,7 +22,7 @@ export const USAGE_HISTORY_MIN_OK_EVENTS = 4
  * - 클라이언트는 이 값과 다른 `scanVersion`의 응답을 병합하지 않고, 이 값과 다른 캐시 레코드를 버린다.
  * - shared/usage-scan은 이 파일을 import하지 않는다(순수성 규칙). 버전 상수는 여기 하나뿐이다.
  */
-export const USAGE_HISTORY_SCAN_VERSION = 1
+export const USAGE_HISTORY_SCAN_VERSION = 2
 
 /** `from`·`until`의 형식: UTC 시각, 소수 초는 생략하거나 1~3자리. 달력상 없는 날짜는 형식이 맞아도 거절한다. */
 export const USAGE_HISTORY_INSTANT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/

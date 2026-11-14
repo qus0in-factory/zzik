@@ -1,3 +1,4 @@
+import { extraSpendOf } from './extra-spend'
 import { visibleUsageReport } from './visible'
 import { elapsedPercent, cycleSeconds } from './elapsed'
 import { classifyUsageKeys, isKnownMetricId, WINDOW_IDS } from './classify'
@@ -87,5 +88,5 @@ export function buildUsageView(raw: unknown, options: BuildUsageViewOptions = {}
 
   const status = aggregateUsageLevel([...windows, ...metrics].map((item) => ({ status: item.status, expired: item.expired })))
 
-  return visibleUsageReport({ status, windows, metrics, others, issues, raw: data })
+  return visibleUsageReport({ status, windows, metrics, others, issues, raw: data, extraSpend: extraSpendOf(data.extra_usage) })
 }
