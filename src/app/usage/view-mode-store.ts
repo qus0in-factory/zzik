@@ -10,6 +10,8 @@ import type { ViewMode, ViewModePort } from './view-mode'
 export interface ViewModeState {
   mode: ViewMode
   setMode(mode: ViewMode): void
+  /** 포트에서 다시 읽어 반영한다(다른 탭이 바꾼 값을 따라감). 저장은 하지 않고, 같은 값이면 상태를 바꾸지 않는다 */
+  rehydrate(): void
 }
 export type ViewModeStoreApi = StoreApi<ViewModeState>
 
@@ -21,6 +23,10 @@ export function createViewModeStore(port: ViewModePort | null): ViewModeStoreApi
       if (next === get().mode) return
       set({ mode: next })
       port?.save(next)
+    },
+    rehydrate: () => {
+      const next = normalizeViewMode(port?.load() ?? null)
+      if (next !== get().mode) set({ mode: next })
     },
   }))
 }

@@ -66,3 +66,39 @@ describe('Given the provider order zustand store (순수 함수 호출 + 주입�
     expect(portless.result.current.order[0]).toBe('ollama')
   })
 })
+
+describe('Given another tab changed the stored order (rehydrate)', () => {
+  it('When rehydrated Then the stored order is applied and nothing is saved again', () => {
+    const fake = fakePort()
+    const store = createProviderOrderStore(fake.port)
+    fake.port.save(['ollama', 'claude'])
+    const saves = fake.calls.save
+    store.getState().rehydrate()
+    expect(store.getState().order[0]).toBe('ollama')
+    expect(store.getState().customized).toBe(true)
+    expect(fake.calls.save).toBe(saves)
+    expect(fake.calls.clear).toBe(0)
+  })
+  it('When the stored value is cleared Then the default order returns', () => {
+    const fake = fakePort(['ollama', 'claude'])
+    const store = createProviderOrderStore(fake.port)
+    fake.port.clear()
+    store.getState().rehydrate()
+    expect(store.getState().order).toEqual(USAGE_PROVIDERS)
+    expect(store.getState().customized).toBe(false)
+  })
+  it('When the stored order is the same Then the state object does not change', () => {
+    const store = createProviderOrderStore(fakePort(['ollama', 'claude']).port)
+    const before = store.getState()
+    store.getState().rehydrate()
+    expect(store.getState()).toBe(before)
+  })
+  it('When moved after rehydrate Then the latest order is the base that gets saved', () => {
+    const fake = fakePort()
+    const store = createProviderOrderStore(fake.port)
+    fake.port.save(['ollama', 'claude'])
+    store.getState().rehydrate()
+    store.getState().move('grok', 0)
+    expect(fake.saved).toEqual(['grok', 'ollama', 'claude', 'codex', 'antigravity', 'opencode'])
+  })
+})

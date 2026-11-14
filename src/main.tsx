@@ -20,8 +20,9 @@ import type { ChartViewBuilder } from '@app/usage/history/chart-view-input'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
-import { browserLocalStorage, createLocalStorageOrderStore } from '@infra/usage/local-storage-order-store'
-import { createLocalStorageViewModeStore } from '@infra/usage/local-storage-view-mode-store'
+import { browserLocalKeyValue, browserSessionKeyValue, subscribeStorageKey } from '@infra/usage/browser-storage'
+import { browserLocalStorage, createLocalStorageOrderStore, PROVIDER_ORDER_STORAGE_KEY } from '@infra/usage/local-storage-order-store'
+import { createLocalStorageViewModeStore, VIEW_MODE_STORAGE_KEY } from '@infra/usage/local-storage-view-mode-store'
 import { createFixtureUsageGateway } from '@infra/usage/fixture-usage-gateway'
 import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 
@@ -35,6 +36,10 @@ const devFixtureRequested = import.meta.env.DEV && new URLSearchParams(window.lo
 const orderStore = createProviderOrderStore(createLocalStorageOrderStore(browserLocalStorage()))
 // 카드·목록 보기 방식도 같은 방식: zustand 스토어(app) + localStorage 어댑터 주입(infra).
 const viewModeStore = createViewModeStore(createLocalStorageViewModeStore(browserLocalStorage()))
+
+// 오래 열어 둔 탭이 예전 값을 들고 있다가 덮어쓰지 않도록, 다른 탭의 변경(clear 포함)을 스토어에 다시 읽어 온다.
+subscribeStorageKey(PROVIDER_ORDER_STORAGE_KEY, () => orderStore.getState().rehydrate())
+subscribeStorageKey(VIEW_MODE_STORAGE_KEY, () => viewModeStore.getState().rehydrate())
 
 const usageDeps: UsageDeps = {
   clock: createBrowserClock(),
@@ -56,22 +61,21 @@ const usageDeps: UsageDeps = {
 let viewBuilder: ChartViewBuilder = emptyChartViewBuilder
 async function loadHistoryDeps(): Promise<HistoryDeps> {
   if (!__HISTORY_ENABLED__) return createDisabledHistoryDeps()
-  const [syncModule, storage, fixtureGateway, httpGateway, idbCache] = await Promise.all([
+  const [syncModule, fixtureGateway, httpGateway, idbCache] = await Promise.all([
     import('@app/usage/history/sync-history'),
-    import('@infra/usage/browser-storage'),
     import('@infra/usage/fixture-usage-history-gateway'),
     import('@infra/usage/http-usage-history-gateway'),
     import('@infra/usage/idb-history-cache'),
   ])
-  const chartPrefs = createChartPrefsStore(storage.browserLocalKeyValue())
-  storage.subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
+  const chartPrefs = createChartPrefsStore(browserLocalKeyValue())
+  subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
   return {
     enabled: true,
     gateway: devFixtureRequested
       ? fixtureGateway.createFixtureUsageHistoryGateway()
       : httpGateway.createHttpUsageHistoryGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })),
     cache: idbCache.createIdbHistoryCache(idbCache.browserIndexedDb()),
-    session: storage.browserSessionKeyValue(),
+    session: browserSessionKeyValue(),
     prefs: chartPrefs,
     budget: syncModule.createHistoryBudget({ now: () => Date.now() }),
     memory: new Map(),
