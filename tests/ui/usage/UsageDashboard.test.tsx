@@ -154,10 +154,8 @@ describe('Given the loading state', () => {
     expect(screen.getByRole('heading', { name: 'Claude', level: 2 })).toBeTruthy()
     expect(within(section).getByTestId('usage-skeleton-status')).toBeTruthy()
     const grid = within(section).getByTestId('usage-skeleton-grid')
-    // 실제 화면의 '사용 창' 소제목(h-6 + mb-2) 자리가 격자 바로 위에 있어 첫 카드 top이 같다
-    const placeholder = grid.parentElement?.firstElementChild
-    expect(placeholder?.className).toContain('mb-2')
-    expect(placeholder?.className).toContain('h-6')
+    // 첫 카드 그룹은 소제목 없이 바로 격자다(실제 화면과 같은 구조라 첫 카드 top이 같다)
+    expect(grid.parentElement?.firstElementChild).toBe(grid)
     expect(grid.className).toContain('sm:grid-cols-2')
     expect(grid.querySelectorAll('[data-testid="usage-skeleton-card"]').length).toBe(2)
     // 실제 카드와 같은 외형(테두리 카드)이라 데이터가 들어와도 높이가 비슷하다
@@ -265,7 +263,7 @@ describe('Given the codex section (ADR 0.3 D6·D8)', () => {
         errorMessage={null}
       />,
     )
-    expect(screen.getByRole('heading', { name: '사용 창', level: 3 })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '사용 창' })).toBeNull()
     expect(screen.getByRole('heading', { name: '추가 한도', level: 3 })).toBeTruthy()
     expect(screen.getByTestId('usage-section-codex').getAttribute('aria-label')).toBe('ChatGPT 사용량')
   })
@@ -277,11 +275,16 @@ describe('Given the codex section (ADR 0.3 D6·D8)', () => {
     expect(card?.textContent).toContain('3시간 한도')
   })
 
-  it('When json path ids are long then they wrap instead of forcing horizontal scroll', () => {
+  it('When json path ids are long then they are hidden from the card, opened from the info button, and wrap in the tooltip', async () => {
     render(<UsageDashboard provider="codex" status="ready" report={report} errorMessage={null} />)
-    for (const code of screen.getAllByText(/rate_limit|mcp|code_review/)) {
-      expect(code.className).toContain('break-all')
-    }
+    // 원본 속성 이름은 눈에 보이는 code가 아니라 sr-only 설명(aria-describedby)과 툴팁에만 있다
+    expect(document.querySelector('[data-testid="usage-card"] code')).toBeNull()
+    const button = screen.getAllByTestId('usage-card-info')[0]
+    const describedBy = button.getAttribute('aria-describedby') ?? ''
+    expect(document.getElementById(describedBy)?.className).toContain('sr-only')
+    expect(document.getElementById(describedBy)?.textContent).toMatch(/rate_limit|mcp|code_review/)
+    fireEvent.click(button)
+    expect((await screen.findAllByTestId('usage-card-info-content'))[0].className).toContain('break-all')
     expect(screen.getByTestId('usage-section-codex').className).not.toContain('overflow-x-auto')
   })
 

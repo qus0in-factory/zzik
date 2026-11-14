@@ -27,7 +27,7 @@ describe('Given the shared motion rules', () => {
     expect(css).not.toMatch(/\.bar-enter\s*\{[^}]*\b(?:forwards|both)\b/)
   })
   it('Then the entrance and fade-in are also switched off when reduced motion is requested', () => {
-    for (const selector of ['.bar-enter', '.activity-gerbil-runner']) expect(reduced).toContain(selector)
+    for (const selector of ['.bar-enter', '.activity-gerbil-runner', '.info-bubble']) expect(reduced).toContain(selector)
   })
   it('When reduced motion is requested Then fade-in, button, back-to-top and spinner motion are all turned off', () => {
     expect(css).toContain('@media (prefers-reduced-motion: reduce)')
@@ -37,5 +37,12 @@ describe('Given the shared motion rules', () => {
   })
   it('Then the animated surfaces are defined: fade-in, button hover/active, back-to-top enter/exit, spinner', () => {
     for (const rule of ['.fade-in', '.motion-button:hover', '.motion-button:active', ".back-to-top[data-visible='true']", '.refresh-spinner']) expect(css).toContain(rule)
+  })
+})
+
+describe('Given the reorder guard', () => {
+  it('Then finished entrance animations are switched off by data-entered so moved DOM nodes do not replay them', () => {
+    for (const rule of ['.fade-in[data-entered]', '.bar-enter[data-entered]', '.activity-gerbil-runner[data-entered]']) expect(css).toContain(rule)
+    expect(css).toMatch(/\.activity-gerbil-runner\[data-entered\]\[data-gerbil-state='idle'\] \.gerbil-leg/)
   })
 })

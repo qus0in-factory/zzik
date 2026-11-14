@@ -25,19 +25,19 @@ const win = (over: Partial<UsageWindow>): UsageWindow => ({
 describe('Given the summary pace picker (가장 긴 주기 한도 하나)', () => {
   it('When a monthly window exists Then monthly wins over weekly (OpenCode 실데이터 형상)', () => {
     const report = buildOpencodeUsageView(opencode, { now })
-    expect(summaryPaceOf(report.windows)).toEqual({ unit: '월', usedPercent: 10, elapsedPercent: expect.closeTo(35, 5), overPace: false })
+    expect(summaryPaceOf(report.windows)).toEqual({ unit: 'month', usedPercent: 10, elapsedPercent: expect.closeTo(35, 5), overPace: false })
   })
   it('When only weekly exists Then weekly (Claude 5시간 한도는 제외)', () => {
     const picked = summaryPaceOf(buildUsageView(claude, { now }).windows)
-    expect(picked?.unit).toBe('주')
+    expect(picked?.unit).toBe('week')
   })
   it('When the billing period decides the cycle Then Ollama is monthly and Grok (실데이터: 주간 결제 기간) is weekly', () => {
-    expect(summaryPaceOf(buildOllamaUsageView(ollama, { now }).windows)?.unit).toBe('월')
-    expect(summaryPaceOf(buildGrokUsageView(grok, { now }).windows)?.unit).toBe('주')
+    expect(summaryPaceOf(buildOllamaUsageView(ollama, { now }).windows)?.unit).toBe('month')
+    expect(summaryPaceOf(buildGrokUsageView(grok, { now }).windows)?.unit).toBe('week')
   })
   it('When Codex has a weekly window Then it is picked', () => {
     const picked = summaryPaceOf(buildCodexUsageView(codex, { now }).windows)
-    expect(picked === null || picked.unit === '주').toBe(true)
+    expect(picked === null || picked.unit === 'week').toBe(true)
   })
   describe('Antigravity는 Gemini 주간(gemini-weekly) 한도만 따른다 (실데이터 id: gemini-weekly·gemini-5h·3p-weekly·argon-weekly)', () => {
     // 실데이터 형상 그대로: Gemini 사용 10%, Claude·GPT 40%, Argon 90% 로 두어 다른 창이 뽑히면 값이 달라진다.
@@ -48,7 +48,7 @@ describe('Given the summary pace picker (가장 긴 주기 한도 하나)', () =
     it('When Gemini, Claude·GPT and Argon weeklies exist Then only the Gemini weekly is used', () => {
       expect(windows.map((window) => window.id)).toEqual(expect.arrayContaining(['gemini-weekly', '3p-weekly', 'argon-weekly']))
       const picked = summaryPaceOf(windows, 'antigravity')
-      expect(picked?.unit).toBe('주')
+      expect(picked?.unit).toBe('week')
       expect(picked?.usedPercent).toBeCloseTo(10)
     })
     it('When there is no Gemini weekly (Claude·GPT only) Then no chip', () => {

@@ -9,13 +9,13 @@ import type { KeyValueStorage } from '@domain/usage/history/ports'
 import { withLabels } from '@domain/usage/history/record'
 import type { ChartRange, HistoryCacheRecord } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
+import { t } from '@shared/messages'
 import { usageQueryOptions, UsageLoadError } from '../usage-query'
 import { providerMetaFor } from '../provider-meta'
 import { useUsage } from '../useUsage'
 import { useUsageDeps } from '../UsageGatewayContext'
 import type { ChartButtonState, ChartPanelActions, ChartPanelState, UsageHistoryPanelBinding } from './chart-view'
-import { DEFAULT_CHART_SIZE } from './chart-view-input'
-import { historyMessages } from './history-messages'
+import { DEFAULT_CHART_SIZE, RANGE_MESSAGE_KEY } from './chart-view-input'
 import { prefsOf } from './chart-prefs-store'
 import { resolveViewBuilder, useHistoryDeps } from './HistoryDepsContext'
 import { HISTORY_DATA_GC_MS, historyDataKey, historyWarmKey, historyDataQueryOptions, historySummaryQueryOptions, historySyncKey, runDedupedSync, throwForOutcome } from './history-query'
@@ -49,9 +49,9 @@ export function summaryEntryFromRecord(record: HistoryCacheRecord): UsageHistory
 
 function hintFor(eligibility: HistoryEligibility): string | null {
   if (eligibility.eligible) return null
-  if (eligibility.reason === 'no_data') return historyMessages.hintNoData
-  if (eligibility.reason === 'too_few') return historyMessages.hintTooFew(USAGE_HISTORY_MIN_OK_EVENTS, eligibility.okCount)
-  return historyMessages.hintTooShort(Math.max(1, Math.ceil((eligibility.remainingMs ?? 0) / 3_600_000)))
+  if (eligibility.reason === 'no_data') return t('chart.hint.noData')
+  if (eligibility.reason === 'too_few') return t('chart.hint.tooFew', { min: USAGE_HISTORY_MIN_OK_EVENTS, n: eligibility.okCount })
+  return t('chart.hint.tooShort', { hours: Math.max(1, Math.ceil((eligibility.remainingMs ?? 0) / 3_600_000)) })
 }
 
 export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanelBinding {
@@ -99,7 +99,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
           nowMs: deps.nowMs,
           budget: deps.budget,
           onRecord: (next) => client.setQueryData(historyDataKey(provider), next),
-          onProgress: (done, total) => setProgress(done >= total ? null : historyMessages.progress(range, done, total)),
+          onProgress: (done, total) => setProgress(done >= total ? null : t('chart.progress', { range: t(RANGE_MESSAGE_KEY[range]), done, total })),
         },
         { provider, snapshotRunAt: runAt, wantFromMs: deps.nowMs() - RANGE_MS[range] },
       )
@@ -149,12 +149,12 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   }, [deps])
 
   const button: ChartButtonState = !deps.enabled
-    ? { label: historyMessages.open, expanded: false, disabled: true, hint: null, panelId, onToggle: toggle, onIntent }
+    ? { label: (t('chart.open') as ChartButtonState['label']), expanded: false, disabled: true, hint: null, panelId, onToggle: toggle, onIntent }
     : {
-        label: open ? historyMessages.close : historyMessages.open,
+        label: open ? (t('chart.close') as ChartButtonState['label']) : (t('chart.open') as ChartButtonState['label']),
         expanded: open,
         disabled: eligibility === 'pending' || eligibility === 'unknown' || !eligibility.eligible,
-        hint: eligibility === 'pending' ? null : eligibility === 'unknown' ? historyMessages.hintUnknown : hintFor(eligibility),
+        hint: eligibility === 'pending' ? null : eligibility === 'unknown' ? t('chart.hint.unknown') : hintFor(eligibility),
         panelId,
         onToggle: toggle,
         onIntent,
@@ -185,12 +185,12 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   )
 
   if (!deps.enabled || !open) return { button, panel: null }
-  const errorMessage = syncQuery.error instanceof UsageLoadError ? syncQuery.error.message : syncQuery.isError ? historyMessages.loadFailed : null
+  const errorMessage = syncQuery.error instanceof UsageLoadError ? syncQuery.error.message : syncQuery.isError ? t('chart.loadFailed') : null
   const state: ChartPanelState =
     view === null
       ? errorMessage !== null
         ? { phase: 'error', message: errorMessage }
         : { phase: 'loading' }
       : { phase: 'ready', view, syncing: syncQuery.isFetching, progress, note: errorMessage }
-  return { button, panel: { panelId, regionLabel: historyMessages.regionLabel(meta.title), range, state, actions } }
+  return { button, panel: { panelId, regionLabel: t('chart.regionLabel', { provider: meta.title }), range, state, actions } }
 }
