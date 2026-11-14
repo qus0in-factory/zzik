@@ -1,3 +1,4 @@
+import { readCodexWindows } from '../../../shared/usage-scan/codex.ts'
 import type { UsageIssue, UsageOtherValue } from './types'
 
 /**
@@ -8,9 +9,7 @@ import type { UsageIssue, UsageOtherValue } from './types'
  * 훑어서 찾는다(배열 포함). 항목 id는 JSON 경로(`rate_limit.primary_window`)다.
  */
 
-const MAX_DEPTH = 4
 const STATUS_FIELDS = ['allowed', 'limit_reached'] as const
-const WINDOW_FIELDS = ['limit_window_seconds', 'reset_at', 'reset_after_seconds'] as const
 
 export interface CodexWindowEntry {
   /** JSON 경로. 화면 카드 id로 쓴다. */
@@ -43,32 +42,6 @@ function toText(value: unknown): string {
   return String(value)
 }
 
-function isWindowShape(value: unknown): value is Record<string, unknown> {
-  if (!isRecord(value)) return false
-  return WINDOW_FIELDS.some((field) => Object.hasOwn(value, field))
-}
-
-function readPercent(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
-}
-
-function readWindowSeconds(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
-}
-
-/** `reset_at`(Unix 초) 우선, 없으면 `reset_after_seconds`를 수집 시각에 더한다(D6). */
-function resolveResetsAt(entry: Record<string, unknown>, fetchedAtMs: number | null): string | null {
-  const resetAt = entry['reset_at']
-  if (typeof resetAt === 'number' && Number.isFinite(resetAt) && resetAt > 0) {
-    return new Date(resetAt * 1000).toISOString()
-  }
-  const after = entry['reset_after_seconds']
-  if (typeof after === 'number' && Number.isFinite(after) && after >= 0 && fetchedAtMs !== null) {
-    return new Date(fetchedAtMs + after * 1000).toISOString()
-  }
-  return null
-}
-
 function topKeyOf(path: string): string {
   return path.split(/[.[]/)[0]
 }
@@ -83,46 +56,9 @@ export function scanCodexUsage(raw: unknown, options: { fetchedAt?: string | nul
     return { windows: [], otherEntries: [], issues: [{ code: 'invalid_shape', key: undefined }] }
   }
 
-  const fetchedMs = options.fetchedAt ? Date.parse(options.fetchedAt) : Number.NaN
-  const fetchedAtMs = Number.isNaN(fetchedMs) ? null : fetchedMs
-  const windows: CodexWindowEntry[] = []
-  const issues: UsageIssue[] = []
-
-  const walk = (node: unknown, path: string, depth: number): void => {
-    if (depth > MAX_DEPTH) return
-    if (Array.isArray(node)) {
-      node.forEach((item, index) => {
-        walk(item, `${path}[${index}]`, depth + 1)
-      })
-      return
-    }
-    if (!isRecord(node)) return
-
-    if (isWindowShape(node)) {
-      const usedPercent = readPercent(node['used_percent'])
-      if (usedPercent === null) {
-        // 창처럼 생겼지만 값이 깨진 경우: 카드로 만들지 않고 형식 문제로 알린다.
-        issues.push({ code: 'invalid_utilization', key: path })
-        return
-      }
-      windows.push({
-        path,
-        topKey: topKeyOf(path),
-        insideRateLimit: path === 'rate_limit' || path.startsWith('rate_limit.'),
-        usedPercent,
-        limitWindowSeconds: readWindowSeconds(node['limit_window_seconds']),
-        resetsAt: resolveResetsAt(node, fetchedAtMs),
-      })
-      return // 창 객체 내부는 더 훑지 않는다.
-    }
-
-    for (const [key, value] of Object.entries(node)) {
-      walk(value, path.length === 0 ? key : `${path}.${key}`, depth + 1)
-    }
-  }
-
-  walk(raw, '', 0)
-
+  const scanned = readCodexWindows(raw, options)
+  const windows: CodexWindowEntry[] = scanned.windows.map(window => ({...window, topKey:topKeyOf(window.path)}))
+  const issues: UsageIssue[] = scanned.invalidPaths.map(key => ({code:'invalid_utilization',key}))
   const windowPaths = new Set(windows.map((window) => window.path))
   const hasWindowUnder = (prefix: string): boolean =>
     windows.some((window) => window.path.startsWith(`${prefix}.`) || window.path.startsWith(`${prefix}[`))

@@ -5,29 +5,8 @@ import type { UsageOther, UsageWindow } from './types'
 
 /** Grok·OpenCode·Ollama 뷰가 함께 쓰는 순수 조각. 형상 판정은 각 뷰 파일에 둔다. */
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-/** 유한한 숫자를 0..100으로 자른다. 숫자가 아니거나 유한하지 않으면 null. 정밀도는 유지한다. */
-export function clampPercent(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  return Math.max(0, Math.min(100, value))
-}
-
-/** 해석 가능한 ISO 시각이면 그대로, 아니면 null. */
-export function isoOrNull(value: unknown): string | null {
-  return typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null
-}
-
-/** 두 시각의 간격(초). 둘 다 해석되고 end가 start보다 뒤일 때만. 월 길이를 가정하지 않는다. */
-export function secondsBetween(start: unknown, end: unknown): number | null {
-  const from = isoOrNull(start)
-  const to = isoOrNull(end)
-  if (from === null || to === null) return null
-  const seconds = (Date.parse(to) - Date.parse(from)) / 1000
-  return seconds > 0 ? seconds : null
-}
+export { isRecord, clampPercent, isoOrNull, secondsBetween } from '../../../shared/usage-scan/parts.ts'
+import { isRecord } from '../../../shared/usage-scan/parts.ts'
 
 export function makeWindow(
   input: { id: string; label: string; unknown?: boolean; usedPercent: number; resetsAt: string | null; cycleSeconds: number | null },

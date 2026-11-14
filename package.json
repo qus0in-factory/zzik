@@ -1,7 +1,7 @@
 {
   "name": "zzik",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -45,6 +45,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "drizzle-kit": "^0.31.11",
     "esbuild": "0.28.2",
+    "fake-indexeddb": "^6.2.8",
     "jsdom": "^31.0.0",
     "miniflare": "5.20261109.0-beta",
     "typescript": "~5.9.3",

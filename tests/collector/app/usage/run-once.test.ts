@@ -232,6 +232,14 @@ describe('Given dry-run', () => {
 })
 
 describe('Given the log transition fields', () => {
+  it('When antigravity runs from the CLI Then the log records source=cli', async () => {
+    const ports = createFakeCollectorPorts()
+    ports.credentials.queueReads([{ source: 'cli', token: '', expiresAt: null }])
+    ports.usage.queueUsage(okUsage)
+    await run(ports, { provider: 'antigravity' })
+    expect(ports.logger.entries[0]).toMatchObject({ provider: 'antigravity', status: 'ok', source: 'cli' })
+  })
+
   it('When the status changes and the token is refreshed then the log entry records both', async () => {
     const ports = createFakeCollectorPorts({
       schema: 1,
