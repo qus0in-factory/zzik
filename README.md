@@ -15,7 +15,6 @@
 [![pnpm](https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
 
 ![Zzik 데스크톱 대시보드](docs/screenshots/desktop.png)
-![Zzik 모바일 대시보드](docs/screenshots/mobile.png)
 
 ## 아키텍처
 
