@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react'
+import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent, ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
 import type { UsageProvider } from '@domain/usage/providers'
 import { t } from '@shared/messages'
@@ -44,6 +44,7 @@ interface ChipDragProps {
   onPointerDown: (event: PointerEvent<HTMLElement>) => void
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void
   onBlur: () => void
+  onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void
 }
 
 function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragProps }): ReactNode {
@@ -72,6 +73,7 @@ function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragP
         onPointerDown={drag.onPointerDown}
         onKeyDown={drag.onKeyDown}
         onBlur={drag.onBlur}
+        onContextMenu={drag.onContextMenu}
         onFocus={(event) => event.currentTarget.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })}
         className={
           'fade-in inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border bg-card px-1.5 py-1 text-xs font-medium hover:bg-accent lg:gap-1.5 lg:px-2.5 lg:text-sm ' +
@@ -114,7 +116,12 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
   const dragRef = useRef<DragState | null>(null)
   const refocus = useRef<UsageProvider | null>(null)
   const suppressClick = useRef(false)
-  const pending = useRef<{ id: UsageProvider; pointerId: number; startX: number; startScroll: number; timer: number | null; moved: boolean; pointerType: string } | null>(null)
+  const pending = useRef<{ id: UsageProvider; pointerId: number; startX: number; startY: number; timer: number | null; moved: boolean; pointerType: string } | null>(null)
+  /** 드래그 기준(포인터를 누른 x). 끄는 동안 이동량 계산에 쓴다. */
+  const dragOriginX = useRef(0)
+  /** 진행 중인 포인터 제스처의 정리(window 리스너·포인터 캡처·타이머). 언마운트와 제스처 끝에서 부른다. */
+  const teardown = useRef<(() => void) | null>(null)
+  const clickTimer = useRef<number | null>(null)
   const scrollStart = useRef(0)
   dragRef.current = drag
 
@@ -169,14 +176,10 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
     return () => list.removeEventListener('touchmove', block)
   }, [])
 
-  const clearPending = (): void => {
-    if (pending.current?.timer != null) window.clearTimeout(pending.current.timer)
-    pending.current = null
-  }
-
-  const startPointerDrag = (id: UsageProvider, element: HTMLElement, pointerId: number): void => {
+  const startPointerDrag = (id: UsageProvider, element: HTMLElement, pointerId: number, originX: number): DragState | null => {
     const started = begin(id, 'pointer')
-    if (started === null) return
+    if (started === null) return null
+    dragOriginX.current = originX
     setDrag(started)
     dragRef.current = started
     try {
@@ -185,74 +188,111 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
       /* 캡처 실패는 무시 */
     }
     setAnnouncement(t('chips.dragging', { provider: providerMetaFor(id).title }))
+    return started
   }
+
+  /** 포인터 위치로 끌고 있는 칩의 이동량과 목표 인덱스를 갱신한다(시작한 같은 이벤트에서도 부른다). */
+  const updateDrag = (current: DragState, clientX: number): void => {
+    const list = listRef.current
+    // 가장자리에 닿으면 칩 줄을 자동으로 스크롤한다.
+    if (list !== null) {
+      const bounds = list.getBoundingClientRect()
+      if (clientX > bounds.right - EDGE_SCROLL_ZONE_PX) list.scrollLeft += EDGE_SCROLL_STEP_PX
+      else if (clientX < bounds.left + EDGE_SCROLL_ZONE_PX) list.scrollLeft -= EDGE_SCROLL_STEP_PX
+    }
+    const scrollDelta = (list?.scrollLeft ?? 0) - scrollStart.current
+    const dx = clientX - dragOriginX.current + scrollDelta
+    // 칩 중심은 시작 시점 좌표이므로, 스크롤로 밀린 만큼 끌고 있는 칩의 기준을 맞춘다.
+    const targetIndex = nearestIndex(current.centers, current.centers[current.originIndex] + dx)
+    const next = { ...current, dx, targetIndex }
+    dragRef.current = next
+    setDrag(next)
+    if (targetIndex !== current.targetIndex) setAnnouncement(t('chips.position', { position: targetIndex + 1 }))
+  }
+
+  // 언마운트: 진행 중인 제스처의 window 리스너·타이머·포인터 캡처를 정리한다.
+  useEffect(
+    () => () => {
+      teardown.current?.()
+      if (clickTimer.current !== null) window.clearTimeout(clickTimer.current)
+    },
+    [],
+  )
 
   const onPointerDown = (id: UsageProvider) => (event: PointerEvent<HTMLElement>): void => {
     if (event.button !== 0 || !event.isPrimary) return
-    clearPending()
+    teardown.current?.()
     const element = event.currentTarget
     const isMouse = event.pointerType === 'mouse'
+    const { pointerId, clientX: startX, clientY: startY } = event
     pending.current = {
       id,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startScroll: listRef.current?.scrollLeft ?? 0,
+      pointerId,
+      startX,
+      startY,
       timer: isMouse ? null : window.setTimeout(() => {
-        if (pending.current !== null && !pending.current.moved) startPointerDrag(id, element, event.pointerId)
+        if (pending.current !== null && !pending.current.moved) startPointerDrag(id, element, pointerId, startX)
       }, TOUCH_HOLD_MS),
       moved: false,
       pointerType: event.pointerType,
     }
     const onMove = (moveEvent: globalThis.PointerEvent): void => {
-      if (moveEvent.pointerId !== event.pointerId) return
+      if (moveEvent.pointerId !== pointerId) return
       const current = dragRef.current
       const wait = pending.current
       if (current === null) {
         if (wait === null) return
-        const distance = Math.abs(moveEvent.clientX - wait.startX)
-        if (isMouse && distance >= MOUSE_DRAG_THRESHOLD_PX) startPointerDrag(id, element, event.pointerId)
-        else if (!isMouse && distance > TOUCH_CANCEL_MOVE_PX) {
+        // 가로·세로를 모두 본다: 세로로만 움직여도 스크롤 의도이므로 길게 누르기를 취소한다.
+        const distance = Math.hypot(moveEvent.clientX - wait.startX, moveEvent.clientY - wait.startY)
+        if (isMouse && distance >= MOUSE_DRAG_THRESHOLD_PX) {
+          const started = startPointerDrag(id, element, pointerId, wait.startX)
+          if (started !== null) updateDrag(started, moveEvent.clientX) // 한 번에 빠르게 끌어도 같은 이벤트로 목표까지 계산한다
+        } else if (!isMouse && distance > TOUCH_CANCEL_MOVE_PX) {
           wait.moved = true // 길게 누르기 전에 움직이면 스크롤로 보고 드래그하지 않는다
           if (wait.timer !== null) window.clearTimeout(wait.timer)
         }
         return
       }
-      const list = listRef.current
-      // 가장자리에 닿으면 칩 줄을 자동으로 스크롤한다.
-      if (list !== null) {
-        const bounds = list.getBoundingClientRect()
-        if (moveEvent.clientX > bounds.right - EDGE_SCROLL_ZONE_PX) list.scrollLeft += EDGE_SCROLL_STEP_PX
-        else if (moveEvent.clientX < bounds.left + EDGE_SCROLL_ZONE_PX) list.scrollLeft -= EDGE_SCROLL_STEP_PX
-      }
-      const scrollDelta = (list?.scrollLeft ?? 0) - scrollStart.current
-      const dx = moveEvent.clientX - (wait?.startX ?? moveEvent.clientX) + scrollDelta
-      // 칩 중심은 시작 시점 좌표이므로, 스크롤로 밀린 만큼 끌고 있는 칩의 기준을 맞춘다.
-      const draggedCenter = current.centers[current.originIndex] + dx
-      const targetIndex = nearestIndex(current.centers.map((center) => center), draggedCenter)
-      const next = { ...current, dx, targetIndex }
-      dragRef.current = next
-      setDrag(next)
-      if (targetIndex !== current.targetIndex) setAnnouncement(t('chips.position', { position: targetIndex + 1 }))
+      updateDrag(current, moveEvent.clientX)
     }
-    const finish = (endEvent: globalThis.PointerEvent): void => {
-      if (endEvent.pointerId !== event.pointerId) return
+    const cleanup = (): void => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', finish)
       window.removeEventListener('pointercancel', finish)
+      if (pending.current?.timer != null) window.clearTimeout(pending.current.timer)
+      pending.current = null
+      try {
+        if (element.hasPointerCapture?.(pointerId) ?? true) element.releasePointerCapture?.(pointerId)
+      } catch {
+        /* 이미 해제됨 */
+      }
+      teardown.current = null
+    }
+    function finish(endEvent: globalThis.PointerEvent): void {
+      if (endEvent.pointerId !== pointerId) return
       const current = dragRef.current
-      clearPending()
+      cleanup()
       if (current === null) return
       dragRef.current = null
       suppressClick.current = true // 끈 뒤 따라오는 click이 링크 이동으로 이어지지 않게
-      window.setTimeout(() => { suppressClick.current = false }, 0)
+      clickTimer.current = window.setTimeout(() => { suppressClick.current = false }, 0)
       if (endEvent.type === 'pointercancel') {
         setDrag(null)
         setAnnouncement(t('chips.dragCancelled'))
       } else commit(current)
     }
+    teardown.current = (): void => {
+      cleanup()
+      dragRef.current = null
+    }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', finish)
     window.addEventListener('pointercancel', finish)
+  }
+
+  /** Android 길게 누르기 메뉴가 터치 드래그를 가로채지 않게, 터치 누름·드래그 중인 칩에서만 막는다. */
+  const onContextMenu = (event: ReactMouseEvent<HTMLElement>): void => {
+    if (dragRef.current !== null || (pending.current !== null && pending.current.pointerType !== 'mouse')) event.preventDefault()
   }
 
   const onKeyDown = (id: UsageProvider) => (event: KeyboardEvent<HTMLElement>): void => {
@@ -290,18 +330,20 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
   }
 
   const onBlur = (): void => {
-    if (dragRef.current?.mode === 'keyboard') {
+    const current = dragRef.current
+    if (current?.mode === 'keyboard') {
       dragRef.current = null
       setDrag(null)
+      setAnnouncement(t('chips.cancelled', { provider: providerMetaFor(current.id).title })) // 포커스를 잃어 취소된 것을 알린다
     }
   }
 
   const chipDragProps = (id: UsageProvider): ChipDragProps => {
-    if (drag === null) return { shift: 0, grabbed: false, onPointerDown: onPointerDown(id), onKeyDown: onKeyDown(id), onBlur }
+    if (drag === null) return { shift: 0, grabbed: false, onPointerDown: onPointerDown(id), onKeyDown: onKeyDown(id), onBlur, onContextMenu }
     const index = drag.ids.indexOf(id)
     const direction = index === -1 ? 0 : shiftDirection(index, drag.originIndex, drag.targetIndex)
     const shift = id === drag.id ? drag.dx : direction * ((drag.widths[drag.originIndex] ?? 0) + drag.gap)
-    return { shift, grabbed: id === drag.id, onPointerDown: onPointerDown(id), onKeyDown: onKeyDown(id), onBlur }
+    return { shift, grabbed: id === drag.id, onPointerDown: onPointerDown(id), onKeyDown: onKeyDown(id), onBlur, onContextMenu }
   }
 
   return (
@@ -317,7 +359,10 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
         </ul>
         <button
           type="button"
-          onClick={reset}
+          onClick={() => {
+            if (customized) onBeforeMove?.() // 패널 FLIP을 먼저 무장한다(드롭과 같은 경로)
+            reset()
+          }}
           disabled={!customized}
           aria-label={t('chips.reset')}
           title={t('chips.reset')}
