@@ -1,0 +1,139 @@
+{
+  "provider": "claude",
+  "scanVersion": 1,
+  "anchor": {
+    "id": "9000",
+    "runAt": "2026-11-13T22:45:00.000Z",
+    "status": "ok",
+    "fetchedAt": "2026-11-13T22:45:00.000Z",
+    "intervalSec": 900,
+    "values": [
+      {
+        "id": "five_hour",
+        "usedPercent": 88,
+        "resetsAt": "2026-11-13T23:10:00.000Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "seven_day",
+        "usedPercent": 40,
+        "resetsAt": "2026-11-20T00:00:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "samples": [
+    {
+      "id": "9001",
+      "runAt": "2026-11-13T23:00:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:00:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "five_hour",
+          "usedPercent": 92,
+          "resetsAt": "2026-11-13T23:10:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "seven_day",
+          "usedPercent": 41,
+          "resetsAt": "2026-11-20T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "extra_usage",
+          "usedPercent": 12,
+          "resetsAt": null,
+          "cycleSeconds": null
+        }
+      ]
+    },
+    {
+      "id": "9002",
+      "runAt": "2026-11-13T23:15:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:15:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "five_hour",
+          "usedPercent": 3,
+          "resetsAt": "2026-11-14T04:30:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "seven_day",
+          "usedPercent": 41,
+          "resetsAt": "2026-11-20T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "extra_usage",
+          "usedPercent": 12,
+          "resetsAt": null,
+          "cycleSeconds": null
+        }
+      ]
+    },
+    {
+      "id": "9003",
+      "runAt": "2026-11-13T23:30:00.000Z",
+      "status": "network_error",
+      "fetchedAt": "2026-11-13T23:15:00.000Z",
+      "intervalSec": 900,
+      "values": null
+    },
+    {
+      "id": "9004",
+      "runAt": "2026-11-13T23:45:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:45:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "five_hour",
+          "usedPercent": 9,
+          "resetsAt": "2026-11-14T04:30:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "seven_day",
+          "usedPercent": 42,
+          "resetsAt": "2026-11-20T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    {
+      "id": "9005",
+      "runAt": "2026-11-14T00:00:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-14T00:00:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "five_hour",
+          "usedPercent": 14,
+          "resetsAt": "2026-11-14T04:30:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "seven_day",
+          "usedPercent": 42,
+          "resetsAt": "2026-11-20T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "extra_usage",
+          "usedPercent": 12,
+          "resetsAt": null,
+          "cycleSeconds": null
+        }
+      ]
+    }
+  ],
+  "nextCursor": "2026-11-14T00:00:00.000Z_9005",
+  "hasMore": false
+}

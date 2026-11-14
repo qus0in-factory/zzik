@@ -1,6 +1,6 @@
 ---
 name: work-reviewer
-description: Herdr 워커(sol/sonnet/gemini/grok/ds/hy/fable)가 끝낸 작업을 opus 대신 검수할 때 사용. ADR·지시 대비 결과물을 직접 확인(파일 읽기, 빌드·테스트 실행)하고 통과/수정 필요를 판정한다.
+description: Herdr 워커(sol/sonnet/hydro/grok/ds/hy/fable)가 끝낸 작업을 opus 대신 검수할 때 사용. ADR·지시 대비 결과물을 직접 확인(파일 읽기, 빌드·테스트 실행)하고 통과/수정 필요를 판정한다.
 model: sonnet
 effort: high
 tools: Bash, Read, Glob, Grep

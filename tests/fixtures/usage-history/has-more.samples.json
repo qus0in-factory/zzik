@@ -1,0 +1,29 @@
+{
+  "provider": "claude",
+  "scanVersion": 1,
+  "anchor": null,
+  "samples": [
+    {
+      "id": "9701",
+      "runAt": "2026-11-14T00:00:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-14T00:00:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        { "id": "five_hour", "usedPercent": 20, "resetsAt": "2026-11-14T04:30:00.000Z", "cycleSeconds": 18000 }
+      ]
+    },
+    {
+      "id": "9702",
+      "runAt": "2026-11-14T00:15:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-14T00:15:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        { "id": "five_hour", "usedPercent": 24, "resetsAt": "2026-11-14T04:30:00.000Z", "cycleSeconds": 18000 }
+      ]
+    }
+  ],
+  "nextCursor": "2026-11-14T00:15:00.000Z_9702",
+  "hasMore": true
+}
