@@ -6,7 +6,7 @@ Refs #46. 코드 주석(`src/ui/usage/ProviderIcon.tsx`, `src/ui/index.css`)의 
 
 `ProviderIcon`은 섹션 제목과 페이스 칩이 같이 쓴다. 단색 `currentColor`라 라이트·다크에서 모두 보인다.
 
-- 출처: `@lobehub/icons-static-svg` 1.102.0 (MIT, https://github.com/lobehub/lobe-icons). 필요한 6개의 path 데이터만 `src/ui/usage/provider-icon-paths.ts`에 복사했고 패키지는 의존성에 두지 않는다(번들 증가 최소화: 약 7 KB 소스).
+- 출처: `@lobehub/icons-static-svg` 1.102.0 (MIT, https://github.com/lobehub/lobe-icons). 필요한 6개의 path 데이터만 `src/ui/usage/provider-icon-paths.ts`에 복사했고 패키지는 의존성에 두지 않는다(번들 증가 최소화: 약 7 KB 소스). MIT 전문은 [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md)에 보존한다.
 - 로고 자체의 상표권은 각 소유자에게 있다. 패키지의 MIT는 아이콘 파일의 배포 조건이다.
 
 | 제공자 | 사용한 아이콘 파일 |
