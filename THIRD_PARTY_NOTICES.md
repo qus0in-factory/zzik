@@ -34,3 +34,35 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## uPlot 1.6.32
+
+- 사용 위치: `src/ui/usage/history/**` — 사용률 추이 차트 캔버스(지연 로드 청크에서만 불러온다).
+- 패키지: `uplot` 1.6.32 (npm `license` 필드: MIT). 버전은 `package.json`에 정확히 고정한다.
+- 저장소: https://github.com/leeoniya/uPlot
+- 저작권: Copyright (c) 2022 Leon Sorokin
+- 비고: 배포 tarball의 `LICENSE` 전문을 아래에 보존한다. `uPlot.min.css`도 같은 패키지에서 가져온다.
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2022 Leon Sorokin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
