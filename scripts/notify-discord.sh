@@ -16,8 +16,8 @@ fi
 command -v jq >/dev/null || { echo "jq가 필요합니다." >&2; exit 1; }
 
 # embed description 최대 4096자
-payload="$(jq -n --arg t "$title" --arg d "${body:0:4000}" \
-  '{username:"zzik opus", embeds:[{title:$t, description:$d, color:5763719}]}')"
+payload="$(jq -n --arg u '피짱' --arg t "$title" --arg d "${body:0:4000}" \
+  '{username:$u, embeds:[{title:$t, description:$d, color:5763719}]}')"
 
 if [ "$dry" = "--dry-run" ]; then echo "$payload"; exit 0; fi
 code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d "$payload" "$url")"
