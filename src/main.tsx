@@ -72,11 +72,10 @@ async function loadHistoryDeps(): Promise<HistoryDeps> {
     memory: new Map(),
     inflight: new Map(),
     buildView: (input) => viewBuilder(input),
-    preload: () => {
-      void import('@ui/usage/history/lazy-chart').then((module) => {
+    preload: () =>
+      import('@ui/usage/history/lazy-chart').then((module) => {
         viewBuilder = module.buildChartView
-      })
-    },
+      }),
     nowMs: () => Date.now(),
   }
 }

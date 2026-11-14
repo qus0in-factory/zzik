@@ -27,7 +27,10 @@ export function createFixtureUsageHistoryGateway(): UsageHistoryGateway {
     async fetchSummary() {
       const summary: UsageHistorySummaryEntry[] = USAGE_PROVIDERS.map((provider) => {
         const oks = (pages.get(provider)?.samples ?? []).filter((sample) => sample.status === 'ok')
-        return { provider, okCount: Math.min(oks.length, 4), firstOkAt: oks[0]?.runAt ?? null, lastOkAt: oks.at(-1)?.runAt ?? null }
+        const lastOkAt = oks.at(-1)?.runAt ?? null
+        // 합성 표본은 몇 시간 분량뿐이라, 4건 이상이면 DEV에서 차트를 열어 볼 수 있게 첫 ok를 하루 앞으로 둔다(요약만 — 표본은 그대로).
+        const firstOkAt = oks.length >= 4 && lastOkAt !== null ? new Date(Date.parse(lastOkAt) - 86_400_000).toISOString() : (oks[0]?.runAt ?? null)
+        return { provider, okCount: Math.min(oks.length, 4), firstOkAt, lastOkAt }
       })
       return { ok: true, summary }
     },

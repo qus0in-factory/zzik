@@ -208,3 +208,22 @@ describe('Given failures', () => {
     expect(h.cache.records.get('claude')?.samples).toHaveLength(6)
   })
 })
+
+describe('Given a view builder that arrives late (지연 청크)', () => {
+  it('When the panel opens without hover and the builder loads afterwards Then the view is rebuilt with the loaded builder', async () => {
+    const h = harness({ session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    let current: ReturnType<typeof emptyChartViewBuilder> extends infer V ? (input: ChartViewInput) => V : never = emptyChartViewBuilder
+    h.deps.buildView = (input) => current(input)
+    h.deps.preload = () =>
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          current = (input) => ({ ...emptyChartViewBuilder(input), title: 'LOADED' })
+          resolve()
+        }, 30),
+      )
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    await waitFor(() => expect((result.current.panel?.state as { view: { title: string } }).view.title).toBe('LOADED'))
+  })
+})
+

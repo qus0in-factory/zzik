@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { ChartView } from '@app/usage/history/chart-view'
+import { t } from '@shared/messages'
 import { CHART_MESSAGES } from '@app/usage/history/chart-messages'
 
 /** 캔버스 옆의 접근성용 데이터 표(시각적으로는 숨긴다). 시점마다 보이는 계열의 값을 싣는다. */
@@ -10,7 +11,7 @@ export function ChartA11yTable({ view }: { view: ChartView }): ReactNode {
       <caption>{view.title}</caption>
       <thead>
         <tr>
-          <th scope="col">시점</th>
+          <th scope="col">{t('chart.table.time')}</th>
           {visible.map((series) => <th key={series.id} scope="col">{series.label}</th>)}
         </tr>
       </thead>
