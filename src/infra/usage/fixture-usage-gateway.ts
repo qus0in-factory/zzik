@@ -1,5 +1,5 @@
 import { rebaseIsoFields } from '@domain/usage/rebase-iso-fields'
-import agyNormal from '../../../tests/fixtures/antigravity-usage.normal.json'
+import agyNormal from '../../../tests/fixtures/antigravity-usage.gemini-argon.json' // normal 시나리오: Gemini·Claude/GPT·Argon 세 그룹(페이스 칩 6개가 모두 보이게)
 import agyLimited from '../../../tests/fixtures/antigravity-usage.limited.json'
 import agyUnknown from '../../../tests/fixtures/antigravity-usage.unknown-keys.json'
 import type { UsageGateway, UsageGatewayResult } from '@domain/usage/gateway'

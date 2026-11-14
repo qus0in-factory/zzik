@@ -1,5 +1,6 @@
 import { useCardActivity } from '@app/usage/useCardActivity'
 import type { ReactNode } from 'react'
+import type { UsageCollectionStatus } from '@app/usage/load-usage'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/types'
 import type { UsageUiStatus } from '@app/usage/useUsage'
@@ -36,6 +37,8 @@ export interface UsageDashboardProps {
   collectionNote?: string | null
   /** 데이터가 있는 상태에서 재조회 중 — 새로고침 버튼만 바뀌고 본문은 그대로다 */
   refreshing?: boolean
+  /** 수집기 상태(상태등 판정용). 봉투가 없으면 null */
+  collectionStatus?: UsageCollectionStatus | null
 }
 
 /** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도. */
@@ -54,6 +57,7 @@ export function UsageDashboard({
   staleNoteText = null,
   collectionNote = null,
   refreshing = false,
+  collectionStatus = null,
 }: UsageDashboardProps): ReactNode {
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
@@ -96,7 +100,7 @@ export function UsageDashboard({
   }
 
   const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0)
-  const light = providerStatusOf({ status, reportStatus: report?.status ?? null, issueCount: report?.issues.length ?? 0, lastSuccessText })
+  const light = providerStatusOf({ status, reportStatus: report?.status ?? null, collectionStatus, issueCount: report?.issues.length ?? 0, lastSuccessText })
 
   return (
     <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">

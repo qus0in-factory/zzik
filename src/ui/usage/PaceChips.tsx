@@ -36,11 +36,11 @@ function PaceChip({ provider }: { provider: UsageProvider }): ReactNode {
         data-over-pace={pace.overPace}
         title={`${meta.title} · ${pace.unit === '월' ? '월간' : '주간'} 사용률 ${used}%, 예상 사용률 ${expected}%`}
         className={
-          'fade-in inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border bg-card px-2.5 py-1 text-sm font-medium hover:bg-accent ' +
+          'fade-in inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border bg-card px-1.5 py-1 text-xs font-medium hover:bg-accent lg:gap-1.5 lg:px-2.5 lg:text-sm ' +
           (pace.overPace ? 'border-[var(--usage-caution)] text-[var(--usage-caution)]' : 'border-border')
         }
       >
-        <ProviderIcon provider={provider} label={meta.title} className="size-4" />
+        <ProviderIcon provider={provider} label={meta.title} className="size-3.5 lg:size-4" />
         <span className="tabular-nums">
           {pace.unit === '월' ? 'M' : 'W'} {used}% / {expected}%
         </span>
@@ -52,7 +52,7 @@ function PaceChip({ provider }: { provider: UsageProvider }): ReactNode {
 export function PaceChips(): ReactNode {
   return (
     <nav aria-label="제공자별 사용 페이스" className="mt-4">
-      <ul className="flex min-h-[30px] flex-nowrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] sm:gap-2">
+      <ul className="flex min-h-[30px] flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] lg:gap-2">
         {usageProviderIds().map((provider) => (
           <PaceChip key={provider} provider={provider} />
         ))}
