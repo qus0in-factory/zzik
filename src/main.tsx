@@ -20,8 +20,9 @@ import type { ChartViewBuilder } from '@app/usage/history/chart-view-input'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
-import { browserLocalStorage, createLocalStorageOrderStore } from '@infra/usage/local-storage-order-store'
-import { createLocalStorageViewModeStore } from '@infra/usage/local-storage-view-mode-store'
+import { subscribeStorageKey } from '@infra/usage/browser-storage'
+import { browserLocalStorage, createLocalStorageOrderStore, PROVIDER_ORDER_STORAGE_KEY } from '@infra/usage/local-storage-order-store'
+import { createLocalStorageViewModeStore, VIEW_MODE_STORAGE_KEY } from '@infra/usage/local-storage-view-mode-store'
 import { createFixtureUsageGateway } from '@infra/usage/fixture-usage-gateway'
 import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 
@@ -35,6 +36,10 @@ const devFixtureRequested = import.meta.env.DEV && new URLSearchParams(window.lo
 const orderStore = createProviderOrderStore(createLocalStorageOrderStore(browserLocalStorage()))
 // 카드·목록 보기 방식도 같은 방식: zustand 스토어(app) + localStorage 어댑터 주입(infra).
 const viewModeStore = createViewModeStore(createLocalStorageViewModeStore(browserLocalStorage()))
+
+// 오래 열어 둔 탭이 예전 값을 들고 있다가 덮어쓰지 않도록, 다른 탭의 변경(clear 포함)을 스토어에 다시 읽어 온다.
+subscribeStorageKey(PROVIDER_ORDER_STORAGE_KEY, () => orderStore.getState().rehydrate())
+subscribeStorageKey(VIEW_MODE_STORAGE_KEY, () => viewModeStore.getState().rehydrate())
 
 const usageDeps: UsageDeps = {
   clock: createBrowserClock(),

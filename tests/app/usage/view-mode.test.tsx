@@ -49,6 +49,33 @@ describe('Given the view mode zustand store (포트 주입)', () => {
   })
 })
 
+describe('Given another tab changed the stored view mode (rehydrate)', () => {
+  it('When rehydrated Then the stored mode is applied without saving; a cleared value returns to grid', () => {
+    const fake = fakePort()
+    const store = createViewModeStore(fake.port)
+    fake.port.save('list')
+    const before = fake.calls.save
+    store.getState().rehydrate()
+    expect(store.getState().mode).toBe('list')
+    expect(fake.calls.save).toBe(before)
+    fake.port.save(null as never)
+    store.getState().rehydrate()
+    expect(store.getState().mode).toBe('grid')
+  })
+  it('When the stored mode is unchanged Then the state object stays the same', () => {
+    const store = createViewModeStore(fakePort('list').port)
+    const before = store.getState()
+    store.getState().rehydrate()
+    expect(store.getState()).toBe(before)
+  })
+  it('When rehydrated with a null port Then nothing changes', () => {
+    const store = createViewModeStore(null)
+    const before = store.getState()
+    store.getState().rehydrate()
+    expect(store.getState()).toBe(before)
+  })
+})
+
 describe('Given the hook', () => {
   it('When used inside a provider Then it reads and updates the store; outside it defaults to grid', () => {
     const store = createViewModeStore(null)

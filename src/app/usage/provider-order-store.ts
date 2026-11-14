@@ -17,6 +17,8 @@ export interface ProviderOrderState {
   move(id: UsageProvider, toIndex: number): void
   /** 기본 순서로 되돌리고 저장값을 지운다 */
   reset(): void
+  /** 포트에서 다시 읽어 반영한다(다른 탭이 바꾼 순서를 따라감). 저장은 하지 않고, 같은 순서면 상태를 바꾸지 않는다 */
+  rehydrate(): void
 }
 
 export type ProviderOrderStoreApi = StoreApi<ProviderOrderState>
@@ -37,6 +39,12 @@ export function createProviderOrderStore(port: ProviderOrderPort | null): Provid
     reset: () => {
       port?.clear()
       set({ order: USAGE_PROVIDERS, customized: false })
+    },
+    rehydrate: () => {
+      const next = normalizeOrder(port?.load() ?? null, USAGE_PROVIDERS)
+      const current = get().order
+      if (next.length === current.length && next.every((id, i) => id === current[i])) return
+      set({ order: next, customized: !isDefaultOrder(next, USAGE_PROVIDERS) })
     },
   }))
 }
