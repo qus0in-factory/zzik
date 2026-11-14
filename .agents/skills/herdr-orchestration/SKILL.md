@@ -10,7 +10,7 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(sol, ds, hy, fab
 |---|---|---|
 | `opus` | 총괄 | 작업 분해, 분배, 결과 검수·통합, 최종 판단과 사용자 보고 |
 | `fable` | 설계 전용 | 아키텍처·인터페이스·데이터 모델 설계, 설계 리뷰. **구현·검색·테스트·잡무 금지**. 설계는 Herdr fable 패널 또는 fable-designer 서브에이전트(effort high)로 호출 |
-| `sol` | 백엔드/인프라/수집기 구현 | 설계에 따른 구현, Postgres/DB 연동, 수집기 인프라, 까다로운 디버깅 |
+| `sol` | 백엔드/인프라/수집기 구현 | 설계에 따른 구현, Postgres/DB 연동, 수집기 인프라, 까다로운 디버깅. 탐색·테스트·측정은 정의된 terra 서브에이전트에 위임(`.codex/agents/`) |
 | `sonnet` | 프론트엔드/수집기 구현 | UI/컴포넌트 구현, 수집기 연동, 프론트/앱 로직, 리팩터링 |
 | `ds` | 경량 구현/잡무 (effort medium) | 범위가 명확한 소규모 구현, 테스트 보강, 하네스·스크립트·문서 동기화, 리뷰 지적 반영. 설계·운영 배포·대규모 구조 변경은 맡기지 않음 |
 | `hy` | 경량 구현/잡무 보조(평가 중) | 범위가 명확한 소규모 구현, 테스트 보강, 문서 동기화. 설계·운영 배포 제외, effort 기본 |
@@ -83,5 +83,6 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 ## 브랜치·통합
 - 원격: `main`(보호: PR 필수, 직접·강제 push·삭제 금지, 관리자 포함), `dev`(통합, 기본 브랜치).
 - 워크트리 브랜치는 `dev`에서 따고(`git worktree add .worktree/<트랙> -b <버전>/<트랙> dev`), 검수 통과 후 로컬 `dev`에 `--no-ff` merge → `dev` push.
+- 배포마다 `package.json` patch 버전을 올리고 README 스크린샷(`pnpm screenshot:readme`)을 갱신한다.
 - 버전 단위로 `dev → main` PR(`gh pr create -B main -H dev`), 본문에 `Closes #N`. 머지 후 배포는 `main` 기준.
 - 기본 브랜치가 `dev`라 `dev→main` PR의 `Closes #N`은 이슈를 자동으로 닫지 않는다. main 병합·배포 확인 후 opus가 이슈를 직접 닫고 마일스톤을 닫는다. dev 커밋에는 `Refs #N`.

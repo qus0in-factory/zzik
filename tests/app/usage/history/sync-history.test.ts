@@ -3,6 +3,7 @@ import { createHistoryBudget, FIRST_FORWARD_WINDOW_MS, syncHistory } from '@app/
 import type { SyncDeps } from '@app/usage/history/sync-history'
 import { createRecord, applyForward } from '@domain/usage/history/record'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
+import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 import { USAGE_HISTORY_PAGE_LIMIT } from '../../../../shared/usage-history-contract'
 import { createFakeHistoryCache, createFakeHistoryGateway, createFakeHistoryServer, syntheticEvents } from '../../../fakes/history-ports'
@@ -16,7 +17,7 @@ function setup(events: UsageHistorySample[], initial: HistoryCacheRecord[] = [])
   const server = createFakeHistoryServer('claude', events)
   const gateway = createFakeHistoryGateway({ claude: server })
   const cache = createFakeHistoryCache(initial)
-  const memory = new Map<'claude', HistoryCacheRecord>()
+  const memory = new Map<UsageProvider, HistoryCacheRecord>()
   let now = NOW
   const deps = (): SyncDeps => ({ gateway, cache, memory, nowMs: () => now, budget: createHistoryBudget({ now: () => now }) })
   return { server, gateway, cache, memory, deps, setNow: (ms: number) => void (now = ms) }
@@ -228,3 +229,68 @@ describe('Given the G0-B confirmed parameters (쪽 50·상한 100·병렬도 1)'
     expect(t.gateway.queries.every((query) => query.limit === 50)).toBe(true)
   })
 })
+
+describe('Given a Quota error with an existing record (B3: 레코드 유실 방지)', () => {
+  it('When the update fails with quota Then the existing record is moved to memory BEFORE the cache is cleared, and the sync keeps going from memory', async () => {
+    const events = syntheticEvents(30, new Date(NOW - 8 * HOUR).toISOString(), 900_000)
+    const t = setup(events.slice(0, 12))
+    await syncHistory(t.deps(), { provider: 'claude', snapshotRunAt: null, wantFromMs: null })
+    expect(t.cache.records.get('claude')?.samples).toHaveLength(12)
+    // 서버에 새 이벤트가 생겼고, 이제 저장소가 가득 찼다
+    const grown = setup(events)
+    grown.cache.records.set('claude', structuredClone(t.cache.records.get('claude')!))
+    grown.cache.failUpdate = 'quota'
+    const removed: string[] = []
+    const originalRemove = grown.cache.remove
+    grown.cache.remove = async (provider) => { removed.push(`remove:${grown.memory.has(provider) ? 'memory-ready' : 'memory-EMPTY'}`); await originalRemove(provider) }
+    const outcome = await syncHistory(grown.deps(), { provider: 'claude', snapshotRunAt: '2026-11-14T11:59:00.000Z', wantFromMs: null })
+    expect(outcome).toMatchObject({ ok: true, persisted: false })
+    // 옛 표본 12개 + 새 표본이 모두 메모리에 있고, 캐시 삭제는 메모리로 옮긴 뒤에 일어났다
+    expect(grown.memory.get('claude')?.samples).toHaveLength(30)
+    expectI1(grown.memory.get('claude'), grown.server)
+    expect(removed).toEqual(['remove:memory-ready'])
+    expect(grown.cache.records.has('claude')).toBe(false)
+  })
+  it('When quota hits during a multi-page forward sync Then later pages and a following backfill still work from memory', async () => {
+    const events = syntheticEvents(160, new Date(NOW - 40 * HOUR).toISOString(), 900_000)
+    const t = setup(events)
+    await syncHistory(t.deps(), { provider: 'claude', snapshotRunAt: null, wantFromMs: null })
+    t.cache.failUpdate = 'quota'
+    t.setNow(NOW + 20 * 60_000)
+    const outcome = await syncHistory(t.deps(), { provider: 'claude', snapshotRunAt: null, wantFromMs: NOW - 2 * DAY })
+    expect(outcome.ok).toBe(true)
+    const record = t.memory.get('claude')!
+    expect(Date.parse(record.coveredFrom!)).toBeLessThanOrEqual(NOW - 2 * DAY)
+    expectI1(record, t.server)
+  })
+})
+
+describe('Given the retention bounds (B4: 백필 종료 조건)', () => {
+  it('When the wanted start is older than the 31-day retention Then the backfill stops at the bound instead of spending the request budget', async () => {
+    const t = setup(syntheticEvents(40 * 24, new Date(NOW - 40 * DAY).toISOString(), HOUR))
+    const outcome = await syncHistory({ ...t.deps(), pageLimit: 100 }, { provider: 'claude', snapshotRunAt: null, wantFromMs: NOW - 40 * DAY })
+    expect(outcome).toMatchObject({ ok: true })
+    if (!outcome.ok) throw new Error('unreachable')
+    expect(outcome.backfillComplete).toBe(true)
+    expect(t.gateway.queries.length).toBeLessThan(80)
+    // 보존 경계(31일)보다 더 과거로는 가지 않는다
+    expect(Date.parse(outcome.record.coveredFrom!)).toBeGreaterThanOrEqual(NOW - 31 * DAY - 1)
+    expectI1(outcome.record, t.server)
+  })
+  it('When the record reaches the 4,000-sample cap Then the backfill stops (completed) and does not loop until the budget is gone', async () => {
+    const t = setup(syntheticEvents(4600, new Date(NOW - 16 * DAY).toISOString(), 300_000))
+    const outcome = await syncHistory({ ...t.deps(), pageLimit: 100 }, { provider: 'claude', snapshotRunAt: null, wantFromMs: NOW - 30 * DAY })
+    expect(outcome).toMatchObject({ ok: true })
+    if (!outcome.ok) throw new Error('unreachable')
+    expect(outcome.record.samples.length).toBeLessThanOrEqual(4000)
+    expect(outcome.backfillComplete).toBe(true)
+    expect(t.gateway.queries.length).toBeLessThan(80)
+  })
+  it('When the backfill reaches the wanted start normally Then backfillComplete is false-or-absent semantics stay unchanged (regression)', async () => {
+    const t = setup(syntheticEvents(96 * 4, new Date(NOW - 4 * DAY).toISOString(), 900_000))
+    const outcome = await syncHistory(t.deps(), { provider: 'claude', snapshotRunAt: null, wantFromMs: NOW - 3 * DAY })
+    expect(outcome.ok).toBe(true)
+    expect(Date.parse((outcome as { record: { coveredFrom: string } }).record.coveredFrom)).toBeLessThanOrEqual(NOW - 3 * DAY)
+  })
+})
+

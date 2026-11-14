@@ -52,8 +52,9 @@ fi
 command -v jq >/dev/null || { echo "jq가 필요합니다." >&2; exit 1; }
 
 # embed description 최대 4096자. 이미지가 있으면 embed image가 attachment://파일명을 참조한다.
-payload="$(jq -n --arg u '피짱' --arg t "$title" --arg d "${body:0:4000}" \
-  '{username:$u, embeds:[{title:$t, description:$d, color:5763719}]}')"
+# username은 지정하지 않는다 — 웹훅 자체 이름(피짱)이 그대로 쓰인다.
+payload="$(jq -n --arg t "$title" --arg d "${body:0:4000}" \
+  '{embeds:[{title:$t, description:$d, color:5763719}]}')"
 for name in "${names[@]:-}"; do
   [ -n "$name" ] || continue
   payload="$(jq --arg url "attachment://$name" '
