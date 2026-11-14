@@ -1,4 +1,5 @@
 import { useCardActivity } from '@app/usage/useCardActivity'
+import { Fragment } from 'react'
 import type { ReactNode } from 'react'
 import type { UsageCollectionStatus } from '@app/usage/load-usage'
 import type { UsageProvider } from '@domain/usage/providers'
@@ -87,7 +88,7 @@ export function UsageDashboard({
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Skeleton data-testid="usage-skeleton" className="h-6 w-16" />
-                  <Skeleton data-testid="usage-skeleton" className="mt-5 h-2 w-full" />
+                  <Skeleton data-testid="usage-skeleton" className="mt-[1.625rem] h-2 w-full" />
                   <Skeleton data-testid="usage-skeleton" className="h-4 w-24" />
                   <Skeleton data-testid="usage-skeleton" className="h-4 w-32" />
                 </CardContent>
@@ -154,12 +155,13 @@ export function UsageDashboard({
       {empty && status === 'ready' && <p className="text-sm text-muted-foreground">표시할 사용량이 없습니다</p>}
 
       {!empty && report !== null && (
-        <>
+        // key: 로딩 → ready 전환 때 카드가 새로 마운트되어 진입 연출(막대·저빌·페이드인)이 다시 재생된다. 새로고침(같은 ready)에서는 같은 노드라 재생하지 않는다.
+        <Fragment key="ready">
           {report.windows.length > 0 && <div>
             <h3 className="mb-2 text-base font-semibold">사용 창</h3>
             <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {report.windows.map((item) => (
-                <ActiveLimitCard key={item.id} item={item} />
+              {report.windows.map((item, index) => (
+                <ActiveLimitCard key={item.id} item={item} index={index} />
               ))}
             </div>
           </div>}
@@ -167,13 +169,13 @@ export function UsageDashboard({
             <div>
               <h3 className="mb-2 text-base font-semibold">{metricsTitle}</h3>
               <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {report.metrics.map((item) => (
-                  <ActiveLimitCard key={item.id} item={item} />
+                {report.metrics.map((item, index) => (
+                  <ActiveLimitCard key={item.id} item={item} index={index} />
                 ))}
               </div>
             </div>
           )}
-        </>
+        </Fragment>
       )}
     </section>
   )
@@ -193,7 +195,7 @@ function SectionTitle({ provider, title, light, children }: { provider: UsagePro
   )
 }
 
-function ActiveLimitCard({ item }: { item: UsageReport['windows'][number] }): ReactNode {
+function ActiveLimitCard({ item, index }: { item: UsageReport['windows'][number]; index: number }): ReactNode {
   const lapSeconds = useCardActivity(item.id, item.usedPercent)
-  return <LimitCard item={item} titleLevel={4} presentation={cardPresentation(item, lapSeconds)} />
+  return <LimitCard item={item} titleLevel={4} presentation={cardPresentation(item, lapSeconds)} enterIndex={index} />
 }

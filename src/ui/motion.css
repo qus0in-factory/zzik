@@ -1,16 +1,30 @@
-/* 공통 모션 규칙: 150~300ms, prefers-reduced-motion이면 모두 끈다. 진행 막대·저빌 위치 전환은 activity-gerbil.css의 --usage-transition(0.3s). */
+/* 공통 모션 규칙. 버튼 등 UI 전환은 150~300ms, 첫 진입 연출(막대 채움·저빌 달리기)은 마운트 때 한 번만 재생된다.
+   prefers-reduced-motion이면 모두 끈다(즉시 최종 상태). 데이터 갱신은 진입 연출이 아니라 --usage-transition(0.3s)으로 움직인다. */
 :root {
   --motion-fast: 150ms;
   --motion-base: 250ms;
+  --motion-fade: 320ms;
+  --motion-enter: 700ms;
+  --motion-enter-lap: 350ms; /* 진입 중 저빌 한 걸음 주기: 700ms 동안 두 걸음 */
+  --motion-stagger: 50ms;
 }
 
-/* 카드·칩 페이드인(마운트 시 한 번) */
+/* 카드·칩 페이드인(마운트 시 한 번). 로딩→ready 전환은 새로 마운트되어 다시 재생된다. */
 .fade-in {
-  animation: fade-in var(--motion-base) ease-out both;
+  animation: fade-in var(--motion-fade) ease-out both;
 }
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
+}
+
+/* 진행 막대 진입: 마운트 시 0 → 목표값. backwards라 끝난 뒤에는 인라인 값에 맡겨 이후 갱신은 기존 transition으로 움직인다. */
+.bar-enter {
+  animation: bar-enter var(--motion-enter) ease-out backwards;
+  animation-delay: calc(var(--enter-index, 0) * var(--motion-stagger));
+}
+@keyframes bar-enter {
+  from { transform: translateX(-100%); }
 }
 
 /* 버튼 hover/active */
@@ -50,6 +64,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fade-in,
+  .bar-enter,
   .motion-button,
   .back-to-top,
   .back-to-top[data-visible='true'],

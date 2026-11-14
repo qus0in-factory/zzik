@@ -184,7 +184,7 @@ describe('Given the gerbil and bar presentation rules', () => {
     const gerbil = screen.getByTestId('activity-gerbil')
     expect(gerbil.getAttribute('data-gerbil-state')).toBe('idle')
     expect(gerbil.style.getPropertyValue('--gerbil-lap')).toBe('')
-    expect(screen.getByTestId('usage-bar').className).toContain('pt-5')
+    expect(screen.getByTestId('usage-bar').className).toContain('pt-[1.625rem]')
   })
   it('When the value is 0 Then the gerbil sleeps at the bar start in neutral gray, padding kept', () => {
     render(dashboard(0))
@@ -192,7 +192,7 @@ describe('Given the gerbil and bar presentation rules', () => {
     expect(gerbil.getAttribute('data-gerbil-state')).toBe('sleeping')
     expect(gerbil.style.left).toBe('0%')
     expect(gerbil.querySelector('.gerbil-sleep-z')).toBeTruthy()
-    expect(screen.getByTestId('usage-bar').className).toContain('pt-5')
+    expect(screen.getByTestId('usage-bar').className).toContain('pt-[1.625rem]')
     expect(screen.getByTestId('usage-bar').getAttribute('data-bar-level')).toBe('neutral')
   })
   it('When the bar has a level Then the state is in the aria-label as text, not only color', () => {
@@ -208,13 +208,70 @@ describe('Given the gerbil and bar presentation rules', () => {
     expect(reduced).toContain('.gerbil-sleep-body')
     // idle 꼬리 규칙은 특이도가 높아 reduced-motion에서도 같은 선택자로 꺼야 한다
     expect(reduced).toContain(".activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail")
+    // 진입 연출(다리·몸)도 같은 이유로 idle 선택자로 꺼야 한다
+    for (const part of ['.gerbil-leg-front-left', '.gerbil-leg-front-right', '.activity-gerbil-svg']) expect(reduced).toContain(`.activity-gerbil-runner[data-gerbil-state='idle'] ${part}`)
   })
-  it('When idle Then only the tail sways (legs and body stay still); sleeping keeps no tail animation', () => {
+  it('When idle Then the tail sways ±20° every 1.3s around its root; legs and body only run during the entrance', () => {
     const css = readFileSync('src/ui/usage/activity-gerbil.css', 'utf8')
-    const idleTail = /\.activity-gerbil-runner\[data-gerbil-state='idle'\] \.gerbil-part-tail \{\s*animation: gerbil-tail-sway[^;]*infinite;/
-    expect(css).toMatch(idleTail)
-    expect(css).toMatch(/@keyframes gerbil-tail-sway/)
-    expect(css).toMatch(/\.activity-gerbil-runner\[data-gerbil-state='idle'\] \.gerbil-leg \{\s*animation: none;/)
-    expect(css).toMatch(/\.gerbil-part-tail \{\s*transform-origin: 9\.5px 9\.5px;/)
+    expect(css).toMatch(/\.activity-gerbil-runner\[data-gerbil-state='idle'\] \.gerbil-part-tail \{\s*animation: gerbil-tail-sway 1\.3s ease-in-out infinite;/)
+    expect(css).toMatch(/@keyframes gerbil-tail-sway\s*\{[^}]*rotate\(-20deg\)[\s\S]*rotate\(20deg\)/)
+    expect(css).toMatch(/\.gerbil-part-tail \{\s*transform-box: view-box;\s*transform-origin: 9\.5px 9\.5px;/)
+    // 입장 때만 달리고(유한 반복) 이후 정지: idle 다리·몸 애니메이션은 infinite가 아니다
+    const idleLegs = /\.activity-gerbil-runner\[data-gerbil-state='idle'\] \.gerbil-leg-front-left[^{]*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(idleLegs).toMatch(/gerbil-leg-swing-a var\(--motion-enter-lap\) ease-in-out 2 /)
+    expect(idleLegs).not.toContain('infinite')
+  })
+  it('When the gerbil enters Then it runs from 0% to its target with the bar (same duration, delay and easing) and is larger (40x25)', () => {
+    const css = readFileSync('src/ui/usage/activity-gerbil.css', 'utf8')
+    expect(css).toMatch(/@keyframes gerbil-enter\s*\{\s*from\s*\{\s*left:\s*0%/)
+    expect(css).toMatch(/\.activity-gerbil-runner\s*\{[^}]*animation:\s*gerbil-enter var\(--motion-enter\) ease-out backwards/)
+    expect(css).toMatch(/\.activity-gerbil-runner\s*\{[^}]*width:\s*2\.5rem;\s*height:\s*1\.5625rem;/)
+  })
+})
+
+describe('Given the entrance motion on a card', () => {
+  const dashboard = (value: number) => (
+    <UsageGatewayProvider deps={{ gateway: createFakeUsageGateway(), scheduler: createFakeUsageScheduler(), clock: { nowIso: () => NOW_ISO } }}>
+      <UsageDashboard provider="claude" status="ready" errorMessage={null} report={buildUsageView({ five_hour: { utilization: value }, seven_day: { utilization: value }, seven_day_sonnet: { utilization: value } })} />
+    </UsageGatewayProvider>
+  )
+  it('When mounted Then the bar indicator fills via bar-enter and cards are staggered by index', () => {
+    render(dashboard(40))
+    const cards = screen.getAllByTestId('usage-card')
+    expect(cards.map((card) => card.style.getPropertyValue('--enter-index'))).toEqual(['0', '1', '0'])
+    for (const card of cards) {
+      expect(card.className).toContain('fade-in')
+      expect(card.querySelector('[data-slot="progress-indicator"]')?.className).toContain('bar-enter')
+    }
+  })
+  it('When the value is refreshed Then the same DOM nodes are kept, so the entrance does not replay (the normal transition moves them)', () => {
+    const mounted = render(dashboard(40))
+    const bar = screen.getAllByTestId('usage-card')[0].querySelector('[data-slot="progress-indicator"]')
+    const runner = screen.getAllByTestId('activity-gerbil')[0]
+    mounted.rerender(dashboard(55))
+    expect(screen.getAllByTestId('usage-card')[0].querySelector('[data-slot="progress-indicator"]')).toBe(bar)
+    expect(screen.getAllByTestId('activity-gerbil')[0]).toBe(runner)
+    expect(runner.style.left).toBe('55%')
+  })
+  it('When the section goes from loading to ready Then the cards mount fresh (fade-in plays again)', () => {
+    const deps = { gateway: createFakeUsageGateway(), scheduler: createFakeUsageScheduler(), clock: { nowIso: () => NOW_ISO } }
+    const view = (status: 'loading' | 'ready') => (
+      <UsageGatewayProvider deps={deps}>
+        <UsageDashboard provider="claude" status={status} errorMessage={null} report={status === 'ready' ? buildUsageView({ five_hour: { utilization: 10 } }) : null} />
+      </UsageGatewayProvider>
+    )
+    const mounted = render(view('loading'))
+    expect(screen.queryByTestId('usage-card')).toBeNull()
+    mounted.rerender(view('ready'))
+    expect(screen.getByTestId('usage-card').className).toContain('fade-in')
+  })
+})
+
+describe('Given the index.html cache policy (public/_headers for Workers static assets)', () => {
+  const headers = readFileSync('public/_headers', 'utf8')
+  it('Then the HTML shell is revalidated every time while hashed assets are immutable', () => {
+    expect(headers).toMatch(/^\/\n\s+Cache-Control: no-cache$/m)
+    expect(headers).toMatch(/^\/index\.html\n\s+Cache-Control: no-cache$/m)
+    expect(headers).toMatch(/^\/assets\/\*\n\s+Cache-Control: public, max-age=31536000, immutable$/m)
   })
 })

@@ -1,0 +1,7 @@
+# Workers static assets 헤더. HTML 셸은 매번 재검증하고, 해시가 붙은 /assets/*는 오래 캐시한다.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
