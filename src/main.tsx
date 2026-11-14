@@ -7,10 +7,13 @@ import { parseFixtureUsageName } from '@domain/usage/fixture-name'
 import App from '@ui/App'
 import { createAppQueryClient } from '@app/query-client'
 import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
+import { ProviderOrderProvider } from '@app/usage/ProviderOrderContext'
+import { createProviderOrderStore } from '@app/usage/provider-order-store'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
+import { browserLocalStorage, createLocalStorageOrderStore } from '@infra/usage/local-storage-order-store'
 import { createFixtureUsageGateway } from '@infra/usage/fixture-usage-gateway'
 import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 
@@ -19,6 +22,9 @@ import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 // - 개발(dev 빌드에서 ?fixture= 지정): 목 게이트웨이 + Zustand 픽스처 선택 상태.
 const queryClient = createAppQueryClient()
 const devFixtureRequested = import.meta.env.DEV && new URLSearchParams(window.location.search).has('fixture')
+
+// 제공자 순서는 zustand 스토어(app)가 들고, 브라우저별 localStorage 저장은 infra 어댑터를 여기서 주입한다.
+const orderStore = createProviderOrderStore(createLocalStorageOrderStore(browserLocalStorage()))
 
 const usageDeps: UsageDeps = {
   clock: createBrowserClock(),
@@ -46,7 +52,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <UsageGatewayProvider deps={usageDeps}>
-        <App />
+        <ProviderOrderProvider store={orderStore}>
+          <App />
+        </ProviderOrderProvider>
       </UsageGatewayProvider>
     </QueryClientProvider>
   </StrictMode>,
