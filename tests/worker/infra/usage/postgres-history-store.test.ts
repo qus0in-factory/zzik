@@ -42,7 +42,7 @@ describe('Given local PostgreSQL history', () => {
       throw Error();
     expect(noAnchor.value.anchor).toBeNull();
   });
-  it('When summarizing Then counts only two ok rows without reading envelope and preserves provider order', async () => {
+  it('When summarizing Then counts ok rows up to the minimum without reading envelope and preserves provider order', async () => {
     const t = await createTestDb();
     close = t.close;
     for (let i = 0; i < 7; i++)
@@ -51,7 +51,7 @@ describe('Given local PostgreSQL history', () => {
     if (!result.ok)
       throw Error();
     expect(result.value.summary.map(s => s.provider)).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama']);
-    expect(result.value.summary[0]).toEqual({ provider: 'claude', okCount: 2, firstOkAt: '2026-11-02T00:00:00.000Z', lastOkAt: '2026-11-07T00:00:00.000Z' });
+    expect(result.value.summary[0]).toEqual({ provider: 'claude', okCount: 1, firstOkAt: '2026-11-02T00:00:00.000Z', lastOkAt: '2026-11-07T00:00:00.000Z' });
     expect(result.value.summary[1]).toEqual({ provider: 'codex', okCount: 0, firstOkAt: null, lastOkAt: null });
   });
   it('When storage is absent or throws Then all methods return unavailable', async () => { for (const db of [null, { select() { throw Error('private'); } } as unknown as SnapshotDatabase]) {
