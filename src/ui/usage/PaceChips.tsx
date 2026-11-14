@@ -309,7 +309,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
         칩을 길게 누르거나 스페이스를 눌러 잡고, 끌거나 왼쪽·오른쪽 화살표로 옮겨 제공자 순서를 바꿉니다. 아래 패널 순서도 함께 바뀝니다.
       </p>
       <div className="flex items-center gap-1">
-        <ul ref={listRef} className="-my-1 flex min-h-[30px] min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] lg:gap-2">
+        <ul ref={listRef} className="-my-1 flex min-h-[38px] min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] lg:gap-2">
           {order.map((provider) => (
             <PaceChip key={provider} provider={provider} drag={chipDragProps(provider)} />
           ))}
