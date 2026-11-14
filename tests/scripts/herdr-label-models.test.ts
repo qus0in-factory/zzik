@@ -27,6 +27,12 @@ describe('Given the herdr label detection', () => {
     expect(detect('opencode', `${filler(10)}\n  DeepSeek 4.1 · opencode-go`)).toBe('ds')
     expect(detect('opencode', `DeepSeek V4.1 Flash 인용문\n${filler(10)}\n? for shortcuts`)).toBe('')
   })
+  it('When opencode shows a Hy model in the bottom lines Then it is labeled hy', () => {
+    expect(detect('opencode', `${filler(10)}\n  Hy4 · opencode-go`)).toBe('hy')
+    expect(detect('opencode', `${filler(10)}\n  Build auto · Hy4.1 · default`)).toBe('hy')
+    expect(detect('opencode', `Hy4 로 전환 기록\n${filler(10)}\n? for shortcuts`)).toBe('')
+    expect(detect('opencode', `${filler(10)}\n  Hy · 버전 없음`)).toBe('')
+  })
   it('When claude shows a versioned model in the bottom lines Then it is detected', () => {
     expect(detect('claude', `${filler(10)}\n  Opus 5.5 (1M context)\n`)).toBe('opus')
     expect(detect('claude', `${filler(10)}\n  Sonnet 5.5 · Claude Max\n\n\n`)).toBe('sonnet')
