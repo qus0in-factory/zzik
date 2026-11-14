@@ -19,6 +19,8 @@ import { cardKindOf } from '@app/usage/card-kind'
 import { providerStatusOf } from '@app/usage/provider-status'
 import { ProviderIcon } from './ProviderIcon'
 import { ProviderStatusLight } from './ProviderStatusLight'
+import { ExternalLink } from 'lucide-react'
+import { providerUsageLink } from '@app/usage/provider-usage-links'
 import type { ProviderStatus } from '@app/usage/provider-status'
 
 export interface UsageDashboardProps {
@@ -231,12 +233,26 @@ export function UsageDashboard({
 
 /** 섹션 제목 줄: 왼쪽 아이콘 · 제목 · 연결 상태등, 오른쪽 children(마지막 수집 시각 + 새로고침). 좁으면 줄바꿈.  light가 null(로딩 스켈레톤)이면 같은 크기의 자리표시를 둔다. */
 function SectionTitle({ provider, title, light, children }: { provider: UsageProvider; title: string; light: ProviderStatus | null; children?: ReactNode }): ReactNode {
+  const usageUrl = providerUsageLink(provider)
   return (
     <div className="flex min-h-[34px] flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <div className="flex items-center gap-2">
         <ProviderIcon provider={provider} />
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
+        {usageUrl !== null && (
+          <a
+            href={usageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t('provider.usagePage.open', { provider: title })}
+            title={t('provider.usagePage.open', { provider: title })}
+            className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+            data-testid="provider-usage-link"
+          >
+            <ExternalLink className="size-[14px]" aria-hidden="true" />
+          </a>
+        )}
       </div>
       {/* 좁은 화면에서는 항상 다음 줄로 내린다(폰트 로딩 전후 폭 차이로 줄바꿈 여부가 흔들리지 않게) */}
       {children !== undefined && <div className="basis-full sm:basis-auto">{children}</div>}

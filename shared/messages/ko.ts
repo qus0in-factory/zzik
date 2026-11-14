@@ -37,6 +37,9 @@ export const ko = {
   'provider.ollama.networkErrorNote': '수집기 Mac의 Ollama 연결을 확인해 주세요. 다음 수집 주기에 자동으로 다시 시도합니다.',
   'provider.refreshHint': '수집기가 15분마다 자동으로 갱신합니다.',
 
+  // 제공자 사용량 페이지 바로가기(외부 링크)
+  'provider.usagePage.open': '{provider} 사용량 페이지 열기',
+
   // 이력 차트 버튼·패널(ADR 0.7 8.2·10절)
   'chart.open': '차트 보기',
   'chart.close': '차트 닫기',
