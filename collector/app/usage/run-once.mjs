@@ -11,6 +11,9 @@
  * - 봉투의 provider는 options.provider 그대로다(ADR 0.3 D5).
  */
 
+import { eventHeartbeatDue } from '../../domain/usage/event-heartbeat.mjs'
+import { buildAlertReport } from '../../domain/usage/alert-report.mjs'
+import { diffAlerts, nextAlertState } from './diff-alerts.mjs'
 import { snapshotChanged } from '../../domain/usage/snapshot-change.mjs'
 import { USAGE_COLLECTOR_VERSION } from '../../domain/usage/providers.mjs'
 import { chooseCredential, credentialExpired } from '../../domain/usage/credential-choice.mjs'
@@ -27,6 +30,7 @@ import { gateAllowsCall, gateRetryAt, openGateFor, resetGate } from '../../domai
 export const USAGE_INTERVAL_SEC = 900 /** 조립 루트가 intervalSec 옵션을 안 주면 기본값 */
 const EXIT_OK = 0
 const EXIT_STORE_FAILURE = 3
+const EXIT_STATE_FAILURE = 4
 
 /** 로컬 상태 파일의 기본 형태(D2 usage-state.json). @returns {CollectorState} */
 export function emptyCollectorState() {
@@ -34,6 +38,8 @@ export function emptyCollectorState() {
     schema: 1,
     provider: null,
     previous: null,
+    lastEventAt: null,
+    alerts: null,
     gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null },
     lastRun: { status: null, tokenExpiresAt: null },
   }
@@ -47,6 +53,8 @@ function normalizeState(state) {
     schema: 1,
     provider: state.provider ?? null,
     previous: state.previous ?? null,
+    lastEventAt: typeof state.lastEventAt === 'string' ? state.lastEventAt : null,
+    alerts: state.alerts ?? null,
     lastPruneAt: state.lastPruneAt ?? null,
     gate: { ...base.gate, ...(typeof state.gate === 'object' && state.gate !== null ? state.gate : {}) },
     lastRun: {
@@ -59,7 +67,7 @@ function normalizeState(state) {
 /**
  * @param {CollectorPorts} ports
  * @param {{ dryRun?: boolean, collectorVersion?: string, provider?: string, sendAccountId?: boolean, redactionPaths?: readonly string[], intervalSec?: number }} options
- * @returns {Promise<{ exitCode: number, dryRunReport?: { provider: string, status: UsageStatus, called: boolean, keys: string[], sha256: string|null, diag: string|null } }>}
+ * @returns {Promise<{ exitCode: number, alerts?: import('../../domain/usage/alert-types.mjs').AlertEvent[], dryRunReport?: { provider: string, status: UsageStatus, called: boolean, keys: string[], sha256: string|null, diag: string|null } }>}
  */
 export async function runOnce(ports, options = {}) {
   const dryRun = options.dryRun === true
@@ -159,6 +167,23 @@ export async function runOnce(ports, options = {}) {
     kvTokenExpiresAtMs: null,
   })
 
+  const alertReport = status === 'ok' && called ? buildAlertReport(provider, envelope.rawText, nowMs, envelope.rawRedacted ?? []) : null
+  let alertEvents = /** @type {import('../../domain/usage/alert-types.mjs').AlertEvent[]} */([])
+  let nextAlerts = state.alerts ?? null
+  try {
+    if (alertReport !== null) {
+      const policy = ports.alertPolicy ?? {diff:diffAlerts, advance:nextAlertState}
+      const events = policy.diff(state.alerts ?? null, alertReport)
+      const checkpoint = policy.advance(state.alerts ?? null, alertReport, events)
+      alertEvents = events
+      nextAlerts = checkpoint
+    }
+  } catch {
+    // Alert-only failure must not prevent a successful usage write or corrupt N.
+    alertEvents = []
+    nextAlerts = state.alerts ?? null
+  }
+
   if (dryRun) {
     /** @type {string[]} */
     let paths = []
@@ -171,6 +196,7 @@ export async function runOnce(ports, options = {}) {
     }
     return {
       exitCode: EXIT_OK,
+      ...(alertEvents.length > 0 ? {alerts:alertEvents} : {}),
       dryRunReport: {
         provider,
         status,
@@ -182,25 +208,36 @@ export async function runOnce(ports, options = {}) {
     }
   }
 
+  const changed = snapshotChanged(state.previous === null ? null : {
+    status: state.previous.status,
+    rawSha256: state.previous.rawText === null ? null : sha256Hex(state.previous.rawText),
+  }, {
+    status: envelope.status,
+    rawSha256: envelope.rawText === null ? null : sha256Hex(envelope.rawText),
+  })
+  const heartbeat = eventHeartbeatDue(state.lastEventAt, nowMs)
   let storeResult
   try {
     storeResult = await ports.store.write(JSON.stringify(envelope), {
       provider, status: envelope.status, runAt: envelope.runAt, fetchedAt: envelope.fetchedAt,
       rawSha256: envelope.rawText === null ? null : sha256Hex(envelope.rawText),
       collectorVersion: envelope.collectorVersion,
-      changed: snapshotChanged(state.previous === null ? null : {
-        status: state.previous.status, rawSha256: state.previous.rawText === null ? null : sha256Hex(state.previous.rawText),
-      }, {status:envelope.status,rawSha256:envelope.rawText === null ? null : sha256Hex(envelope.rawText)}),
+      changed,
+      heartbeat,
     })
   } catch (error) {
     storeResult = { ok: false, httpStatus: null, message: 'StoreWriteError' }
   }
 
   // Advance the history baseline only after all configured stores acknowledge the write.
-  await ports.state.write({
+  let stateOk = true
+  try {
+    await ports.state.write({
     schema: 1,
     provider,
     previous: storeResult.ok ? envelope : state.previous,
+    lastEventAt: storeResult.ok && (changed || heartbeat) ? envelope.runAt : state.lastEventAt ?? null,
+    alerts: storeResult.ok ? nextAlerts : state.alerts ?? null,
     lastPruneAt: state.lastPruneAt ?? null,
     gate: {
       nextAllowedAt: gate.nextAllowedAt ?? null,
@@ -210,7 +247,10 @@ export async function runOnce(ports, options = {}) {
       authDeniedExpiresAt: gate.authDeniedExpiresAt ?? null,
     },
     lastRun: { status, tokenExpiresAt: chosen?.expiresAt ?? null },
-  })
+    })
+  } catch {
+    stateOk = false
+  }
 
   const prevStatus = state.lastRun?.status ?? null
   const prevTokenExpiresAt = state.lastRun?.tokenExpiresAt ?? null
@@ -223,6 +263,8 @@ export async function runOnce(ports, options = {}) {
     httpStatus: envelope.httpStatus,
     tokenExpiresAt: envelope.tokenExpiresAt,
     source: provider === 'antigravity' ? (chosen === null ? 'none' : 'cli') : null,
+    stateOk,
+    heartbeat: storeResult.ok === true && heartbeat,
     kvOk: storeResult.ok === true,
     kvReason: storeResult.ok === true ? null : (storeResult.message ?? null),
     transition: prevStatus !== null && prevStatus !== status ? `${prevStatus}→${status}` : null,
@@ -231,5 +273,5 @@ export async function runOnce(ports, options = {}) {
     diag: called === false ? null : (diag ?? null),
   })
 
-  return { exitCode: storeResult.ok === true ? EXIT_OK : EXIT_STORE_FAILURE }
+  return { exitCode: !stateOk ? EXIT_STATE_FAILURE : storeResult.ok === true ? EXIT_OK : EXIT_STORE_FAILURE, ...(storeResult.ok && stateOk && alertEvents.length > 0 ? {alerts:alertEvents} : {}) }
 }

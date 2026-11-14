@@ -18,6 +18,8 @@
  */
 
 import postgres from 'postgres'
+import { readAlertConfig } from './domain/usage/alert-config.mjs'
+import { createDiscordAlerts } from './infra/usage/discord-alerts.mjs'
 import { createPostgresEnvelopeWriter } from './infra/usage/postgres-envelope-writer.mjs'
 import { readStorageConfig } from './domain/usage/storage-config.mjs'
 import { createLogAppender } from './infra/usage/log.mjs'
@@ -39,6 +41,7 @@ import { USAGE_COLLECTOR_VERSION, USAGE_REDACTION_PATHS, USAGE_PROVIDERS as PROV
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
+const alerts = createDiscordAlerts({ ...readAlertConfig(process.env), fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
 /** @type {{mode:'postgres',intervalSec:number,retentionDays:number}} */
 let storageConfig = {mode:'postgres',intervalSec:900,retentionDays:30}
@@ -184,7 +187,7 @@ function buildProviders(flags) {
 /** @param {ParsedFlags} flags @returns {Promise<void>} */
 async function once(flags) {
   const intervalSec = storageConfig.intervalSec
-  const { results } = await runCycle({maintenance}, buildProviders(flags), {
+  const { results } = await runCycle({maintenance,alerts}, buildProviders(flags), {
     dryRun: flags.dryRun,
     collectorVersion: VERSION,
     intervalSec,
@@ -221,7 +224,7 @@ function startResident() {
     inFlight = true
     try {
       const intervalSec = storageConfig.intervalSec
-      const { results } = await runCycle({maintenance}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION, intervalSec })
+      const { results } = await runCycle({maintenance,alerts}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION, intervalSec })
       const failures = results.filter((result) => result.exitCode !== 0)
       if (failures.length > 0) {
         process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map((result) => `${result.id}=exit${result.exitCode}`).join(', ')}\n`)

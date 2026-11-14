@@ -18,7 +18,7 @@ export function createPostgresEnvelopeWriter({ execute }) {
           run_at=excluded.run_at,fetched_at=excluded.fetched_at,raw_sha256=excluded.raw_sha256,
           collector_version=excluded.collector_version,updated_at=now()`,
           [meta.provider,value,meta.status,meta.runAt,meta.fetchedAt,meta.rawSha256,meta.collectorVersion])
-        if (meta.changed) {
+        if (meta.changed || meta.heartbeat === true) {
           await execute('INSERT INTO usage_event (provider,run_at,status,raw_sha256,envelope) VALUES ($1,$2::timestamptz,$3,$4,$5::text::jsonb)',
             [meta.provider,meta.runAt,meta.status,meta.rawSha256,value])
         }
