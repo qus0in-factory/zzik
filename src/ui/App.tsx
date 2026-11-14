@@ -1,4 +1,5 @@
 import { usageProviderIds } from '@app/usage/provider-meta'
+import { BackToTop } from '@ui/components/BackToTop'
 import { PaceChips } from '@ui/usage/PaceChips'
 import { UsageSection } from '@ui/usage/UsageSection'
 import { UsageSummary } from '@ui/usage/UsageSummary'
@@ -21,6 +22,7 @@ export default function App() {
           <UsageSection key={provider} provider={provider} />
         ))}
       </main>
+      <BackToTop />
     </div>
   )
 }
