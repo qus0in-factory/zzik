@@ -19,6 +19,7 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 
 ## 2. release 배포
 
 - **배포 PR을 만들기 전에 dev에서 `pnpm screenshot:readme`를 실행하고, `docs/screenshots/desktop.png`가 바뀌면 같은 PR에 커밋한다.**
+- **화면 확인용 로컬 실행에서 `.worktree/release`의 파일을 고치지 않는다(인증 우회 등 임시 패치 금지).** 인증 없이 띄워야 하면 별도 임시 워크트리(`git worktree add /tmp/zzik-shot main`)에서 하고 끝나면 제거한다. 배포 전 `git -C .worktree/release status --short`가 비어 있어야 한다.
 - dev→main PR 병합 뒤에만 .worktree/release(main)에서 git pull → pnpm install --frozen-lockfile.
 - P3 수집기 반영: pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --update-env → pm2 save. runtime/saved의 ZZIK_STORE=postgres, 제공자 6개·900초·agy 경로·release cwd/env-file 일치를 값 노출 없이 확인한다. 게이트/상태는 삭제하지 않는다.
 - 첫 주기 Postgres 저장 성공·usage_snapshot 6행/JSONB object 및 실제 코드 기능 대조를 확인한 뒤 pnpm run deploy. 실패하면 중단·보고한다. 자세한 재시작 절차는 zzik-usage-collector 스킬 참조.
