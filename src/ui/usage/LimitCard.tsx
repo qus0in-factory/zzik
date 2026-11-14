@@ -10,6 +10,16 @@ import { GerbilSvg, SleepingGerbilSvg } from './GerbilSvg'
 /** 판정 결과가 없을 때(정적 렌더) 쓰는 기본값: 중립 막대, 자는 저빌, 배지 없음. */
 const NO_PRESENTATION: CardPresentation = { barLevel: 'neutral', barLevelText: '', gerbil: { mode: 'sleeping', lapSeconds: null } }
 
+/**
+ * 자는 저빌이 깨어나는 시점을 카드마다 흩뿌린다.
+ * id에서 결정적으로 0~7.9s를 뽑아 CSS 변수(--sleep-delay)로 건넨다. JS 타이머 없이 animation-delay만 쓴다.
+ */
+function sleepDelayOf(id: string): number {
+  let hash = 0
+  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) % 997
+  return (hash % 80) / 10
+}
+
 export interface UsageLimitItem {
   id: string
   label: string
@@ -73,6 +83,7 @@ export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION
                   style={
                     {
                       left: gerbil.mode === 'sleeping' ? '0%' : `${Math.max(0, Math.min(100, usedPercent))}%`,
+                      '--sleep-delay': `${sleepDelayOf(id)}s`,
                       ...(gerbil.lapSeconds !== null ? { '--gerbil-lap': `${gerbil.lapSeconds}s` } : {}),
                     } as CSSProperties
                   }

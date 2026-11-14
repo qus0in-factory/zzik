@@ -106,6 +106,25 @@ describe('Given Antigravity fractional usage', () => {
   })
 })
 
+describe('Given the sleeping gerbil wake phase', () => {
+  const sleeping = (id: string) => ({ id, label: id, usedPercent: 0, resetsAt: null, expired: false, status: 'normal' as const })
+  const cards = () => (
+    <>
+      <LimitCard item={sleeping('five_hour')} />
+      <LimitCard item={sleeping('seven_day')} />
+      <LimitCard item={sleeping('seven_day_sonnet')} />
+    </>
+  )
+  it('Then each card gets a stable, distinct --sleep-delay from its id (no JS timers)', () => {
+    const mounted = render(cards())
+    const delays = screen.getAllByTestId('activity-gerbil').map((runner) => runner.style.getPropertyValue('--sleep-delay'))
+    for (const delay of delays) expect(delay).toMatch(/^\d+(\.\d+)?s$/)
+    expect(new Set(delays).size).toBe(3)
+    mounted.rerender(cards())
+    expect(screen.getAllByTestId('activity-gerbil').map((runner) => runner.style.getPropertyValue('--sleep-delay'))).toEqual(delays)
+  })
+})
+
 describe('Given badges and bar share one judgment', () => {
   const item = (used: number, elapsed: number | null) => ({ id: 'x', label: 'X', usedPercent: used, resetsAt: null, expired: false, status: 'normal' as const, elapsedPercent: elapsed })
   it.each([
