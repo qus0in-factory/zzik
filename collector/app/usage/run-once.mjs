@@ -11,6 +11,8 @@
  * - 봉투의 provider는 options.provider 그대로다(ADR 0.3 D5).
  */
 
+import { buildAlertReport } from '../../domain/usage/alert-report.mjs'
+import { diffAlerts, nextAlertState } from './diff-alerts.mjs'
 import { snapshotChanged } from '../../domain/usage/snapshot-change.mjs'
 import { USAGE_COLLECTOR_VERSION } from '../../domain/usage/providers.mjs'
 import { chooseCredential, credentialExpired } from '../../domain/usage/credential-choice.mjs'
@@ -34,6 +36,7 @@ export function emptyCollectorState() {
     schema: 1,
     provider: null,
     previous: null,
+    alerts: null,
     gate: { nextAllowedAt: null, failReason: null, failCount: 0, authFailCount: 0, authDeniedExpiresAt: null },
     lastRun: { status: null, tokenExpiresAt: null },
   }
@@ -47,6 +50,7 @@ function normalizeState(state) {
     schema: 1,
     provider: state.provider ?? null,
     previous: state.previous ?? null,
+    alerts: state.alerts ?? null,
     lastPruneAt: state.lastPruneAt ?? null,
     gate: { ...base.gate, ...(typeof state.gate === 'object' && state.gate !== null ? state.gate : {}) },
     lastRun: {
@@ -59,7 +63,7 @@ function normalizeState(state) {
 /**
  * @param {CollectorPorts} ports
  * @param {{ dryRun?: boolean, collectorVersion?: string, provider?: string, sendAccountId?: boolean, redactionPaths?: readonly string[], intervalSec?: number }} options
- * @returns {Promise<{ exitCode: number, dryRunReport?: { provider: string, status: UsageStatus, called: boolean, keys: string[], sha256: string|null, diag: string|null } }>}
+ * @returns {Promise<{ exitCode: number, alerts?: import('../../domain/usage/alert-types.mjs').AlertEvent[], dryRunReport?: { provider: string, status: UsageStatus, called: boolean, keys: string[], sha256: string|null, diag: string|null } }>}
  */
 export async function runOnce(ports, options = {}) {
   const dryRun = options.dryRun === true
@@ -159,6 +163,9 @@ export async function runOnce(ports, options = {}) {
     kvTokenExpiresAtMs: null,
   })
 
+  const alertReport = status === 'ok' && called ? buildAlertReport(provider, envelope.rawText, nowMs, envelope.rawRedacted ?? []) : null
+  const alertEvents = alertReport === null ? [] : diffAlerts(state.alerts ?? null, alertReport)
+
   if (dryRun) {
     /** @type {string[]} */
     let paths = []
@@ -171,6 +178,7 @@ export async function runOnce(ports, options = {}) {
     }
     return {
       exitCode: EXIT_OK,
+      ...(alertEvents.length > 0 ? {alerts:alertEvents} : {}),
       dryRunReport: {
         provider,
         status,
@@ -201,6 +209,7 @@ export async function runOnce(ports, options = {}) {
     schema: 1,
     provider,
     previous: storeResult.ok ? envelope : state.previous,
+    alerts: storeResult.ok && alertReport !== null ? nextAlertState(state.alerts ?? null, alertReport, alertEvents) : state.alerts ?? null,
     lastPruneAt: state.lastPruneAt ?? null,
     gate: {
       nextAllowedAt: gate.nextAllowedAt ?? null,
@@ -231,5 +240,5 @@ export async function runOnce(ports, options = {}) {
     diag: called === false ? null : (diag ?? null),
   })
 
-  return { exitCode: storeResult.ok === true ? EXIT_OK : EXIT_STORE_FAILURE }
+  return { exitCode: storeResult.ok === true ? EXIT_OK : EXIT_STORE_FAILURE, ...(storeResult.ok && alertEvents.length > 0 ? {alerts:alertEvents} : {}) }
 }
