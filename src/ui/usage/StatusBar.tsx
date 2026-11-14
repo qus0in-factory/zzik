@@ -8,13 +8,11 @@ export interface StatusBarProps {
   refreshing?: boolean
 }
 
-/** 상태 줄: 마지막 수집 안내 + 새로고침(저장된 값 재읽기). aria-live로 스크린리더에 알린다. */
+/** 마지막 수집 안내 + 새로고침(저장된 값 재읽기). aria-live로 스크린리더에 알린다. */
 export function StatusBar({ lastSuccessText, onRetry = null, refreshing = false }: StatusBarProps): ReactNode {
   return (
-    <div aria-live="polite" className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {lastSuccessText !== null && <span className="text-sm text-muted-foreground">{lastSuccessText}</span>}
-      </div>
+    <div aria-live="polite" className="flex items-center gap-3">
+      {lastSuccessText !== null && <span className="text-sm text-muted-foreground">{lastSuccessText}</span>}
       {onRetry !== null && (
         <button
           type="button"

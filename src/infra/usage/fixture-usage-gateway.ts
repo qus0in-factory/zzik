@@ -89,6 +89,25 @@ export interface FixtureUsageGatewayOptions {
   now?: () => string
 }
 
+/** 목 수집 봉투(스키마 1). */
+function collectionMeta(provider: UsageProvider, status: UsageCollectionMeta['status'], at: string, httpStatus: number): UsageCollectionMeta {
+  return {
+    schema: 1,
+    provider,
+    status,
+    called: true,
+    runAt: at,
+    fetchedAt: at,
+    httpStatus,
+    retryAt: null,
+    tokenExpiresAt: null,
+    kvTokenExpiresAt: null,
+    intervalSec: 300,
+    collectorVersion: '0.6.0',
+    rawOmitted: null,
+  }
+}
+
 export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = {}): UsageGateway {
   const getSearch =
     options.getSearch ??
@@ -115,21 +134,7 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
       if (name === 'auth_rejected') {
         // 서버가 유효한 토큰을 거부한 상태(v2 H2). 값은 정상 fixture를 그대로 쓰고 봉투만 거부로 둔다.
         const at = now()
-        const collection: UsageCollectionMeta = {
-          schema: 1,
-          provider,
-          status: 'auth_rejected',
-          called: true,
-          runAt: at,
-          fetchedAt: at,
-          httpStatus: 401,
-          retryAt: null,
-          tokenExpiresAt: null,
-          kvTokenExpiresAt: null,
-          intervalSec: 300,
-          collectorVersion: '0.6.0',
-          rawOmitted: null,
-        }
+        const collection = collectionMeta(provider, 'auth_rejected', at, 401)
         return { ok: true, usage: FIXTURES[provider].normal, collection, rawText: null }
       }
       const fixture = FIXTURES[provider][name]
@@ -141,7 +146,8 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
           : provider === 'claude'
           ? rebaseUsageResetsAt(fixture as never, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
           : fixture
-      return { ok: true, usage, collection: null, rawText: null }
+      // 정상 수집 봉투: 마지막 수집 시각(7분 전)이 화면에 보이게 한다.
+      return { ok: true, usage, collection: collectionMeta(provider, 'ok', new Date(Date.parse(now()) - 7 * 60_000).toISOString(), 200), rawText: null }
     },
   }
 }

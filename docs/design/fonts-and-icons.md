@@ -4,18 +4,21 @@ Refs #46. 코드 주석(`src/ui/usage/ProviderIcon.tsx`, `src/ui/index.css`)의 
 
 ## 제공자 아이콘
 
-`ProviderIcon`은 섹션 제목과 페이스 칩이 같이 쓴다. 색은 `currentColor`라 라이트·다크에서 모두 보인다.
+`ProviderIcon`은 섹션 제목과 페이스 칩이 같이 쓴다. 단색 `currentColor`라 라이트·다크에서 모두 보인다.
 
-| 제공자 | 아이콘 | 출처 | 라이선스 |
-|---|---|---|---|
-| Claude | Claude 로고 | `simple-icons` 16.37.0 (`siClaude`) | 아이콘 파일 CC0-1.0, 상표권은 Anthropic |
-| Ollama | Ollama 로고 | `simple-icons` (`siOllama`) | CC0-1.0, 상표권은 Ollama |
-| OpenCode | OpenCode 로고 | `simple-icons` (`siOpencode`) | CC0-1.0, 상표권은 OpenCode |
-| ChatGPT (Codex) | 터미널 아이콘(대체) | `lucide-react` `Terminal` | ISC |
-| Antigravity | 궤도 아이콘(대체) | `lucide-react` `Orbit` | ISC |
-| Grok | 반짝임 아이콘(대체) | `lucide-react` `Sparkles` | ISC |
+- 출처: `@lobehub/icons-static-svg` 1.102.0 (MIT, https://github.com/lobehub/lobe-icons). 필요한 6개의 path 데이터만 `src/ui/usage/provider-icon-paths.ts`에 복사했고 패키지는 의존성에 두지 않는다(번들 증가 최소화: 약 7 KB 소스).
+- 로고 자체의 상표권은 각 소유자에게 있다. 패키지의 MIT는 아이콘 파일의 배포 조건이다.
 
-**공식 로고를 못 쓴 이유(확인 필요)**: `simple-icons`에는 OpenAI·xAI·Grok·Antigravity가 없다. 공식 사이트 favicon을 조회했을 때 openai.com은 403, x.ai·grok.com은 404였고, antigravity.google만 `favicon.svg`가 내려왔다. 다만 웹사이트 favicon에는 재사용 라이선스가 명시되어 있지 않아 가져오지 않고, 대체 아이콘을 썼다. 공식 프레스킷(브랜드 가이드)의 SVG를 쓸지는 사용자가 정한다.
+| 제공자 | 사용한 아이콘 파일 |
+|---|---|
+| Claude | `claude.svg` |
+| ChatGPT (Codex) | `openai.svg` (OpenAI 마크) |
+| Antigravity | `antigravity.svg` (Google Antigravity 마크가 패키지에 있어 Gemini 대체 불필요) |
+| OpenCode | `opencode.svg` |
+| Grok | `grok.svg` (xAI Grok 마크) |
+| Ollama | `ollama.svg` |
+
+이전에 쓰던 `simple-icons`(CC0)·`lucide-react` 대체 아이콘은 제거했다.
 
 ## 제목 글꼴: A2z(에이투지체)
 

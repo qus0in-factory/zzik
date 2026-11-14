@@ -9,12 +9,16 @@ describe('Given the provider connection light (기존 status·report.status 매�
     ['error', null, 'danger', '오류'],
     ['stale', 'normal', 'caution', '오래된 데이터'],
     ['ready', 'normal', 'ok', '정상'],
-    ['ready', 'warn', 'caution', '주의'],
-    ['ready', 'limit', 'danger', '한도 도달'],
+    ['ready', 'warn', 'ok', '정상'], // 사용량 주의는 연결 상태가 아니다
+    ['ready', 'limit', 'ok', '정상'], // 한도 도달도 수집은 정상이라 초록
     ['ready', 'unknown', 'neutral', '데이터 없음'],
     ['ready', null, 'neutral', '데이터 없음'],
   ] as const)('When status=%s and report=%s Then level %s with label %s', (status, reportStatus, level, label) => {
     expect(providerStatusOf({ status, reportStatus, lastSuccessText: null })).toMatchObject({ level, label })
+  })
+  it('When the report has unreadable items Then caution (부분 실패), but error and stale still win', () => {
+    expect(providerStatusOf({ status: 'ready', reportStatus: 'normal', issueCount: 2, lastSuccessText: null })).toMatchObject({ level: 'caution', label: '일부 항목을 읽지 못함' })
+    expect(providerStatusOf({ status: 'error', reportStatus: null, issueCount: 2, lastSuccessText: null }).level).toBe('danger')
   })
   it('When there is a last collection text Then the tooltip joins label and time, otherwise label only', () => {
     expect(providerStatusOf({ status: 'ready', reportStatus: 'normal', lastSuccessText: LAST }).description).toBe('정상 · ' + LAST)

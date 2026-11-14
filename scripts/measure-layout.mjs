@@ -15,7 +15,7 @@ const probe = `(() => {
   const list = document.querySelector('nav[aria-label="제공자별 사용 페이스"] ul')
   const chips = [...list.children]
   const tops = new Set(chips.map((chip) => Math.round(chip.getBoundingClientRect().top)))
-  return { chipRow: r(list), chipRows: tops.size, chipCount: chips.length, chipOverflow: list.scrollWidth > list.clientWidth, title: r(section.querySelector('h2'))?.top, gridTop: r(card?.parentElement)?.top, card: r(card) }
+  return { chipRow: r(list), chipRows: tops.size, chipCount: chips.length, chipOverflow: list.scrollWidth > list.clientWidth, title: r(section.querySelector('h2'))?.top, titleRow: r(section.querySelector('h2')?.parentElement?.parentElement), gridTop: r(card?.parentElement)?.top, card: r(card) }
 })()`
 
 let failed = false
@@ -39,7 +39,7 @@ try {
       const normal = await shoot('normal', 'normal')
       console.log(`[${width}px] loading`, JSON.stringify(loading))
       console.log(`[${width}px] normal `, JSON.stringify(normal))
-      const same = ['title', 'gridTop'].every((key) => loading[key] === normal[key]) && loading.chipRow.top === normal.chipRow.top && loading.chipRow.height === normal.chipRow.height && loading.card.top === normal.card.top && loading.card.height === normal.card.height
+      const same = ['title', 'gridTop'].every((key) => loading[key] === normal[key]) && loading.chipRow.top === normal.chipRow.top && loading.chipRow.height === normal.chipRow.height && loading.titleRow.height === normal.titleRow.height && loading.card.top === normal.card.top && loading.card.height === normal.card.height
       const oneLine = width < 768 || (loading.chipRows === 1 && normal.chipRows === 1 && !normal.chipOverflow)
       console.log(same && oneLine ? `[${width}px] OK` : `[${width}px] MISMATCH${same ? '' : ' (위치·높이 불일치)'}${oneLine ? '' : ' (칩 줄이 한 줄이 아니거나 가로로 넘침)'}`)
       if (!same || !oneLine) failed = true

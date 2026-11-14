@@ -65,11 +65,14 @@ export function UsageDashboard({
   if (status === 'loading') {
     return (
       <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-24 space-y-4">
-        {title !== undefined && <SectionTitle provider={provider} title={title} light={null} />}
-        <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center justify-between gap-3">
-          <Skeleton data-testid="usage-skeleton" className="h-5 w-40" />
-          <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
-        </div>
+        {title !== undefined && (
+          <SectionTitle provider={provider} title={title} light={null}>
+            <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center gap-3">
+              <Skeleton data-testid="usage-skeleton" className="h-5 w-40" />
+              <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
+            </div>
+          </SectionTitle>
+        )}
         <div aria-hidden="true">
           <Skeleton data-testid="usage-skeleton" className="mb-2 h-6 w-16" />
           <div data-testid="usage-skeleton-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -93,17 +96,16 @@ export function UsageDashboard({
   }
 
   const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0)
-  const light = providerStatusOf({ status, reportStatus: report?.status ?? null, lastSuccessText })
+  const light = providerStatusOf({ status, reportStatus: report?.status ?? null, issueCount: report?.issues.length ?? 0, lastSuccessText })
 
   return (
     <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">
-      {title !== undefined && <SectionTitle provider={provider} title={title} light={light} />}
-      <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
-
-      {refreshHint !== null && status !== 'ready' && collectionNote === null && (
-        <p data-testid="provider-hint" className="text-sm text-muted-foreground">
-          {refreshHint}
-        </p>
+      {title !== undefined ? (
+        <SectionTitle provider={provider} title={title} light={light}>
+          <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
+        </SectionTitle>
+      ) : (
+        <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
       )}
 
       {collectionNote !== null && (
@@ -114,9 +116,16 @@ export function UsageDashboard({
 
       {status === 'error' && (
         <div role="alert" className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
-          <span data-testid="usage-error-text" className="min-w-0 break-words text-sm">
-            {errorMessage ?? '사용량을 불러오지 못했습니다'}
-          </span>
+          <div className="min-w-0 space-y-1">
+            <span data-testid="usage-error-text" className="block break-words text-sm">
+              {errorMessage ?? '사용량을 불러오지 못했습니다'}
+            </span>
+            {refreshHint !== null && collectionNote === null && (
+              <span data-testid="provider-hint" className="block text-xs text-muted-foreground">
+                {refreshHint}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onRetry ?? undefined}
@@ -130,6 +139,11 @@ export function UsageDashboard({
       {status === 'stale' && (
         <div role="status" aria-live="polite" className="rounded-lg border p-3 text-sm text-muted-foreground">
           {staleNoteText !== null && <span>{staleNoteText}</span>}
+          {refreshHint !== null && collectionNote === null && (
+            <span data-testid="provider-hint" className="block text-xs">
+              {refreshHint}
+            </span>
+          )}
         </div>
       )}
 
@@ -161,13 +175,16 @@ export function UsageDashboard({
   )
 }
 
-/** 섹션 제목: 아이콘 · 제목 · 연결 상태등. light가 null(로딩 스켈레톤)이면 같은 크기의 자리표시를 둔다. */
-function SectionTitle({ provider, title, light }: { provider: UsageProvider; title: string; light: ProviderStatus | null }): ReactNode {
+/** 섹션 제목 줄: 왼쪽 아이콘 · 제목 · 연결 상태등, 오른쪽 children(마지막 수집 시각 + 새로고침). 좁으면 줄바꿈.  light가 null(로딩 스켈레톤)이면 같은 크기의 자리표시를 둔다. */
+function SectionTitle({ provider, title, light, children }: { provider: UsageProvider; title: string; light: ProviderStatus | null; children?: ReactNode }): ReactNode {
   return (
-    <div className="flex items-center gap-2">
-      <ProviderIcon provider={provider} />
-      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-      {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
+    <div className="flex min-h-[34px] flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="flex items-center gap-2">
+        <ProviderIcon provider={provider} />
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
+      </div>
+      {children}
     </div>
   )
 }
