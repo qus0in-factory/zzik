@@ -3,13 +3,15 @@ import type { ReactNode } from 'react'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/types'
 import type { UsageUiStatus } from '@app/usage/useUsage'
-import { Badge } from '@ui/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { cardPresentation } from '@app/usage/card-presentation'
 import { LimitCard } from './LimitCard'
 import { StatusBar } from './StatusBar'
-import { READY_BADGE } from './status-label'
+import { providerStatusOf } from '@app/usage/provider-status'
+import { ProviderIcon } from './ProviderIcon'
+import { ProviderStatusLight } from './ProviderStatusLight'
+import type { ProviderStatus } from '@app/usage/provider-status'
 
 export interface UsageDashboardProps {
   provider: UsageProvider
@@ -63,9 +65,9 @@ export function UsageDashboard({
   if (status === 'loading') {
     return (
       <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-24 space-y-4">
-        {title !== undefined && <h2 className="text-xl font-semibold tracking-tight">{title}</h2>}
+        {title !== undefined && <SectionTitle provider={provider} title={title} light={null} />}
         <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center justify-between gap-3">
-          <Skeleton data-testid="usage-skeleton" className="h-[22px] w-14 rounded-full" />
+          <Skeleton data-testid="usage-skeleton" className="h-5 w-40" />
           <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
         </div>
         <div aria-hidden="true">
@@ -91,19 +93,12 @@ export function UsageDashboard({
   }
 
   const empty = report === null || (report.windows.length === 0 && report.metrics.length === 0)
-  const badge =
-    status === 'stale'
-      ? '오래된 데이터'
-      : status === 'error'
-        ? '오류'
-        : report === null
-          ? '데이터 없음'
-          : READY_BADGE[report.status]
+  const light = providerStatusOf({ status, reportStatus: report?.status ?? null, lastSuccessText })
 
   return (
     <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">
-      {title !== undefined && <h2 className="text-xl font-semibold tracking-tight">{title}</h2>}
-      <StatusBar badge={badge} lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
+      {title !== undefined && <SectionTitle provider={provider} title={title} light={light} />}
+      <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
 
       {refreshHint !== null && status !== 'ready' && collectionNote === null && (
         <p data-testid="provider-hint" className="text-sm text-muted-foreground">
@@ -163,6 +158,17 @@ export function UsageDashboard({
         </>
       )}
     </section>
+  )
+}
+
+/** 섹션 제목: 아이콘 · 제목 · 연결 상태등. light가 null(로딩 스켈레톤)이면 같은 크기의 자리표시를 둔다. */
+function SectionTitle({ provider, title, light }: { provider: UsageProvider; title: string; light: ProviderStatus | null }): ReactNode {
+  return (
+    <div className="flex items-center gap-2">
+      <ProviderIcon provider={provider} />
+      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
+    </div>
   )
 }
 

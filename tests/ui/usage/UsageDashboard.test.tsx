@@ -206,6 +206,7 @@ describe('Given the stale state', () => {
     render(
       <UsageDashboard
         provider="claude"
+        title="Claude"
         status="stale"
         report={report}
         errorMessage={null}
@@ -213,7 +214,9 @@ describe('Given the stale state', () => {
         staleNoteText="마지막 성공 2분 전"
       />,
     )
-    expect(screen.getByText('오래된 데이터')).toBeTruthy()
+    const light = screen.getByTestId('provider-status')
+    expect(light.getAttribute('data-level')).toBe('caution')
+    expect(light.getAttribute('title')).toBe('오래된 데이터 · 마지막 수집 11:58 (2분 전)')
     expect(screen.getByText('마지막 성공 2분 전')).toBeTruthy()
     expect(screen.getByText('37%')).toBeTruthy()
     expect(screen.getByRole('status').textContent).toContain('마지막 성공 2분 전')
