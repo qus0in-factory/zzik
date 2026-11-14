@@ -40,7 +40,8 @@ function renderApp(client = createTestQueryClient()) {
 describe('Given the dashboard with six providers', () => {
   it('When it renders Then the header h1 is the dashboard title with the gerbil logo, and no filler copy remains', () => {
     renderApp()
-    const heading = screen.getByRole('heading', { name: 'Zzik : AI 사용량 대시보드', level: 1 })
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading.textContent).toBe('Zzik : AI 사용량 대시보드')
     expect(heading.closest('header')).not.toBeNull()
     // 제목 텍스트와 중복되는 장식 이미지라 alt는 비워 스크린리더가 제목만 읽게 한다
     const logo = heading.querySelector('img')

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { t } from '@shared/messages'
 import { useProviderOrder } from '@app/usage/ProviderOrderContext'
 import { BackToTop } from '@ui/components/BackToTop'
+import { HomeLink } from '@ui/components/HomeLink'
 import { Footer } from '@ui/components/Footer'
 import { PaceChips } from '@ui/usage/PaceChips'
 import { UsageSection } from '@ui/usage/UsageSection'
@@ -60,9 +61,11 @@ export default function App() {
     <div className="flex min-h-svh flex-col">
       <header className="border-b bg-card">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <h1 className="flex items-center gap-3 text-xl font-semibold tracking-tight">
-            <img src="/icon-192.png" alt="" width={32} height={32} className="size-8 rounded-lg" />
-            <span>{t('app.title')}</span>
+          <h1 className="text-xl font-semibold tracking-tight">
+            <HomeLink>
+              <img src="/icon-192.png" alt="" width={32} height={32} className="size-8 rounded-lg" />
+              <span>{t('app.title')}</span>
+            </HomeLink>
           </h1>
         </div>
       </header>
