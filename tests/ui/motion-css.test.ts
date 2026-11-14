@@ -39,3 +39,10 @@ describe('Given the shared motion rules', () => {
     for (const rule of ['.fade-in', '.motion-button:hover', '.motion-button:active', ".back-to-top[data-visible='true']", '.refresh-spinner']) expect(css).toContain(rule)
   })
 })
+
+describe('Given the reorder guard', () => {
+  it('Then finished entrance animations are switched off by data-entered so moved DOM nodes do not replay them', () => {
+    for (const rule of ['.fade-in[data-entered]', '.bar-enter[data-entered]', '.activity-gerbil-runner[data-entered]']) expect(css).toContain(rule)
+    expect(css).toMatch(/\.activity-gerbil-runner\[data-entered\]\[data-gerbil-state='idle'\] \.gerbil-leg/)
+  })
+})

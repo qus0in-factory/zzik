@@ -73,7 +73,7 @@ export function UsageDashboard({
         {title !== undefined && (
           <SectionTitle provider={provider} title={title} light={null}>
             <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center gap-3">
-              <Skeleton data-testid="usage-skeleton" className="h-5 w-40" />
+              <Skeleton data-testid="usage-skeleton" className="h-5 w-36" />
               <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
             </div>
           </SectionTitle>
@@ -190,7 +190,8 @@ function SectionTitle({ provider, title, light, children }: { provider: UsagePro
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
       </div>
-      {children}
+      {/* 좁은 화면에서는 항상 다음 줄로 내린다(폰트 로딩 전후 폭 차이로 줄바꿈 여부가 흔들리지 않게) */}
+      {children !== undefined && <div className="basis-full sm:basis-auto">{children}</div>}
     </div>
   )
 }
