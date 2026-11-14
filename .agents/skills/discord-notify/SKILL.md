@@ -15,9 +15,12 @@ scripts/notify-discord.sh "<제목>" - <<'MSG'
 <본문>
 MSG
 scripts/notify-discord.sh "<제목>" "<본문>" --dry-run   # 전송 없이 payload 확인
+scripts/notify-discord.sh "<제목>" "<본문>" --image /tmp/usage.png --image /tmp/ui.png --dry-run
 ```
+- `--image <경로>`는 여러 번 지정할 수 있고 최대 4장이다. 이미지가 있으면 multipart/form-data로 보내고 각 이미지를 embed `image`의 `attachment://파일명`으로 참조한다.
 - 웹훅은 `.env`의 `DISCORD_WEBHOOK_URL`(gitignore됨). 값은 출력·커밋·이슈에 절대 남기지 않는다.
 - 보낸이 이름은 `피짱`으로 표시된다(payload `username`).
+- 배포 알림에는 로컬 실데이터 렌더 스크린샷을 첨부해 사용자가 사용성 판정을 할 수 있게 한다.
 - 본문은 4000자에서 잘린다.
 
 ## 보고 형식

@@ -4,6 +4,7 @@ import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/types'
 import type { UsageUiStatus } from '@app/usage/useUsage'
 import { Badge } from '@ui/components/ui/badge'
+import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { cardPresentation } from '@app/usage/card-presentation'
 import { LimitCard } from './LimitCard'
@@ -31,6 +32,8 @@ export interface UsageDashboardProps {
   staleNoteText?: string | null
   /** 수집 상태별 안내(ADR 0.3 v2 D4 표) — app에서 계산된 문구 */
   collectionNote?: string | null
+  /** 데이터가 있는 상태에서 재조회 중 — 새로고침 버튼만 바뀌고 본문은 그대로다 */
+  refreshing?: boolean
 }
 
 /** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도. */
@@ -48,6 +51,7 @@ export function UsageDashboard({
   lastSuccessText = null,
   staleNoteText = null,
   collectionNote = null,
+  refreshing = false,
 }: UsageDashboardProps): ReactNode {
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
@@ -60,10 +64,27 @@ export function UsageDashboard({
     return (
       <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-24 space-y-4">
         {title !== undefined && <h2 className="text-xl font-semibold tracking-tight">{title}</h2>}
-        <div aria-hidden="true" className="space-y-3 motion-reduce:[&_*]:animate-none">
-          <Skeleton data-testid="usage-skeleton" className="h-8 w-32" />
-          <Skeleton data-testid="usage-skeleton" className="h-2 w-full" />
-          <Skeleton data-testid="usage-skeleton" className="h-24 w-full" />
+        <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center justify-between gap-3">
+          <Skeleton data-testid="usage-skeleton" className="h-[22px] w-14 rounded-full" />
+          <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
+        </div>
+        <div aria-hidden="true">
+          <Skeleton data-testid="usage-skeleton" className="mb-2 h-6 w-16" />
+          <div data-testid="usage-skeleton-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[0, 1].map((index) => (
+              <Card key={index} data-testid="usage-skeleton-card" className="min-w-0 gap-3">
+                <CardHeader className="gap-1.5">
+                  <Skeleton data-testid="usage-skeleton" className="h-6 w-28" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton data-testid="usage-skeleton" className="h-6 w-16" />
+                  <Skeleton data-testid="usage-skeleton" className="mt-5 h-2 w-full" />
+                  <Skeleton data-testid="usage-skeleton" className="h-4 w-24" />
+                  <Skeleton data-testid="usage-skeleton" className="h-4 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
     )
@@ -82,7 +103,7 @@ export function UsageDashboard({
   return (
     <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">
       {title !== undefined && <h2 className="text-xl font-semibold tracking-tight">{title}</h2>}
-      <StatusBar badge={badge} lastSuccessText={lastSuccessText} onRetry={onRetry} />
+      <StatusBar badge={badge} lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
 
       {refreshHint !== null && status !== 'ready' && collectionNote === null && (
         <p data-testid="provider-hint" className="text-sm text-muted-foreground">
@@ -104,7 +125,7 @@ export function UsageDashboard({
           <button
             type="button"
             onClick={onRetry ?? undefined}
-            className="rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium hover:bg-accent"
+            className="motion-button rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium hover:bg-accent"
           >
             다시 시도
           </button>

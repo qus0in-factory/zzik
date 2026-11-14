@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import './motion.css';
+/* 한글 폰트는 unicode-range로 쪼갠 dynamic-subset: 화면에 쓰인 글자 조각만 받는다(단일 woff2는 2MB). */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 
 @font-face {
   font-family: 'Inter';
@@ -7,14 +10,6 @@
   font-weight: 100 900;
   font-display: swap;
   src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Pretendard';
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url('pretendard/dist/web/variable/woff2/PretendardVariable.woff2') format('woff2');
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -53,7 +48,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --font-sans: 'Inter', 'Pretendard Variable', system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
