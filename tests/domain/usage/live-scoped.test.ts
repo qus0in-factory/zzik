@@ -17,7 +17,7 @@ describe('Given Claude rawText extracted from live KV on 2026-11-12', () => {
     expect(fable[0].elapsedPercent).toBeCloseTo(92.85712516534392, 8)
     expect(report.windows.map(window => window.id)).toEqual(['five_hour', 'seven_day'])
     expect(report.metrics).toHaveLength(1)
-    expect(report.others.map(item => item.id)).toEqual(['extra_usage', 'spend', 'member_dashboard_available', 'seven_day_breakdown'])
+    expect(report.others.map(item => item.id)).toEqual(['spend', 'member_dashboard_available', 'seven_day_breakdown'])
     expect(report.issues).toEqual([])
   })
 })

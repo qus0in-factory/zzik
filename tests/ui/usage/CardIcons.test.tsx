@@ -19,12 +19,13 @@ const kindOf = (cardId: string) => {
 }
 
 describe('Given the card kind pictograms (종류별 아이콘)', () => {
-  it('When a Claude report renders Then 5h is short, weekly is weekly, per-model metrics are model, extra usage is extra', () => {
+  it('When a Claude report renders Then 5h is short, weekly is weekly, per-model metrics are model, extra spending is a separate row', () => {
     renderDashboard(<UsageDashboard provider="claude" status="ready" errorMessage={null} report={buildUsageView(normalRaw, { now: NOW })} />)
     expect(kindOf('five_hour')).toBe('short')
     expect(kindOf('seven_day')).toBe('weekly')
     expect(kindOf('seven_day_sonnet')).toBe('model')
-    expect(kindOf('extra_usage')).toBe('extra')
+    expect(document.querySelector('[data-card-id="extra_usage"]')).toBeNull()
+    expect(screen.getByTestId('extra-spend')).toBeTruthy()
   })
   it('When an OpenCode report renders Then rolling is short, weekly weekly, monthly monthly (cycle from resetsAt)', () => {
     renderDashboard(<UsageDashboard provider="opencode" status="ready" errorMessage={null} report={buildOpencodeUsageView(opencodeRaw, { now: NOW })} />)

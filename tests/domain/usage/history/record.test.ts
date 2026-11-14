@@ -108,6 +108,7 @@ describe('Given validation, pruning, bookkeeping', () => {
     expect(validateRecord(record, 'claude')).toEqual(record)
     expect(validateRecord({ ...record, v: 2 }, 'claude')).toBeNull()
     expect(validateRecord({ ...record, scanVersion: USAGE_HISTORY_SCAN_VERSION + 1 }, 'claude')).toBeNull()
+    expect(validateRecord({ ...record, scanVersion: 1 }, 'claude')).toBeNull()
     expect(validateRecord({ ...record, provider: 'codex' }, 'claude')).toBeNull()
     expect(validateRecord({ ...record, samples: 'x' }, 'claude')).toBeNull()
     expect(validateRecord(null, 'claude')).toBeNull()

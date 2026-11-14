@@ -26,7 +26,7 @@ export function scanUsageSeries(provider: UsageProvider, raw: unknown, options: 
         utilizationInvalid: boolean;
       }>();
       for (const [id, value] of Object.entries(raw)) {
-        if (id === 'limits' || id === 'weekly_scoped_shares' || hidden(id))
+        if (id === 'limits' || id === 'weekly_scoped_shares' || id === 'extra_usage' || hidden(id))
           continue;
         const limit = readClaudeLimit(id, value);
         if (limit !== null) entries.set(id, limit);

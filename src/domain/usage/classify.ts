@@ -66,7 +66,7 @@ export function classifyUsageKeys(raw: Record<string, unknown>): ClassificationR
   const issues: UsageIssue[] = []
 
   for (const [key, value] of Object.entries(raw)) {
-    if (key === 'limits' || key === 'weekly_scoped_shares') continue
+    if (key === 'limits' || key === 'weekly_scoped_shares' || key === 'extra_usage') continue
     const limit = readClaudeLimit(key, value)
     if (limit !== null) {
       entries.push(entry(limit.kind, key, limit))

@@ -1,0 +1,558 @@
+{
+  "antigravity-cli-quota.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "gemini-5h",
+        "usedPercent": 14,
+        "resetsAt": "2026-11-14T06:12:20Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "gemini-weekly",
+        "usedPercent": 4,
+        "resetsAt": "2026-11-21T01:12:20Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "3p-5h",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-14T07:25:12Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "3p-weekly",
+        "usedPercent": 99,
+        "resetsAt": "2026-11-17T09:54:30Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "argon-weekly",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-21T02:25:12Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "antigravity-cli-quota.unknown.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "gemini-weekly",
+        "usedPercent": 60,
+        "resetsAt": "2026-11-21T01:12:20Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "cli:Gemini Models:Daily Limit Remaining",
+        "usedPercent": 25,
+        "resetsAt": "2026-11-15T01:12:20Z",
+        "cycleSeconds": null
+      },
+      {
+        "id": "cli:New Models:Trial Limit Remaining",
+        "usedPercent": 45,
+        "resetsAt": "2026-11-30T00:00:00Z",
+        "cycleSeconds": null
+      }
+    ]
+  },
+  "antigravity-usage.gemini-argon.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "gemini-5h",
+        "usedPercent": 13,
+        "resetsAt": "2026-11-11T14:30:00Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "gemini-weekly",
+        "usedPercent": 87,
+        "resetsAt": "2026-11-14T04:46:03Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "3p-5h",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-11T16:00:00Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "3p-weekly",
+        "usedPercent": 99,
+        "resetsAt": "2026-11-17T09:54:30Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "argon-weekly",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-14T06:07:10Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "antigravity-usage.limited.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "3p-5h",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-11T14:30:00Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "3p-weekly",
+        "usedPercent": 70,
+        "resetsAt": "2026-11-18T12:00:00Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "antigravity-usage.live.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "masked-bucket-2",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-13T03:21:42Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "masked-bucket-1",
+        "usedPercent": 99.4456,
+        "resetsAt": "2026-11-17T09:54:30Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "antigravity-usage.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "3p-5h",
+        "usedPercent": 35,
+        "resetsAt": "2026-11-11T14:30:00Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "3p-weekly",
+        "usedPercent": 12,
+        "resetsAt": "2026-11-18T12:00:00Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "antigravity-usage.unknown-keys.json": {
+    "ok": true,
+    "skipped": 1,
+    "series": [
+      {
+        "id": "3p-5h",
+        "usedPercent": 35,
+        "resetsAt": "2026-11-11T14:30:00Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "3p-weekly",
+        "usedPercent": 12,
+        "resetsAt": "2026-11-18T12:00:00Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "gemini-weekly",
+        "usedPercent": 50,
+        "resetsAt": null,
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "groups[1].buckets[1]",
+        "usedPercent": 50,
+        "resetsAt": null,
+        "cycleSeconds": null
+      }
+    ]
+  },
+  "claude-usage.limited.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-11T12:47:00.000Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "seven_day",
+        "usedPercent": 97,
+        "resetsAt": "2026-11-12T08:00:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_sonnet",
+        "usedPercent": 104,
+        "resetsAt": "2026-11-12T08:00:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "claude-usage.live-scoped.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 3,
+        "resetsAt": "2026-11-12T08:40:00.107760+00:00",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "seven_day",
+        "usedPercent": 73,
+        "resetsAt": "2026-11-13T00:00:00.107780+00:00",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_fable",
+        "usedPercent": 80,
+        "resetsAt": "2026-11-13T00:00:00.107923+00:00",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "claude-usage.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 37,
+        "resetsAt": "2026-11-11T14:13:00.000Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "seven_day",
+        "usedPercent": 12,
+        "resetsAt": "2026-11-14T09:00:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_sonnet",
+        "usedPercent": 5,
+        "resetsAt": "2026-11-14T09:00:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "claude-usage.synthetic-scoped-limits.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 1,
+        "resetsAt": "2026-11-16T00:00:00Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "seven_day",
+        "usedPercent": 72,
+        "resetsAt": "2026-11-16T00:00:00Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_fable",
+        "usedPercent": 80,
+        "resetsAt": "2026-11-16T00:00:00Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "claude-usage.unknown-keys.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 46,
+        "resetsAt": "2026-11-11T14:05:00.000Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "seven_day",
+        "usedPercent": 28,
+        "resetsAt": "2026-11-15T03:00:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_sonnet",
+        "usedPercent": 9,
+        "resetsAt": "2026-11-15T03:00:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_fake",
+        "usedPercent": 44,
+        "resetsAt": "2026-11-15T03:00:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_haiku",
+        "usedPercent": 3,
+        "resetsAt": null,
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "thirty_day",
+        "usedPercent": 61,
+        "resetsAt": "2026-12-01T00:00:00.000Z",
+        "cycleSeconds": null
+      }
+    ]
+  },
+  "claude-usage.warn.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 84,
+        "resetsAt": "2026-11-11T13:05:00.000Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "seven_day",
+        "usedPercent": 62,
+        "resetsAt": "2026-11-13T22:30:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_sonnet",
+        "usedPercent": 81,
+        "resetsAt": "2026-11-13T22:30:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "seven_day_oauth_apps",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-13T22:30:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "codex-usage.limited.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "rate_limit.primary_window",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-11T13:00:00.000Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "rate_limit.secondary_window",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-13T12:00:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "codex-usage.live.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "rate_limit.primary_window",
+        "usedPercent": 38,
+        "resetsAt": "2026-11-16T09:48:54.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "codex-usage.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "rate_limit.primary_window",
+        "usedPercent": 20,
+        "resetsAt": "2026-11-11T16:00:00.000Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "rate_limit.secondary_window",
+        "usedPercent": 40,
+        "resetsAt": "2026-11-18T12:00:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "codex-usage.unknown-keys.json": {
+    "ok": true,
+    "skipped": 1,
+    "series": [
+      {
+        "id": "rate_limit.primary_window",
+        "usedPercent": 55,
+        "resetsAt": "2026-11-11T15:00:00.000Z",
+        "cycleSeconds": 10800
+      },
+      {
+        "id": "rate_limit.secondary_window",
+        "usedPercent": 12,
+        "resetsAt": "2026-11-11T12:30:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "code_review_rate_limit",
+        "usedPercent": 30,
+        "resetsAt": null,
+        "cycleSeconds": 3600
+      },
+      {
+        "id": "mcp.buckets[0]",
+        "usedPercent": 5,
+        "resetsAt": null,
+        "cycleSeconds": 18000
+      }
+    ]
+  },
+  "grok-usage.limited.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "credits",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-16T00:00:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "grok-usage.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "credits",
+        "usedPercent": 2,
+        "resetsAt": "2026-11-16T00:00:00.000Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "grok-usage.unknown-keys.json": {
+    "ok": true,
+    "skipped": 1,
+    "series": []
+  },
+  "ollama-usage.limited.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "included",
+        "usedPercent": 100,
+        "resetsAt": "2026-12-01T00:00:00Z",
+        "cycleSeconds": 2592000
+      }
+    ]
+  },
+  "ollama-usage.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "included",
+        "usedPercent": 36.06666666666667,
+        "resetsAt": "2026-12-01T00:00:00Z",
+        "cycleSeconds": 2592000
+      }
+    ]
+  },
+  "ollama-usage.unknown-keys.json": {
+    "ok": true,
+    "skipped": 1,
+    "series": []
+  },
+  "opencode-usage.limited.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "rolling",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-11T17:00:00.000Z",
+        "cycleSeconds": null
+      },
+      {
+        "id": "weekly",
+        "usedPercent": 16,
+        "resetsAt": "2026-11-14T00:00:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "monthly",
+        "usedPercent": 10,
+        "resetsAt": "2026-12-01T00:00:00.000Z",
+        "cycleSeconds": 2592000
+      }
+    ]
+  },
+  "opencode-usage.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "rolling",
+        "usedPercent": 0,
+        "resetsAt": "2026-11-11T17:00:00.000Z",
+        "cycleSeconds": null
+      },
+      {
+        "id": "weekly",
+        "usedPercent": 16,
+        "resetsAt": "2026-11-14T00:00:00.000Z",
+        "cycleSeconds": 604800
+      },
+      {
+        "id": "monthly",
+        "usedPercent": 10,
+        "resetsAt": "2026-12-01T00:00:00.000Z",
+        "cycleSeconds": 2592000
+      }
+    ]
+  },
+  "opencode-usage.unknown-keys.json": {
+    "ok": true,
+    "skipped": 1,
+    "series": [
+      {
+        "id": "rolling",
+        "usedPercent": 5,
+        "resetsAt": "2026-11-11T17:00:00.000Z",
+        "cycleSeconds": null
+      },
+      {
+        "id": "monthly",
+        "usedPercent": 10,
+        "resetsAt": "2026-12-01T00:00:00.000Z",
+        "cycleSeconds": 2592000
+      },
+      {
+        "id": "daily",
+        "usedPercent": 55,
+        "resetsAt": "2026-11-12T00:00:00.000Z",
+        "cycleSeconds": null
+      }
+    ]
+  }
+}
