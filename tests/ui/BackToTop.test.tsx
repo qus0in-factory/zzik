@@ -43,10 +43,23 @@ function queryTopButton() {
 }
 
 describe('Given the back-to-top floating button (등장/퇴장 트랜지션)', () => {
-  it('When the viewport is 390px or narrower Then the button shrinks and hugs the page gutter instead of covering the card corner', () => {
+  it('When the layout is rendered Then a fixed shell reuses the main container width so the button sits inside the content gutter', () => {
+    render(<BackToTop />)
+    const shell = screen.getByTestId('back-to-top-shell')
+    const align = screen.getByTestId('back-to-top-align')
+    for (const rule of ['fixed', 'inset-x-0', 'bottom-4', 'sm:bottom-6', 'pointer-events-none']) expect(shell.className).toContain(rule)
+    for (const rule of ['mx-auto', 'max-w-6xl', 'justify-end', 'pr-4', 'pr-2']) expect(align.className).toContain(rule)
+    expect(screen.getByTestId('back-to-top').className).toContain('pointer-events-auto')
+  })
+
+  it('When shown Then it reads as a brand teal circle with a white icon, shadow, hover/active states and a focus ring', () => {
     render(<BackToTop />)
     const { className } = screen.getByTestId('back-to-top')
-    for (const rule of ['max-[391px]:size-8', 'max-[391px]:right-2', 'max-[391px]:bottom-2']) expect(className).toContain(rule)
+    for (const rule of ['bg-brand', 'text-brand-foreground', 'shadow-lg', 'size-10', 'hover:bg-brand-hover', 'active:bg-brand-active', 'focus-visible:ring-brand']) {
+      expect(className).toContain(rule)
+    }
+    // 모바일에서는 36px로 줄여 카드 내용과 덜 겹친다
+    expect(className).toContain('max-[391px]:size-9')
   })
 
   it('When hidden Then it stays mounted for the exit transition but is out of the accessibility tree and unfocusable', () => {
