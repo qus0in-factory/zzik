@@ -19,7 +19,9 @@
 |---|---|---|---|
 | Claude Code | `~/.agents/agents/claude/*.md` | `~/.claude/agents/<이름>.md` | 파일 단위 심볼릭 링크 |
 | OpenCode | `~/.agents/agents/opencode/*.md` | `~/.config/opencode/agents/<이름>.md` | 파일 단위 심볼릭 링크(`mode: subagent`, `permission`) |
-| Codex | sol의 `0.7/sol-agents` 정의(`.codex/agents/*.toml`) | `~/.codex/agents/` | sol 병합 후 링크 |
+| Codex | `~/.agents/agents/codex/*.toml` (explorer, test-runner, db-probe, deploy-checker) | `~/.codex/agents/<이름>.toml` | 파일 단위 심볼릭 링크. 이 저장소 `.codex/agents/`(sol 정의)를 일반화한 것 — zzik 전용 내용(DB_URL·zzik-deploy 8경로)은 프로젝트 정의에만 남기며, 같은 이름은 프로젝트 정의가 우선한다. 홈 `config.toml`의 `[agents]` 설정은 건드리지 않는다 |
 | agy | — | — | 파일 기반 전역 서브에이전트 정의 없음(런타임 `invoke_subagent` 도구) |
 
 기존 파일은 덮어쓰지 않고 `~/.agents/skill-backups/<날짜>-global-skills/`에 백업한 뒤 링크한다.
+
+확인: `codex debug prompt-input`의 `Available roles`에 네 이름이 나온다(프로젝트 `.codex` 없는 디렉터리에서도).
