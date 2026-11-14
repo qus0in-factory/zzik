@@ -76,4 +76,9 @@ describe('Given the diag field (v2 D4 진단)', () => {
   it('When there is no diag then the line has no diag segment', () => {
     expect(formatLogLine(ENTRY)).not.toContain('diag=')
   })
+
+  it('When the credential source is known Then it is recorded as a safe label', () => {
+    expect(formatLogLine({ ...ENTRY, source: 'cli' })).toContain('source=cli')
+    expect(formatLogLine(ENTRY)).not.toContain('source=')
+  })
 })

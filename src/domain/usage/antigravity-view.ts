@@ -1,4 +1,4 @@
-import { scanAntigravityBuckets } from './antigravity-buckets'
+import { scanAntigravityBuckets, AGY_QUOTA_RAW_SOURCE } from './antigravity-buckets'
 import { antigravityCycleSeconds, antigravityLabel } from './antigravity-labels'
 import { elapsedPercent } from './elapsed'
 import { aggregateUsageLevel, usageLevelOf } from './level'
@@ -25,7 +25,8 @@ export function buildAntigravityUsageView(raw: unknown, options: { now: Date }):
     resetText: formatResetRemaining(bucket.resetsAt, options.now),
   }))
   const text = (value: unknown): string => typeof value === 'object' ? JSON.stringify(value) : String(value)
-  const others: UsageOther[] = Object.entries(data ?? {}).filter(([key]) => key !== 'groups').map(([key, value]) => ({
+  const cliShape = data !== null && data.source === AGY_QUOTA_RAW_SOURCE
+  const others: UsageOther[] = Object.entries(data ?? {}).filter(([key]) => key !== 'groups' && !(cliShape && ['source', 'schema', 'rows'].includes(key))).map(([key, value]) => ({
     id: key, label: key,
     value: value !== null && typeof value === 'object' && !Array.isArray(value)
       ? { kind: 'object', fields: Object.entries(value).map(([key, field]) => ({ key, text: text(field) })) }

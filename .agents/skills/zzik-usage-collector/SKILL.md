@@ -12,7 +12,7 @@ ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P
 - SSH 무인 운영. Keychain/GUI 승인 없음. 자격 증명은 제공자별 파일을 읽기만 하며 수집기는 refresh token을 사용하거나 토큰을 갱신하지 않는다.
 - 운영 인스턴스는 .worktree/release의 PM2 zzik-usage-collector 하나다. 개발 워크트리의 실제 --once/상주 실행 금지.
 - P3 구현 완료: Postgres 단독 저장소다. ecosystem은 ZZIK_STORE=postgres이며 미지정 시에도 postgres다. kv/both 등 다른 값은 종료 78로 거부한다. KV writer/fanout은 없다.
-- 제공자는 claude,codex,antigravity,opencode,grok,ollama 6개이며 ZZIK_AGY_CLI_PATH는 실행 가능한 agy 절대경로를 유지한다.
+- 제공자는 claude,codex,antigravity,opencode,grok,ollama 6개이며 ZZIK_AGY_CLI_PATH는 실행 가능한 agy 절대경로를 유지한다. Antigravity는 API·토큰 파일이 아니라 `agy -p /quota` 출력만 수집한다(source=cli).
 - 운영 반영 전 release가 P2 코드이면 both가 남아 있을 수 있다. P3 반영 시 ecosystem 기반 --update-env·save로 postgres를 적용하고 runtime/saved 설정을 값 노출 없이 대조한다.
 - DB_URL은 해당 체크아웃의 gitignore .env에서 Node --env-file로 주입한다. ecosystem node_args를 사용하며 PM2 env에 연결 문자열을 복제해 기록하지 않는다. DB_URL/호스트·비밀번호가 포함될 수 있는 오류 원문을 출력하지 않는다.
 - DB max:1, idle_timeout:5, connect_timeout:10, prepare:false. 900초 주기. Free 예산을 위해 300초로 되돌리지 않는다.
@@ -30,6 +30,7 @@ ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P
 
 - 로그: ~/Library/Logs/zzik/usage-collector.log. pm2 logs zzik-usage-collector --lines 20 --nostream.
 - 제공자별 상태: ~/Library/Application Support/zzik/usage-state.provider.json. 이전 봉투/게이트 유지. 하루 1회 정리의 lastPruneAt은 정리 상태에 남는다.
+- agy 토큰 저장소(file/keychain) 점검: Antigravity 로그의 `source=cli`와 CLI 실패 진단만 보고, 토큰 파일·Keychain 값은 읽지 않는다. 저장소가 바뀌어도 수집기는 agy를 신뢰한다.
 - DB 상태는 provider/status/run_at/fetched_at 정도만 제한 조회한다. envelope 전문·DB_URL·자격 증명을 출력하지 않는다.
 - scripts/usage-live-shape.sh provider로 DB 형상 확인. 이 스크립트가 내부적으로 사용하는 fetch 출력은 원문이므로 따로 실행해 터미널/파일에 저장하지 않는다.
 - kvOk/kvReason·kv= 표기는 기존 로그와의 호환 이름이며 Postgres 저장 결과만 뜻한다. kvOk=true는 Postgres 쓰기 성공이다. 실패하면 DB_URL 존재 여부·Neon 한도·연결·마이그레이션을 점검한다. 오류는 안전한 code/name만 기록한다.
@@ -48,7 +49,8 @@ ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P
 |---|---|
 | token_expired | 해당 제공자 앱이 갱신하면 다음 주기에 자동 해제. 수집기에서 직접 refresh 없음 |
 | auth_required/auth_rejected | 제공자 앱으로 갱신, expiresAt 변경 자동 해제 관측. 게이트 삭제/반복 --once 금지 |
-| no_credentials | 파일 존재만 값 없이 확인 후 제공자 앱 로그인/갱신 대기 |
+| no_credentials | 파일 존재만 값 없이 확인 후 제공자 앱 로그인/갱신 대기(Antigravity는 CLI 수집이라 해당 없음) |
+| upstream_error(diag=cli_failed/empty_quota) | agy 경로·로그인 상태·`/quota` 출력 형식을 확인. 수집기가 로그인을 유발하지 않는다 |
 | rate_limited | Retry-After/백오프 대기. 추가 실제 호출 금지 |
 | upstream_error/network_error | 로그의 안전한 진단 확인, 다음 주기 재시도 |
 | kvOk=false, Postgres 저장 실패 | DB_URL 존재 여부·Neon 컴퓨트 한도·연결 및 마이그레이션 확인. 오류 원문을 출력하지 않음 |
@@ -56,4 +58,4 @@ ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P
 
 ## 금지
 
-운영 재시작·DB migration·Worker secret 주입·배포는 해당 지시가 있을 때만 실행한다. 실제 자격 증명·DB_URL·refresh token·이메일·계정 ID 출력 금지. 상태/게이트 삭제, 개발 --once 실쓰기, 승인 없는 DB seed/삭제, KV 네임스페이스 삭제 금지.
+운영 재시작·DB migration·Worker secret 주입·배포는 해당 지시가 있을 때만 실행한다. 실제 자격 증명·DB_URL·refresh token·이메일·계정 ID 출력 금지. 상태/게이트 삭제, 개발 --once 실쓰기, 승인 없는 DB seed/삭제, KV 네임스페이스 삭제 금지. **워커는 agy 등 운영 자격 증명을 건드리는 CLI(로그인·재인증·토큰 갱신 유발)를 실행하지 않는다.**
