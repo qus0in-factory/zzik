@@ -22,6 +22,15 @@ describe('Given the herdr label detection', () => {
     expect(detect('agy', `${filler(10)}\n  Gemini 4.1 medium · ~/zzik`)).toBe('gemini')
     expect(detect('agy', filler(10))).toBe('')
   })
+  it('When agy shows Argon Then it is argon before the Hydrogen and Gemini checks', () => {
+    expect(detect('agy', `${filler(10)}\n  Gemini 4 Argon · high`)).toBe('argon')
+    expect(detect('agy', `${filler(10)}\n  Argon`)).toBe('argon')
+    expect(detect('agy', `${filler(10)}\n  Gemini 4 Argon Hydrogen`)).toBe('argon')
+  })
+  it('When agy quotes Argon above the bottom lines Then it is not fooled', () => {
+    const screen = `"Gemini 4 Argon"으로 바꿨다\nSonnet 5.5 로 전환 기록\n${filler(8)}\n? for shortcuts`
+    expect(detect('agy', screen)).toBe('')
+  })
   it('When agy quotes Hydrogen above the bottom lines Then it is not fooled', () => {
     const screen = `"Gemini 4 Hydrogen"로 바꿨다\nSonnet 5.5 로 전환 기록\n${filler(8)}\n? for shortcuts`
     expect(detect('agy', screen)).toBe('')
