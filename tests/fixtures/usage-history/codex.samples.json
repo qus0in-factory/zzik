@@ -1,0 +1,88 @@
+{
+  "provider": "codex",
+  "scanVersion": 1,
+  "anchor": null,
+  "samples": [
+    {
+      "id": "9101",
+      "runAt": "2026-11-13T23:00:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:00:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "rate_limit.primary_window",
+          "usedPercent": 78,
+          "resetsAt": "2026-11-13T23:40:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "rate_limit.secondary_window",
+          "usedPercent": 44,
+          "resetsAt": "2026-11-19T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    {
+      "id": "9102",
+      "runAt": "2026-11-13T23:15:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:15:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "rate_limit.primary_window",
+          "usedPercent": 96,
+          "resetsAt": "2026-11-13T23:40:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "rate_limit.secondary_window",
+          "usedPercent": 45,
+          "resetsAt": "2026-11-19T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    {
+      "id": "9103",
+      "runAt": "2026-11-13T23:30:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:30:00.000Z",
+      "intervalSec": 900,
+      "values": null
+    },
+    {
+      "id": "9104",
+      "runAt": "2026-11-13T23:45:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:45:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "rate_limit.primary_window",
+          "usedPercent": 2,
+          "resetsAt": "2026-11-14T08:00:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "rate_limit.secondary_window",
+          "usedPercent": 45,
+          "resetsAt": "2026-11-19T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    {
+      "id": "9105",
+      "runAt": "2026-11-14T00:00:00.000Z",
+      "status": "rate_limited",
+      "fetchedAt": "2026-11-13T23:45:00.000Z",
+      "intervalSec": 900,
+      "values": null
+    }
+  ],
+  "nextCursor": "2026-11-14T00:00:00.000Z_9105",
+  "hasMore": false
+}

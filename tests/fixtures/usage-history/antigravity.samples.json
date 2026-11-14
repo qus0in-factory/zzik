@@ -1,0 +1,161 @@
+{
+  "provider": "antigravity",
+  "scanVersion": 1,
+  "anchor": null,
+  "samples": [
+    {
+      "id": "9201",
+      "runAt": "2026-11-13T23:00:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:00:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "gemini-5h",
+          "usedPercent": 20,
+          "resetsAt": "2026-11-13T23:25:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "gemini-weekly",
+          "usedPercent": 70,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "3p-5h",
+          "usedPercent": 35,
+          "resetsAt": "2026-11-14T02:00:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "3p-weekly",
+          "usedPercent": 55,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "argon-weekly",
+          "usedPercent": 60,
+          "resetsAt": "2026-11-17T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    {
+      "id": "9202",
+      "runAt": "2026-11-13T23:15:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:15:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "gemini-5h",
+          "usedPercent": 61,
+          "resetsAt": "2026-11-13T23:25:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "gemini-weekly",
+          "usedPercent": 70,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "3p-5h",
+          "usedPercent": 39,
+          "resetsAt": "2026-11-14T02:00:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "3p-weekly",
+          "usedPercent": 55,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "argon-weekly",
+          "usedPercent": 60,
+          "resetsAt": "2026-11-17T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    {
+      "id": "9203",
+      "runAt": "2026-11-13T23:30:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-13T23:30:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "gemini-5h",
+          "usedPercent": 1,
+          "resetsAt": "2026-11-14T07:00:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "gemini-weekly",
+          "usedPercent": 71,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "3p-weekly",
+          "usedPercent": 56,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "argon-weekly",
+          "usedPercent": 61,
+          "resetsAt": "2026-11-17T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    {
+      "id": "9204",
+      "runAt": "2026-11-13T23:45:00.000Z",
+      "status": "token_expired",
+      "fetchedAt": "2026-11-13T23:30:00.000Z",
+      "intervalSec": 900,
+      "values": null
+    },
+    {
+      "id": "9205",
+      "runAt": "2026-11-14T00:00:00.000Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-14T00:00:00.000Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "gemini-5h",
+          "usedPercent": 6,
+          "resetsAt": "2026-11-14T07:00:00.000Z",
+          "cycleSeconds": 18000
+        },
+        {
+          "id": "gemini-weekly",
+          "usedPercent": 71,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "3p-weekly",
+          "usedPercent": 56,
+          "resetsAt": "2026-11-18T00:00:00.000Z",
+          "cycleSeconds": 604800
+        },
+        {
+          "id": "argon-weekly",
+          "usedPercent": 61,
+          "resetsAt": "2026-11-17T00:00:00.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    }
+  ],
+  "nextCursor": "2026-11-14T00:00:00.000Z_9205",
+  "hasMore": false
+}
