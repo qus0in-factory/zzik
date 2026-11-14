@@ -5,7 +5,7 @@ const DAY = 86_400
 
 /** 제공자 요약 칩에 쓰는 한도 하나: 사용률과 예상 사용률(기간 경과율). */
 export interface SummaryPace {
-  unit: '월' | '주'
+  unit: 'month' | 'week'
   usedPercent: number
   elapsedPercent: number
   /** 사용률이 예상을 넘었는가(경고 톤) */
@@ -13,11 +13,11 @@ export interface SummaryPace {
 }
 
 /** 주기(초)로 월(28~31일)·주(7일) 판정. 그 외(5시간 등)는 null. */
-function unitOf(window: UsageWindow): '월' | '주' | null {
+function unitOf(window: UsageWindow): 'month' | 'week' | null {
   const seconds = window.cycleSeconds
   if (seconds === null || seconds === undefined) return null
-  if (seconds >= 28 * DAY && seconds <= 31 * DAY) return '월'
-  if (seconds === 7 * DAY) return '주'
+  if (seconds >= 28 * DAY && seconds <= 31 * DAY) return 'month'
+  if (seconds === 7 * DAY) return 'week'
   return null
 }
 
@@ -36,7 +36,7 @@ export function summaryPaceOf(windows: readonly UsageWindow[], provider?: UsageP
     const unit = unitOf(window)
     return unit === null ? [] : [{ window, unit }]
   })
-  const pool = tagged.some((item) => item.unit === '월') ? tagged.filter((item) => item.unit === '월') : tagged
+  const pool = tagged.some((item) => item.unit === 'month') ? tagged.filter((item) => item.unit === 'month') : tagged
   const best = pool.reduce<(typeof pool)[number] | null>((top, item) => (top === null || (item.window.usedPercent ?? -1) > (top.window.usedPercent ?? -1) ? item : top), null)
   if (best === null) return null
   const { usedPercent, elapsedPercent } = best.window

@@ -1,4 +1,5 @@
 import type { UsageIssue } from './types'
+import { t } from '@shared/messages'
 
 export interface AntigravityBucket {
   id: string
@@ -29,7 +30,7 @@ export function scanAntigravityBuckets(raw: unknown): { buckets: AntigravityBuck
       issues.push({ code: 'invalid_entry', key: 'groups[' + groupIndex + ']' })
       return
     }
-    const groupLabel = nonempty(group.displayName) ? group.displayName : '그룹 ' + (groupIndex + 1)
+    const groupLabel = nonempty(group.displayName) ? group.displayName : t('label.group.numbered', { n: groupIndex + 1 })
     group.buckets.forEach((bucket: unknown, bucketIndex: number) => {
       const path = 'groups[' + groupIndex + '].buckets[' + bucketIndex + ']'
       if (!isRecord(bucket)) { issues.push({ code: 'invalid_entry', key: path }); return }
@@ -41,7 +42,7 @@ export function scanAntigravityBuckets(raw: unknown): { buckets: AntigravityBuck
       buckets.push({
         id: nonempty(bucket.bucketId) && counts.get(bucket.bucketId) === 1 ? bucket.bucketId : path,
         groupIndex, groupLabel,
-        window: nonempty(bucket.window) ? bucket.window : '알 수 없는',
+        window: nonempty(bucket.window) ? bucket.window : t('label.window.unknown'),
         usedPercent: Math.max(0, Math.min(100, (1 - fraction) * 100)),
         resetsAt: typeof bucket.resetTime === 'string' && Number.isFinite(Date.parse(bucket.resetTime)) ? bucket.resetTime : null,
       })

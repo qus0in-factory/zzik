@@ -1,11 +1,12 @@
 export type BarLevel = 'neutral' | 'ok' | 'caution' | 'danger'
+import { t } from '@shared/messages'
 
 /** 색만으로 구분하지 않도록 각 단계의 안내 문구. */
 export const BAR_LEVEL_TEXT: Record<BarLevel, string> = {
-  neutral: '사용 없음',
-  ok: '여유',
-  caution: '주의',
-  danger: '위험',
+  neutral: t('bar.neutral'),
+  ok: t('bar.ok'),
+  caution: t('bar.caution'),
+  danger: t('bar.danger'),
 }
 
 const DANGER_AT = 90

@@ -24,6 +24,8 @@ export interface UsageMetric {
   label: string
   unknown: boolean
   elapsedPercent: number | null
+  /** 한도 주기(초). 알 수 없으면 null(카드 종류 아이콘 판정에 쓴다) */
+  cycleSeconds?: number | null
   usedPercent: number | null
   resetsAt: string | null
   expired: boolean

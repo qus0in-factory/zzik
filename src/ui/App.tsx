@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
+import { t } from '@shared/messages'
 import { useProviderOrder } from '@app/usage/ProviderOrderContext'
 import { BackToTop } from '@ui/components/BackToTop'
 import { PaceChips } from '@ui/usage/PaceChips'
@@ -60,7 +61,7 @@ export default function App() {
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <h1 className="flex items-center gap-3 text-xl font-semibold tracking-tight">
             <img src="/icon-192.png" alt="" width={32} height={32} className="size-8 rounded-lg" />
-            <span>Zzik : AI 사용량 대시보드</span>
+            <span>{t('app.title')}</span>
           </h1>
         </div>
       </header>

@@ -2,12 +2,13 @@ import { aggregateUsageLevel } from './level'
 import { clampPercent, isoOrNull, isRecord, makeWindow, otherEntries } from './provider-view-parts'
 import { visibleUsageReport } from './visible'
 import type { UsageIssue, UsageReport, UsageWindow } from './types'
+import { t } from '@shared/messages'
 
 /** 키 → [라벨, 주기(초)]. rolling 길이는 응답에 없어 추정하지 않고 null, monthly는 달 길이가 가변이라 resetsAt에서 계산. 표의 순서가 화면 순서. */
 const WINDOWS: ReadonlyArray<readonly [string, string, number | null]> = [
-  ['rolling', '단기 한도', null],
-  ['weekly', '주간 한도', 604_800],
-  ['monthly', '월간 한도', null],
+  ['rolling', t('label.window.short'), null],
+  ['weekly', t('label.window.weekly'), 604_800],
+  ['monthly', t('label.window.monthly'), null],
 ]
 
 /** resetsAt(UTC)에서 달력상 한 달 전까지의 초. 전월에 같은 날이 없으면(3/31 → 2/31) 전월 말일로 보정. resetsAt이 없거나 잘못되면 null. */
@@ -49,7 +50,7 @@ export function buildOpencodeUsageView(raw: unknown, options: { now: Date }): Us
       makeWindow(
         {
           id: key,
-          label: meta?.[1] ?? key + ' 한도',
+          label: meta?.[1] ?? t('label.window.named', { name: key }),
           unknown: meta === undefined,
           usedPercent: percent,
           resetsAt,

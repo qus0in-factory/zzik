@@ -1,7 +1,8 @@
 import type { UsageOther, UsageReport } from './types'
+import { t } from '@shared/messages'
 
 /** Collector-independent display fallback when envelope metadata is unavailable. */
-export const REDACTED_VALUE = '[가림]'
+export const REDACTED_VALUE = t('value.redacted')
 
 function normalizePath(path: string): string {
   return path.replace(/\[(\d+)\]/g, '.$1')

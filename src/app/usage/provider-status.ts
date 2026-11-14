@@ -1,3 +1,4 @@
+import { t } from '@shared/messages'
 import type { UsageLevel } from '@domain/usage/types'
 import type { UsageCollectionStatus } from './load-usage'
 import type { UsageUiStatus } from './useUsage'
@@ -15,13 +16,13 @@ export interface ProviderStatus {
 
 /** 수집기 실패 사유(정상·stale·collector_down 외 모든 비정상 상태). */
 const FAILURE_REASON: Record<string, string> = {
-  rate_limited: '요청 제한',
-  token_expired: '토큰 만료',
-  auth_required: '인증 필요',
-  auth_rejected: '인증 거부',
-  no_credentials: '자격 증명 없음',
-  upstream_error: '상류 오류',
-  network_error: '네트워크 오류',
+  rate_limited: t('status.reason.rateLimited'),
+  token_expired: t('status.reason.tokenExpired'),
+  auth_required: t('status.reason.authRequired'),
+  auth_rejected: t('status.reason.authRejected'),
+  no_credentials: t('status.reason.noCredentials'),
+  upstream_error: t('status.reason.upstreamError'),
+  network_error: t('status.reason.networkError'),
 }
 
 /**
@@ -42,13 +43,13 @@ export function providerStatusOf(input: {
 }): ProviderStatus {
   const reason = input.collectionStatus === null ? undefined : FAILURE_REASON[input.collectionStatus]
   const base =
-    input.status === 'loading' ? { level: 'neutral' as const, label: '불러오는 중' }
-    : input.status === 'error' ? { level: 'danger' as const, label: '오류' }
-    : reason !== undefined ? { level: 'danger' as const, label: `수집 실패 · ${reason}` }
-    : input.collectionStatus === 'collector_down' ? { level: 'caution' as const, label: '수집기 응답 없음' }
-    : input.status === 'stale' ? { level: 'caution' as const, label: '오래된 데이터' }
-    : input.reportStatus === null || input.reportStatus === 'unknown' ? { level: 'neutral' as const, label: '데이터 없음' }
-    : input.issueCount > 0 ? { level: 'caution' as const, label: '일부 항목을 읽지 못함' }
-    : { level: 'ok' as const, label: '정상' }
-  return { ...base, description: input.lastSuccessText === null ? base.label : `${base.label} · ${input.lastSuccessText}` }
+    input.status === 'loading' ? { level: 'neutral' as const, label: t('status.loading') }
+    : input.status === 'error' ? { level: 'danger' as const, label: t('status.error') }
+    : reason !== undefined ? { level: 'danger' as const, label: t('status.failure', { reason }) }
+    : input.collectionStatus === 'collector_down' ? { level: 'caution' as const, label: t('status.collectorDown') }
+    : input.status === 'stale' ? { level: 'caution' as const, label: t('status.stale') }
+    : input.reportStatus === null || input.reportStatus === 'unknown' ? { level: 'neutral' as const, label: t('status.noData') }
+    : input.issueCount > 0 ? { level: 'caution' as const, label: t('status.partial') }
+    : { level: 'ok' as const, label: t('status.ok') }
+  return { ...base, description: input.lastSuccessText === null ? base.label : t('status.detail', { label: base.label, detail: input.lastSuccessText }) }
 }

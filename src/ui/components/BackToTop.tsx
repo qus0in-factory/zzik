@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowUp } from 'lucide-react'
+import { t } from '@shared/messages'
 import { Button } from '@ui/components/ui/button'
 
 /** 이 거리(px) 이상 스크롤했을 때만 버튼을 보여준다. */
@@ -29,8 +30,8 @@ export function BackToTop(): ReactNode {
       data-visible={visible}
       aria-hidden={visible ? undefined : true}
       tabIndex={visible ? 0 : -1}
-      aria-label="맨 위로"
-      title="맨 위로"
+      aria-label={t('action.backToTop')}
+      title={t('action.backToTop')}
       onClick={() => window.scrollTo(prefersReducedMotion() ? { top: 0 } : { top: 0, behavior: 'smooth' })}
       className="back-to-top motion-button fixed right-4 bottom-4 z-50 rounded-full shadow-lg max-[391px]:right-2 max-[391px]:bottom-2 max-[391px]:size-8 sm:right-6 sm:bottom-6"
     >

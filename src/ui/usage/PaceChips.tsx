@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
 import type { UsageProvider } from '@domain/usage/providers'
+import { t } from '@shared/messages'
 import { providerMetaFor } from '@app/usage/provider-meta'
 import { useProviderOrder } from '@app/usage/ProviderOrderContext'
 import { nearestIndex, shiftDirection, stepIndex } from '@app/usage/reorder-session'
@@ -66,7 +67,7 @@ function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragP
         draggable={false}
         data-testid={`usage-pace-${provider}`}
         data-over-pace={pace.overPace}
-        title={`${meta.title} · ${pace.unit === '월' ? '월간' : '주간'} 사용률 ${used}%, 예상 사용률 ${expected}%`}
+        title={t('chips.title', { provider: meta.title, period: t(pace.unit === 'month' ? 'chips.period.month' : 'chips.period.week'), used, expected })}
         aria-describedby="pace-chips-help"
         onPointerDown={drag.onPointerDown}
         onKeyDown={drag.onKeyDown}
@@ -80,7 +81,7 @@ function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragP
       >
         <ProviderIcon provider={provider} label={meta.title} className="size-3.5 lg:size-4" />
         <span className="tabular-nums">
-          {pace.unit === '월' ? 'M' : 'W'} {used}% / {expected}%
+          {t(pace.unit === 'month' ? 'chips.unit.month' : 'chips.unit.week')} {used}% / {expected}%
         </span>
       </a>
     </li>
@@ -140,13 +141,13 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
     const targetId = state.ids[state.targetIndex]
     setDrag(null)
     if (state.targetIndex === state.originIndex || targetId === undefined) {
-      setAnnouncement(`${providerMetaFor(state.id).title} 칩을 제자리에 놓았습니다.`)
+      setAnnouncement(t('chips.droppedSame', { provider: providerMetaFor(state.id).title }))
       return
     }
     onBeforeMove?.()
     refocus.current = state.id
     move(state.id, order.indexOf(targetId))
-    setAnnouncement(`${providerMetaFor(state.id).title} 칩을 ${state.targetIndex + 1}번째에 놓았습니다. 아래 패널 순서도 함께 바뀝니다.`)
+    setAnnouncement(t('chips.dropped', { provider: providerMetaFor(state.id).title, position: state.targetIndex + 1 }))
   }
 
   // 놓은 뒤 DOM이 옮겨지면 포커스가 사라지므로 같은 칩에 다시 둔다.
@@ -183,7 +184,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
     } catch {
       /* 캡처 실패는 무시 */
     }
-    setAnnouncement(`${providerMetaFor(id).title} 칩을 끌고 있습니다.`)
+    setAnnouncement(t('chips.dragging', { provider: providerMetaFor(id).title }))
   }
 
   const onPointerDown = (id: UsageProvider) => (event: PointerEvent<HTMLElement>): void => {
@@ -231,7 +232,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
       const next = { ...current, dx, targetIndex }
       dragRef.current = next
       setDrag(next)
-      if (targetIndex !== current.targetIndex) setAnnouncement(`${targetIndex + 1}번째 위치`)
+      if (targetIndex !== current.targetIndex) setAnnouncement(t('chips.position', { position: targetIndex + 1 }))
     }
     const finish = (endEvent: globalThis.PointerEvent): void => {
       if (endEvent.pointerId !== event.pointerId) return
@@ -246,7 +247,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
       window.setTimeout(() => { suppressClick.current = false }, 0)
       if (endEvent.type === 'pointercancel') {
         setDrag(null)
-        setAnnouncement('끌기를 취소했습니다.')
+        setAnnouncement(t('chips.dragCancelled'))
       } else commit(current)
     }
     window.addEventListener('pointermove', onMove)
@@ -264,7 +265,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
         if (started === null) return
         setDrag(started)
         dragRef.current = started
-        setAnnouncement(`${title} 칩을 잡았습니다. 현재 ${started.originIndex + 1}번째, 전체 ${started.ids.length}개. 왼쪽·오른쪽 화살표로 이동하고 스페이스나 엔터로 놓고 Esc로 취소합니다.`)
+        setAnnouncement(t('chips.grabbed', { provider: title, position: started.originIndex + 1, total: started.ids.length }))
       }
       return
     }
@@ -275,7 +276,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
       const next = { ...current, targetIndex, dx }
       dragRef.current = next
       setDrag(next)
-      setAnnouncement(`${targetIndex + 1}번째로 이동, 전체 ${current.ids.length}개.`)
+      setAnnouncement(t('chips.moved', { position: targetIndex + 1, total: current.ids.length }))
     } else if (event.key === ' ' || event.key === 'Spacebar' || event.key === 'Enter') {
       event.preventDefault()
       dragRef.current = null
@@ -284,7 +285,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
       event.preventDefault()
       dragRef.current = null
       setDrag(null)
-      setAnnouncement(`${title} 칩 이동을 취소했습니다.`)
+      setAnnouncement(t('chips.cancelled', { provider: title }))
     }
   }
 
@@ -304,9 +305,9 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
   }
 
   return (
-    <nav aria-label="제공자별 사용 페이스" className="mt-4" onClickCapture={(event) => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation() } }}>
+    <nav aria-label={t('chips.nav.aria')} className="mt-4" onClickCapture={(event) => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation() } }}>
       <p id="pace-chips-help" className="sr-only">
-        칩을 길게 누르거나 스페이스를 눌러 잡고, 끌거나 왼쪽·오른쪽 화살표로 옮겨 제공자 순서를 바꿉니다. 아래 패널 순서도 함께 바뀝니다.
+        {t('chips.help')}
       </p>
       <div className="flex items-center gap-1">
         <ul ref={listRef} className="-my-1 flex min-h-[38px] min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] lg:gap-2">
@@ -318,8 +319,8 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
           type="button"
           onClick={reset}
           disabled={!customized}
-          aria-label="제공자 순서 초기화"
-          title="제공자 순서 초기화"
+          aria-label={t('chips.reset')}
+          title={t('chips.reset')}
           className="motion-button inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:bg-accent disabled:opacity-40"
         >
           <RotateCcw aria-hidden="true" className="size-3" />

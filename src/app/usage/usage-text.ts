@@ -2,6 +2,7 @@ import { USAGE_PROVIDER_META } from '@domain/usage/providers'
 import type { UsageProvider } from '@domain/usage/providers'
 import { formatAge } from '@domain/usage/staleness'
 import type { UsageCollectionStatus } from './load-usage'
+import { t } from '@shared/messages'
 
 /**
  * 상태 줄과 안내 문구(app에서 계산해 ui에 넘긴다 — ui는 판정하지 않는다).
@@ -17,13 +18,13 @@ function timeText(iso: string): string {
 /** `마지막 수집 11:58 (2분 전)` — lastSuccessAt이 없으면 null. */
 export function composeLastSuccessText(iso: string | null, nowIso: string | null): string | null {
   if (iso === null) return null
-  return `마지막 수집 ${timeText(iso)} (${formatAge(iso, new Date(nowIso ?? iso))})`
+  return t('text.lastCollected', { time: timeText(iso), age: formatAge(iso, new Date(nowIso ?? iso)) })
 }
 
 /** `마지막 성공 2분 전` — stale 안내 문구. */
 export function composeStaleNoteText(iso: string | null, nowIso: string | null): string | null {
   if (iso === null) return null
-  return `마지막 성공 ${formatAge(iso, new Date(nowIso ?? iso))}`
+  return t('text.lastSuccess', { age: formatAge(iso, new Date(nowIso ?? iso)) })
 }
 
 /** 안내에 쓰는 봉투 필드(봉투 전체를 넘기지 않아도 되게 최소만 받는다). */
@@ -49,30 +50,30 @@ export function composeCollectionNote(
 
   switch (status) {
     case 'token_expired':
-      return `${client}를 실행하면 갱신됩니다.`
+      return t('note.tokenExpired', { client })
     case 'auth_rejected':
-      return `토큰은 만료 전인데 서버가 인증을 거부했습니다. ${client}를 실행해 보고, 그대로면 다시 로그인하세요. 수집기 로그의 상태 코드를 확인하세요.`
+      return t('note.authRejected', { client })
     case 'auth_required':
-      return `인증 상태를 확인할 수 없습니다. ${client}를 실행해 보세요.`
+      return t('note.authRequired', { client })
     case 'no_credentials':
-      return `자격 증명을 찾지 못했습니다. ${client} 로그인 상태를 확인하세요.`
+      return t('note.noCredentials', { client })
     case 'rate_limited':
       return meta?.retryAt
-        ? `요청이 제한되었습니다. ${timeText(meta.retryAt)} 이후 자동으로 다시 시도합니다.`
-        : '요청이 제한되었습니다. 다음 주기에 자동으로 다시 시도합니다.'
+        ? t('note.rateLimited.at', { time: timeText(meta.retryAt) })
+        : t('note.rateLimited.next')
     case 'upstream_error':
       if (meta?.httpStatus === 403) {
-        return '앞단에서 응답이 차단되었습니다(HTTP 403). 우회하지 말고 잠시 뒤 다시 확인하세요.'
+        return t('note.upstream.blocked')
       }
       return meta?.httpStatus === null || meta?.httpStatus === undefined
-        ? '수집 중 오류가 발생했습니다. 다음 주기에 다시 시도합니다.'
-        : `수집 중 오류가 발생했습니다(HTTP ${meta.httpStatus}). 다음 주기에 다시 시도합니다.`
+        ? t('note.upstream.noStatus')
+        : t('note.upstream.status', { status: meta.httpStatus })
     case 'network_error':
-      return USAGE_PROVIDER_META[provider].networkErrorNote ?? '네트워크 오류로 수집하지 못했습니다. 다음 주기에 다시 시도합니다.'
+      return USAGE_PROVIDER_META[provider].networkErrorNote ?? t('note.network')
     case 'collector_down':
-      return '수집기가 응답하지 않습니다. Mac 절전 또는 프로세스 종료일 수 있습니다.'
+      return t('note.collectorDown')
     case 'stale':
-      return '마지막 성공 값이 오래되었습니다. 수집기가 다음 값을 쓸 때까지 기다려 주세요.'
+      return t('note.stale')
     default:
       return null
   }
