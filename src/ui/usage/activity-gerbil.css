@@ -12,7 +12,7 @@
   top: 0;
   left: 0;
   width: 100%;
-  height: 1.25rem;
+  height: 1.5625rem;
   overflow: visible;
   pointer-events: none;
 }
@@ -20,11 +20,17 @@
 .activity-gerbil-runner {
   position: absolute;
   top: 0;
-  width: 2rem;
-  height: 1.25rem;
+  width: 2.5rem;
+  height: 1.5625rem;
   transform: translateX(-50%);
   pointer-events: none;
   transition: left var(--usage-transition);
+  /* 진입: 막대와 같은 길이·지연·이징으로 0%에서 목표 위치까지 달려간다(마운트 때만; 갱신은 위 transition) */
+  animation: gerbil-enter var(--motion-enter) ease-out backwards;
+  animation-delay: calc(var(--enter-index, 0) * var(--motion-stagger));
+}
+@keyframes gerbil-enter {
+  from { left: 0%; }
 }
 
 .activity-gerbil-svg {
@@ -52,6 +58,7 @@
 
 /* 꼬리 살랑 */
 .gerbil-part-tail {
+  transform-box: view-box;
   transform-origin: 9.5px 9.5px;
   animation: gerbil-tail-wag var(--gerbil-lap, 0.6s) ease-in-out infinite;
 }
@@ -117,18 +124,29 @@
 }
 
 /* 정지 자세: 최근 변화가 없을 때. reduced-motion에서도 숨기지 않고 같은 자세로 둔다. */
-.activity-gerbil-runner[data-gerbil-state='idle'] .activity-gerbil-svg,
-.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg {
-  animation: none;
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-front-left,
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-back-right {
+  /* 진입 중에만 달린다(유한 반복): 막대 진입과 같은 지연 뒤 700ms 동안 두 걸음, 이후 정지 자세 */
+  animation: gerbil-leg-swing-a var(--motion-enter-lap) ease-in-out 2 backwards;
+  animation-delay: calc(var(--enter-index, 0) * var(--motion-stagger));
+}
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-front-right,
+.activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-back-left {
+  animation: gerbil-leg-swing-b var(--motion-enter-lap) ease-in-out 2 backwards;
+  animation-delay: calc(var(--enter-index, 0) * var(--motion-stagger));
+}
+.activity-gerbil-runner[data-gerbil-state='idle'] .activity-gerbil-svg {
+  animation: gerbil-body-bob var(--motion-enter-lap) ease-in-out 2 backwards;
+  animation-delay: calc(var(--enter-index, 0) * var(--motion-stagger));
 }
 
-/* 정지 자세에서도 꼬리만 느리고 부드럽게 살랑거린다(뿌리 기준 회전). */
+/* 정지 자세에서도 꼬리가 눈에 띄게 살랑거린다: ±20°, 1.3초, 꼬리 뿌리(.gerbil-part-tail의 transform-origin) 기준. */
 .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail {
-  animation: gerbil-tail-sway 2.4s ease-in-out infinite;
+  animation: gerbil-tail-sway 1.3s ease-in-out infinite;
 }
 @keyframes gerbil-tail-sway {
-  0%, 100% { transform: rotate(-7deg); }
-  50% { transform: rotate(7deg); }
+  0%, 100% { transform: rotate(-20deg); }
+  50% { transform: rotate(20deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -138,7 +156,12 @@
   .gerbil-part-tail,
   .gerbil-sleep-body,
   .gerbil-sleep-z,
-  .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail {
+  .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail,
+  .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-front-left,
+  .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-back-right,
+  .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-front-right,
+  .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-back-left,
+  .activity-gerbil-runner[data-gerbil-state='idle'] .activity-gerbil-svg {
     animation: none;
   }
 }

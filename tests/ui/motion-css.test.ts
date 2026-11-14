@@ -4,15 +4,30 @@ import { describe, expect, it } from 'vitest'
 const css = readFileSync('src/ui/motion.css', 'utf8')
 const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
 
+const ms = (name: string): number => Number(new RegExp(`--${name}\\s*:\\s*(\\d+)ms`).exec(css)?.[1])
+
 describe('Given the shared motion rules', () => {
-  it('Then every transition and animation duration is 150~300ms', () => {
-    const durations = [...css.matchAll(/--motion-(?:fast|base)\s*:\s*(\d+)ms/g)].map((match) => Number(match[1]))
-    expect(durations.length).toBe(2)
-    for (const ms of durations) {
-      expect(ms).toBeGreaterThanOrEqual(150)
-      expect(ms).toBeLessThanOrEqual(300)
-    }
-    expect(css).not.toMatch(/\b(?:animation|transition)[^;{]*\b(?:[4-9]\d{2}|\d{4,})ms/)
+  it('Then button/UI transitions are 150~300ms, fade-in 300~350ms, entrance 600~800ms with a 40~60ms stagger', () => {
+    for (const name of ['motion-fast', 'motion-base']) expect(ms(name)).toBeGreaterThanOrEqual(150), expect(ms(name)).toBeLessThanOrEqual(300)
+    expect(ms('motion-fade')).toBeGreaterThanOrEqual(300)
+    expect(ms('motion-fade')).toBeLessThanOrEqual(350)
+    expect(ms('motion-enter')).toBeGreaterThanOrEqual(600)
+    expect(ms('motion-enter')).toBeLessThanOrEqual(800)
+    expect(ms('motion-stagger')).toBeGreaterThanOrEqual(40)
+    expect(ms('motion-stagger')).toBeLessThanOrEqual(60)
+  })
+  it('Then fade-in rises by 8px', () => {
+    expect(css).toMatch(/@keyframes fade-in\s*\{\s*from\s*\{[^}]*translateY\(8px\)/)
+    expect(css).toMatch(/\.fade-in\s*\{\s*animation:\s*fade-in var\(--motion-fade\)/)
+  })
+  it('Then the progress bar fills from 0 on mount only (backwards fill, so later value changes use the normal transition)', () => {
+    expect(css).toMatch(/\.bar-enter\s*\{[^}]*animation:\s*bar-enter var\(--motion-enter\) ease-out backwards/)
+    expect(css).toMatch(/@keyframes bar-enter\s*\{\s*from\s*\{\s*transform:\s*translateX\(-100%\)/)
+    expect(css).toMatch(/animation-delay:\s*calc\(var\(--enter-index, 0\) \* var\(--motion-stagger\)\)/)
+    expect(css).not.toMatch(/\.bar-enter\s*\{[^}]*\b(?:forwards|both)\b/)
+  })
+  it('Then the entrance and fade-in are also switched off when reduced motion is requested', () => {
+    for (const selector of ['.bar-enter', '.activity-gerbil-runner']) expect(reduced).toContain(selector)
   })
   it('When reduced motion is requested Then fade-in, button, back-to-top and spinner motion are all turned off', () => {
     expect(css).toContain('@media (prefers-reduced-motion: reduce)')
