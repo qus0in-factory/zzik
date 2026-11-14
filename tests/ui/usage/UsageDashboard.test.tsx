@@ -206,6 +206,7 @@ describe('Given the stale state', () => {
     render(
       <UsageDashboard
         provider="claude"
+        title="Claude"
         status="stale"
         report={report}
         errorMessage={null}
@@ -213,7 +214,9 @@ describe('Given the stale state', () => {
         staleNoteText="마지막 성공 2분 전"
       />,
     )
-    expect(screen.getByText('오래된 데이터')).toBeTruthy()
+    const light = screen.getByTestId('provider-status')
+    expect(light.getAttribute('data-level')).toBe('caution')
+    expect(light.getAttribute('title')).toBe('오래된 데이터 · 마지막 수집 11:58 (2분 전)')
     expect(screen.getByText('마지막 성공 2분 전')).toBeTruthy()
     expect(screen.getByText('37%')).toBeTruthy()
     expect(screen.getByRole('status').textContent).toContain('마지막 성공 2분 전')
@@ -380,3 +383,20 @@ describe('Given live provider reports after the display policy', () => {
     expect(document.querySelector('pre')).toBeNull()
   })
 })
+
+describe('Given the section title row (제목 줄 레이아웃)', () => {
+  it('When ready Then the last-collection text and the refresh button sit in the same row as the icon, title and light', () => {
+    render(<UsageDashboard provider="claude" title="Claude" status="ready" report={readyReport} errorMessage={null} lastSuccessText="마지막 수집 10:09 (7분 전)" onRetry={() => {}} />)
+    const row = screen.getByRole('heading', { name: 'Claude', level: 2 }).parentElement?.parentElement as HTMLElement
+    expect(row.className).toContain('flex-wrap')
+    expect(within(row).getByTestId('provider-icon-claude')).toBeTruthy()
+    expect(within(row).getByTestId('provider-status')).toBeTruthy()
+    expect(within(row).getByText('마지막 수집 10:09 (7분 전)')).toBeTruthy()
+    expect(within(row).getByRole('button', { name: /새로고침/ })).toBeTruthy()
+  })
+  it('When the load failed Then the auto-refresh hint lives inside the error box, not as a loose paragraph', () => {
+    render(<UsageDashboard provider="claude" title="Claude" refreshHint="수집기가 15분마다 자동으로 갱신합니다." status="error" report={null} errorMessage="오류" />)
+    expect(within(screen.getByRole('alert')).getByTestId('provider-hint').textContent).toContain('15분마다')
+  })
+})
+
