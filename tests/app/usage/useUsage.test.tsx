@@ -43,6 +43,37 @@ describe('Given the useUsage hook with TanStack Query', () => {
     expect(result.current.state.errorMessage).toBeNull()
   })
 
+  it('When a refresh is in flight with data on screen Then refreshing is true and the status stays ready (스켈레톤 아님)', async () => {
+    const harness = makeHarness()
+    harness.gateway.pushResult(SUCCESS)
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    expect(result.current.state.refreshing).toBe(false)
+    await waitFor(() => expect(result.current.state.status).toBe('ready'))
+    expect(result.current.state.refreshing).toBe(false)
+
+    const deferred = harness.gateway.pushDeferred()
+    let pending: Promise<void> = Promise.resolve()
+    act(() => {
+      pending = result.current.refresh()
+    })
+    await waitFor(() => expect(result.current.state.refreshing).toBe(true))
+    expect(result.current.state.status).toBe('ready')
+
+    await act(async () => {
+      deferred.resolve(SUCCESS)
+      await pending
+    })
+    await waitFor(() => expect(result.current.state.refreshing).toBe(false))
+  })
+
+  it('When the first load is in flight Then refreshing stays false (첫 로딩은 스켈레톤 몫)', () => {
+    const harness = makeHarness()
+    harness.gateway.pushDeferred()
+    const { result } = renderHook(() => useUsage('claude'), { wrapper: harness.wrapper })
+    expect(result.current.state.status).toBe('loading')
+    expect(result.current.state.refreshing).toBe(false)
+  })
+
   it('When a later load fails then the state becomes stale and the last report is kept (A4)', async () => {
     const harness = makeHarness()
     harness.gateway.pushResult(SUCCESS)

@@ -3,7 +3,7 @@ import type { ReactElement } from 'react'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
 import { createFakeUsageGateway, createFakeUsageScheduler } from '../../fakes/usage-ports'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render as baseRender, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render as baseRender, screen, within } from '@testing-library/react'
 import { UsageDashboard } from '@ui/usage/UsageDashboard'
 import { buildUsageView } from '@domain/usage/view'
 import { buildCodexUsageView } from '@domain/usage/codex-view'
@@ -138,14 +138,44 @@ describe('Given the usage dashboard with the unknown keys report', () => {
   })
 })
 
+const readyReport = buildUsageView(normalRaw, { now: NOW })
+
 describe('Given the loading state', () => {
   it('When no data has arrived yet then skeletons render without value text (U4)', () => {
     render(<UsageDashboard provider="claude" status="loading" report={null} errorMessage={null} />)
     const busy = screen.getByTestId('usage-section-claude')
     expect(busy.getAttribute('aria-busy')).toBe('true')
-    expect(document.querySelectorAll('[data-testid="usage-skeleton"]').length).toBe(3)
     expect(screen.queryByText('37%')).toBeNull()
     expect(screen.queryByText('정보 없음')).toBeNull()
+  })
+  it('When loading Then the skeleton keeps the real layout: title, status row, and a two-column card grid with card-shaped placeholders', () => {
+    render(<UsageDashboard provider="claude" title="Claude" status="loading" report={null} errorMessage={null} />)
+    const section = screen.getByTestId('usage-section-claude')
+    expect(screen.getByRole('heading', { name: 'Claude', level: 2 })).toBeTruthy()
+    expect(within(section).getByTestId('usage-skeleton-status')).toBeTruthy()
+    const grid = within(section).getByTestId('usage-skeleton-grid')
+    expect(grid.className).toContain('sm:grid-cols-2')
+    expect(grid.querySelectorAll('[data-testid="usage-skeleton-card"]').length).toBe(2)
+    // 실제 카드와 같은 외형(테두리 카드)이라 데이터가 들어와도 높이가 비슷하다
+    expect(grid.querySelector('[data-testid="usage-skeleton-card"]')?.className).toContain('rounded-xl')
+    expect(grid.getAttribute('aria-hidden')).toBe('true')
+  })
+  it('When data is on screen and a refresh runs Then no skeleton, the button is disabled with a spinner and busy state', () => {
+    const onRetry = vi.fn()
+    render(<UsageDashboard provider="claude" status="ready" report={readyReport} errorMessage={null} refreshing onRetry={onRetry} />)
+    expect(screen.queryByTestId('usage-skeleton-grid')).toBeNull()
+    const button = screen.getByRole('button', { name: /새로고침/ }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(button.getAttribute('aria-busy')).toBe('true')
+    expect(within(button).getByTestId('refresh-spinner')).toBeTruthy()
+    fireEvent.click(button)
+    expect(onRetry).not.toHaveBeenCalled()
+  })
+  it('When not refreshing Then the button is enabled without a spinner', () => {
+    render(<UsageDashboard provider="claude" status="ready" report={readyReport} errorMessage={null} onRetry={() => {}} />)
+    const button = screen.getByRole('button', { name: /새로고침/ }) as HTMLButtonElement
+    expect(button.disabled).toBe(false)
+    expect(screen.queryByTestId('refresh-spinner')).toBeNull()
   })
 })
 

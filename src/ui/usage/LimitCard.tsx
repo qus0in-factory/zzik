@@ -41,7 +41,7 @@ export function LimitCard({ item, titleLevel = 3, presentation = NO_PRESENTATION
   const badge = badgeFor(barLevel, usedPercent)
   const Heading = titleLevel === 4 ? 'h4' : 'h3'
   return (
-    <Card data-testid="usage-card" data-card-id={id} className="min-w-0 gap-3">
+    <Card data-testid="usage-card" data-card-id={id} className="fade-in min-w-0 gap-3">
       <CardHeader className="gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <Heading data-testid="usage-card-label" className="break-words text-base leading-none font-semibold">

@@ -42,7 +42,21 @@ function queryTopButton() {
   return screen.queryByRole('button', { name: '맨 위로' })
 }
 
-describe('Given the back-to-top floating button', () => {
+describe('Given the back-to-top floating button (등장/퇴장 트랜지션)', () => {
+  it('When hidden Then it stays mounted for the exit transition but is out of the accessibility tree and unfocusable', () => {
+    render(<BackToTop />)
+    const hidden = screen.getByTestId('back-to-top')
+    expect(hidden.getAttribute('data-visible')).toBe('false')
+    expect(hidden.getAttribute('aria-hidden')).toBe('true')
+    expect(hidden.tabIndex).toBe(-1)
+    setScrollY(800)
+    fireEvent.scroll(window)
+    const shown = screen.getByTestId('back-to-top')
+    expect(shown.getAttribute('data-visible')).toBe('true')
+    expect(shown.getAttribute('aria-hidden')).toBeNull()
+    expect(shown.tabIndex).toBe(0)
+  })
+
   it('When the page is near the top Then the button is not shown', () => {
     render(<BackToTop />)
     expect(queryTopButton()).toBeNull()
