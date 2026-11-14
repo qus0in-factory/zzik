@@ -1,5 +1,6 @@
+import { readOllamaIncluded } from '../../../shared/usage-scan/ollama.ts'
 import { aggregateUsageLevel } from './level'
-import { clampPercent, isoOrNull, isRecord, makeWindow, otherEntries, secondsBetween } from './provider-view-parts'
+import { isRecord, makeWindow, otherEntries } from './provider-view-parts'
 import { visibleUsageReport } from './visible'
 import type { UsageIssue, UsageReport, UsageWindow } from './types'
 import { t } from '@shared/messages'
@@ -13,21 +14,15 @@ export function buildOllamaUsageView(raw: unknown, options: { now: Date }): Usag
   if (!isRecord(included)) {
     issues.push({ code: 'invalid_entry', key: 'included' })
   } else {
-    const allowance = included['allowance_usd']
-    const balance = included['balance_usd']
-    const valid = typeof allowance === 'number' && Number.isFinite(allowance) && allowance > 0 && typeof balance === 'number' && Number.isFinite(balance)
-    if (!valid) {
+    const value = readOllamaIncluded(included)
+    if (value === null) {
       issues.push({ code: 'invalid_utilization', key: 'included' })
     } else {
-      const period = isRecord(included['period']) ? included['period'] : {}
       windows.push(
         makeWindow(
           {
-            id: 'included',
+            ...value,
             label: t('label.credit.included'),
-            usedPercent: clampPercent(((allowance - balance) / allowance) * 100) ?? 0,
-            resetsAt: isoOrNull(period['until']),
-            cycleSeconds: secondsBetween(period['from'], period['until']),
           },
           options.now,
         ),

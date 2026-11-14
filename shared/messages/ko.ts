@@ -37,6 +37,22 @@ export const ko = {
   'provider.ollama.networkErrorNote': '수집기 Mac의 Ollama 연결을 확인해 주세요. 다음 수집 주기에 자동으로 다시 시도합니다.',
   'provider.refreshHint': '수집기가 15분마다 자동으로 갱신합니다.',
 
+  // 이력 차트 버튼·패널(ADR 0.7 8.2·10절)
+  'chart.open': '차트 보기',
+  'chart.close': '차트 닫기',
+  'chart.hint.noData': '아직 기록된 이력이 없습니다',
+  'chart.hint.tooFew': '변화 기록이 {min}건 이상 쌓이면 볼 수 있습니다 (현재 {n}건)',
+  'chart.hint.tooShort': '첫 기록 후 6시간이 지나면 볼 수 있습니다 (약 {hours}시간 남음)',
+  'chart.hint.unknown': '이력 상태를 확인하지 못했습니다',
+  'chart.regionLabel': '{provider} 사용률 추이',
+  'chart.title': '{provider} 사용률 추이 · 최근 {range}',
+  'chart.empty.description': '{provider} 사용률 추이: 표시할 이력이 없습니다.',
+  'chart.progress': '{range} 이력 불러오는 중 ({done}/{total}일)',
+  'chart.range.24h': '24시간',
+  'chart.range.7d': '7일',
+  'chart.range.30d': '30일',
+  'chart.loadFailed': '이력을 불러오지 못했습니다.',
+
   // 한도 카드
   'card.unverified': '미확인',
   'card.noValue': '정보 없음',
@@ -140,6 +156,10 @@ export const ko = {
   'error.request': '사용량 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   'error.session_expired': 'Access 세션이 만료되었습니다. 페이지를 새로 고친 뒤 다시 로그인해 주세요.',
   'error.network_error': '네트워크에 연결할 수 없습니다.',
+  'error.invalid_query': '이력 요청 형식이 올바르지 않습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.',
+  'error.scan_version_mismatch': '새 버전이 배포되었습니다. 페이지를 새로 고치면 최신 이력을 볼 수 있습니다.',
+  'error.history_budget': '이력 요청이 너무 많아 잠시 멈췄습니다. 잠시 후 다시 시도해 주세요.',
+  'error.history_conflict': '다른 탭과 이력을 동시에 갱신하고 있습니다. 잠시 후 다시 시도해 주세요.',
   'error.default': '사용량을 불러오지 못했습니다.',
 
   // 페이스 칩 · 순서 변경

@@ -30,6 +30,10 @@ export const USAGE_ERROR_CODE_TEXT: Record<string, string> = {
   unauthorized: t('error.unauthorized'),
   not_found: t('error.not_found'),
   method_not_allowed: t('error.method_not_allowed'),
+  invalid_query: t('error.invalid_query'),
+  scan_version_mismatch: t('error.scan_version_mismatch'),
+  history_budget: t('error.history_budget'),
+  history_conflict: t('error.history_conflict'),
 }
 
 const HTTP_CODE = /^http_(\d{3})$/

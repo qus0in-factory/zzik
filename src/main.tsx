@@ -10,6 +10,8 @@ import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
 import { ProviderOrderProvider } from '@app/usage/ProviderOrderContext'
 import { createProviderOrderStore } from '@app/usage/provider-order-store'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
+import { createDisabledHistoryDeps, HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
+import type { HistoryDeps } from '@app/usage/history/HistoryDepsContext'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
@@ -37,6 +39,37 @@ const usageDeps: UsageDeps = {
       ),
 }
 
+// 이력 계층(ADR 0.7): 기능 플래그 `__HISTORY_ENABLED__`(빌드 시 주입, 기본 꺼짐)가 꺼져 있으면 비활성 의존만 쓰고,
+// 이력 infra(IndexedDB·HTTP 게이트웨이)·동기화 모듈은 동적 import 뒤에 있어 번들에서 빠진다(네트워크·IndexedDB 접근 0).
+// 켜지면 게이트웨이·캐시·저장소 어댑터를 만들어 app에 주입한다. DEV 목 모드(?fixture=)는 합성 표본 픽스처 게이트웨이를 쓴다.
+// 차트 뷰 빌더(T3)는 배선 때 buildView로 넣는다.
+async function loadHistoryDeps(): Promise<HistoryDeps> {
+  if (!__HISTORY_ENABLED__) return createDisabledHistoryDeps()
+  const [prefsModule, syncModule, storage, fixtureGateway, httpGateway, idbCache] = await Promise.all([
+    import('@app/usage/history/chart-prefs-store'),
+    import('@app/usage/history/sync-history'),
+    import('@infra/usage/browser-storage'),
+    import('@infra/usage/fixture-usage-history-gateway'),
+    import('@infra/usage/http-usage-history-gateway'),
+    import('@infra/usage/idb-history-cache'),
+  ])
+  const chartPrefs = prefsModule.createChartPrefsStore(storage.browserLocalKeyValue())
+  storage.subscribeStorageKey(prefsModule.CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
+  return {
+    enabled: true,
+    gateway: devFixtureRequested
+      ? fixtureGateway.createFixtureUsageHistoryGateway()
+      : httpGateway.createHttpUsageHistoryGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })),
+    cache: idbCache.createIdbHistoryCache(idbCache.browserIndexedDb()),
+    session: storage.browserSessionKeyValue(),
+    prefs: chartPrefs,
+    budget: syncModule.createHistoryBudget({ now: () => Date.now() }),
+    memory: new Map(),
+    inflight: new Map(),
+    nowMs: () => Date.now(),
+  }
+}
+
 // 개발 목 모드에서 픽스처 선택이 바뀌면 캐시를 무효화해 다음 조회가 바뀐 시나리오를 가져온다.
 if (devFixtureRequested) {
   let previous: string = parseFixtureUsageName(window.location.search)
@@ -48,14 +81,21 @@ if (devFixtureRequested) {
   })
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <UsageGatewayProvider deps={usageDeps}>
-        <ProviderOrderProvider store={orderStore}>
-          <App />
-        </ProviderOrderProvider>
-      </UsageGatewayProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-)
+async function start(): Promise<void> {
+  const historyDeps = await loadHistoryDeps()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <UsageGatewayProvider deps={usageDeps}>
+          <ProviderOrderProvider store={orderStore}>
+            <HistoryDepsProvider deps={historyDeps}>
+              <App />
+            </HistoryDepsProvider>
+          </ProviderOrderProvider>
+        </UsageGatewayProvider>
+      </QueryClientProvider>
+    </StrictMode>,
+  )
+}
+
+void start()
