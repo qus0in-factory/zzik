@@ -9,6 +9,7 @@ import { nearestIndex, shiftDirection, stepIndex } from '@app/usage/reorder-sess
 import { summaryPaceOf } from '@app/usage/summary-pace'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { ProviderIcon } from './ProviderIcon'
+import { ViewModeToggle } from './ViewModeToggle'
 import { useUsage } from '@app/usage/useUsage'
 
 /**
@@ -76,12 +77,12 @@ function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragP
         onContextMenu={drag.onContextMenu}
         onFocus={(event) => event.currentTarget.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })}
         className={
-          'fade-in inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border bg-card px-1.5 py-1 text-xs font-medium hover:bg-accent lg:gap-1.5 lg:px-2.5 lg:text-sm ' +
+          'fade-in inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border bg-card px-1 py-1 text-[11px] font-medium hover:bg-accent lg:gap-1.5 lg:px-2.5 lg:text-sm ' +
           (pace.overPace ? 'border-[var(--usage-caution)] text-[var(--usage-caution)] ' : 'border-border ') +
           (drag.grabbed ? 'shadow-md ring-2 ring-ring' : '')
         }
       >
-        <ProviderIcon provider={provider} label={meta.title} className="size-3.5 lg:size-4" />
+        <ProviderIcon provider={provider} label={meta.title} className="size-3 lg:size-4" />
         <span className="tabular-nums">
           {t(pace.unit === 'month' ? 'chips.unit.month' : 'chips.unit.week')} {used}% / {expected}%
         </span>
@@ -352,7 +353,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
         {t('chips.help')}
       </p>
       <div className="flex items-center gap-1">
-        <ul ref={listRef} className="-my-1 flex min-h-[38px] min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] lg:gap-2">
+        <ul ref={listRef} className="-my-1 flex min-h-[38px] min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-x-auto py-1 [scrollbar-width:none] lg:gap-2">
           {order.map((provider) => (
             <PaceChip key={provider} provider={provider} drag={chipDragProps(provider)} />
           ))}
@@ -370,6 +371,7 @@ export function PaceChips({ onBeforeMove }: { onBeforeMove?: () => void }): Reac
         >
           <RotateCcw aria-hidden="true" className="size-3" />
         </button>
+        <ViewModeToggle />
       </div>
       <div role="status" aria-live="assertive" className="sr-only">
         {announcement}

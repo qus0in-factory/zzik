@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { cardPresentation } from '@app/usage/card-presentation'
 import { LimitCard } from './LimitCard'
+import { LimitRow, LimitTable, LIST_ROW_CLASS } from './LimitRow'
+import { useViewMode } from '@app/usage/ViewModeContext'
 import { StatusBar } from './StatusBar'
 import { Sparkles } from 'lucide-react'
 import { t } from '@shared/messages'
@@ -70,6 +72,8 @@ export function UsageDashboard({
   chart = null,
   chartPanel = null,
 }: UsageDashboardProps): ReactNode {
+  const { mode: viewMode } = useViewMode()
+  const listMode = viewMode === 'list'
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
     'data-provider': provider,
@@ -82,13 +86,28 @@ export function UsageDashboard({
       <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-24 space-y-4">
         {title !== undefined && (
           <SectionTitle provider={provider} title={title} light={null}>
-            <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex items-center gap-3">
-              <Skeleton data-testid="usage-skeleton" className="h-5 w-36" />
+            <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="basis-full sm:basis-auto">
+                <Skeleton data-testid="usage-skeleton" className="h-5 w-36" />
+              </div>
+              {chart !== null && <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[84px]" />}
               <Skeleton data-testid="usage-skeleton" className="h-[34px] w-[72px]" />
             </div>
           </SectionTitle>
         )}
         <div aria-hidden="true">
+          {listMode ? (
+            <div data-testid="usage-skeleton-list" className="overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="hidden h-[29px] border-b bg-muted/40 sm:block" />
+              {[0, 1].map((index) => (
+                <div key={index} data-testid="usage-skeleton-row" className={`${LIST_ROW_CLASS} flex items-center gap-3 border-b px-3 last:border-b-0`}>
+                  <Skeleton data-testid="usage-skeleton" className="h-5 w-32" />
+                  <Skeleton data-testid="usage-skeleton" className="ml-auto h-5 w-12" />
+                  <Skeleton data-testid="usage-skeleton" className="h-2 w-24 sm:w-40" />
+                </div>
+              ))}
+            </div>
+          ) : (
           <div data-testid="usage-skeleton-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[0, 1].map((index) => (
               <Card key={index} data-testid="usage-skeleton-card" className="min-w-0 gap-3">
@@ -104,6 +123,7 @@ export function UsageDashboard({
               </Card>
             ))}
           </div>
+          )}
         </div>
       </section>
     )
@@ -167,25 +187,40 @@ export function UsageDashboard({
 
       {!empty && report !== null && (
         // key: 로딩 → ready 전환 때 카드가 새로 마운트되어 진입 연출(막대·저빌·페이드인)이 다시 재생된다. 새로고침(같은 ready)에서는 같은 노드라 재생하지 않는다.
-        <Fragment key="ready">
-          {report.windows.length > 0 && (
-            <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {report.windows.map((item, index) => (
-                <ActiveLimitCard key={item.id} item={item} index={index} group="window" />
-              ))}
-            </div>
-          )}
+        <Fragment key={`ready-${viewMode}`}>
+          {report.windows.length > 0 &&
+            (listMode ? (
+              <LimitTable testId={`usage-list-${provider}`} caption={t('list.caption', { provider: title ?? provider, group: t('list.group.windows') })}>
+                {report.windows.map((item, index) => (
+                  <ActiveLimitRow key={item.id} item={item} index={index} group="window" />
+                ))}
+              </LimitTable>
+            ) : (
+              <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {report.windows.map((item, index) => (
+                  <ActiveLimitCard key={item.id} item={item} index={index} group="window" />
+                ))}
+              </div>
+            ))}
           {report.metrics.length > 0 && (
             <div>
               <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold">
                 <Sparkles aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                 {metricsTitle}
               </h3>
-              <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {report.metrics.map((item, index) => (
-                  <ActiveLimitCard key={item.id} item={item} index={index} group="metric" />
-                ))}
-              </div>
+              {listMode ? (
+                <LimitTable testId={`usage-list-${provider}`} caption={t('list.caption', { provider: title ?? provider, group: metricsTitle })}>
+                  {report.metrics.map((item, index) => (
+                    <ActiveLimitRow key={item.id} item={item} index={index} group="metric" />
+                  ))}
+                </LimitTable>
+              ) : (
+                <div data-testid={`usage-grid-${provider}`} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {report.metrics.map((item, index) => (
+                    <ActiveLimitCard key={item.id} item={item} index={index} group="metric" />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </Fragment>
@@ -207,6 +242,12 @@ function SectionTitle({ provider, title, light, children }: { provider: UsagePro
       {children !== undefined && <div className="basis-full sm:basis-auto">{children}</div>}
     </div>
   )
+}
+
+/** 목록 모드의 한 행. 저빌 활동(달리기)은 카드에서만 보이므로 활동 기록 훅은 부르지 않는다. */
+function ActiveLimitRow({ item, index, group }: { item: UsageReport['windows'][number]; index: number; group: 'window' | 'metric' }): ReactNode {
+  const { barLevel, barLevelText } = cardPresentation(item, null)
+  return <LimitRow item={item} presentation={{ barLevel, barLevelText }} enterIndex={index} kind={cardKindOf(item, group)} />
 }
 
 function ActiveLimitCard({ item, index, group }: { item: UsageReport['windows'][number]; index: number; group: 'window' | 'metric' }): ReactNode {
