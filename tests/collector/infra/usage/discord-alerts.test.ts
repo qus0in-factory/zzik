@@ -26,6 +26,10 @@ describe('Given Discord alerts', () => {
     expect(logs.join('')).toContain('count=1')
     expect(logs.join('')).not.toContain('75')
   })
+  it('When force-disabled Then does not call a configured webhook', async () => {
+    const sink = createDiscordAlerts({webhookUrl:url,enabled:false,fetchImpl:(async()=>{throw Error('must not fetch')}) as typeof fetch})
+    expect(await sink.send([event])).toMatchObject({status:'disabled'})
+  })
   it('When dry-running Then logs a value-free preview and never sends', async () => {
     const logs: string[] = []
     const sink = createDiscordAlerts({ webhookUrl: url, log: s => logs.push(s), fetchImpl: (async () => { throw Error('must not fetch') }) as typeof fetch })

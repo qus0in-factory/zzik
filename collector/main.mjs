@@ -18,6 +18,7 @@
  */
 
 import postgres from 'postgres'
+import { readAlertConfig } from './domain/usage/alert-config.mjs'
 import { createDiscordAlerts } from './infra/usage/discord-alerts.mjs'
 import { createPostgresEnvelopeWriter } from './infra/usage/postgres-envelope-writer.mjs'
 import { readStorageConfig } from './domain/usage/storage-config.mjs'
@@ -40,7 +41,7 @@ import { USAGE_COLLECTOR_VERSION, USAGE_REDACTION_PATHS, USAGE_PROVIDERS as PROV
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const alerts = createDiscordAlerts({ webhookUrl:process.env.DISCORD_WEBHOOK_URL, fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
+const alerts = createDiscordAlerts({ ...readAlertConfig(process.env), fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
 /** @type {{mode:'postgres',intervalSec:number,retentionDays:number}} */
 let storageConfig = {mode:'postgres',intervalSec:900,retentionDays:30}

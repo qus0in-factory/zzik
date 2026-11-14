@@ -74,17 +74,17 @@ describe('Given the primary monthly or weekly reset', () => {
     const r = report([{ ...weekly, usedPercent: 0 }], nowMs + 1000, weekly.id)
     expect(diffAlerts(gap, r)).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'reset' })]))
   })
-  it('When zero occurs before reset, nonzero falls, or a non-primary window resets Then no reset event', () => {
+  it('When zero occurs before reset, usage does not fall, or a non-primary window resets Then no reset event', () => {
     const before = baseline(report([weekly], nowMs, weekly.id))
-    for (const r of [report([{ ...weekly, usedPercent: 0 }], nowMs, weekly.id), report([{ ...weekly, usedPercent: 1 }], nowMs + 1000, weekly.id), report([{ ...weekly, usedPercent: 0 }], nowMs + 1000, null)]) expect(diffAlerts(before, r).filter(e => e.kind === 'reset')).toEqual([])
+    for (const r of [report([{ ...weekly, usedPercent: 0 }], nowMs, weekly.id), report([{ ...weekly, usedPercent: 96 }], nowMs + 1000, weekly.id), report([{ ...weekly, usedPercent: 0 }], nowMs + 1000, null)]) expect(diffAlerts(before, r).filter(e => e.kind === 'reset')).toEqual([])
   })
   it('When a 5h window resets Then it can recover but is not a primary reset alert', () => {
     const before = baseline(report([limit(95)]))
     expect(diffAlerts(before, report([limit(0)], nowMs + 10_000_000)).filter(e => e.kind === 'reset')).toEqual([])
   })
-  it('When primary use drops to zero but its next reset is still expired Then reset remains detectable', () => {
+  it('When zero is confirmed after the saved reset Then it is detectable even before the timestamp updates', () => {
     const before = baseline(report([weekly], nowMs, weekly.id))
-    expect(diffAlerts(before, report([{ ...weekly, usedPercent: 0, expired: true }], nowMs + 1000, weekly.id))).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'reset' })]))
+    expect(diffAlerts(before, report([{ ...weekly, usedPercent: 0, expired: true }], nowMs + 1000, weekly.id)).filter(e => e.kind === 'reset')).toHaveLength(1)
   })
 })
 

@@ -1,7 +1,7 @@
 /** @typedef {import('./alert-types.mjs').AlertEvent} AlertEvent */
 const DASHBOARD = 'https://zzik.qus0in.dev'
 const PROVIDERS = /** @type {Record<string,string>} */ ({claude:'Claude',codex:'Codex',antigravity:'Antigravity',opencode:'OpenCode',grok:'Grok',ollama:'Ollama'})
-const LEVELS = {normal:'정상',caution:'주의',danger:'위험',limit:'한도 도달'}
+const LEVELS = {previous_cycle:'이전 주기',new_cycle:'새 주기',normal:'정상',caution:'주의',danger:'위험',limit:'한도 도달'}
 /** @param {number|null} value */
 const percent = value => value === null ? '알 수 없음' : `${Math.round(value * 10) / 10}%`
 /** @param {string|null} reset @param {number} nowMs */
@@ -19,7 +19,7 @@ export function formatAlertMessage(events) {
   for (const event of events) {
     const name = (PROVIDERS[event.provider] ?? '제공자')
     const label = event.label.replace(/[\r\n]/g,' ').slice(0,100)
-    const line = event.kind === 'spend' ? `[${name}] 추가 지출 한도 ${event.to === 'limit' ? '도달' : '해제'}` : `[${name}] ${label} · ${event.kind === 'reset' ? '주기 리셋 · ' : ''}${LEVELS[event.from]} → ${LEVELS[event.to]} · 사용 ${percent(event.usedPercent)} / 예상 ${percent(event.elapsedPercent)} · ${remaining(event.resetsAt,event.nowMs)}`
+    const line = event.kind === 'spend' ? `[${name}] 추가 지출 한도 ${event.to === 'limit' ? '도달' : '해제'}` : `[${name}] ${label} · ${event.kind === 'reset' ? '주기 리셋 · ' : ''}${event.kind === 'reset' && event.previousLevel && event.previousLevel !== 'normal' ? `${LEVELS[event.previousLevel]} → ${LEVELS.normal}` : `${LEVELS[event.from]} → ${LEVELS[event.to]}`} · 사용 ${percent(event.usedPercent)} / 예상 ${percent(event.elapsedPercent)} · ${remaining(event.resetsAt,event.nowMs)}`
     if ([heading,...lines,line,DASHBOARD].join('\n').length > 1900) break
     lines.push(line)
   }
@@ -29,5 +29,5 @@ export function formatAlertMessage(events) {
 
 /** Safe dry-run rendering: neither raw labels nor usage/reset values are logged. @param {AlertEvent[]} events */
 export function formatAlertPreview(events) {
-  return events.length === 0 ? '[알림 없음]' : events.slice(0,10).map(event => event.kind === 'spend' ? `[${PROVIDERS[event.provider] ?? '제공자'}] 추가 지출 한도 ${event.to === 'limit' ? '도달' : '해제'}` : `[${PROVIDERS[event.provider] ?? '제공자'}] [한도 가림] · ${event.kind === 'reset' ? '주기 리셋 · ' : ''}${LEVELS[event.from]} → ${LEVELS[event.to]} · 사용/예상/리셋=[가림]`).join(' / ') + (events.length > 10 ? ' / 외 생략' : '')
+  return events.length === 0 ? '[알림 없음]' : events.slice(0,10).map(event => event.kind === 'spend' ? `[${PROVIDERS[event.provider] ?? '제공자'}] 추가 지출 한도 ${event.to === 'limit' ? '도달' : '해제'}` : `[${PROVIDERS[event.provider] ?? '제공자'}] [한도 가림] · ${event.kind === 'reset' ? '주기 리셋 · ' : ''}${event.kind === 'reset' && event.previousLevel && event.previousLevel !== 'normal' ? `${LEVELS[event.previousLevel]} → ${LEVELS.normal}` : `${LEVELS[event.from]} → ${LEVELS[event.to]}`} · 사용/예상/리셋=[가림]`).join(' / ') + (events.length > 10 ? ' / 외 생략' : '')
 }
