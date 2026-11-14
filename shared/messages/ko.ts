@@ -31,7 +31,7 @@ export const ko = {
   'provider.opencode.ariaLabel': 'OpenCode 사용량',
   'provider.grok.title': 'Grok',
   'provider.grok.ariaLabel': 'Grok 사용량',
-  'provider.grok.clientName': 'OpenCode(xAI 로그인)',
+  'provider.grok.clientName': 'Grok Build',
   'provider.ollama.title': 'Ollama',
   'provider.ollama.ariaLabel': 'Ollama 사용량',
   'provider.ollama.networkErrorNote': '수집기 Mac의 Ollama 연결을 확인해 주세요. 다음 수집 주기에 자동으로 다시 시도합니다.',

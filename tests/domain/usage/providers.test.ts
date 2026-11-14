@@ -75,7 +75,7 @@ describe('Given Antigravity registration', () => {
 describe('Given OpenCode, Grok and Ollama registration', () => {
   it('When reading the metadata Then titles, client names and section ids follow the design', () => {
     expect(USAGE_PROVIDER_META.opencode).toMatchObject({ title: 'OpenCode', clientName: 'OpenCode', sectionId: 'usage-opencode', ariaLabel: 'OpenCode 사용량' })
-    expect(USAGE_PROVIDER_META.grok).toMatchObject({ title: 'Grok', clientName: 'OpenCode(xAI 로그인)', sectionId: 'usage-grok', ariaLabel: 'Grok 사용량' })
+    expect(USAGE_PROVIDER_META.grok).toMatchObject({ title: 'Grok', clientName: 'Grok Build', sectionId: 'usage-grok', ariaLabel: 'Grok 사용량' })
     expect(USAGE_PROVIDER_META.ollama).toMatchObject({ title: 'Ollama', clientName: 'Ollama', sectionId: 'usage-ollama', ariaLabel: 'Ollama 사용량' })
   })
   it('When checking networkErrorNote Then only ollama has one', () => {
