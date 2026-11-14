@@ -15,7 +15,16 @@ const filler = (n: number) => Array.from({ length: n }, (_, i) => `대화 본문
 describe('Given the herdr label detection', () => {
   it('When the agent kind is unambiguous Then the kind decides without reading the screen', () => {
     expect(detect('codex', 'Opus 5.5 · 인용문')).toBe('sol')
-    expect(detect('agy', 'Fable 5.2 with high effort')).toBe('gemini')
+  })
+  it('When agy shows a Gemini Hydrogen status line Then it is hydro, otherwise gemini', () => {
+    expect(detect('agy', `${filler(10)}\n  Gemini 4 Hydrogen · high`)).toBe('hydro')
+    expect(detect('agy', `${filler(10)}\n  Hydrogen`)).toBe('hydro')
+    expect(detect('agy', `${filler(10)}\n  Gemini 4.1 medium · ~/zzik`)).toBe('gemini')
+    expect(detect('agy', filler(10))).toBe('')
+  })
+  it('When agy quotes Hydrogen above the bottom lines Then it is not fooled', () => {
+    const screen = `"Gemini 4 Hydrogen"로 바꿨다\nSonnet 5.5 로 전환 기록\n${filler(8)}\n? for shortcuts`
+    expect(detect('agy', screen)).toBe('')
   })
   it('When opencode shows a model in the bottom lines Then Grok or GPT-Sol is told apart', () => {
     expect(detect('opencode', `${filler(10)}\n  ┃  Build auto · Grok 4.7 xAI · high`)).toBe('grok')
@@ -70,7 +79,7 @@ describe('Given the labeling run with a fake herdr', () => {
 echo "$*" >> "${log}"
 case "$1 $2" in
   "agent list") cat "${dir}/agents.json" ;;
-  "pane read") echo "" ;;
+  "pane read") echo "Gemini 4 Hydrogen" ;;
   "agent rename") [ "$4" = "sol" ] && { echo "agent_name_taken" >&2; exit 1; }; exit 0 ;;
   "tab rename") exit 1 ;;
   "pane rename") exit 0 ;;
@@ -92,7 +101,7 @@ esac
     expect(calls).toContain('agent rename w:p1 sol2')
     expect(err).toContain('탭 라벨 지정 실패')
     expect(out).toContain('w:p1 (w:t1) → sol2')
-    expect(out).toContain('w:p2 (w:t2) → gemini')
+    expect(out).toContain('w:p2 (w:t2) → hydro')
   })
   it('When a pane already has a name Then it is skipped without any rename call', async () => {
     const { out, calls } = await run()

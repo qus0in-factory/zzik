@@ -28,7 +28,8 @@ bottom_lines() {
 }
 
 # herdr agent list의 agent 필드로 1차 판정하고, 모호한 종류만 화면 하단 상태줄로 확인한다.
-#   codex → sol, agy → gemini
+#   codex → sol
+#   agy → 하단에 `Hydrogen`(예: `Gemini <버전> Hydrogen`)이면 hydro, `Gemini <버전>`이면 gemini
 #   opencode → 하단에 `Grok <버전>` 이면 grok, `GPT-<버전>-Sol` 이면 sol,
 #              `DeepSeek <버전>` 이면 ds, `Hy<버전>` 이면 hy
 #   claude → 하단에 `Opus|Fable|Sonnet <버전>` 이 있을 때만(마지막 매칭 우선)
@@ -39,11 +40,14 @@ detect() {
   local bottom line
   case "$agent" in
     codex) echo sol; return 0 ;;
-    agy) echo gemini; return 0 ;;
   esac
   bottom="$(bottom_lines "$screen")"
   while IFS= read -r line; do
     case "$agent" in
+      agy)
+        if   [[ "$line" =~ Hydrogen ]]; then echo hydro; return 0
+        elif [[ "$line" =~ Gemini\ [Vv]?$ver ]]; then echo gemini; return 0
+        fi ;;
       opencode)
         if   [[ "$line" =~ Grok\ $ver ]]; then echo grok; return 0
         elif [[ "$line" =~ GPT-$ver-Sol ]]; then echo sol; return 0
