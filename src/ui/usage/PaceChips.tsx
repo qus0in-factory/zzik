@@ -35,6 +35,7 @@ function PaceChip({ provider }: { provider: UsageProvider }): ReactNode {
         data-testid={`usage-pace-${provider}`}
         data-over-pace={pace.overPace}
         title={`${meta.title} · ${pace.unit === '월' ? '월간' : '주간'} 사용률 ${used}%, 예상 사용률 ${expected}%`}
+        onFocus={(event) => event.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' })}
         className={
           'fade-in inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border bg-card px-1.5 py-1 text-xs font-medium hover:bg-accent lg:gap-1.5 lg:px-2.5 lg:text-sm ' +
           (pace.overPace ? 'border-[var(--usage-caution)] text-[var(--usage-caution)]' : 'border-border')

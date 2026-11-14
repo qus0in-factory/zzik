@@ -1,4 +1,4 @@
-// 제공자 로고 path 데이터(24x24, fill-rule evenodd). 출처: @lobehub/icons-static-svg 1.102.0 (MIT). docs/design/fonts-and-icons.md
+// 제공자 로고 path 데이터(24x24, fill-rule evenodd). 출처: @lobehub/icons-static-svg 1.102.0 (MIT). 라이선스 전문: THIRD_PARTY_NOTICES.md, docs/design/fonts-and-icons.md
 // 로고의 상표권은 각 소유자에게 있다. 필요한 6개만 복사해 번들 증가를 막는다(패키지는 의존성에 두지 않는다).
 import type { UsageProvider } from '@domain/usage/providers'
 
