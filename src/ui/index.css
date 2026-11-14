@@ -46,6 +46,11 @@
   --usage-ok: oklch(0.55 0.15 150);
   --usage-caution: oklch(0.66 0.16 65);
   --usage-danger: oklch(0.55 0.23 27);
+  /* 브랜드 청록(파비콘 배경). 흰 아이콘과의 대비 5.6:1 */
+  --brand: #057873;
+  --brand-hover: #046a66;
+  --brand-active: #035c58;
+  --brand-foreground: #ffffff;
 }
 
 .dark {
@@ -72,6 +77,10 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
+  --color-brand-foreground: var(--brand-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
