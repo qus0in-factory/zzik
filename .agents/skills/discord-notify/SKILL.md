@@ -17,6 +17,7 @@ MSG
 scripts/notify-discord.sh "<제목>" "<본문>" --dry-run   # 전송 없이 payload 확인
 ```
 - 웹훅은 `.env`의 `DISCORD_WEBHOOK_URL`(gitignore됨). 값은 출력·커밋·이슈에 절대 남기지 않는다.
+- 보낸이 이름은 `피짱`으로 표시된다(payload `username`).
 - 본문은 4000자에서 잘린다.
 
 ## 보고 형식

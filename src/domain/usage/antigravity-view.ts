@@ -19,6 +19,7 @@ export function buildAntigravityUsageView(raw: unknown, options: { now: Date }):
     usedPercent: bucket.usedPercent,
     resetsAt: bucket.resetsAt,
     elapsedPercent: elapsedPercent(bucket.resetsAt, antigravityCycleSeconds(bucket.window), options.now),
+    cycleSeconds: antigravityCycleSeconds(bucket.window),
     expired: isResetExpired(bucket.resetsAt, options.now),
     status: usageLevelOf(bucket.usedPercent),
     resetText: formatResetRemaining(bucket.resetsAt, options.now),
