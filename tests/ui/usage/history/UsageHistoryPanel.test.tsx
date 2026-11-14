@@ -73,6 +73,15 @@ describe('Given the uPlot history chart panel', () => {
     expect(table?.querySelector('thead')?.textContent).toContain('5시간 한도')
   })
 
+  it('Then no duplicate uPlot legend is present and one custom tooltip starts hidden', () => {
+    const { container } = setup()
+    expect(container.querySelector('.u-legend')).toBeNull()
+    const tooltip = container.querySelector('.chart-tooltip') as HTMLElement | null
+    expect(tooltip).toBeTruthy()
+    expect(tooltip?.hidden).toBe(true)
+    expect(tooltip?.getAttribute('role')).toBe('status')
+  })
+
   it('Then slot 1~3 swatches are solid and slot 4 carries its 6 3 dash', () => {
     const { container } = setup()
     const lines = [...container.querySelectorAll('.chart-swatch-line')]
