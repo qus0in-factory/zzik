@@ -12,7 +12,7 @@ ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P
 - SSH 무인 운영. Keychain/GUI 승인 없음. 자격 증명은 제공자별 파일을 읽기만 하며 수집기는 refresh token을 사용하거나 토큰을 갱신하지 않는다.
 - 운영 인스턴스는 .worktree/release의 PM2 zzik-usage-collector 하나다. 개발 워크트리의 실제 --once/상주 실행 금지.
 - P3 구현 완료: Postgres 단독 저장소다. ecosystem은 ZZIK_STORE=postgres이며 미지정 시에도 postgres다. kv/both 등 다른 값은 종료 78로 거부한다. KV writer/fanout은 없다.
-- 제공자는 claude,codex,antigravity,opencode,grok,ollama 6개이며 ZZIK_AGY_CLI_PATH는 실행 가능한 agy 절대경로를 유지한다. Antigravity는 API·토큰 파일이 아니라 `agy -p /quota` 출력만 수집한다(source=cli).
+- 제공자는 claude,codex,antigravity,opencode,grok,ollama 6개이며 ZZIK_AGY_CLI_PATH는 실행 가능한 agy 절대경로를 유지한다. **Antigravity는 예외로 파일 자격 증명을 읽지 않고 `agy -p /quota` CLI 출력만 수집한다**(source=cli, 토큰 저장소 file/keychain과 무관).
 - 운영 반영 전 release가 P2 코드이면 both가 남아 있을 수 있다. P3 반영 시 ecosystem 기반 --update-env·save로 postgres를 적용하고 runtime/saved 설정을 값 노출 없이 대조한다.
 - DB_URL은 해당 체크아웃의 gitignore .env에서 Node --env-file로 주입한다. ecosystem node_args를 사용하며 PM2 env에 연결 문자열을 복제해 기록하지 않는다. DB_URL/호스트·비밀번호가 포함될 수 있는 오류 원문을 출력하지 않는다.
 - DB max:1, idle_timeout:5, connect_timeout:10, prepare:false. 900초 주기. Free 예산을 위해 300초로 되돌리지 않는다.

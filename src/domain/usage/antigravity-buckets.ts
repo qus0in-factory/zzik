@@ -41,12 +41,10 @@ export function antigravityCliBucket(group: string, label: string): { id: string
 /** `{ source: 'agy-quota-cli', rows: [...] }` 원문을 창 목록으로 바꾼다. */
 function scanAgyQuotaRows(raw: Record<string, unknown>): { buckets: AntigravityBucket[]; issues: UsageIssue[] } {
   if (!Array.isArray(raw.rows)) return { buckets: [], issues: [{ code: 'invalid_shape' }] }
-  const buckets: AntigravityBucket[] = []
   const issues: UsageIssue[] = []
-  const seenIds = new Map<string, number>()
-  const groupIndexes = new Map<string, number>()
-  raw.rows.forEach((row: unknown, index: number) => {
-    const path = 'rows[' + index + ']'
+  const candidates: { rowIndex: number; group: string; label: string; mapped: { id: string; window: string }; percent: number; resetsAt: string | null }[] = []
+  raw.rows.forEach((row: unknown, rowIndex: number) => {
+    const path = 'rows[' + rowIndex + ']'
     if (!isRecord(row)) { issues.push({ code: 'invalid_entry', key: path }); return }
     const group = row.group
     const label = row.label
@@ -56,26 +54,29 @@ function scanAgyQuotaRows(raw: Record<string, unknown>): { buckets: AntigravityB
       issues.push({ code: 'invalid_utilization', key: path })
       return
     }
-    const mapped = antigravityCliBucket(group, label)
-    seenIds.set(mapped.id, (seenIds.get(mapped.id) ?? 0) + 1)
-    if (!groupIndexes.has(group)) groupIndexes.set(group, groupIndexes.size)
     const resetsAt = typeof row.resetsAt === 'string' && Number.isFinite(Date.parse(row.resetsAt)) ? row.resetsAt : null
-    buckets.push({
-      id: mapped.id,
-      groupIndex: groupIndexes.get(group) ?? 0,
-      groupLabel: group,
-      window: mapped.window,
-      usedPercent: Math.max(0, Math.min(100, 100 - percent)),
-      resetsAt,
-    })
+    candidates.push({ rowIndex, group, label, mapped: antigravityCliBucket(group, label), percent, resetsAt })
   })
-  // 같은 id가 두 번 나오면(모르는 그룹의 라벨 중복 등) 뒤엣것은 경로 id로 유일하게 만든다.
-  return {
-    buckets: buckets.map((bucket, index) => (seenIds.get(bucket.id) ?? 0) > 1 && buckets.findIndex((item) => item.id === bucket.id) !== index
-      ? { ...bucket, id: 'rows[' + index + ']' }
-      : bucket),
-    issues,
-  }
+  const idCounts = new Map<string, number>()
+  for (const candidate of candidates) idCounts.set(candidate.mapped.id, (idCounts.get(candidate.mapped.id) ?? 0) + 1)
+  const groupIndexes = new Map<string, number>()
+  const usedIds = new Set<string>()
+  const buckets = candidates.map((candidate) => {
+    if (!groupIndexes.has(candidate.group)) groupIndexes.set(candidate.group, groupIndexes.size)
+    // 같은 id가 두 번 이상이면 첫 행만 id를 유지하고, 뒤엣것은 원본 CLI 행 번호(rows[원래 index])로 유일하게 만든다.
+    const duplicate = (idCounts.get(candidate.mapped.id) ?? 0) > 1
+    const id = duplicate && usedIds.has(candidate.mapped.id) ? 'rows[' + candidate.rowIndex + ']' : candidate.mapped.id
+    usedIds.add(candidate.mapped.id)
+    return {
+      id,
+      groupIndex: groupIndexes.get(candidate.group) ?? 0,
+      groupLabel: candidate.group,
+      window: candidate.mapped.window,
+      usedPercent: Math.max(0, Math.min(100, 100 - candidate.percent)),
+      resetsAt: candidate.resetsAt,
+    }
+  })
+  return { buckets, issues }
 }
 
 /** Keeps API shape handling in one module; never reads clocks or credentials. */

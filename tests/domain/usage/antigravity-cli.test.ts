@@ -56,6 +56,18 @@ describe('Given the agy /quota raw shape (ADR 0.4 0.6 변경)', () => {
     expect(scanAntigravityBuckets({ source: 'agy-quota-cli' })).toEqual({ buckets: [], issues: [{ code: 'invalid_shape' }] })
   })
 
+  it('When two rows map to the same id Then the later row uses its original CLI row index (invalid rows do not shift it)', () => {
+    const raw = {
+      source: 'agy-quota-cli',
+      rows: [
+        null,
+        { group: 'G', label: 'L', remainingPercent: 10, resetsAt: null },
+        { group: 'G', label: 'L', remainingPercent: 20, resetsAt: null },
+      ],
+    }
+    expect(scanAntigravityBuckets(raw).buckets.map((bucket) => bucket.id)).toEqual(['cli:G:L', 'rows[2]'])
+  })
+
   it('When the view is built Then the known group labels and periods are reused', () => {
     const report = buildAntigravityUsageView(normal, { now: new Date('2026-11-14T00:00:00Z') })
     expect(report.windows.map((window) => window.id)).toEqual(['gemini-5h', 'gemini-weekly', '3p-5h', '3p-weekly', 'argon-weekly'])
