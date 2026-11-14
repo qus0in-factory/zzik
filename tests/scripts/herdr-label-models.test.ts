@@ -22,6 +22,11 @@ describe('Given the herdr label detection', () => {
     expect(detect('opencode', `${filler(10)}\n  GPT-6.1-Sol medium · ~/zzik`)).toBe('sol')
     expect(detect('opencode', filler(10))).toBe('')
   })
+  it('When opencode shows a DeepSeek model in the bottom lines Then it is labeled ds', () => {
+    expect(detect('opencode', `${filler(10)}\n  DeepSeek V4.1 Flash · ~/zzik`)).toBe('ds')
+    expect(detect('opencode', `${filler(10)}\n  DeepSeek 4.1 · opencode-go`)).toBe('ds')
+    expect(detect('opencode', `DeepSeek V4.1 Flash 인용문\n${filler(10)}\n? for shortcuts`)).toBe('')
+  })
   it('When claude shows a versioned model in the bottom lines Then it is detected', () => {
     expect(detect('claude', `${filler(10)}\n  Opus 5.5 (1M context)\n`)).toBe('opus')
     expect(detect('claude', `${filler(10)}\n  Sonnet 5.5 · Claude Max\n\n\n`)).toBe('sonnet')
