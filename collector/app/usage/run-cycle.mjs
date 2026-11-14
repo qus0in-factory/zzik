@@ -16,7 +16,7 @@ export const SKIPPED_BUDGET_STATUS = 'skipped_budget'
  * 각 실행을 예외 격리해서 하나가 던져도 다음 제공자를 실행한다.
  * 종료 코드는 제공자별 결과 중 가장 큰 값이다.
  *
- * @param {{ runOnce?: typeof runOnce, clock?: { now(): number }, maintenance?: {
+ * @param {{ runOnce?: typeof runOnce, alerts?: import('../../domain/usage/alert-types.mjs').AlertSink, clock?: { now(): number }, maintenance?: {
  * state: import('../../domain/usage/ports.mjs').StateStorePort,
  * logger: import('../../domain/usage/ports.mjs').LoggerPort,
  * store: {prune(days:number):Promise<{ok:true,deleted:number}|{ok:false,message:string}>},
@@ -34,6 +34,7 @@ export async function runCycle(deps, providers = [], options = {}) {
   const cycleStartMs = clock ? clock.now() : Date.now()
   /** @type {Array<{ id: string, exitCode: number, skippedBudget?: boolean, dryRunReport?: object }>} */
   const results = []
+  const alertEvents = /** @type {import('../../domain/usage/alert-types.mjs').AlertEvent[]} */([])
   for (const provider of providers) {
     // 시작 전 예산 확인(v2): 넘었으면 이번 주기에서 건너뛴다.
     const elapsed = (clock ? clock.now() : Date.now()) - cycleStartMs
@@ -63,6 +64,7 @@ export async function runCycle(deps, providers = [], options = {}) {
         provider: provider.id,
         ...(provider.runOptions ?? {}),
       })
+      if (result.alerts) alertEvents.push(...result.alerts)
       results.push({ id: provider.id, exitCode: result.exitCode, ...(result.dryRunReport !== undefined ? { dryRunReport: result.dryRunReport } : {}) })
     } catch (error) {
       try {
@@ -84,6 +86,8 @@ export async function runCycle(deps, providers = [], options = {}) {
       results.push({ id: provider.id, exitCode: EXIT_RUN_FAILURE })
     }
   }
+  // Checkpoints have already been persisted by each successful runOnce.
+  try { await deps.alerts?.send(alertEvents, {dryRun:options.dryRun}) } catch { /* delivery must never fail collection */ }
   if (!options.dryRun && deps.maintenance) {
     const maintenance = deps.maintenance
     try {

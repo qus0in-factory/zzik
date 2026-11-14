@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runOnce } from '../../../../collector/app/usage/run-once.mjs'
+import { formatLogLine } from '../../../../collector/infra/usage/log.mjs'
 import { buildEnvelope } from '../../../../collector/domain/usage/envelope.mjs'
 import { createPostgresEnvelopeWriter } from '../../../../collector/infra/usage/postgres-envelope-writer.mjs'
 import { createTestDb } from '../../../fakes/pglite-db'
@@ -30,11 +31,14 @@ describe('Given unchanged successful provider usage',()=>{
    const result=await runOnce({...p,store:{write:(value,meta)=>{changed=meta.changed;return writer.write(value,meta)}}},{provider:'ollama'})
    expect(result.exitCode).toBe(0)
    expect(changed).toBe(false)
+   const logLine = formatLogLine(p.logger.entries.at(-1)! as never)
+   expect(logLine.includes('heartbeat=1')).toBe(expected === 1)
    const rows=(await db.client.query<{status:string;envelope:typeof previous}>('select status,envelope from usage_event')).rows
    expect(rows).toHaveLength(expected)
    if(expected)expect(rows[0]).toMatchObject({status:'ok',envelope:{rawText:BODY}})
    expect(statements.some(s=>/^\s*SELECT/i.test(s))).toBe(false)
    expect((p.state.snapshot() as {lastEventAt:string|null}).lastEventAt).toBe(expected?new Date(COLLECTOR_NOW).toISOString():lastEventAt)
+   expect(p.state.snapshot()).toMatchObject({alerts:{version:1}})
   } finally {await db.close()}
  })
  it('When only five hours 59 minutes passed Then does not refresh the event checkpoint',async()=>{
@@ -55,6 +59,7 @@ describe('Given unchanged successful provider usage',()=>{
   const broken=failure==='throw'?{...p,store:{write:async()=>{throw Error('private')}}}:p
   expect((await runOnce(broken,{provider:'ollama'})).exitCode).toBe(3)
   expect((p.state.snapshot() as {lastEventAt:string}).lastEventAt).toBe(at)
+  expect(formatLogLine(p.logger.entries.at(-1)! as never)).not.toContain('heartbeat=1')
   queue(p);expect((await runOnce(p,{provider:'ollama'})).exitCode).toBe(0)
   expect((p.store.metas.at(-1) as {heartbeat?:boolean}).heartbeat).toBe(true)
   expect((p.state.snapshot() as {lastEventAt:string}).lastEventAt).toBe(new Date(COLLECTOR_NOW).toISOString())
@@ -72,5 +77,33 @@ describe('Given unchanged successful provider usage',()=>{
   expect(p.store.calls).toBe(0)
   expect(p.state.writeCount()).toBe(0)
   expect(p.state.snapshot()).toEqual(old)
+ })
+})
+
+describe('Given a committed heartbeat whose local checkpoint write fails', () => {
+ it('When collection retries Then stateOk suppresses alerts but does not deduplicate committed history', async () => {
+  const db = await createTestDb()
+  try {
+   const p = ports(new Date(COLLECTOR_NOW - 6 * HOUR).toISOString())
+   const original = p.state.snapshot()
+   const writeState = p.state.write
+   const writer = createPostgresEnvelopeWriter({execute:(text:string,params?:unknown[])=>db.client.query(text,params)})
+   const reportPorts = {...p, store:writer}
+   p.state.write = async () => { throw Error('synthetic checkpoint write failure') }
+   queue(p)
+   expect(await runOnce(reportPorts, {provider:'ollama'})).toEqual({exitCode:4})
+   expect(p.logger.entries.at(-1)).toMatchObject({kvOk:true,stateOk:false})
+   expect(formatLogLine(p.logger.entries.at(-1)! as never)).toContain('heartbeat=1')
+   expect(p.state.snapshot()).toEqual(original)
+   expect((await db.client.query('select id from usage_event')).rows).toHaveLength(1)
+
+   // The old lastEventAt is still due; stateOk cannot undo the earlier DB COMMIT.
+   p.clock.advance(900000)
+   p.state.write = writeState
+   queue(p)
+   expect(await runOnce(reportPorts, {provider:'ollama'})).toEqual({exitCode:0})
+   expect((await db.client.query('select id from usage_event')).rows).toHaveLength(2)
+   expect((p.state.snapshot() as {lastEventAt:string}).lastEventAt).toBe(new Date(COLLECTOR_NOW + 900000).toISOString())
+  } finally { await db.close() }
  })
 })

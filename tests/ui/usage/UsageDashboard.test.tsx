@@ -367,7 +367,7 @@ describe('Given live provider reports after the display policy', () => {
     expect(otherIds()).toEqual([])
     expect(screen.queryByTestId('usage-other')).toBeNull()
     expect(screen.queryByText('기타 항목')).toBeNull()
-    expect(within(screen.getByTestId('extra-spend')).getByText('정보 없음')).toBeTruthy()
+    expect(screen.queryByTestId('extra-spend')).toBeNull()
     expect(screen.queryByRole('button', { name: /Raw|JSON/i })).toBeNull()
     expect(document.querySelector('pre')).toBeNull()
   })

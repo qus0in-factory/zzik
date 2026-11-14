@@ -23,6 +23,8 @@ export function formatLogLine(entry) {
     `tokenExpiresAt=${entry.tokenExpiresAt ?? 'null'}`,
     entry.kvOk ? 'kv=ok' : `kv=fail:${entry.kvReason ?? 'unknown'}`,
   ]
+  if (entry.stateOk === false) parts.push('state=fail')
+  if (entry.heartbeat === true) parts.push('heartbeat=1')
   if (entry.source) parts.push(`source=${entry.source}`)
   if (entry.diag) parts.push(`diag=${entry.diag}`)
   if (entry.transition) parts.push(`transition=${entry.transition}`)
