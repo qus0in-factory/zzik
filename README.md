@@ -19,12 +19,23 @@
 ## 아키텍처
 
 ```mermaid
-flowchart LR
-  providers["제공자 API·로컬 CLI 6종"] --> collector["수집기 - PM2 · 900초 주기"]
-  collector --> db[("PostgreSQL Neon")]
-  db --> worker["Cloudflare Worker /api/usage"]
-  worker --> access["Cloudflare Access"]
-  access --> spa["SPA - React + Vite"]
+architecture-beta
+  group local(server)[로컬 머신]
+  group neon(cloud)[Neon]
+  group cf(cloud)[Cloudflare]
+
+  service agy(disk)[agy CLI] in local
+  service collector(server)[수집기 PM2] in local
+  service db(database)[PostgreSQL] in neon
+  service worker(server)[Worker] in cf
+  service access(internet)[Access] in cf
+  service spa(internet)[정적 SPA] in cf
+
+  agy:R --> L:collector
+  collector:R --> L:db
+  db:R --> L:worker
+  worker:R --> L:access
+  access:R --> L:spa
 ```
 
 - 수집기는 PM2 상주 프로세스로 900초마다 6개 제공자(Claude, ChatGPT(Codex), Antigravity, OpenCode, Grok, Ollama)의 사용량을 읽어 Postgres에 저장한다.
