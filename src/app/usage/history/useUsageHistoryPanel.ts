@@ -8,6 +8,7 @@ import type { HistoryEligibility } from '@domain/usage/history/eligibility'
 import type { KeyValueStorage } from '@domain/usage/history/ports'
 import { withLabels } from '@domain/usage/history/record'
 import type { ChartRange, HistoryCacheRecord } from '@domain/usage/history/types'
+import { USAGE_PROVIDERS } from '@domain/usage/providers'
 import type { UsageProvider } from '@domain/usage/providers'
 import { t } from '@shared/messages'
 import { usageQueryOptions, UsageLoadError } from '../usage-query'
@@ -30,7 +31,11 @@ export function readOpenPanels(storage: KeyValueStorage): UsageProvider[] {
     const value: unknown = JSON.parse(storage.get(CHART_OPEN_KEY) ?? 'null')
     if (typeof value !== 'object' || value === null || (value as { v?: unknown }).v !== 1) return []
     const open = (value as { open?: unknown }).open
-    return Array.isArray(open) ? (open.filter((item): item is UsageProvider => typeof item === 'string') as UsageProvider[]) : []
+    if (!Array.isArray(open)) return []
+    // 알려진 제공자만, 중복 없이, 최대 6개(제공자 수)
+    const known = new Set<UsageProvider>()
+    for (const item of open) if (typeof item === 'string' && (USAGE_PROVIDERS as readonly string[]).includes(item)) known.add(item as UsageProvider)
+    return [...known].slice(0, USAGE_PROVIDERS.length)
   } catch {
     return []
   }
