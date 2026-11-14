@@ -27,9 +27,19 @@ export const FALLBACK_PALETTE: ChartPalette = {
   text: '#333333',
 }
 
+const DAY_SEC = 86_400
+const HOUR_SEC = 3_600
+/** 7일·30일: 하루 단위 눈금만 허용(86400초 배수). 넓은 화면에서도 12시간 간격이 섞이지 않는다. */
+export const DAY_INCRS = [DAY_SEC, 2 * DAY_SEC, 3 * DAY_SEC, 7 * DAY_SEC, 14 * DAY_SEC, 30 * DAY_SEC]
+/** 24시간: 시간 단위 눈금(HH:mm). */
+export const HOUR_INCRS = [HOUR_SEC, 2 * HOUR_SEC, 3 * HOUR_SEC, 4 * HOUR_SEC, 6 * HOUR_SEC, 8 * HOUR_SEC, 12 * HOUR_SEC]
+/** 라벨이 겹치지 않게 눈금 사이 최소 간격(px). */
+export const AXIS_MIN_SPACE = 60
+
 /**
  * x축 눈금 문구(axes.values). uPlot 기본값의 영문 '8:00am'·'11/14/26' 대신
- * 24시간은 'HH:mm', 7일·30일은 'M/D'로, 날짜가 바뀌는 첫 눈금에는 날짜를 함께 붙인다.
+ * 24시간은 'HH:mm'(날짜가 바뀌는 첫 눈금만 'M/D HH:mm'), 7일·30일은 날짜 하나씩 'M/D'.
+ * 7일·30일은 같은 날짜가 두 번 나오지 않도록 첫 눈금만 라벨을 남기고 나머지는 null로 숨긴다.
  */
 export function xAxisValues(range: ChartRange) {
   return (_self: unknown, splits: number[]): (string | number | null)[] => {
@@ -39,8 +49,8 @@ export function xAxisValues(range: ChartRange) {
       const dayKey = date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
       const isBoundary = previousDay !== dayKey
       previousDay = dayKey
-      if (range !== '24h') return formatAxisDate(seconds)
-      return isBoundary ? formatAxisDayBoundary(seconds) : formatAxisTime(seconds)
+      if (range === '24h') return isBoundary ? formatAxisDayBoundary(seconds) : formatAxisTime(seconds)
+      return isBoundary ? formatAxisDate(seconds) : null
     })
   }
 }
@@ -104,6 +114,8 @@ export function toUplotOptions(view: ChartView, palette: ChartPalette, onCursor?
         stroke: palette.text,
         grid: { stroke: palette.grid, width: 1 },
         ticks: { stroke: palette.grid, width: 1 },
+        space: AXIS_MIN_SPACE,
+        incrs: view.range === '24h' ? HOUR_INCRS : DAY_INCRS,
         values: xAxisValues(view.range),
       },
       {

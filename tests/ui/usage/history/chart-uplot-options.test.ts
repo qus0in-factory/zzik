@@ -90,6 +90,20 @@ describe('Given the ChartView → uPlot adapter', () => {
     expect(typeof toUplotOptions(dayView, FALLBACK_PALETTE).axes?.[0]?.values).toBe('function')
   })
 
+  it('Then 7d/30d allow only day multiples (86400s) and 24h uses hour increments', () => {
+    const day = toUplotOptions(view, FALLBACK_PALETTE) // range = '7d'
+    const incrs = day.axes?.[0]?.incrs as number[]
+    expect(Array.isArray(incrs)).toBe(true)
+    expect(incrs.length).toBeGreaterThan(0)
+    expect(incrs.every((incr) => incr > 0 && incr % 86_400 === 0)).toBe(true)
+    expect(day.axes?.[0]?.space).toBe(60)
+    const month = toUplotOptions({ ...view, range: '30d' }, FALLBACK_PALETTE)
+    expect((month.axes?.[0]?.incrs as number[]).every((incr) => incr > 0 && incr % 86_400 === 0)).toBe(true)
+    const hourIncrs = toUplotOptions({ ...view, range: '24h' }, FALLBACK_PALETTE).axes?.[0]?.incrs as number[]
+    expect(hourIncrs).toContain(3_600)
+    expect(hourIncrs.every((incr) => incr < 86_400)).toBe(true)
+  })
+
   it('Then setCursor hook reports the nearest data index to our tooltip', () => {
     const seen: (number | null)[] = []
     const options = toUplotOptions(view, FALLBACK_PALETTE, (idx) => seen.push(idx))
@@ -116,6 +130,18 @@ describe('Given Korean axis and cursor messages', () => {
     const expected = `${date.getMonth() + 1}/${date.getDate()}`
     expect(callValues(xAxisValues('7d'), [noon])).toEqual([expected])
     expect(callValues(xAxisValues('30d'), [noon])).toEqual([expected])
+  })
+
+  it('Then 7d tick labels never repeat a date (12시간 간격 눈금이 와도 하루 하나)', () => {
+    const noon = localNoonSeconds()
+    const halfDays = Array.from({ length: 9 }, (_, i) => noon + i * 43_200)
+    const labels = callValues(xAxisValues('7d'), halfDays).filter((label) => label !== null)
+    expect(labels.length).toBeGreaterThan(1)
+    expect(new Set(labels).size).toBe(labels.length)
+    // 하루 단위(86400초) 눈금은 날짜마다 하나씩, 모두 표시
+    const daily = callValues(xAxisValues('7d'), Array.from({ length: 7 }, (_, i) => noon + i * 86_400))
+    expect(daily.every((label) => label !== null)).toBe(true)
+    expect(new Set(daily).size).toBe(7)
   })
 
   it('Then the cursor label is 시각 via shared/messages t(), not the English Time', () => {
