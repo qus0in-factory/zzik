@@ -85,7 +85,27 @@
 .chart-frame:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 .chart-canvas-host { width: 100%; min-height: 240px; touch-action: pan-y; }
 .chart-canvas-host .uplot { font-family: inherit; }
-.chart-canvas-host .u-legend { font-size: 11px; color: var(--chart-text); }
+/* uPlot 기본 범례(영문 Time·계열 값)는 옵션으로 끄고, CSS에서도 남아도 보이지 않게 한다. */
+.chart-canvas-host .u-legend { display: none; }
+
+/* 커서 값은 이 툴팁 하나로 통일한다(우리 범례와 두 줄로 중복되지 않는다). */
+.chart-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  max-width: 62%;
+  padding: 6px 9px;
+  border: 1px solid var(--chart-tooltip-border, var(--border));
+  border-radius: 8px;
+  background: var(--chart-tooltip-bg, var(--card));
+  color: var(--chart-text, var(--foreground));
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.chart-tooltip[hidden] { display: none; }
 
 /* 접근성 대체: 캔버스는 장식으로 두고 제목·설명·데이터 표는 스크린리더에 남긴다. */
 .chart-a11y {
@@ -172,6 +192,7 @@
   .chart-legend-item,
   .chart-range-tab,
   .chart-show-all,
+  .chart-tooltip,
   .chart-a11y,
   .chart-skeleton,
   .chart-retry {

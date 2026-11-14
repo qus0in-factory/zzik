@@ -60,7 +60,8 @@ describe('Given accessibility and reduced motion', () => {
   it('Then the range input is clipped (focusable) and horizontal touch dragging is allowed', () => {
     expect(chartCss).toContain('.chart-range-input')
     expect(chartCss).toContain('clip: rect(0, 0, 0, 0)')
-    expect(chartCss).not.toContain('display: none')
+    const rangeInput = chartCss.slice(chartCss.indexOf('.chart-range-input {'), chartCss.indexOf('.chart-legend {'))
+    expect(rangeInput).not.toContain('display: none')
     expect(chartCss).toContain('touch-action: pan-y')
   })
 
@@ -71,10 +72,18 @@ describe('Given accessibility and reduced motion', () => {
 
   it('Then reduced motion kills panel entrance and series toggle transitions', () => {
     expect(chartCss).toContain('@media (prefers-reduced-motion: reduce)')
-    for (const selector of ['.usage-history-panel', '.usage-history-chart', '.chart-legend-item', '.chart-range-tab', '.chart-show-all', '.chart-skeleton', '.chart-retry']) {
+    for (const selector of ['.usage-history-panel', '.usage-history-chart', '.chart-legend-item', '.chart-range-tab', '.chart-show-all', '.chart-tooltip', '.chart-skeleton', '.chart-retry']) {
       expect(chartCss).toContain(selector)
     }
     expect(chartCss).toContain('transition: none')
+  })
+
+  it('Then the uPlot default legend is hidden and a single custom tooltip is styled', () => {
+    expect(chartCss).toContain('.chart-canvas-host .u-legend')
+    expect(chartCss).toContain('display: none')
+    expect(chartCss).toContain('.chart-tooltip')
+    expect(chartCss).toContain('.chart-tooltip[hidden]')
+    expect(chartCss).toContain('--chart-tooltip-bg')
   })
 
   it('Then forced-colors turns on dashes for the first three slots too', () => {

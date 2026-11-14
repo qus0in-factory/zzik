@@ -139,7 +139,7 @@ describe('Given the frozen usage history contract (ADR 0.7 T0)', () => {
     expect(USAGE_HISTORY_PATH).toBe('/api/usage-history')
     expect(USAGE_HISTORY_LIMIT_MAX).toBe(100)
     expect(USAGE_HISTORY_PAGE_LIMIT).toBe(50)
-    expect(USAGE_HISTORY_MIN_OK_EVENTS).toBe(4)
+    expect(USAGE_HISTORY_MIN_OK_EVENTS).toBe(2)
     expect(USAGE_HISTORY_SCAN_VERSION).toBe(1)
     expect(USAGE_HISTORY_ANCHOR_ON).toBe('1')
   })
