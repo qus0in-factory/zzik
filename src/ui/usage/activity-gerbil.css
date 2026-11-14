@@ -125,14 +125,30 @@
 .gerbil-sleep-z-2 { animation: gerbil-z-float 3s ease-in-out -1.1s infinite; }
 .gerbil-sleep-z-3 { animation: gerbil-z-float 3.4s ease-in-out -2s infinite; }
 
-/* 가끔 깨기: 16s 주기 중 82%~92%(1.6s)만 고개를 들어 좌우를 살피고 다시 웅크린다. 그 동안 zzz는 숨는다. */
+/* 가끔 깨기: 16s 주기 중 82%~92%(1.6s)만 고개를 들어 왼쪽→오른쪽으로 돌리고 다시 웅크린다.
+   그 동안 zzz를 숨기고, 감은 눈을 뜬 눈으로 바꿔 눈동자를 좌우로 움직이며 귀를 세운다. */
 .gerbil-sleep-head {
   transform-box: view-box;
   transform-origin: 18px 16px;
   animation: gerbil-wake var(--sleep-cycle, 16s) ease-in-out var(--sleep-delay, 0s) infinite;
 }
+.gerbil-sleep-ear {
+  transform-box: view-box;
+  transform-origin: 19.6px 12px;
+  animation: gerbil-ear-perk var(--sleep-cycle, 16s) ease-in-out var(--sleep-delay, 0s) infinite;
+}
 .gerbil-sleep-zzz {
   animation: gerbil-zzz-hide var(--sleep-cycle, 16s) linear var(--sleep-delay, 0s) infinite;
+}
+.gerbil-sleep-eye-closed {
+  animation: gerbil-eye-closed var(--sleep-cycle, 16s) linear var(--sleep-delay, 0s) infinite;
+}
+.gerbil-sleep-eye-open {
+  opacity: 0;
+  animation: gerbil-eye-open var(--sleep-cycle, 16s) linear var(--sleep-delay, 0s) infinite;
+}
+.gerbil-sleep-eye-pupil {
+  animation: gerbil-pupil-look var(--sleep-cycle, 16s) ease-in-out var(--sleep-delay, 0s) infinite;
 }
 
 @keyframes gerbil-breathe {
@@ -147,11 +163,32 @@
   100% { opacity: 0;    transform: translate(0, -6px) rotate(0deg) scale(1.1); }
 }
 @keyframes gerbil-wake {
-  0%, 82% { transform: translateY(0) rotate(0deg); }
-  84% { transform: translateY(-2px) rotate(0deg); }
-  87% { transform: translateY(-2.6px) rotate(-14deg); }
-  90% { transform: translateY(-2.6px) rotate(14deg); }
-  92%, 100% { transform: translateY(0) rotate(0deg); }
+  0%, 82% { transform: translateX(0) translateY(0) rotate(0deg); }
+  84% { transform: translateX(-2.4px) translateY(-2px) rotate(-10deg); }
+  87% { transform: translateX(-2.4px) translateY(-2.6px) rotate(-16deg); }
+  90% { transform: translateX(2.4px) translateY(-2.6px) rotate(16deg); }
+  92%, 100% { transform: translateX(0) translateY(0) rotate(0deg); }
+}
+@keyframes gerbil-pupil-look {
+  0%, 82%, 100% { transform: translateX(0); }
+  84%, 87% { transform: translateX(-1.5px); }
+  90% { transform: translateX(1.5px); }
+  92% { transform: translateX(0); }
+}
+@keyframes gerbil-eye-closed {
+  0%, 81%, 93%, 100% { opacity: 1; }
+  82%, 92% { opacity: 0; }
+}
+@keyframes gerbil-eye-open {
+  0%, 81%, 93%, 100% { opacity: 0; }
+  82%, 92% { opacity: 1; }
+}
+@keyframes gerbil-ear-perk {
+  0%, 81% { transform: rotate(0deg) translateY(0); }
+  83% { transform: rotate(-18deg) translateY(-1px); }
+  87%, 89% { transform: rotate(-6deg) translateY(-0.3px); }
+  91% { transform: rotate(-18deg) translateY(-1px); }
+  93%, 100% { transform: rotate(0deg) translateY(0); }
 }
 @keyframes gerbil-zzz-hide {
   0%, 81%, 93%, 100% { opacity: 1; }
@@ -191,11 +228,15 @@
   .gerbil-part-tail,
   .gerbil-sleep-body,
   .gerbil-sleep-head,
+  .gerbil-sleep-ear,
   .gerbil-sleep-zzz,
   .gerbil-sleep-z,
   .gerbil-sleep-z-1,
   .gerbil-sleep-z-2,
   .gerbil-sleep-z-3,
+  .gerbil-sleep-eye-closed,
+  .gerbil-sleep-eye-open,
+  .gerbil-sleep-eye-pupil,
   .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-part-tail,
   .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-front-left,
   .activity-gerbil-runner[data-gerbil-state='idle'] .gerbil-leg-back-right,
