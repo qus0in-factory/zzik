@@ -205,3 +205,26 @@ describe('Given budget, storage and version guards', () => {
     expect(u.gateway.queries[0]).toMatchObject({ from: new Date(NOW - DAY).toISOString(), anchor: true })
   })
 })
+
+describe('Given the G0-B confirmed parameters (쪽 50·상한 100·병렬도 1)', () => {
+  it('Then the page size is 50 and the server limit cap is 100', async () => {
+    const contract = await import('../../../../shared/usage-history-contract')
+    expect(contract.USAGE_HISTORY_PAGE_LIMIT).toBe(50)
+    expect(contract.USAGE_HISTORY_LIMIT_MAX).toBe(100)
+  })
+  it('Then requests never overlap during a long backfill (병렬도 1) and every request uses limit 50', async () => {
+    const t = setup(syntheticEvents(96 * 4, new Date(NOW - 4 * DAY).toISOString(), 900_000))
+    let concurrent = 0
+    let max = 0
+    t.gateway.onBeforeFetch = async () => {
+      concurrent += 1
+      max = Math.max(max, concurrent)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      concurrent -= 1
+    }
+    await syncHistory(t.deps(), { provider: 'claude', snapshotRunAt: null, wantFromMs: NOW - 3 * DAY })
+    expect(max).toBe(1)
+    expect(t.gateway.queries.length).toBeGreaterThan(3)
+    expect(t.gateway.queries.every((query) => query.limit === 50)).toBe(true)
+  })
+})

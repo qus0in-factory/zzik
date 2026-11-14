@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { t } from '@shared/messages'
+import { useHistoryWarmSync } from '@app/usage/history/useHistoryWarmSync'
 import { useProviderOrder } from '@app/usage/ProviderOrderContext'
 import { BackToTop } from '@ui/components/BackToTop'
 import { HomeLink } from '@ui/components/HomeLink'
@@ -57,6 +58,7 @@ export default function App() {
   const { order } = useProviderOrder()
   const { mainRef, captureTops } = useSectionFlip(order)
   useEntranceGuard()
+  useHistoryWarmSync() // 이력이 있는 제공자를 백그라운드에서 따라잡는다(플래그가 꺼지면 아무 것도 하지 않는다)
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-b bg-card">

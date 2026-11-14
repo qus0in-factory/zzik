@@ -5,6 +5,7 @@ import type { UsageCollectionStatus } from '@app/usage/load-usage'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageReport } from '@domain/usage/types'
 import type { UsageUiStatus } from '@app/usage/useUsage'
+import type { ChartButtonState } from '@app/usage/history/chart-view'
 import { Card, CardContent, CardHeader } from '@ui/components/ui/card'
 import { Skeleton } from '@ui/components/ui/skeleton'
 import { cardPresentation } from '@app/usage/card-presentation'
@@ -43,6 +44,10 @@ export interface UsageDashboardProps {
   refreshing?: boolean
   /** 수집기 상태(상태등 판정용). 봉투가 없으면 null */
   collectionStatus?: UsageCollectionStatus | null
+  /** 차트 버튼(ADR 0.7). null·생략이면 상태 줄에 버튼을 그리지 않는다. */
+  chart?: ChartButtonState | null
+  /** 상태 줄·안내 아래, 카드 위에 놓이는 차트 패널 슬롯. */
+  chartPanel?: ReactNode
 }
 
 /** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도. */
@@ -62,6 +67,8 @@ export function UsageDashboard({
   collectionNote = null,
   refreshing = false,
   collectionStatus = null,
+  chart = null,
+  chartPanel = null,
 }: UsageDashboardProps): ReactNode {
   const sectionProps = {
     'data-testid': `usage-section-${provider}`,
@@ -109,10 +116,10 @@ export function UsageDashboard({
     <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">
       {title !== undefined ? (
         <SectionTitle provider={provider} title={title} light={light}>
-          <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
+          <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} chart={chart} />
         </SectionTitle>
       ) : (
-        <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} />
+        <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} chart={chart} />
       )}
 
       {collectionNote !== null && (
@@ -153,6 +160,8 @@ export function UsageDashboard({
           )}
         </div>
       )}
+
+      {chartPanel}
 
       {empty && status === 'ready' && <p className="text-sm text-muted-foreground">{t('section.empty')}</p>}
 

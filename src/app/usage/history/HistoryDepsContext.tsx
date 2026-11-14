@@ -30,7 +30,7 @@ export interface HistoryDeps {
   /** 차트 뷰 빌더(T3의 buildChartView). 없으면 빈 뷰 */
   buildView?: ChartViewBuilder
   /** 버튼에 포인터·포커스가 닿으면 미리 받는다(지연 청크). */
-  preload?: () => void
+  preload?: () => void | Promise<void>
   nowMs: () => number
 }
 
@@ -40,10 +40,14 @@ export function HistoryDepsProvider({ deps, children }: { deps: HistoryDeps; chi
   return <HistoryDepsContext.Provider value={deps}>{children}</HistoryDepsContext.Provider>
 }
 
+let disabledDeps: HistoryDeps | null = null
+
+/** Provider가 없으면(정적 렌더·기존 테스트) 비활성 의존으로 돌아간다 — 차트 버튼도 그려지지 않는다. */
 export function useHistoryDeps(): HistoryDeps {
   const deps = useContext(HistoryDepsContext)
-  if (deps === null) throw new Error('HistoryDepsProvider로 이력 의존을 주입해야 한다(조립 루트 담당).')
-  return deps
+  if (deps !== null) return deps
+  disabledDeps ??= createDisabledHistoryDeps()
+  return disabledDeps
 }
 
 /** 플래그가 꺼졌을 때 조립 루트가 쓰는 비활성 의존: 어떤 포트도 실제로 건드리지 않는다(infra 모듈을 불러오지도 않는다). */

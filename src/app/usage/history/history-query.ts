@@ -5,7 +5,6 @@ import type { HistoryCacheStore, UsageHistoryGateway } from '@domain/usage/histo
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
 import { UsageLoadError } from '../usage-query'
-import { syncHistory } from './sync-history'
 import type { SyncArgs, SyncDeps, SyncOutcome } from './sync-history'
 
 /** 요약 stale 15분(6.1절). */
@@ -68,7 +67,8 @@ export function throwForOutcome(outcome: SyncOutcome): HistoryCacheRecord {
 export function runDedupedSync(inflight: Map<UsageProvider, Promise<SyncOutcome>>, deps: SyncDeps, args: SyncArgs): Promise<SyncOutcome> {
   const running = inflight.get(args.provider)
   if (running !== undefined) return running
-  const promise = syncHistory(deps, args).finally(() => inflight.delete(args.provider))
+  // 동기화 엔진은 처음 필요할 때 받는다(메인 번들에서 뺀다). 같은 모듈이 main.tsx의 동적 import와 한 청크로 묶인다.
+  const promise = import('./sync-history').then(({ syncHistory }) => syncHistory(deps, args)).finally(() => inflight.delete(args.provider))
   inflight.set(args.provider, promise)
   return promise
 }

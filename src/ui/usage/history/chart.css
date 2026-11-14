@@ -1,0 +1,181 @@
+/* 사용률 추이 차트(ADR 0.7 8절 / uPlot). 색·표면은 전부 CSS 변수라 다크 테마에서 값만 바꾸면 된다.
+   이 파일은 지연 청크에만 들어간다 — 메인 번들에는 차트 코드도 토큰도 추가되지 않는다. */
+@import 'uplot/dist/uPlot.min.css';
+
+:root {
+  /* 계열 색(8.3절): 흰 카드 대비 3.41 이상. 슬롯 4~8은 파선으로도 구분한다. */
+  --chart-1: #2a78d6;
+  --chart-2: #e0591f;
+  --chart-3: #199e70;
+  --chart-4: #b87a00;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #6250d6;
+  --chart-8: #e34948;
+  --chart-overflow: oklch(0.45 0 0);
+  --chart-grid: oklch(0.91 0 0);
+  --chart-axis: oklch(0.78 0 0);
+  --chart-surface: var(--card);
+  --chart-text: var(--foreground);
+  --chart-muted: var(--muted-foreground);
+  --chart-tooltip-bg: var(--card);
+  --chart-tooltip-border: var(--border);
+}
+
+.dark {
+  /* 다크모드 차트 CSS 변수: 어두운 표면에 맞춰 밝힌 계열 색과 표면 토큰 */
+  --chart-1: #79b0f2;
+  --chart-2: #f0894f;
+  --chart-3: #3cc79a;
+  --chart-4: #e0a52e;
+  --chart-5: #ef85ab;
+  --chart-6: #4bb44b;
+  --chart-7: #9a8cf0;
+  --chart-8: #f07b7a;
+  --chart-overflow: oklch(0.72 0 0);
+  --chart-grid: oklch(0.34 0 0);
+  --chart-axis: oklch(0.5 0 0);
+  --chart-surface: oklch(0.2 0 0);
+  --chart-text: oklch(0.96 0 0);
+  --chart-muted: oklch(0.74 0 0);
+  --chart-tooltip-bg: oklch(0.24 0 0);
+  --chart-tooltip-border: oklch(0.4 0 0);
+}
+
+.usage-history-chart {
+  display: block;
+  padding: 12px 16px 16px;
+  border: 1px solid var(--chart-tooltip-border, var(--border));
+  border-radius: var(--radius, 0.75rem);
+  background: var(--chart-surface, var(--card));
+  color: var(--chart-text, var(--foreground));
+}
+
+/* 슬롯 → 색. 상태색은 쓰지 않는다. 0은 중립 회색. */
+.usage-history-chart [data-slot='1'] { --chart-color: var(--chart-1); }
+.usage-history-chart [data-slot='2'] { --chart-color: var(--chart-2); }
+.usage-history-chart [data-slot='3'] { --chart-color: var(--chart-3); }
+.usage-history-chart [data-slot='4'] { --chart-color: var(--chart-4); }
+.usage-history-chart [data-slot='5'] { --chart-color: var(--chart-5); }
+.usage-history-chart [data-slot='6'] { --chart-color: var(--chart-6); }
+.usage-history-chart [data-slot='7'] { --chart-color: var(--chart-7); }
+.usage-history-chart [data-slot='8'] { --chart-color: var(--chart-8); }
+.usage-history-chart [data-slot='0'] { --chart-color: var(--chart-overflow); }
+
+.chart-toolbar { display: flex; justify-content: flex-end; }
+.chart-range-tabs { display: inline-flex; gap: 4px; }
+.chart-range-tab {
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--chart-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity var(--motion-fast, 150ms) ease;
+}
+.chart-range-tab[aria-pressed='true'] {
+  border-color: var(--chart-tooltip-border, var(--border));
+  background: var(--chart-grid);
+  color: var(--chart-text);
+  font-weight: 600;
+}
+
+.chart-frame { position: relative; width: 100%; }
+.chart-frame:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+.chart-canvas-host { width: 100%; min-height: 240px; touch-action: pan-y; }
+.chart-canvas-host .uplot { font-family: inherit; }
+.chart-canvas-host .u-legend { font-size: 11px; color: var(--chart-text); }
+
+/* 접근성 대체: 캔버스는 장식으로 두고 제목·설명·데이터 표는 스크린리더에 남긴다. */
+.chart-a11y {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 포커스 가능한 클립 패턴: display:none·visibility:hidden 을 쓰지 않는다(8.4절). */
+.chart-range-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chart-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity var(--motion-fast, 150ms) ease;
+}
+.chart-legend-item.is-hidden { color: var(--chart-muted); opacity: 0.6; }
+.chart-legend-item.is-hidden .chart-swatch-line { stroke: var(--chart-muted); stroke-dasharray: 2 2; opacity: 0.5; }
+.chart-swatch { flex: none; }
+.chart-swatch-line { stroke: var(--chart-color); stroke-width: 2; stroke-linecap: round; }
+.chart-show-all {
+  border: 0;
+  background: transparent;
+  color: var(--chart-1);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: opacity var(--motion-fast, 150ms) ease;
+}
+
+.chart-table { margin-top: 10px; font-size: 12px; }
+.chart-table summary { cursor: pointer; color: var(--chart-muted); }
+.chart-table table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.chart-table th, .chart-table td { padding: 4px 6px; border-bottom: 1px solid var(--chart-grid); text-align: left; }
+.chart-table thead th { color: var(--chart-muted); font-weight: 600; }
+
+.chart-skeleton, .chart-error, .chart-empty, .chart-syncing, .chart-progress, .chart-note {
+  padding: 12px 4px;
+  font-size: 13px;
+}
+.chart-skeleton { color: var(--chart-muted); }
+.chart-error { display: flex; align-items: center; gap: 12px; color: var(--destructive); }
+.chart-retry { border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; background: transparent; color: inherit; cursor: pointer; }
+.chart-empty { color: var(--chart-muted); }
+.chart-syncing, .chart-progress, .chart-note { color: var(--chart-muted); font-size: 12px; padding: 2px 4px; }
+
+/* 강제 색 모드에서는 앞의 세 슬롯 선 조각에도 무늬를 켠다. */
+@media (forced-colors: active) {
+  .usage-history-chart .chart-swatch-line[data-slot='1'] { stroke-dasharray: 12 4; }
+  .usage-history-chart .chart-swatch-line[data-slot='2'] { stroke-dasharray: 2 3; }
+  .usage-history-chart .chart-swatch-line[data-slot='3'] { stroke-dasharray: 8 3 2 3; }
+}
+
+/* reduced-motion: 패널 등장과 계열 토글 전환을 모두 끈다. uPlot 자체는 애니메이션이 없다. */
+@media (prefers-reduced-motion: reduce) {
+  .usage-history-chart.usage-history-panel,
+  .usage-history-chart,
+  .chart-legend-item,
+  .chart-range-tab,
+  .chart-show-all,
+  .chart-a11y,
+  .chart-skeleton,
+  .chart-retry {
+    animation: none;
+    transition: none;
+  }
+}
