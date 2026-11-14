@@ -20,7 +20,7 @@ import type { ChartViewBuilder } from '@app/usage/history/chart-view-input'
 import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
-import { subscribeStorageKey } from '@infra/usage/browser-storage'
+import { browserLocalKeyValue, browserSessionKeyValue, subscribeStorageKey } from '@infra/usage/browser-storage'
 import { browserLocalStorage, createLocalStorageOrderStore, PROVIDER_ORDER_STORAGE_KEY } from '@infra/usage/local-storage-order-store'
 import { createLocalStorageViewModeStore, VIEW_MODE_STORAGE_KEY } from '@infra/usage/local-storage-view-mode-store'
 import { createFixtureUsageGateway } from '@infra/usage/fixture-usage-gateway'
@@ -61,22 +61,21 @@ const usageDeps: UsageDeps = {
 let viewBuilder: ChartViewBuilder = emptyChartViewBuilder
 async function loadHistoryDeps(): Promise<HistoryDeps> {
   if (!__HISTORY_ENABLED__) return createDisabledHistoryDeps()
-  const [syncModule, storage, fixtureGateway, httpGateway, idbCache] = await Promise.all([
+  const [syncModule, fixtureGateway, httpGateway, idbCache] = await Promise.all([
     import('@app/usage/history/sync-history'),
-    import('@infra/usage/browser-storage'),
     import('@infra/usage/fixture-usage-history-gateway'),
     import('@infra/usage/http-usage-history-gateway'),
     import('@infra/usage/idb-history-cache'),
   ])
-  const chartPrefs = createChartPrefsStore(storage.browserLocalKeyValue())
-  storage.subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
+  const chartPrefs = createChartPrefsStore(browserLocalKeyValue())
+  subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
   return {
     enabled: true,
     gateway: devFixtureRequested
       ? fixtureGateway.createFixtureUsageHistoryGateway()
       : httpGateway.createHttpUsageHistoryGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })),
     cache: idbCache.createIdbHistoryCache(idbCache.browserIndexedDb()),
-    session: storage.browserSessionKeyValue(),
+    session: browserSessionKeyValue(),
     prefs: chartPrefs,
     budget: syncModule.createHistoryBudget({ now: () => Date.now() }),
     memory: new Map(),
