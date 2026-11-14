@@ -8,6 +8,8 @@ import App from '@ui/App'
 import { createAppQueryClient } from '@app/query-client'
 import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
 import { ProviderOrderProvider } from '@app/usage/ProviderOrderContext'
+import { ViewModeProvider } from '@app/usage/ViewModeContext'
+import { createViewModeStore } from '@app/usage/view-mode-store'
 import { createProviderOrderStore } from '@app/usage/provider-order-store'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
 import { createDisabledHistoryDeps, HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
@@ -18,6 +20,7 @@ import type { UsageDeps } from '@app/usage/UsageGatewayContext'
 import { useUsageUiStore } from '@app/usage/usage-ui-store'
 import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser-runtime'
 import { browserLocalStorage, createLocalStorageOrderStore } from '@infra/usage/local-storage-order-store'
+import { createLocalStorageViewModeStore } from '@infra/usage/local-storage-view-mode-store'
 import { createFixtureUsageGateway } from '@infra/usage/fixture-usage-gateway'
 import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 
@@ -29,6 +32,8 @@ const devFixtureRequested = import.meta.env.DEV && new URLSearchParams(window.lo
 
 // 제공자 순서는 zustand 스토어(app)가 들고, 브라우저별 localStorage 저장은 infra 어댑터를 여기서 주입한다.
 const orderStore = createProviderOrderStore(createLocalStorageOrderStore(browserLocalStorage()))
+// 카드·목록 보기 방식도 같은 방식: zustand 스토어(app) + localStorage 어댑터 주입(infra).
+const viewModeStore = createViewModeStore(createLocalStorageViewModeStore(browserLocalStorage()))
 
 const usageDeps: UsageDeps = {
   clock: createBrowserClock(),
@@ -98,9 +103,11 @@ async function start(): Promise<void> {
       <QueryClientProvider client={queryClient}>
         <UsageGatewayProvider deps={usageDeps}>
           <ProviderOrderProvider store={orderStore}>
-            <HistoryDepsProvider deps={historyDeps}>
-              <App />
-            </HistoryDepsProvider>
+            <ViewModeProvider store={viewModeStore}>
+              <HistoryDepsProvider deps={historyDeps}>
+                <App />
+              </HistoryDepsProvider>
+            </ViewModeProvider>
           </ProviderOrderProvider>
         </UsageGatewayProvider>
       </QueryClientProvider>

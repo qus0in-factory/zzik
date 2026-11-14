@@ -40,7 +40,7 @@ export interface UsageLimitItem {
 }
 
 /** 배지는 막대 단계(barLevel)와 같은 판정에서 나온다. 여유·중립은 배지 없이 aria 문구로만 전달한다. */
-function badgeFor(barLevel: CardPresentation['barLevel'], usedPercent: number | null): { text: string; variant: 'secondary' | 'destructive' } | null {
+export function badgeFor(barLevel: CardPresentation['barLevel'], usedPercent: number | null): { text: string; variant: 'secondary' | 'destructive' } | null {
   if (barLevel === 'caution') return { text: t('badge.caution'), variant: 'secondary' }
   if (barLevel === 'danger') return { text: usedPercent !== null && usedPercent >= 100 ? t('badge.limit') : t('badge.danger'), variant: 'destructive' }
   return null
