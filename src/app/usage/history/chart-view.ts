@@ -181,7 +181,9 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const hiddenSet = new Set(hidden)
   const shownSet = new Set(shown)
 
-  const built = buildSeries({ anchor: record.anchor, samples: record.samples, tailEnd })
+  // 스냅샷 시각을 못 받으면 now까지 마지막 값을 유지한 수평선(꼬리)을 이어 그린다.
+  const effectiveTail = tailEnd ?? nowMs
+  const built = buildSeries({ anchor: record.anchor, samples: record.samples, tailEnd: effectiveTail })
   const byId = new Map(built.map((item) => [item.id, item]))
   // seriesOrder는 추가만 한다 — 숨김·범위·정렬로 슬롯이 바뀌지 않는다
   const order = [...record.seriesOrder]
@@ -217,7 +219,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
     if (t > lastSampleT) lastSampleT = t
     if (sample.values !== null && t >= from) stopTimes.add(t)
   }
-  const tailStop = tailEnd === null ? to : Math.max(from, Math.min(to, tailEnd))
+  const tailStop = Math.max(from, Math.min(to, effectiveTail))
   if (series.length > 0 && tailStop > lastSampleT) stopTimes.add(tailStop)
   const times = [...stopTimes].sort((a, b) => a - b)
 
