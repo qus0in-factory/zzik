@@ -15,9 +15,9 @@ export interface StatusBarProps {
 /** 마지막 수집 안내 + [차트 보기] [새로고침]. aria-live로 스크린리더에 알린다. */
 export function StatusBar({ lastSuccessText, onRetry = null, refreshing = false, chart = null }: StatusBarProps): ReactNode {
   return (
-    <div aria-live="polite" className="flex items-center gap-3">
+    <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {lastSuccessText !== null && (
-        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+        <span className="inline-flex basis-full items-center gap-1.5 text-sm text-muted-foreground sm:basis-auto">
           <History aria-hidden="true" className="size-4 shrink-0" />
           {lastSuccessText}
         </span>
@@ -26,7 +26,7 @@ export function StatusBar({ lastSuccessText, onRetry = null, refreshing = false,
         <>
           <button
             type="button"
-            className="motion-button inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium hover:bg-accent"
+            className="motion-button inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium whitespace-nowrap hover:bg-accent"
             aria-expanded={chart.expanded}
             aria-controls={chart.panelId}
             aria-disabled={chart.disabled || undefined}
@@ -49,7 +49,7 @@ export function StatusBar({ lastSuccessText, onRetry = null, refreshing = false,
           disabled={refreshing}
           aria-busy={refreshing}
           aria-label={t('action.refresh.aria')}
-          className="motion-button inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-progress disabled:opacity-60"
+          className="motion-button inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium whitespace-nowrap hover:bg-accent disabled:cursor-progress disabled:opacity-60"
         >
           {refreshing ? (
             <Loader2 data-testid="refresh-spinner" aria-hidden="true" className="refresh-spinner size-4" />

@@ -78,6 +78,18 @@ export const ko = {
   'chart.empty.noPoints': '표시할 이력이 없습니다',
   'chart.empty.allHidden': '모든 계열이 숨겨져 있습니다',
 
+  // 보기 방식(카드·목록, #64)
+  'view.group.aria': '보기 방식',
+  'view.grid': '카드 보기',
+  'view.list': '목록 보기',
+  'list.caption': '{provider} {group}',
+  'list.group.windows': '사용 한도 목록',
+  'list.col.name': '한도',
+  'list.col.used': '사용률',
+  'list.col.bar': '진행',
+  'list.col.elapsed': '기간 경과',
+  'list.col.reset': '리셋',
+
   // 한도 카드
   'card.unverified': '미확인',
   'card.noValue': '정보 없음',
