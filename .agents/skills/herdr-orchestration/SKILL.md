@@ -1,6 +1,6 @@
 ---
 name: herdr-orchestration
-description: opus가 Herdr 패널의 다른 모델 에이전트(sol, ds, hy, fable, sonnet)에 작업을 분배·대기·검수할 때 사용. 역할 배정, 프롬프트 전송 명령, fable 사용 제한 규칙 포함. opus 외 에이전트는 이 스킬로 다른 에이전트를 호출하지 않는다.
+description: opus가 Herdr 패널의 다른 모델 에이전트(sol, ds, hy, fable, glm)에 작업을 분배·대기·검수할 때 사용. 역할 배정, 프롬프트 전송 명령, fable 사용 제한 규칙 포함. opus 외 에이전트는 이 스킬로 다른 에이전트를 호출하지 않는다.
 ---
 
 # Herdr 오케스트레이션 (opus 총괄)
@@ -11,9 +11,10 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(sol, ds, hy, fab
 | `opus` | 총괄 | 작업 분해, 분배, 결과 검수·통합, 최종 판단과 사용자 보고 |
 | `fable` | 설계·핵심 경로 리뷰(effort high) | 아키텍처·인터페이스·데이터 모델 설계, 설계 리뷰·핵심 경로 리뷰. **구현·검색·테스트·잡무 금지**. 설계는 Herdr fable 패널 또는 fable-designer 서브에이전트(effort high)로 호출 |
 | `sol` | 백엔드/인프라/수집기 구현·조사·교차 리뷰 | 설계에 따른 구현, Postgres/DB 연동, 수집기 인프라, 까다로운 디버깅, 외부 API/CLI·동작 원리 조사, 실데이터 검증, 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high) |
-| `sonnet` | 프론트엔드/수집기 구현·조사·교차 리뷰 | UI/컴포넌트 구현, 수집기 연동, 프론트/앱 로직, 리팩터링, 조사·탐색, 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high) |
+| `glm` | 교차 리뷰·구현 평가(OpenCode, GLM-5.3; 리뷰 시 high) | 구현 평가와 독립 교차 리뷰·실데이터 대조. 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high) |
 | `ds` | 경량 구현/잡무 (effort medium) | 범위가 명확한 소규모 구현, 테스트 보강, 하네스·스크립트·문서 동기화, 리뷰 지적 반영. 설계·운영 배포·대규모 구조 변경은 맡기지 않음 |
 | `hy` | 경량 구현/잡무 보조(평가 중) | 범위가 명확한 소규모 구현, 테스트 보강, 문서 동기화. 설계·운영 배포 제외, effort 기본 |
+| Claude Code 서브에이전트<br>(`model: sonnet`) | 구현·탐색·테스트 위임 | opus·fable이 Agent 도구로 sonnet을 호출한다. Herdr 패널이 아니며 워커 수에 세지 않는다 |
 
 ## fable 사용 제한 (설계·핵심 리뷰)
 - fable은 설계와 핵심 경로 리뷰에만 쓴다. 구현·검색·테스트·잡무는 금지한다.
@@ -26,11 +27,12 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(sol, ds, hy, fab
 1. opus가 작업을 분해하고, 설계가 필요하면 fable → 설계 확정 후 구현 분배.
 2. 독립 작업은 여러 에이전트에 병렬로 보낸다(같은 파일을 동시에 수정하게 하지 않는다).
 3. 대기·출력 읽기는 `worker-watcher`, 검수는 `work-reviewer`(둘 다 sonnet 서브에이전트, `.claude/agents/`)에 넘긴다. opus는 판정만 보고 통합한다.
+4. opus·fable은 구현·탐색·테스트가 필요하면 Claude Code 서브에이전트(Agent 도구, `model: sonnet`)로 sonnet을 호출해 위임한다.
 
 ## 선제 안전장치
 - **(a) 실데이터 확인 및 픽스처 작성**: 표시·파싱 작업은 워커가 착수 전 `scripts/usage-live-shape.sh` 결과를 보고하고 그 실데이터로 픽스처·테스트를 만든다. opus의 가정을 지시에 그대로 옮기지 않는다.
 - **(b) 검수 관문 (두 단계 필수 통과)**: 둘 다 통과해야만 병합 및 배포를 진행할 수 있다.
-  1. **교차 리뷰 (워커)**: sol·sonnet 중 **구현자가 아닌 쪽**이 독립 리뷰와 실데이터 대조를 수행한다(예: sol 구현 → sonnet 리뷰, sonnet 구현 → sol 리뷰, ds 구현 → sol/sonnet 리뷰). 리뷰 수행 시 effort high.
+  1. **교차 리뷰 (워커)**: sol·glm 중 **구현자가 아닌 쪽**이 독립 리뷰와 실데이터 대조를 수행한다(예: sol 구현 → glm 리뷰, glm 구현 → sol 리뷰, ds 구현 → sol/glm 리뷰). 리뷰 수행 시 effort high.
   2. **서브에이전트 리뷰 (`work-reviewer`)**: `work-reviewer`(effort high)가 테스트·빌드 실행, 요구사항 및 실데이터 형상 대조를 직접 수행하여 최종 판정(`PASS`/`FIX`)을 내린다. 표시·파싱 기능이면 실데이터 대조 없이는 통과를 줄 수 없다.
 - **(c) 배포 완료 알림 게이트**: 배포 후 워커의 기능 대조 보고(실데이터 vs 화면 기대치) 없이는 완료 알림(`discord-notify`)을 보내지 않는다.
 - **(d) opus 역할 제한 및 거버넌스**: opus는 코드·설계·스크립트 조사·편집·대기를 직접 하지 않고 워커 또는 `.claude/agents/` 전용 서브에이전트(`worker-watcher`, `work-reviewer`)에 맡기며 `general-purpose`를 쓰지 않는다. 도구 권한 거부(`blocked`) 시 설정을 스스로 고치지 말고 사용자에게 묻는다.
@@ -58,16 +60,16 @@ herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 |---|---|---|
 | opus (조율) | low | 조율·분해·보고만 수행. **예외 없음(상향 금지)** |
 | 설계·핵심 경로 리뷰<br>(fable, fable-designer) | high | 아키텍처·인터페이스 설계 및 설계·핵심 경로 리뷰 (**설계·리뷰 예외**) |
-| 교차 리뷰·최종 판정<br>(구현자가 아닌 sol/sonnet, work-reviewer) | high | 검수 누락 방지 및 심층 검수 관문 |
-| 나머지<br>(구현/조사 워커 sol/sonnet/ds, worker-watcher 등) | medium (없는 도구는 default) | 작업 수행 및 대기·요약 |
+| 교차 리뷰·최종 판정<br>(구현자가 아닌 sol/glm, work-reviewer) | high | 검수 누락 방지 및 심층 검수 관문 |
+| 나머지<br>(구현/조사 워커 sol/ds/hy, 구현 평가 glm, Claude Code 서브에이전트 sonnet, worker-watcher 등) | medium (없는 도구는 default) | 작업 수행 및 대기·요약 |
 
 - 워커의 effort 변경은 `/effort`로 한다.
 
 > **운영 원칙 (사용자 최종 결정)**:
 > - **opus(조율)**: **low 고정, 예외 없음**. 과잉 설계·지연을 방지하기 위해 판단이 무거운 작업(구조 변경·장애 분석)의 상향 규칙에서도 **조율자는 제외**한다.
 > - **설계·핵심 경로 리뷰(fable, fable-designer)**: **high**. 설계·핵심 리뷰 품질 보증을 위한 **설계·리뷰 예외**.
-> - **교차 리뷰(구현자가 아닌 sol/sonnet)·최종 판정(work-reviewer)**: **high**. 같은 워커라도 **리뷰를 맡을 때는 그 작업에 한해 high**로 올린다.
-> - **나머지(구현/조사 워커 sol/sonnet/ds, worker-watcher 등)**: **medium** (미지원 도구는 default).
+> - **교차 리뷰(구현자가 아닌 sol/glm)·최종 판정(work-reviewer)**: **high**. 같은 워커라도 **리뷰를 맡을 때는 그 작업에 한해 high**로 올린다.
+> - **나머지(구현/조사 워커 sol/ds/hy, 구현 평가 glm, Claude Code 서브에이전트 sonnet, worker-watcher 등)**: **medium** (미지원 도구는 default).
 
 ## 워크트리 (병렬 트랙)
 - 같은 파일을 건드릴 수 있는 트랙이 동시에 돌면 레포 내부 `.worktree/`에 워크트리를 만든다(`.gitignore` 등록됨).

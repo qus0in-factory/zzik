@@ -31,7 +31,7 @@ bottom_lines() {
 #   codex → sol
 #   agy → 하단에 `Argon`(예: `Gemini <버전> Argon`)이면 argon, `Hydrogen`이면 hydro, 그 외 `Gemini <버전>`이면 gemini
 #   opencode → 하단에 `Grok <버전>` 이면 grok, `GPT-<버전>-Sol` 이면 sol,
-#              `DeepSeek <버전>` 이면 ds, `Hy<버전>` 이면 hy
+#              `DeepSeek <버전>` 이면 ds, `Hy<버전>` 이면 hy, `GLM-<버전>` 이면 glm
 #   claude → 하단에 `Opus|Fable|Sonnet <버전>` 이 있을 때만(마지막 매칭 우선)
 # 판정 실패는 빈 문자열(호출부가 건너뜀).
 detect() {
@@ -54,6 +54,7 @@ detect() {
         elif [[ "$line" =~ GPT-$ver-Sol ]]; then echo sol; return 0
         elif [[ "$line" =~ DeepSeek\ [Vv]?$ver ]]; then echo ds; return 0
         elif [[ "$line" =~ Hy$ver ]]; then echo hy; return 0
+        elif [[ "$line" =~ GLM-$ver ]]; then echo glm; return 0
         fi ;;
       claude)
         if   [[ "$line" =~ Opus\ $ver ]]; then echo opus; return 0
