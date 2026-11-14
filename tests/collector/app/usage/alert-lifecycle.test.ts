@@ -26,10 +26,11 @@ describe('Given reset evidence across early zero and stale observations',()=>{
   expect(actual.events[0]).toMatchObject({kind:'reset',usedPercent:.4})
   expect(policy.diffAlerts(actual.state,report(.4,90,now+8*86400000))).toEqual([])
  })
- it('When the early zero remains zero Then elapsed original reset still yields the reset label once',()=>{
+ it('When zero arrives 45 minutes early and remains zero Then reports only recovery',()=>{
   const early=step(baseline(),report(0,15))
   const actual=step(early.state,report(0,75,now+8*86400000))
-  expect(actual.events.filter(e=>e.kind==='reset')).toHaveLength(1)
+  expect(early.events).toEqual([])
+  expect(actual.events).toMatchObject([{kind:'level',from:'danger',to:'normal'}])
   expect(policy.diffAlerts(actual.state,report(0,90,now+8*86400000))).toEqual([])
  })
 })

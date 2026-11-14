@@ -6,6 +6,8 @@ import { barLevelOf, getUsageStatus, summaryUnitOf } from '../../../shared/usage
 /** @typedef {import('../../domain/usage/alert-types.mjs').AlertEvent} AlertEvent */
 /** @typedef {import('../../domain/usage/alert-types.mjs').AlertCheckpoint} Checkpoint */
 export const ALERT_FLAP_MS = 30 * 60_000
+/** Two 900-second collection intervals of reset-clock tolerance. */
+export const ALERT_RESET_REFERENCE_MS = 30 * 60_000
 export const ALERT_CAUTION_MIN_PERCENT = 25
 /** 96 successful missing observations ~= 24 hours at the 900s interval. */
 export const ALERT_MISSING_MAX_CYCLES = 96
@@ -31,13 +33,18 @@ function validState(state) {
 }
 /** @param {AlertState} state @param {string} id @returns {Checkpoint|null} */
 const checkpoint = (state, id) => Object.hasOwn(state.windows, id) ? state.windows[id] : null
-/** Keep the pre-zero cycle boundary even when a provider advances its reset early.
+/** Validate optional persisted evidence before using or saving it.
  * @param {Checkpoint|null} old
  */
-function resetReference(old) {
+function savedResetReference(old) {
   const saved = old?.resetReference
-  return saved && typeof saved.resetsAt === 'string' && Number.isFinite(Date.parse(saved.resetsAt)) &&
-    Number.isFinite(saved.usedPercent) && saved.usedPercent > 0 ? saved : old
+  return saved && typeof saved === 'object' && !Array.isArray(saved) &&
+    typeof saved.resetsAt === 'string' && Number.isFinite(Date.parse(saved.resetsAt)) &&
+    Number.isFinite(saved.usedPercent) && saved.usedPercent > 0 ? saved : undefined
+}
+/** @param {Checkpoint|null} old */
+function resetReference(old) {
+  return savedResetReference(old) ?? old
 }
 /** A confirmed zero can arrive before the provider updates its reset timestamp.
  * @param {Checkpoint|null} old @param {AlertLimit} item @param {number} now
@@ -101,7 +108,11 @@ export function nextAlertState(prevState, report, events) {
   for (const [id, saved] of entries) {
     const missing = seen.has(id) ? 0 : (Number.isSafeInteger(saved.missingCycles) && (saved.missingCycles ?? 0) >= 0 ? saved.missingCycles ?? 0 : 0) + 1
     if (missing >= ALERT_MISSING_MAX_CYCLES) entries.delete(id)
-    else entries.set(id, {...saved, missingCycles:missing})
+    else {
+      const {resetReference:discarded, ...rest} = saved
+      const reference = savedResetReference(saved)
+      entries.set(id, {...rest, missingCycles:missing, ...(reference ? {resetReference:reference} : {})})
+    }
   }
   if (report.provider === 'claude') entries.delete('extra_usage')
   for (const item of report.limits) {
@@ -113,12 +124,12 @@ export function nextAlertState(prevState, report, events) {
     const level = levelOf(item)
     const notifiedLevel = reset ? 'normal' : sent ? /** @type {AlertLevel} */(sent.to) : old?.notifiedLevel ?? (valid ? 'normal' : level)
     const reference = resetReference(old)
-    let pending = reset ? undefined : old?.resetReference
-    if (!reset && reference?.resetsAt != null && Date.parse(reference.resetsAt) > report.nowMs &&
-        item.usedPercent === 0 && reference.usedPercent > 0) {
+    // The first non-stale observation at/after R consumes the reference, even without a reset.
+    const remaining = reference?.resetsAt == null ? NaN : Date.parse(reference.resetsAt) - report.nowMs
+    let pending = !reset && remaining > 0 ? savedResetReference(old) : undefined
+    if (!reset && remaining > 0 && remaining <= ALERT_RESET_REFERENCE_MS &&
+        item.usedPercent === 0 && reference && reference.usedPercent > 0 && reference.resetsAt != null) {
       pending = {usedPercent:reference.usedPercent, resetsAt:reference.resetsAt}
-    } else if (pending && item.usedPercent > pending.usedPercent) {
-      pending = {...pending, usedPercent:item.usedPercent}
     }
     const baselineAt = (old?.notifiedLevel ?? (!valid ? level : 'normal')) !== 'normal' ? report.nowMs : null
     entries.set(item.id, {level, usedPercent:item.usedPercent, resetsAt:item.resetsAt, cycleSeconds:item.cycleSeconds,
