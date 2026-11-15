@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { ChartButtonState, UsageHistoryPanelProps } from '@app/usage/history/chart-view'
-import type { OffpeakNotice } from '@app/usage/offpeak-notice'
 import { useHistoryDeps } from '@app/usage/history/HistoryDepsContext'
 import { useUsageHistoryPanel } from '@app/usage/history/useUsageHistoryPanel'
 import { providerMetaFor } from '@app/usage/provider-meta'
@@ -18,8 +17,6 @@ export interface UsageSectionProps {
   /** 프롭으로 주입하면 훅 대신 그 값을 쓴다(테스트·스토리용). 생략하면 useUsageHistoryPanel(provider)의 결과를 쓴다. */
   chart?: ChartButtonState | null
   chartPanel?: UsageHistoryPanelProps | null
-  /** 프롭으로 주입하면 훅 대신 그 값을 쓴다(테스트·스토리용). 생략하면 useOffpeakNotice(provider, state.nowIso)의 결과를 쓴다. */
-  offpeak?: OffpeakNotice | null
 }
 
 /**
@@ -27,7 +24,7 @@ export interface UsageSectionProps {
  * app 훅(useUsage)의 상태를 대시보드에 연결하고, 제목·섹션 id·aria-label은 등록부에서 온다.
  * ui는 제공자별 분기를 갖지 않는다.
  */
-export function UsageSection({ provider, chart: chartProp, chartPanel: chartPanelProp, offpeak: offpeakProp }: UsageSectionProps): ReactNode {
+export function UsageSection({ provider, chart: chartProp, chartPanel: chartPanelProp }: UsageSectionProps): ReactNode {
   const meta = providerMetaFor(provider)
   const { state, refresh } = useUsage(provider)
   // 배선(ADR 0.7 11절 ③): 이력 훅의 버튼·패널을 대시보드 슬롯에 넣는다. 기능 플래그가 꺼지면 버튼도 그리지 않는다.
@@ -35,8 +32,7 @@ export function UsageSection({ provider, chart: chartProp, chartPanel: chartPane
   const historyEnabled = useHistoryDeps().enabled
   const chart = chartProp !== undefined ? chartProp : historyEnabled ? history.button : null
   const chartPanel = chartPanelProp !== undefined ? chartPanelProp : historyEnabled ? history.panel : null
-  const offpeakHook = useOffpeakNotice(provider, state.nowIso)
-  const offpeak = offpeakProp !== undefined ? offpeakProp : offpeakHook
+  const offpeak = useOffpeakNotice(provider, state.nowIso)
   const panel: ReactNode = chartPanel === null ? null : (
     <Suspense fallback={<div aria-busy="true" />}>
       <UsageHistoryPanel {...chartPanel} />

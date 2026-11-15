@@ -419,6 +419,10 @@ describe('Given an offpeak notice on the usage dashboard', () => {
   it('When offpeak is null or omitted Then OffpeakBadge is absent', () => {
     render(<UsageDashboard provider="claude" title="Claude" status="ready" report={readyReport} errorMessage={null} offpeak={null} />)
     expect(screen.queryByTestId('offpeak-badge')).toBeNull()
+
+    cleanup()
+    render(<UsageDashboard provider="claude" title="Claude" status="ready" report={readyReport} errorMessage={null} />)
+    expect(screen.queryByTestId('offpeak-badge')).toBeNull()
   })
 
   it('When status is loading and offpeak is provided Then OffpeakBadge still renders', () => {

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, screen, within } from '@testing-library/react'
-import { OFFPEAK_SCHEDULE } from '@domain/usage/offpeak-schedule'
+import type { OffpeakSchedule } from '@domain/usage/offpeak'
+import { USAGE_PROVIDERS } from '@domain/usage/providers'
 import { createDisabledHistoryDeps, HistoryDepsProvider } from '@app/usage/history/HistoryDepsContext'
 import { UsageSection } from '@ui/usage/UsageSection'
 import { createFakeUsageGateway, createFakeUsageScheduler } from '../../fakes/usage-ports'
@@ -9,42 +10,45 @@ import { renderWithUsage } from '../../helpers/query'
 
 afterEach(cleanup)
 
-// 일요일 12:00 UTC: OpenCode·Ollama 모두 off-peak 활성 구간
-const SUNDAY_UTC_ISO = '2026-11-15T12:00:00Z'
+const FIXED_UTC_ISO = '2026-11-15T12:00:00Z'
+const INLINE_OFFPEAK_SCHEDULE: OffpeakSchedule = {
+  opencode: { windows: [{ start: '00:00', end: '24:00' }] },
+  ollama: { windows: [{ start: '00:00', end: '24:00' }] },
+}
 
 describe('Given UsageSection offpeak wiring through UsageDeps.offpeak', () => {
-  it('When OFFPEAK_SCHEDULE is injected via deps Then only opencode and ollama sections render OffpeakBadge and claude/codex do not', () => {
+  it('When an inline schedule defines only opencode and ollama Then among all 6 providers only those two render OffpeakBadge', () => {
     const deps = {
       gateway: createFakeUsageGateway(),
-      clock: { nowIso: () => SUNDAY_UTC_ISO },
+      clock: { nowIso: () => FIXED_UTC_ISO },
       scheduler: createFakeUsageScheduler(),
-      offpeak: OFFPEAK_SCHEDULE,
+      offpeak: INLINE_OFFPEAK_SCHEDULE,
     }
 
     renderWithUsage(
       <HistoryDepsProvider deps={createDisabledHistoryDeps()}>
-        <UsageSection provider="claude" />
-        <UsageSection provider="codex" />
-        <UsageSection provider="opencode" />
-        <UsageSection provider="ollama" />
+        {USAGE_PROVIDERS.map((provider) => (
+          <UsageSection key={provider} provider={provider} />
+        ))}
       </HistoryDepsProvider>,
       deps,
     )
 
-    expect(within(screen.getByTestId('usage-section-claude')).queryByTestId('offpeak-badge')).toBeNull()
-    expect(within(screen.getByTestId('usage-section-codex')).queryByTestId('offpeak-badge')).toBeNull()
-
-    const opencodeBadge = within(screen.getByTestId('usage-section-opencode')).getByTestId('offpeak-badge')
-    expect(opencodeBadge.getAttribute('data-active')).toBe('true')
-
-    const ollamaBadge = within(screen.getByTestId('usage-section-ollama')).getByTestId('offpeak-badge')
-    expect(ollamaBadge.getAttribute('data-active')).toBe('true')
+    for (const provider of USAGE_PROVIDERS) {
+      const section = screen.getByTestId(`usage-section-${provider}`)
+      if (provider === 'opencode' || provider === 'ollama') {
+        const badge = within(section).getByTestId('offpeak-badge')
+        expect(badge.getAttribute('data-active')).toBe('true')
+      } else {
+        expect(within(section).queryByTestId('offpeak-badge')).toBeNull()
+      }
+    }
   })
 
   it('When deps.offpeak is omitted Then no section renders OffpeakBadge', () => {
     const deps = {
       gateway: createFakeUsageGateway(),
-      clock: { nowIso: () => SUNDAY_UTC_ISO },
+      clock: { nowIso: () => FIXED_UTC_ISO },
       scheduler: createFakeUsageScheduler(),
     }
 
