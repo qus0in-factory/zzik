@@ -10,7 +10,7 @@ describe('Given the header home link (로고 + 제목)', () => {
     const navigate = vi.fn()
     render(
       <HomeLink navigate={navigate}>
-        <img src="/icon-192.png" alt="" />
+        <img src="/favicon.svg" alt="" />
         <span>Zzik : AI 사용량 대시보드</span>
       </HomeLink>,
     )

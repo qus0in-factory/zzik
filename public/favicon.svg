@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <title>Zzik gerbil</title>
+  <!-- Reconstructed from the original Zzik PNG. Opaque teal works in both color schemes. -->
+  <rect width="180" height="180" rx="30" fill="#057873"/>
+  <g id="gerbil" stroke="#332c26" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="#e7b568" d="M42 65C29 54 32 34 43 30C54 25 63 39 62 50Z"/>
+    <path fill="#e7b568" d="M138 65C151 54 148 34 137 30C126 25 117 39 118 50Z"/>
+    <path fill="#d49b59" stroke-width="2" d="M43 57C36 48 38 38 44 37C51 34 55 44 55 49M137 57C144 48 142 38 136 37C129 34 125 44 125 49"/>
+    <path id="head" fill="#e7b568" d="M90 40C57 39 33 62 32 94C30 126 55 151 89 152C123 152 148 128 148 97C148 64 124 40 90 40Z"/>
+    <clipPath id="head-clip"><use href="#head"/></clipPath>
+    <path fill="#fff" stroke="none" clip-path="url(#head-clip)" d="M50 153C54 132 69 121 89 121C109 121 124 132 129 153Z"/>
+    <path fill="none" d="M90 40C57 39 33 62 32 94C30 126 55 151 89 152C123 152 148 128 148 97C148 64 124 40 90 40Z"/>
+    <ellipse cx="63" cy="85" rx="16" ry="17" fill="#fff" stroke="#d49b59" stroke-width="2"/>
+    <ellipse cx="117" cy="85" rx="16" ry="17" fill="#fff" stroke="#d49b59" stroke-width="2"/>
+    <ellipse cx="64" cy="85" rx="13" ry="14" fill="#171b23" stroke="none"/>
+    <ellipse cx="116" cy="85" rx="13" ry="14" fill="#171b23" stroke="none"/>
+    <g fill="#fff" stroke="none">
+      <circle cx="68" cy="80" r="4"/><circle cx="59" cy="92" r="2"/>
+      <circle cx="112" cy="80" r="4"/><circle cx="121" cy="92" r="2"/>
+    </g>
+    <path fill="#f1969d" stroke-width="2" d="M85 93Q90 92 95 93Q97 95 90 99Q83 95 85 93Z"/>
+    <path fill="none" stroke-width="2.5" d="M90 99V103Q85 110 81 103M90 103Q95 110 99 103"/>
+  </g>
+</svg>
