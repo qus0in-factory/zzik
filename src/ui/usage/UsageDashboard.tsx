@@ -19,9 +19,11 @@ import { cardKindOf } from '@app/usage/card-kind'
 import { providerStatusOf } from '@app/usage/provider-status'
 import { ProviderIcon } from './ProviderIcon'
 import { ProviderStatusLight } from './ProviderStatusLight'
+import { OffpeakBadge } from './OffpeakBadge'
 import { ExternalLink } from 'lucide-react'
 import { providerUsageLink } from '@app/usage/provider-usage-links'
 import type { ProviderStatus } from '@app/usage/provider-status'
+import type { OffpeakNotice } from '@app/usage/offpeak-notice'
 
 export interface UsageDashboardProps {
   provider: UsageProvider
@@ -52,6 +54,8 @@ export interface UsageDashboardProps {
   chart?: ChartButtonState | null
   /** 상태 줄·안내 아래, 카드 위에 놓이는 차트 패널 슬롯. */
   chartPanel?: ReactNode
+  /** off-peak 시간대 표시 모델(ADR 0.7). null·생략이면 배지를 그리지 않는다. */
+  offpeak?: OffpeakNotice | null
 }
 
 /** 사용량 대시보드(ADR 0.3 D8): 제목 → 상태 줄 → 사용 창 → 추가 한도. */
@@ -73,6 +77,7 @@ export function UsageDashboard({
   collectionStatus = null,
   chart = null,
   chartPanel = null,
+  offpeak = null,
 }: UsageDashboardProps): ReactNode {
   const { mode: viewMode } = useViewMode()
   const listMode = viewMode === 'list'
@@ -87,7 +92,7 @@ export function UsageDashboard({
     return (
       <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-24 space-y-4">
         {title !== undefined && (
-          <SectionTitle provider={provider} title={title} light={null}>
+          <SectionTitle provider={provider} title={title} light={null} offpeak={offpeak}>
             <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <div className="basis-full sm:basis-auto">
                 <Skeleton data-testid="usage-skeleton" className="h-5 w-36" />
@@ -137,7 +142,7 @@ export function UsageDashboard({
   return (
     <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">
       {title !== undefined ? (
-        <SectionTitle provider={provider} title={title} light={light}>
+        <SectionTitle provider={provider} title={title} light={light} offpeak={offpeak}>
           <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} chart={chart} />
         </SectionTitle>
       ) : (
@@ -231,12 +236,24 @@ export function UsageDashboard({
   )
 }
 
-/** 섹션 제목 줄: 왼쪽 아이콘 · 제목 · 연결 상태등, 오른쪽 children(마지막 수집 시각 + 새로고침). 좁으면 줄바꿈.  light가 null(로딩 스켈레톤)이면 같은 크기의 자리표시를 둔다. */
-function SectionTitle({ provider, title, light, children }: { provider: UsageProvider; title: string; light: ProviderStatus | null; children?: ReactNode }): ReactNode {
+/** 섹션 제목 줄: 왼쪽 아이콘 · 제목 · 연결 상태등 · 외부 링크 · off-peak 배지, 오른쪽 children(마지막 수집 시각 + 새로고침). 좁으면 줄바꿈.  light가 null(로딩 스켈레톤)이면 같은 크기의 자리표시를 둔다. */
+function SectionTitle({
+  provider,
+  title,
+  light,
+  offpeak = null,
+  children,
+}: {
+  provider: UsageProvider
+  title: string
+  light: ProviderStatus | null
+  offpeak?: OffpeakNotice | null
+  children?: ReactNode
+}): ReactNode {
   const usageUrl = providerUsageLink(provider)
   return (
     <div className="flex min-h-[34px] flex-wrap items-center justify-between gap-x-3 gap-y-1">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <ProviderIcon provider={provider} />
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         {light === null ? <Skeleton data-testid="usage-skeleton-light" aria-hidden="true" className="size-2.5 rounded-full" /> : <ProviderStatusLight status={light} />}
@@ -253,6 +270,7 @@ function SectionTitle({ provider, title, light, children }: { provider: UsagePro
             <ExternalLink className="size-[14px]" aria-hidden="true" />
           </a>
         )}
+        {offpeak !== null && <OffpeakBadge notice={offpeak} />}
       </div>
       {/* 좁은 화면에서는 항상 다음 줄로 내린다(폰트 로딩 전후 폭 차이로 줄바꿈 여부가 흔들리지 않게) */}
       {children !== undefined && <div className="basis-full sm:basis-auto">{children}</div>}
