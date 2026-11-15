@@ -17,7 +17,8 @@ export function offpeakNoticeOf(
   now: Date,
   options?: { timeZone?: string },
 ): OffpeakNotice | null {
-  const state = offpeakStateOf(schedule[provider], now)
+  const rule = schedule[provider]
+  const state = offpeakStateOf(rule, now)
   if (!state) return null
   const iso = state.active ? state.endsAt : state.startsAt
   const date = new Date(iso)
@@ -37,6 +38,10 @@ export function offpeakNoticeOf(
   return {
     active: state.active,
     text: t(state.active ? 'offpeak.active' : 'offpeak.upcoming', { time }),
-    description: provider === 'opencode' || provider === 'ollama' ? t('offpeak.description.discount', { description }) : description,
+    description: rule?.effect
+      ? t(state.active ? 'offpeak.description.discount' : 'offpeak.description.discount.upcoming', {
+          description, target: rule.effect.target, discountPercent: rule.effect.discountPercent,
+        })
+      : description,
   }
 }

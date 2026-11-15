@@ -159,7 +159,8 @@ export const ko = {
   'offpeak.upcoming': 'off-peak {time}부터',
   'offpeak.description.active': '{provider} off-peak 시간대 · {time}에 끝남',
   'offpeak.description.upcoming': '{provider} off-peak 시간대 아님 · {time}에 시작',
-  'offpeak.description.discount': '{description} · DeepSeek 단가 50 퍼센트 할인',
+  'offpeak.description.discount': '{description} · {target} 단가 {discountPercent} 퍼센트 할인',
+  'offpeak.description.discount.upcoming': '{description} · off-peak 동안 {target} 단가 {discountPercent} 퍼센트 할인',
   'offpeak.time.weekday': '{weekday} {time}',
 
   // 연결(수집) 상태등

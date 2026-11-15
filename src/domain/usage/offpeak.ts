@@ -7,10 +7,16 @@ export interface OffpeakWindow {
   days?: readonly number[]
 }
 
+export interface OffpeakEffect {
+  target: string
+  discountPercent: number
+}
+
 export interface OffpeakRule {
   windows: readonly OffpeakWindow[]
   source?: string
   verifiedAt?: string
+  effect?: OffpeakEffect
 }
 
 export type OffpeakSchedule = Partial<Record<UsageProvider, OffpeakRule>>
@@ -41,7 +47,13 @@ function validWindow(value: unknown): value is OffpeakWindow {
   const start = minutes(value.start, false)
   const end = minutes(value.end, true)
   return start !== null && end !== null && start !== end &&
-    (value.days === undefined || (Array.isArray(value.days) && value.days.every(day => Number.isInteger(day) && day >= 0 && day <= 6)))
+    (value.days === undefined || (Array.isArray(value.days) && value.days.length > 0 && value.days.every(day => Number.isInteger(day) && day >= 0 && day <= 6)))
+}
+
+function validEffect(value: unknown): value is OffpeakEffect {
+  return record(value) && typeof value.target === 'string' && value.target.trim().length > 0 &&
+    typeof value.discountPercent === 'number' && Number.isFinite(value.discountPercent) &&
+    value.discountPercent > 0 && value.discountPercent <= 100
 }
 
 /** 잘못된 구간은 무시한다. 시계·I/O·문구 리소스에 의존하지 않는다. */
@@ -85,6 +97,7 @@ export function decodeOffpeakSchedule(value: unknown): OffpeakDecodeResult {
     if (!Object.hasOwn(PROVIDERS, provider)) return { ok: false, reason: 'unknown_provider', path: provider }
     if (!record(rule)) return invalid(provider)
     if (!Array.isArray(rule.windows)) return invalid(`${provider}.windows`)
+    if (rule.effect !== undefined && !validEffect(rule.effect)) return invalid(`${provider}.effect`)
     if (rule.source !== undefined && typeof rule.source !== 'string') return invalid(`${provider}.source`)
     if (rule.verifiedAt !== undefined && (typeof rule.verifiedAt !== 'string' ||
       !/^\d{4}-\d{2}-\d{2}$/.test(rule.verifiedAt) ||

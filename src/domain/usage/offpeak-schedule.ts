@@ -11,6 +11,7 @@ export const OFFPEAK_SCHEDULE: OffpeakSchedule = {
     ],
     source: 'https://opencode.ai/docs/console/go/#usage-limits',
     verifiedAt: '2026-11-15',
+    effect: { target: 'DeepSeek', discountPercent: 50 },
   },
   ollama: {
     windows: [
@@ -20,5 +21,6 @@ export const OFFPEAK_SCHEDULE: OffpeakSchedule = {
     ],
     source: 'https://ollama.com/pricing',
     verifiedAt: '2026-11-15',
+    effect: { target: 'DeepSeek', discountPercent: 50 },
   },
 }
