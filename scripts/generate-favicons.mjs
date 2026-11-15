@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { openPage } from './lib/cdp.mjs'
+import { recompressPng } from './lib/recompress-png.mjs'
 
 const root = new URL('../', import.meta.url)
 const svg = readFileSync(new URL('public/favicon.svg', root), 'utf8')
@@ -94,7 +95,8 @@ try {
   if (!results) throw new Error('Image rendering returned no data')
   const png = (key) => Buffer.from(results[key], 'base64')
   for (const [key, filename] of Object.entries({ 96: 'favicon-96x96.png', apple: 'apple-touch-icon.png', any192: 'android-chrome-192x192.png', any512: 'android-chrome-512x512.png', 192: 'web-app-manifest-192x192.png', 512: 'web-app-manifest-512x512.png' })) {
-    writeFileSync(new URL(`public/${filename}`, root), png(key))
+    const bytes = filename === 'apple-touch-icon.png' ? recompressPng(png(key)) : png(key)
+    writeFileSync(new URL(`public/${filename}`, root), bytes)
   }
   const header = Buffer.alloc(6 + 3 * 16)
   header.writeUInt16LE(1, 2); header.writeUInt16LE(3, 4)
