@@ -33,12 +33,13 @@ description: opus가 Herdr 패널의 다른 모델 에이전트(sol, beam, grok,
 ## 선제 안전장치
 - **(a) 실데이터 확인 및 픽스처 작성**: 표시·파싱 작업은 워커가 착수 전 `scripts/usage-live-shape.sh` 결과를 보고하고 그 실데이터로 픽스처·테스트를 만든다. opus의 가정을 지시에 그대로 옮기지 않는다.
 - **(b) 검수 관문 (두 단계 필수 통과)**: 둘 다 통과해야만 병합 및 배포를 진행할 수 있다.
-  1. **교차 리뷰 (워커)**: 구현자가 아닌 쪽이 독립 리뷰와 실데이터 대조를 수행한다(예: sol 구현 → grok 리뷰, beam·hydro 구현 → sol 리뷰, 핵심 경로는 fable 있을 시 fable 리뷰). 리뷰 수행 시 effort high.
+  1. **교차 리뷰 (워커)**: 구현자가 아닌 쪽이 독립 리뷰와 실데이터 대조를 수행한다(예: sol 구현 → grok 리뷰, beam·hydro 구현 → sol 리뷰, 핵심 경로는 fable 있을 시 fable 리뷰). opus 지시의 사실 주장이 틀릴 수 있으므로 리뷰어는 지시 자체도 근거와 대조해 독립 검증한다. 리뷰 수행 시 effort high.
   2. **서브에이전트 리뷰 (`work-reviewer`)**: `work-reviewer`(effort high)가 테스트·빌드 실행, 요구사항 및 실데이터 형상 대조를 직접 수행하여 최종 판정(`PASS`/`FIX`)을 내린다. 표시·파싱 기능이면 실데이터 대조 없이는 통과를 줄 수 없다.
 - **(c) 배포 완료 알림 게이트**: 배포 후 워커의 기능 대조 보고(실데이터 vs 화면 기대치) 없이는 완료 알림(`discord-notify`)을 보내지 않는다.
 - **(d) opus 역할 제한 및 거버넌스**: opus는 코드·설계·스크립트 조사·편집·대기를 직접 하지 않고 워커 또는 `.claude/agents/` 전용 서브에이전트(`worker-watcher`, `work-reviewer`)에 맡기며 `general-purpose`를 쓰지 않는다. 도구 권한 거부(`blocked`) 시 설정을 스스로 고치지 말고 사용자에게 묻는다.
 - **(e) 개발 서버 수명**: 워커는 개발 서버를 반드시 백그라운드로 띄우고 자기 PID만 정리한다(포그라운드 서버로 멈춘 사례).
 - **(f) main 병합 주인**: main 병합은 opus가 직접 한다(서브에이전트 병합은 자동 모드 판단기가 거부).
+- **(g) 시각 산출물 직접 확인**: 아이콘·이미지 등 시각 산출물은 테스트 통과와 별개로 opus가 미리보기 이미지를 직접 열어 확인한다.
 
 ## 명령
 ```bash
@@ -48,6 +49,7 @@ herdr agent prompt sol2 "<작업>"                           # 병렬: --wait �
 herdr agent wait sol2 --timeout 600000                    #       나중에 대기
 herdr agent read sol --source recent-unwrapped --lines 200 # 결과 읽기
 ```
+- `--timeout`은 `--wait`와 함께만 쓴다(`--wait` 없이 `--timeout`을 쓰면 exit 2로 전송되지 않는다).
 - 응답이 길면 "결과를 /tmp/<이름>.md에 쓰고 경로만 답하라"고 요청 후 파일을 읽는다.
 - `blocked`면 `agent read`로 확인하고, 승인 여부는 사용자에게 묻는다.
 - timeout은 전송 실패를 뜻하지 않는다. 같은 프롬프트를 재전송하지 말고 먼저 `agent read`로 확인한다.
