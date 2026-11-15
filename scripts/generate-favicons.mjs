@@ -108,7 +108,7 @@ try {
     return bytes
   })
   writeFileSync(new URL('public/favicon.ico', root), Buffer.concat([header, ...entries]))
-  const preview = '/tmp/zzik-favicon-preview-2.png'
+  const preview = '/tmp/zzik-favicon-preview-3.png'
   writeFileSync(preview, png('preview'))
   console.log(`Generated favicon PNG/ICO set from ${fileURLToPath(new URL('public/favicon.svg', root))}\nPreview: ${preview}`)
 } finally {
