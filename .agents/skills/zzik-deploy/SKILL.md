@@ -19,19 +19,19 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 
 ## 2. release 배포
 
 - **배포 PR을 만들기 전에 dev에서 `pnpm screenshot:readme`를 실행하고, `docs/screenshots/desktop.png`가 바뀌면 같은 PR에 커밋한다.**
-- **화면 확인용 로컬 실행에서 `.worktree/release`의 파일을 고치지 않는다(인증 우회 등 임시 패치 금지).** 인증 없이 띄워야 하면 별도 임시 워크트리(`git worktree add /tmp/zzik-shot main`)에서 하고 끝나면 제거한다. 배포 전 `git -C .worktree/release status --short`가 비어 있어야 한다.
+- **화면 확인용 로컬 실행에서 `.worktree/release`의 파일을 고치지 않는다(인증 우회 등 임시 패치 금지).** 인증 없이 띄워야 하면 별도 임시 워크트리(`git worktree add /tmp/zzik-shot main`)에서 하고 끝나면 제거한다. 배포 전 `git -C .worktree/release status --short`가 비어 있어야 하며, 테스트 실행 후 생긴 `.vitest/` 등 잔여물은 정리한다.
 - `.env`(release는 루트 `.env` symlink)에 키를 덧붙일 때는 `tail -c1`로 끝 줄바꿈부터 확인하고, 수정 뒤에는 키 이름 목록만 출력해 검증한다(값 출력 금지).
 - dev→main PR 병합 뒤에만 .worktree/release(main)에서 git pull → pnpm install --frozen-lockfile.
 - P3 수집기 반영: pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --update-env → pm2 save. runtime/saved의 ZZIK_STORE=postgres, 제공자 6개·900초·agy 경로·release cwd/env-file 일치를 값 노출 없이 확인한다. 게이트/상태는 삭제하지 않는다.
 - 첫 주기 Postgres 저장 성공·usage_snapshot 6행/JSONB object 및 실제 코드 기능 대조를 확인한 뒤 pnpm run deploy. 실패하면 중단·보고한다. 자세한 재시작 절차는 zzik-usage-collector 스킬 참조.
 - 전제: wrangler whoami 계정이 ADR 0.1 기대 계정과 일치. DB_URL secret 존재와 승인된 저장소 검증 완료를 별도로 확인. 연결 문자열은 출력하지 않는다.
-- workers_dev:false, preview_urls:false 유지. preview 업로드/alias 사용 금지. Access 앱/정책은 ADR 0.1 그대로, Bypass/Service Auth 추가 없음.
+- workers_dev:false, preview_urls:false 유지. preview 업로드/alias 사용 금지. Access 앱/정책은 ADR 0.1 그대로, Bypass/Service Auth 추가 없음. Access 뒤 정적 자산(아이콘 등)은 쿠키 없는 클라이언트가 못 가져오므로 `apple-touch-icon`은 빌드 시 data URI 인라인으로, `manifest`는 `crossorigin="use-credentials"`로 처리한다.
 - DB_URL, 이메일 바인딩, Access Location 전문, 원문 응답이 도구 stdout에 나오지 않도록 출력은 승인된 필드로 제한한다.
 - **설정 파일(wrangler.jsonc 등) 출력 시 ALLOWED_EMAIL·DB_URL 등 민감 값은 grep -v/jq로 가리고 전문 출력은 금지한다.** 가능한 경우 허용 필드만 선택한다. .env는 존재 여부만 boolean으로 확인하며 cat하지 않는다. Wrangler 배포·whoami·verify 출력도 캡처 후 안전한 상태/버전/PASS 필드만 출력한다.
 
 ## 3. 배포 후 검증
 
-- **배포 전 게이트**: release에서 실제 DB_URL을 .env로 주입해 `node --env-file=.env node_modules/vitest/vitest.mjs run tests/worker/infra/usage/db.workerd.test.ts`를 opt-in 실행한다. 실제 workerd→DB 경로의 6개 제공자 200·디코딩 성공을 확인한다. skip은 통과가 아니며 비밀값·원문은 출력하지 않는다.
+- **배포 전 게이트**: release에서 실제 DB_URL을 .env로 주입해 `node --env-file=.env node_modules/vitest/vitest.mjs run tests/worker/infra/usage/db.workerd.test.ts`를 opt-in 실행한다. 실제 workerd→DB 경로의 6개 제공자 200·디코딩 성공을 확인한다. skip은 통과가 아니며 비밀값·원문은 출력하지 않는다. `--reporter=json` 등 임의 리포터로 변형하지 말고 스킬 기본 명령 그대로 판독한다.
 - **완료·삭제 게이트**: 배포 후 인증된 브라우저에서 API 응답과 6개 제공자 화면을 확인하기 전에는 배포 완료를 보고하지 않는다. 302/404나 로컬 workerd 통과로 대신하지 않는다. 미검증 항목이 있으면 삭제 등 비가역 작업은 금지한다.
 - 쿠키 없는 요청 /, /api/usage, /api/usage/claude, /api/usage/codex, /api/usage/antigravity, /api/usage/opencode, /api/usage/grok, /api/usage/ollama 모두 302, Location에 cdn-cgi/access/login 포함, 본문 앱 데이터 없음 확인. 헤더·본문 전문은 출력하지 않는다.
 - scripts/verify-zzik.sh qus0in으로 workers.dev 404(또는 DNS 미해석·Access 302) 확인. 기본 스크립트 stdout에 Location 전문이 있으므로 안전한 PASS/FAIL/status만 추려 출력한다.
