@@ -12,8 +12,8 @@ const pngSizes = {
   'web-app-manifest-512x512.png': 512,
 }
 
-/** Decode a non-interlaced 8-bit RGB or RGBA PNG. Returns the alpha of the four corners. */
-function cornerAlphas(png: Buffer): number[] {
+/** Decode a non-interlaced 8-bit RGB or RGBA PNG. */
+function decodePng(png: Buffer) {
   let offset = 8
   let width = 0
   let height = 0
@@ -59,8 +59,19 @@ function cornerAlphas(png: Buffer): number[] {
       pixels[row + x] = value
     }
   }
+  return { width, height, channels, pixels }
+}
+
+function cornerAlphas(png: Buffer): number[] {
+  const { width, height, channels, pixels } = decodePng(png)
   const alpha = (x: number, y: number) => channels === 3 ? 255 : pixels[(y * width + x) * channels + 3]
   return [alpha(0, 0), alpha(width - 1, 0), alpha(0, height - 1), alpha(width - 1, height - 1)]
+}
+
+function rgbAt(png: Buffer, x: number, y: number) {
+  const { width, channels, pixels } = decodePng(png)
+  const index = (y * width + x) * channels
+  return [pixels[index], pixels[index + 1], pixels[index + 2]]
 }
 
 describe('Given the Zzik favicon set behind Cloudflare Access', () => {
@@ -121,6 +132,12 @@ describe('Given the Zzik favicon set behind Cloudflare Access', () => {
     const svg = readFileSync('public/favicon.svg', 'utf8')
     expect(svg).toContain('<svg')
     expect(svg).toContain('viewBox="0 0 180 180"')
+  })
+  it('When apple-touch-icon is decoded Then the belly center stays near white', () => {
+    const [red, green, blue] = rgbAt(readFileSync('public/apple-touch-icon.png'), 90, 136)
+    expect(red).toBeGreaterThanOrEqual(250)
+    expect(green).toBeGreaterThanOrEqual(250)
+    expect(blue).toBeGreaterThanOrEqual(250)
   })
   it('When apple and maskable PNGs are decoded Then every corner alpha is 255', () => {
     for (const file of ['apple-touch-icon.png', 'web-app-manifest-192x192.png', 'web-app-manifest-512x512.png']) {
