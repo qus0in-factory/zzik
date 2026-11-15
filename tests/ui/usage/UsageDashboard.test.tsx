@@ -410,10 +410,10 @@ describe('Given an offpeak notice on the usage dashboard', () => {
       description: 'Ollama off-peak 시간대 · 07:30에 끝남',
     }
     render(<UsageDashboard provider="ollama" title="Ollama" status="ready" report={readyReport} errorMessage={null} offpeak={notice} />)
-    const row = screen.getByRole('heading', { name: 'Ollama', level: 2 }).parentElement?.parentElement as HTMLElement
-    const badge = within(row).getByTestId('offpeak-badge')
+    const titleGroup = screen.getByRole('heading', { name: 'Ollama', level: 2 }).parentElement as HTMLElement
+    const badge = within(titleGroup).getByTestId('offpeak-badge')
     expect(badge.getAttribute('data-active')).toBe('true')
-    expect(within(row).getByText(notice.text)).toBeTruthy()
+    expect(within(titleGroup).getByText(notice.text)).toBeTruthy()
   })
 
   it('When offpeak is null or omitted Then OffpeakBadge is absent', () => {
@@ -428,6 +428,30 @@ describe('Given an offpeak notice on the usage dashboard', () => {
       description: 'Ollama off-peak 시간대 아님 · 03:00에 시작',
     }
     render(<UsageDashboard provider="ollama" title="Ollama" status="loading" report={null} errorMessage={null} offpeak={notice} />)
+    const badge = screen.getByTestId('offpeak-badge')
+    expect(badge.getAttribute('data-active')).toBe('false')
+    expect(screen.getByText(notice.text)).toBeTruthy()
+  })
+
+  it('When status is error and offpeak is provided Then OffpeakBadge still renders', () => {
+    const notice = {
+      active: true,
+      text: 'off-peak · 07:30까지',
+      description: 'Ollama off-peak 시간대 · 07:30에 끝남',
+    }
+    render(<UsageDashboard provider="ollama" title="Ollama" status="error" report={null} errorMessage="오류" offpeak={notice} />)
+    const badge = screen.getByTestId('offpeak-badge')
+    expect(badge.getAttribute('data-active')).toBe('true')
+    expect(screen.getByText(notice.text)).toBeTruthy()
+  })
+
+  it('When status is stale and offpeak is provided Then OffpeakBadge still renders', () => {
+    const notice = {
+      active: false,
+      text: 'off-peak 03:00부터',
+      description: 'Ollama off-peak 시간대 아님 · 03:00에 시작',
+    }
+    render(<UsageDashboard provider="ollama" title="Ollama" status="stale" report={readyReport} errorMessage={null} staleNoteText="마지막 성공 20분 전" offpeak={notice} />)
     const badge = screen.getByTestId('offpeak-badge')
     expect(badge.getAttribute('data-active')).toBe('false')
     expect(screen.getByText(notice.text)).toBeTruthy()

@@ -3,7 +3,7 @@ import type { OffpeakNotice } from '@app/usage/offpeak-notice'
 import { Badge } from '@ui/components/ui/badge'
 
 const TONE = {
-  active: 'border-[var(--usage-ok)]/40 bg-[var(--usage-ok)]/10 text-[var(--usage-ok)]',
+  active: 'border-[var(--usage-ok-text)]/40 text-[var(--usage-ok-text)]',
   inactive: 'border-border text-muted-foreground',
 } as const
 

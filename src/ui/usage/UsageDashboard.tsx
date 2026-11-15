@@ -270,7 +270,7 @@ function SectionTitle({
             <ExternalLink className="size-[14px]" aria-hidden="true" />
           </a>
         )}
-        {offpeak !== null && <OffpeakBadge notice={offpeak} />}
+        {offpeak != null && <OffpeakBadge notice={offpeak} />}
       </div>
       {/* 좁은 화면에서는 항상 다음 줄로 내린다(폰트 로딩 전후 폭 차이로 줄바꿈 여부가 흔들리지 않게) */}
       {children !== undefined && <div className="basis-full sm:basis-auto">{children}</div>}
