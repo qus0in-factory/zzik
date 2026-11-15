@@ -9,10 +9,10 @@ import { t } from '@shared/messages'
  * 절대 시각은 브라우저 시간대 HH:MM, 상대 표기는 domain의 formatAge를 쓴다.
  */
 
-function timeText(iso: string): string {
+export function timeText(iso: string, timeZone?: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '--:--'
-  return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone })
 }
 
 /** `마지막 수집 11:58 (2분 전)` — lastSuccessAt이 없으면 null. */

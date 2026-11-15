@@ -1,3 +1,4 @@
+import type { OffpeakSchedule } from '@domain/usage/offpeak'
 import type { UsageClock, UsageGateway, UsageGatewayResult, UsageScheduler } from '@domain/usage/gateway'
 import type { UsageProvider } from '@domain/usage/providers'
 
@@ -127,4 +128,12 @@ export function createFakeUsageClock(iso = NOW_ISO): FakeUsageClock {
       current = next
     },
   }
+}
+
+/** 테스트가 선택적으로 off-peak 스케줄을 주입할 수 있는 가짜 의존 묶음. */
+export interface FakeUsageDeps {
+  gateway: FakeUsageGateway
+  clock: FakeUsageClock
+  scheduler: FakeUsageScheduler
+  offpeak?: OffpeakSchedule
 }

@@ -5,6 +5,7 @@ import type { ChartButtonState, UsageHistoryPanelProps } from '@app/usage/histor
 import { useHistoryDeps } from '@app/usage/history/HistoryDepsContext'
 import { useUsageHistoryPanel } from '@app/usage/history/useUsageHistoryPanel'
 import { providerMetaFor } from '@app/usage/provider-meta'
+import { useOffpeakNotice } from '@app/usage/useOffpeakNotice'
 import { useUsage } from '@app/usage/useUsage'
 import { UsageDashboard } from './UsageDashboard'
 
@@ -31,6 +32,7 @@ export function UsageSection({ provider, chart: chartProp, chartPanel: chartPane
   const historyEnabled = useHistoryDeps().enabled
   const chart = chartProp !== undefined ? chartProp : historyEnabled ? history.button : null
   const chartPanel = chartPanelProp !== undefined ? chartPanelProp : historyEnabled ? history.panel : null
+  const offpeak = useOffpeakNotice(provider, state.nowIso)
   const panel: ReactNode = chartPanel === null ? null : (
     <Suspense fallback={<div aria-busy="true" />}>
       <UsageHistoryPanel {...chartPanel} />
@@ -57,6 +59,7 @@ export function UsageSection({ provider, chart: chartProp, chartPanel: chartPane
       collectionStatus={state.collectionStatus}
       chart={chart}
       chartPanel={panel}
+      offpeak={offpeak}
     />
   )
 }
