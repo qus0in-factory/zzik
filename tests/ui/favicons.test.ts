@@ -45,10 +45,19 @@ describe('Given the Zzik favicon set behind Cloudflare Access', () => {
   it('When the manifest is loaded Then install metadata and any/maskable paths agree with PNG files', () => {
     const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'))
     expect(manifest).toMatchObject({ name: 'Zzik : AI 사용량 대시보드', short_name: 'Zzik', theme_color: '#057873', background_color: '#057873', display: 'standalone', start_url: '/' })
-    expect(manifest.icons).toHaveLength(2)
-    for (const [i, size] of [192, 512].entries()) {
-      expect(manifest.icons[i]).toEqual({ src: `/web-app-manifest-${size}x${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any maskable' })
-      expect(existsSync(`public${manifest.icons[i].src}`)).toBe(true)
+    const icon = (size: number, purpose: string) => ({ src: `/web-app-manifest-${size}x${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose })
+    expect(manifest.icons).toEqual([icon(192, 'maskable'), icon(512, 'maskable'), icon(192, 'any'), icon(512, 'any')])
+    for (const entry of manifest.icons) expect(existsSync(`public${entry.src}`)).toBe(true)
+  })
+  it('When the manifest is loaded Then no icon purpose is a space-combined value', () => {
+    const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'))
+    for (const icon of manifest.icons) expect(icon.purpose ?? '').not.toMatch(/\s/)
+  })
+  it('When the manifest is loaded Then 192 and 512 maskable entries exist', () => {
+    const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'))
+    for (const size of [192, 512]) {
+      expect(manifest.icons).toContainEqual({ src: `/web-app-manifest-${size}x${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' })
+      expect(existsSync(`public/web-app-manifest-${size}x${size}.png`)).toBe(true)
     }
   })
   it('When legacy assets are retired Then old files and head references are absent', () => {
