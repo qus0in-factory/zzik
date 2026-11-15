@@ -9,7 +9,12 @@ describe('Given an off-peak notice', () => {
   it('When active Then local end time and discount are described separately', () => {
     const notice = offpeakNoticeOf('opencode', schedule, new Date('2026-11-16T17:00:00Z'), { timeZone: 'Asia/Seoul' })
     expect(notice).toEqual({ active: true, text: 'off-peak · 07:30까지', description: 'OpenCode off-peak 시간대 · 07:30에 끝남 · DeepSeek 단가 50 퍼센트 할인' })
-    expect(offpeakNoticeOf('ollama', schedule, new Date('2026-11-16T17:00:00Z'), { timeZone: 'UTC' })?.description).not.toContain('할인')
+  })
+  it.each([
+    ['2026-11-16T17:00:00Z', true, 'off-peak · 22:30까지', 'Ollama off-peak 시간대 · 22:30에 끝남 · DeepSeek 단가 50 퍼센트 할인'],
+    ['2026-11-16T12:00:00Z', false, 'off-peak 16:30부터', 'Ollama off-peak 시간대 아님 · 16:30에 시작 · DeepSeek 단가 50 퍼센트 할인'],
+  ] as const)('When Ollama is evaluated at %s Then only the description includes its DeepSeek discount', (iso, active, text, description) => {
+    expect(offpeakNoticeOf('ollama', schedule, new Date(iso), { timeZone: 'UTC' })).toEqual({ active, text, description })
   })
   it('When inactive Then the next start is displayed', () => {
     expect(offpeakNoticeOf('opencode', schedule, new Date('2026-11-16T12:00:00Z'), { timeZone: 'UTC' })).toEqual({ active: false, text: 'off-peak 16:30부터', description: 'OpenCode off-peak 시간대 아님 · 16:30에 시작 · DeepSeek 단가 50 퍼센트 할인' })

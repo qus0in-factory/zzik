@@ -34,6 +34,6 @@ export function offpeakNoticeOf(
   return {
     active: state.active,
     text: t(state.active ? 'offpeak.active' : 'offpeak.upcoming', { time }),
-    description: provider === 'opencode' ? t('offpeak.description.discount', { description }) : description,
+    description: provider === 'opencode' || provider === 'ollama' ? t('offpeak.description.discount', { description }) : description,
   }
 }
