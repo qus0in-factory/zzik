@@ -29,3 +29,23 @@ Refs #46. 코드 주석(`src/ui/usage/ProviderIcon.tsx`, `src/ui/index.css`)의 
 - 한글 파일명(`에이투지체-6SemiBold.woff2`)은 퍼센트 인코딩한 URL로 쓴다. `font-display: swap`, `index.html`에 `cdn.jsdelivr.net` preconnect(`crossorigin`).
 - CSP: Worker·HTML·`wrangler.jsonc`에 Content-Security-Policy 헤더가 없어 `font-src` 허용을 추가할 필요가 없다. 나중에 CSP를 도입하면 `font-src https://cdn.jsdelivr.net`과 `style-src`에 CDN을 허용해야 한다.
 - 전송량: `docs/perf/0.6-font-subset.md`의 "A2z 제목 글꼴" 절.
+
+## Favicon 세트 (Refs #82)
+
+[RealFaviconGenerator](https://realfavicongenerator.net/)의 현대 브라우저용 SVG·PNG, iOS Touch 아이콘, Android manifest 구성을 따른다. 기존 청록(`#057873`) 배경과 저빌 얼굴을 기존 PNG에서 `public/favicon.svg`의 벡터로 재구성했다. 불투명한 청록 바탕이 라이트·다크 탭에서 모두 대비를 유지하므로 SVG 내부 색상 전환은 필요 없다. 브라우저 UI의 theme-color만 라이트 청록·다크 `#171717`로 구분한다.
+
+| 파일 (`public/`) | 용도 |
+|---|---|
+| `favicon.svg` | 편집 가능한 벡터 원본, 브라우저 탭, 앱·README 로고 |
+| `favicon.ico` | PNG를 담은 16·32·48px 멀티 해상도 ICO |
+| `favicon-96x96.png` | 96px 브라우저·검색용 PNG |
+| `apple-touch-icon.png` | 180px, 불투명 정사각 배경과 얼굴 주변 여백. iOS가 모서리를 처리 |
+| `web-app-manifest-192x192.png` | 192px 설치 아이콘, `any maskable` |
+| `web-app-manifest-512x512.png` | 512px 설치 아이콘, `any maskable` |
+| `site.webmanifest` | 앱 이름·아이콘·시작 URL·standalone·테마/배경색 |
+
+재생성: `node scripts/generate-favicons.mjs` (저장소의 어느 경로에서 실행해도 가능). macOS `sips`는 SVG를 직접 래스터화하지 못하므로 기존 `scripts/lib/cdp.mjs`와 설치된 Google Chrome의 SVG/canvas 렌더러를 사용한다. `CHROME_PATH`로 Chrome 경로를 바꿀 수 있다. npm·런타임 의존성을 추가하지 않았으며 외부 서비스·키·네트워크 호출을 사용하지 않는다. SVG를 수정한 뒤 생성 결과를 함께 커밋한다. 같은 Chrome 버전에서 재현 가능하며 렌더러 버전에 따라 안티앨리어싱은 달라질 수 있다.
+
+설치 아이콘은 배경을 끝까지 채우고 얼굴만 중심 기준 88%로 줄인다. 로고 전체가 중앙 지름 80%의 maskable 안전 원 안에 들어가는지 생성 시 실제 픽셀과 불투명도를 검사한다. `/tmp/zzik-favicon-preview.png`에는 16·32·48·96·180·512px, 원형 마스크와 안전 원 표시를 라이트·다크 배경에 모아 저장한다. 정적 파일 계약은 `tests/ui/favicons.test.ts`에서 검사한다.
+
+Cloudflare Access는 인증 쿠키로 정적 파일도 보호한다. 브라우저의 manifest 요청에 쿠키를 포함하도록 `index.html`의 manifest 링크에 `crossorigin="use-credentials"`를 둔다. 시작 URL은 같은 origin의 `/`이며 기존 Access 인증을 거친다. Worker에 별도 공개 예외나 캐시·인증 우회 라우트를 추가하지 않는다. 구형 `favicon-32.png`·`icon-192.png` 참조는 README·UI·테스트를 포함해 검색 후 새 SVG/PNG 경로로 교체했다.

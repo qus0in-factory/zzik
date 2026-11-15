@@ -46,7 +46,7 @@ describe('Given the dashboard with six providers', () => {
     expect(heading.closest('header')).not.toBeNull()
     // 제목 텍스트와 중복되는 장식 이미지라 alt는 비워 스크린리더가 제목만 읽게 한다
     const logo = heading.querySelector('img')
-    expect(logo?.getAttribute('src')).toBe('/icon-192.png')
+    expect(logo?.getAttribute('src')).toBe('/favicon.svg')
     expect(logo?.getAttribute('alt')).toBe('')
     for (const filler of ['Hello Young-In', '구독 사용량을 한눈에 확인하는 공간입니다.', '개인 대시보드']) {
       expect(screen.queryByText(filler)).toBeNull()

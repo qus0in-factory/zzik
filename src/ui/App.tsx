@@ -65,7 +65,7 @@ export default function App() {
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <h1 className="text-xl font-semibold tracking-tight">
             <HomeLink>
-              <img src="/icon-192.png" alt="" width={32} height={32} className="size-8 rounded-lg" />
+              <img src="/favicon.svg" alt="" width={32} height={32} className="size-8 rounded-lg" />
               <span>{t('app.title')}</span>
             </HomeLink>
           </h1>
