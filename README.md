@@ -1,6 +1,6 @@
 # Zzik : AI 사용량 대시보드
 
-<img src="public/icon-192.png" alt="Zzik 저빌 아이콘" width="96" height="96" />
+<img src="public/favicon.svg" alt="Zzik 저빌 아이콘" width="96" height="96" />
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
