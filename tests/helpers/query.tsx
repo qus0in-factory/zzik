@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { OffpeakSchedule } from '@domain/usage/offpeak'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
@@ -25,6 +26,7 @@ export interface UsageProviderDeps {
   gateway: UsageGateway
   clock: UsageClock
   scheduler: UsageScheduler
+  offpeak?: OffpeakSchedule
 }
 
 export function makeUsageProviders(

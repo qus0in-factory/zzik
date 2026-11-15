@@ -1,3 +1,4 @@
+import type { OffpeakSchedule } from '@domain/usage/offpeak'
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { UsageClock, UsageGateway, UsageScheduler } from '@domain/usage/gateway'
@@ -11,6 +12,7 @@ export interface UsageDeps {
   gateway: UsageGateway
   clock: UsageClock
   scheduler: UsageScheduler
+  offpeak?: OffpeakSchedule
 }
 
 const UsageGatewayContext = createContext<UsageDeps | null>(null)
