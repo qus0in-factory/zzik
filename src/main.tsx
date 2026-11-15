@@ -1,4 +1,5 @@
 import '@ui/index.css'
+import { OFFPEAK_SCHEDULE } from '@domain/usage/offpeak-schedule'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -42,6 +43,7 @@ subscribeStorageKey(PROVIDER_ORDER_STORAGE_KEY, () => orderStore.getState().rehy
 subscribeStorageKey(VIEW_MODE_STORAGE_KEY, () => viewModeStore.getState().rehydrate())
 
 const usageDeps: UsageDeps = {
+  offpeak: OFFPEAK_SCHEDULE,
   clock: createBrowserClock(),
   scheduler: createBrowserScheduler(),
   gateway: devFixtureRequested
