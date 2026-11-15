@@ -22,7 +22,10 @@ export function offpeakNoticeOf(
   const iso = state.active ? state.endsAt : state.startsAt
   const date = new Date(iso)
   let time = timeText(iso, options?.timeZone)
-  if (date.getTime() - now.getTime() >= 86_400_000) {
+  const localDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: options?.timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+  })
+  if (localDate.format(date) !== localDate.format(now)) {
     time = t('offpeak.time.weekday', {
       weekday: date.toLocaleDateString('ko-KR', { weekday: 'short', timeZone: options?.timeZone }),
       time,
