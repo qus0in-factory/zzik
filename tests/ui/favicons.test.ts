@@ -1,8 +1,78 @@
 // @vitest-environment jsdom
 import { existsSync, readFileSync } from 'node:fs'
+import { inflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 
-const pngSizes = { 'favicon-96x96.png': 96, 'apple-touch-icon.png': 180, 'web-app-manifest-192x192.png': 192, 'web-app-manifest-512x512.png': 512 }
+const pngSizes = {
+  'favicon-96x96.png': 96,
+  'apple-touch-icon.png': 180,
+  'android-chrome-192x192.png': 192,
+  'android-chrome-512x512.png': 512,
+  'web-app-manifest-192x192.png': 192,
+  'web-app-manifest-512x512.png': 512,
+}
+
+/** Decode a non-interlaced 8-bit RGB or RGBA PNG. */
+function decodePng(png: Buffer) {
+  let offset = 8
+  let width = 0
+  let height = 0
+  let colorType = 0
+  const idat: Buffer[] = []
+  while (offset < png.length) {
+    const length = png.readUInt32BE(offset)
+    const type = png.toString('ascii', offset + 4, offset + 8)
+    const data = png.subarray(offset + 8, offset + 8 + length)
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0)
+      height = data.readUInt32BE(4)
+      if (data[8] !== 8 || data[10] !== 0 || data[11] !== 0) throw new Error('PNG must be 8-bit, non-interlaced')
+      colorType = data[9]
+    } else if (type === 'IDAT') idat.push(data)
+    else if (type === 'IEND') break
+    offset += 12 + length
+  }
+  const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : 0
+  if (!channels) throw new Error(`unsupported PNG color type ${colorType}`)
+  const inflated = inflateSync(Buffer.concat(idat))
+  const stride = width * channels
+  const pixels = Buffer.alloc(height * stride)
+  let src = 0
+  for (let y = 0; y < height; y++) {
+    const filter = inflated[src++]
+    const row = y * stride
+    const up = y > 0 ? pixels.subarray(row - stride, row) : null
+    for (let x = 0; x < stride; x++) {
+      const raw = inflated[src++]
+      const left = x >= channels ? pixels[row + x - channels] : 0
+      const above = up ? up[x] : 0
+      const upperLeft = up && x >= channels ? up[x - channels] : 0
+      let value = raw
+      if (filter === 1) value = (raw + left) & 255
+      else if (filter === 2) value = (raw + above) & 255
+      else if (filter === 3) value = (raw + Math.floor((left + above) / 2)) & 255
+      else if (filter === 4) {
+        const paeth = left + above - upperLeft
+        const nearest = [left, above, upperLeft].reduce((best, candidate) => Math.abs(paeth - candidate) < Math.abs(paeth - best) ? candidate : best)
+        value = (raw + nearest) & 255
+      } else if (filter !== 0) throw new Error(`unsupported PNG filter ${filter}`)
+      pixels[row + x] = value
+    }
+  }
+  return { width, height, channels, pixels }
+}
+
+function cornerAlphas(png: Buffer): number[] {
+  const { width, height, channels, pixels } = decodePng(png)
+  const alpha = (x: number, y: number) => channels === 3 ? 255 : pixels[(y * width + x) * channels + 3]
+  return [alpha(0, 0), alpha(width - 1, 0), alpha(0, height - 1), alpha(width - 1, height - 1)]
+}
+
+function rgbAt(png: Buffer, x: number, y: number) {
+  const { width, channels, pixels } = decodePng(png)
+  const index = (y * width + x) * channels
+  return [pixels[index], pixels[index + 1], pixels[index + 2]]
+}
 
 describe('Given the Zzik favicon set behind Cloudflare Access', () => {
   it('When the head is parsed Then all platform tags point at existing assets and the manifest sends credentials', () => {
@@ -45,10 +115,44 @@ describe('Given the Zzik favicon set behind Cloudflare Access', () => {
   it('When the manifest is loaded Then install metadata and any/maskable paths agree with PNG files', () => {
     const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'))
     expect(manifest).toMatchObject({ name: 'Zzik : AI 사용량 대시보드', short_name: 'Zzik', theme_color: '#057873', background_color: '#057873', display: 'standalone', start_url: '/' })
-    expect(manifest.icons).toHaveLength(2)
-    for (const [i, size] of [192, 512].entries()) {
-      expect(manifest.icons[i]).toEqual({ src: `/web-app-manifest-${size}x${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any maskable' })
-      expect(existsSync(`public${manifest.icons[i].src}`)).toBe(true)
+    const icon = (file: string, size: number, purpose: string) => ({ src: `/${file}`, sizes: `${size}x${size}`, type: 'image/png', purpose })
+    expect(manifest.icons).toEqual([
+      icon('web-app-manifest-192x192.png', 192, 'maskable'),
+      icon('web-app-manifest-512x512.png', 512, 'maskable'),
+      icon('android-chrome-192x192.png', 192, 'any'),
+      icon('android-chrome-512x512.png', 512, 'any'),
+    ])
+    const maskable = new Set(manifest.icons.filter((entry: { purpose: string }) => entry.purpose === 'maskable').map((entry: { src: string }) => entry.src))
+    for (const entry of manifest.icons) {
+      expect(existsSync(`public${entry.src}`)).toBe(true)
+      if (entry.purpose === 'any') expect(maskable.has(entry.src)).toBe(false)
+    }
+  })
+  it('When favicon.svg is read Then it declares an svg root and the 180 viewBox', () => {
+    const svg = readFileSync('public/favicon.svg', 'utf8')
+    expect(svg).toContain('<svg')
+    expect(svg).toContain('viewBox="0 0 180 180"')
+  })
+  it('When apple-touch-icon is decoded Then the belly center stays near white', () => {
+    const [red, green, blue] = rgbAt(readFileSync('public/apple-touch-icon.png'), 90, 136)
+    expect(red).toBeGreaterThanOrEqual(250)
+    expect(green).toBeGreaterThanOrEqual(250)
+    expect(blue).toBeGreaterThanOrEqual(250)
+  })
+  it('When apple and maskable PNGs are decoded Then every corner alpha is 255', () => {
+    for (const file of ['apple-touch-icon.png', 'web-app-manifest-192x192.png', 'web-app-manifest-512x512.png']) {
+      expect(cornerAlphas(readFileSync(`public/${file}`))).toEqual([255, 255, 255, 255])
+    }
+  })
+  it('When the manifest is loaded Then no icon purpose is a space-combined value', () => {
+    const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'))
+    for (const icon of manifest.icons) expect(icon.purpose ?? '').not.toMatch(/\s/)
+  })
+  it('When the manifest is loaded Then 192 and 512 maskable entries exist', () => {
+    const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'))
+    for (const size of [192, 512]) {
+      expect(manifest.icons).toContainEqual({ src: `/web-app-manifest-${size}x${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' })
+      expect(existsSync(`public/web-app-manifest-${size}x${size}.png`)).toBe(true)
     }
   })
   it('When legacy assets are retired Then old files and head references are absent', () => {
