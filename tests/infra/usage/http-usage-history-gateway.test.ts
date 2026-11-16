@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import ky, { TimeoutError } from 'ky'
 import { createHttpUsageHistoryGateway } from '@infra/usage/http-usage-history-gateway'
 import claude from '../../fixtures/usage-history/claude.samples.json'
+import { USAGE_HISTORY_SCAN_VERSION } from '../../../shared/usage-history-contract'
 
 function makeGateway(fakeFetch: typeof globalThis.fetch) {
   const client = ky.create({ fetch: fakeFetch, redirect: 'manual', retry: 0, throwHttpErrors: false, timeout: 10_000 })
@@ -64,5 +65,27 @@ describe('Given the ky history gateway (ADR 0.7 6.3·15절)', () => {
     const result = await makeGateway(c.fetch).fetchSummary()
     expect(new URL(c.requests[0].url).pathname).toBe('/api/usage-history')
     expect(result.ok && result.summary[0].okCount).toBe(4)
+  })
+})
+
+
+describe('Given the 30-day bucket gateway', () => {
+  const bucket = {
+    provider: 'claude', scanVersion: USAGE_HISTORY_SCAN_VERSION, bucketSec: 900,
+    from: '2026-11-01T00:00:00.000Z', until: '2026-11-16T00:00:00.000Z',
+    samples: [{ id: 'flat:1', runAt: '2026-11-01T00:15:00.000Z', status: 'ok', fetchedAt: '2026-11-01T00:15:00.000Z', intervalSec: 900, values: [{ id: 'five_hour', usedPercent: 12, resetsAt: null, cycleSeconds: null }] }],
+    anchor: null, complete: true,
+  }
+  it('When fetching buckets Then GET /api/usage-history/:provider/buckets carries from/until/bucketSec=900', async () => {
+    const c = capture(() => Response.json(bucket))
+    const result = await makeGateway(c.fetch).fetchBuckets('claude', { from: bucket.from, until: bucket.until, bucketSec: 900 })
+    const url = new URL(c.requests[0].url)
+    expect(url.pathname).toBe('/api/usage-history/claude/buckets')
+    expect(Object.fromEntries(url.searchParams)).toEqual({ from: bucket.from, until: bucket.until, bucketSec: '900' })
+    expect(result.ok && result.page.samples[0].id).toBe('flat:1')
+  })
+  it('When the bucket response has another version Then scan_version_mismatch', async () => {
+    const gateway = makeGateway(capture(() => Response.json({ ...bucket, scanVersion: 99 })).fetch)
+    expect(await gateway.fetchBuckets('claude', { from: bucket.from, until: bucket.until, bucketSec: 900 })).toEqual({ ok: false, reason: 'api_error', message: 'scan_version_mismatch' })
   })
 })

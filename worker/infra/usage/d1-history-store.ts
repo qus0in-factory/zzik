@@ -100,6 +100,20 @@ export class D1HistoryStore implements HistoryStore {
     }
   }
 
+  async readRowBefore(provider: UsageProvider, before: string): Promise<HistoryResult<HistoryRow | null>> {
+    if (this.db === null) return { ok: false, reason: 'storage_unavailable' }
+    try {
+      const rows = await all<D1EventRow>(
+        this.db,
+        `SELECT ${EVENT_COLUMNS} FROM usage_event AS e WHERE e.provider = ? AND e.run_at < ? ORDER BY e.run_at DESC, e.id DESC LIMIT 1`,
+        [provider, Date.parse(before)],
+      )
+      return { ok: true, value: rows[0] === undefined ? null : eventRow(rows[0]) }
+    } catch {
+      return { ok: false, reason: 'storage_unavailable' }
+    }
+  }
+
   async readSummary(providers: readonly UsageProvider[]): Promise<HistoryResult<UsageHistorySummaryEntry[]>> {
     if (this.db === null) return { ok: false, reason: 'storage_unavailable' }
     try {

@@ -1,6 +1,8 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { UsageHistorySummaryEntry } from '../../../../shared/usage-history-contract'
+import { USAGE_BUCKET_SEC } from '../../../../shared/usage-history-contract'
+import type { UsageHistoryBucketsPage, UsageHistorySummaryEntry } from '../../../../shared/usage-history-contract'
 import { validateRecord } from '@domain/usage/history/record'
+import { RANGE_MS } from '@domain/usage/history/chart-time-domain'
 import type { HistoryCacheStore, UsageHistoryGateway } from '@domain/usage/history/ports'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
@@ -16,6 +18,7 @@ export const historySummaryKey = ['usage-history-summary'] as const
 export const historyKey = (provider: UsageProvider) => ['usage-history', provider] as const
 export const historyDataKey = (provider: UsageProvider) => ['usage-history', provider, 'data'] as const
 export const historySyncKey = (provider: UsageProvider) => ['usage-history', provider, 'sync'] as const
+export const historyBucketsKey = (provider: UsageProvider) => ['usage-history', provider, 'buckets', '30d'] as const
 export const historyWarmKey = ['usage-history-warm-providers'] as const
 
 /** 요약 쿼리: 페이지 로드에서 스냅샷과 함께 1회, 15분 stale. 실패는 UsageLoadError로 던진다(재시도 정책은 Query 한 곳). */
@@ -79,4 +82,31 @@ export function runDedupedSync(inflight: Map<UsageProvider, Promise<SyncOutcome>
   const promise = import('./sync-history').then(({ syncHistory }) => syncHistory(deps, args)).finally(() => inflight.delete(args.provider))
   inflight.set(args.provider, promise)
   return promise
+}
+
+
+/** 30-day bucket query. The response stays in Query memory and is not written to IndexedDB. */
+export function historyBucketsQueryOptions(
+  deps: { gateway: UsageHistoryGateway; nowMs: () => number; budget: { begin(provider: UsageProvider): () => boolean } },
+  provider: UsageProvider,
+) {
+  return queryOptions({
+    queryKey: historyBucketsKey(provider),
+    queryFn: async (): Promise<UsageHistoryBucketsPage> => {
+      const untilMs = deps.nowMs()
+      const fromMs = untilMs - RANGE_MS['30d']
+      const take = deps.budget.begin(provider)
+      if (!take()) throw new UsageLoadError('api_error', 'history_budget')
+      const result = await deps.gateway.fetchBuckets(provider, {
+        from: new Date(fromMs).toISOString(),
+        until: new Date(untilMs).toISOString(),
+        bucketSec: USAGE_BUCKET_SEC,
+      })
+      if (!result.ok) throw new UsageLoadError(result.reason, result.message)
+      return result.page
+    },
+    staleTime: HISTORY_SUMMARY_STALE_MS,
+    gcTime: HISTORY_DATA_GC_MS,
+    refetchOnWindowFocus: false,
+  })
 }

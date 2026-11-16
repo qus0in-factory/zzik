@@ -15,3 +15,15 @@ describe('Given the fixture history gateway (DEV·개발용, T1 API 없이)', ()
     expect(result.ok && result.summary.map((entry) => entry.provider)).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
   })
 })
+
+
+describe('Given the fixture 30-day bucket gateway', () => {
+  it('When buckets are requested Then it returns the fixture samples in the requested window without raw text', async () => {
+    const gateway = createFixtureUsageHistoryGateway()
+    const result = await gateway.fetchBuckets('claude', { from: '2026-11-01T00:00:00.000Z', until: '2026-11-16T00:00:00.000Z', bucketSec: 900 })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.page).toMatchObject({ provider: 'claude', bucketSec: 900, complete: true, from: '2026-11-01T00:00:00.000Z', until: '2026-11-16T00:00:00.000Z' })
+    expect(result.page.samples.length).toBeGreaterThan(0)
+    expect(JSON.stringify(result)).not.toContain('rawText')
+  })
+})

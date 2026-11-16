@@ -3,7 +3,7 @@
  * 저장소 접근은 없다 — `update`의 `mutate`로 넘기는 동기 순수 함수만 만든다(I5).
  */
 import { USAGE_HISTORY_SCAN_VERSION } from '../../../../shared/usage-history-contract'
-import type { UsageHistoryPage, UsageHistorySample } from '../../../../shared/usage-history-contract'
+import type { UsageHistoryBucketsPage, UsageHistoryPage, UsageHistorySample } from '../../../../shared/usage-history-contract'
 import type { UsageProvider } from '../providers'
 import type { HistoryCacheRecord } from './types'
 
@@ -137,4 +137,22 @@ export function isForwardStale(record: HistoryCacheRecord, nowMs: number): boole
   if (record.cursor === null) return false
   const runAt = Date.parse(record.cursor.split('_')[0] ?? '')
   return Number.isFinite(runAt) && nowMs - runAt > HISTORY_FORWARD_MAX_AGE_MS
+}
+
+
+/** 30-day bucket page → an in-memory record for the chart. Never persisted to IndexedDB. */
+export function bucketRecordFromPage(page: UsageHistoryBucketsPage, nowIso: string, base: HistoryCacheRecord | null = null): HistoryCacheRecord {
+  return {
+    v: 1,
+    scanVersion: page.scanVersion,
+    provider: page.provider,
+    coveredFrom: page.from,
+    cursor: null,
+    anchor: page.anchor,
+    samples: page.samples,
+    labels: { ...(base?.labels ?? {}) },
+    seriesOrder: [...(base?.seriesOrder ?? [])],
+    syncedThroughRunAt: null,
+    syncedAt: nowIso,
+  }
 }

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare, Log, LogLevel } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { EXPORT_CRON } from '../../worker/domain/usage/export'
+import { BUCKET_CRON, EXPORT_CRON } from '../../worker/domain/usage/export'
 
 const migration = readFileSync(fileURLToPath(new URL('../../worker/migrations/0001_d1_storage.sql', import.meta.url)), 'utf8')
 const NOW = Date.parse('2026-11-16T03:00:00.000Z')
@@ -102,6 +102,20 @@ describe('Given the actual Worker scheduled handler with D1 and R2 in workerd', 
     const parsed = JSON.parse(body) as { manifest: { eventHighWaterId: string }; events: Array<{ id: string }> }
     expect(parsed.events.map(row => row.id)).toEqual(['9', '10', '100'])
     expect(parsed.manifest.eventHighWaterId).toBe('100')
+  })
+
+  it('When the 15-minute cron fires Then it writes D1 boundaries and a checkpoint without touching R2', async () => {
+    const worker = await mf.getWorker() as unknown as {
+      scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
+    }
+    const r2 = await mf.getR2Bucket('EXPORT_BUCKET') as unknown as { list(): Promise<{ objects: unknown[] }> }
+    const before = (await r2.list()).objects.length
+    await worker.scheduled({ cron: BUCKET_CRON, scheduledTime: NOW })
+    const checkpoint = await db.prepare("SELECT last_processed_id AS lastId FROM usage_bucket_checkpoint WHERE provider = 'codex'").all<{ lastId: string }>()
+    expect(checkpoint.results[0]?.lastId).toBe('100')
+    const boundaries = await db.prepare("SELECT count(*) AS count FROM usage_bucket_boundary WHERE provider = 'codex'").all<{ count: number }>()
+    expect(boundaries.results[0]?.count).toBe(3)
+    expect((await r2.list()).objects.length).toBe(before)
   })
 
   it('When a second export cron fires with no new events Then it still writes a heartbeat object without moving the high-water backwards', async () => {

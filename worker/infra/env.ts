@@ -13,4 +13,6 @@ export interface Env {
   EXPORT_BUCKET?: R2BucketLike
   /** Operator-controlled export generation; absent means 0. */
   USAGE_DATA_GENERATION?: string
+  /** Read-store flag; D1 bucket reads use the same value as the ADR read store. */
+  USAGE_READ_STORE?: string
 }

@@ -35,3 +35,78 @@ describe('Given authenticated history routes', () => {
   } });
   it('When DB fails Then returns sanitized storage_unavailable', async () => { const s = setup(); s.history.unavailable = true; const r = await s.app.request('/api/usage-history/claude', { headers }); expect(r.status).toBe(503); expect(await r.json()).toEqual({ error: 'storage_unavailable' }); });
 });
+
+import { FakeBucketStore } from '../../fakes/worker-ports'
+import { USAGE_BUCKET_SEC } from '../../../shared/usage-history-contract'
+const bucketHeaders = { 'Cf-Access-Jwt-Assertion': 'jwt' }
+function bucketSetup() {
+  const history = new FakeHistoryStore(), buckets = new FakeBucketStore(), verifier = new FakeVerifier()
+  const app = createRouter({ config, verifier, history, buckets, store: new FakeStore(), assets: { fetch: async () => new Response('SPA') } })
+  return { app, history, buckets }
+}
+const bucketQuery = 'from=2026-11-01T00:00:00.000Z&until=2026-11-16T00:00:00.000Z&bucketSec=900'
+describe('Given authenticated 30-day bucket routes', () => {
+  it('When /api/usage-history/:provider/buckets is requested Then it uses the bucket store and not raw history', async () => {
+    const s = bucketSetup()
+    s.buckets.samples = [{ id: `flat:${Date.parse('2026-11-01T00:00:00.000Z')}`, runAt: '2026-11-01T00:15:00.000Z', status: 'ok', fetchedAt: '2026-11-01T00:15:00.000Z', intervalSec: 900, values: [{ id: 'five_hour', usedPercent: 12, resetsAt: null, cycleSeconds: null }] }]
+    const res = await s.app.request(`/api/usage-history/claude/buckets?${bucketQuery}`, { headers: bucketHeaders })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toMatchObject({ provider: 'claude', bucketSec: 900, complete: true, samples: [{ values: [{ id: 'five_hour', usedPercent: 12 }] }] })
+    expect(s.buckets.reads).toBe(1)
+    expect(s.history.reads).toBe(0)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+  })
+
+  it.each([
+    ['missing bucketSec', `from=2026-11-01T00:00:00.000Z&until=2026-11-16T00:00:00.000Z`],
+    ['wrong bucketSec', `from=2026-11-01T00:00:00.000Z&until=2026-11-16T00:00:00.000Z&bucketSec=901`],
+    ['missing from', `until=2026-11-16T00:00:00.000Z&bucketSec=900`],
+    ['missing until', `from=2026-11-01T00:00:00.000Z&bucketSec=900`],
+    ['until not after from', `from=2026-11-16T00:00:00.000Z&until=2026-11-16T00:00:00.000Z&bucketSec=900`],
+    ['span over 30 days', `from=2026-10-01T00:00:00.000Z&until=2026-11-16T00:00:00.001Z&bucketSec=900`],
+    ['invalid instant', `from=2026-02-30T00:00:00.000Z&until=2026-11-16T00:00:00.000Z&bucketSec=900`],
+  ] as const)('When the query has %s Then 400 without reading', async (_name, query) => {
+    const s = bucketSetup()
+    const res = await s.app.request(`/api/usage-history/claude/buckets?${query}`, { headers: bucketHeaders })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid_query' })
+    expect(s.buckets.reads).toBe(0)
+    expect(s.history.reads).toBe(0)
+  })
+
+  it.each([['GET', '/api/usage-history/nope/buckets?' + bucketQuery, 404], ['POST', '/api/usage-history/claude/buckets?' + bucketQuery, 405], ['GET', '/api/usage-history/claude/buckets/more?' + bucketQuery, 404]] as const)('When %s %s Then %s without reading', async (method, path, status) => {
+    const s = bucketSetup()
+    const res = await s.app.request(path, { method, headers: bucketHeaders })
+    expect(res.status).toBe(status)
+    expect(s.buckets.reads).toBe(0)
+    expect(s.history.reads).toBe(0)
+  })
+
+  it('When the bucket store is unavailable Then 503 is sanitized', async () => {
+    const s = bucketSetup()
+    s.buckets.unavailable = true
+    const res = await s.app.request(`/api/usage-history/claude/buckets?${bucketQuery}`, { headers: bucketHeaders })
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'storage_unavailable' })
+  })
+
+  it('When no bucket store is injected Then the route is unavailable instead of falling back to raw history', async () => {
+    const s = setup()
+    const app = createRouter({ config, verifier: s.verifier, history: s.history, store: new FakeStore(), assets: { fetch: async () => new Response('SPA') } })
+    const res = await app.request(`/api/usage-history/claude/buckets?${bucketQuery}`, { headers: bucketHeaders })
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'storage_unavailable' })
+    expect(s.history.reads).toBe(0)
+  })
+
+  it('When the bucket path is used Then the response is not the raw provider page', async () => {
+    const s = bucketSetup()
+    s.buckets.complete = false
+    const res = await s.app.request(`/api/usage-history/claude/buckets?${bucketQuery}`, { headers: bucketHeaders })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ complete: false, samples: [] })
+    expect(s.history.reads).toBe(0)
+    expect(USAGE_BUCKET_SEC).toBe(900)
+  })
+})

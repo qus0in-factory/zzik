@@ -2,8 +2,8 @@
  * 이력 응답 디코드(ADR 0.7 6.2 I6, 11절). 형식 오류는 `invalid_response`, scanVersion 불일치는 `scan_version_mismatch`로
  * `api_error`를 돌려준다. 응답에서 계약의 필드만 골라 새 객체를 만든다 — 알 수 없는 키(원문 `rawText` 등)는 어디에도 남지 않는다.
  */
-import { USAGE_HISTORY_SCAN_VERSION } from '../../../../shared/usage-history-contract'
-import type { UsageHistoryPage, UsageHistorySample, UsageHistorySummaryEntry, UsageHistoryValue } from '../../../../shared/usage-history-contract'
+import { USAGE_BUCKET_SEC, USAGE_HISTORY_SCAN_VERSION } from '../../../../shared/usage-history-contract'
+import type { UsageHistoryBucketsPage, UsageHistoryPage, UsageHistorySample, UsageHistorySummaryEntry, UsageHistoryValue } from '../../../../shared/usage-history-contract'
 import type { UsageStatus } from '../../../../shared/usage-contract'
 import { USAGE_PROVIDERS } from '../providers'
 import type { UsageProvider } from '../providers'
@@ -67,6 +67,25 @@ export function decodeHistoryPage(raw: unknown, provider: UsageProvider): { ok: 
     if (anchor === null) return invalid
   }
   return { ok: true, page: { provider, scanVersion: USAGE_HISTORY_SCAN_VERSION, samples, anchor, nextCursor: raw.nextCursor, hasMore: raw.hasMore } }
+}
+
+export function decodeHistoryBucketsPage(raw: unknown, provider: UsageProvider): { ok: true; page: UsageHistoryBucketsPage } | HistoryDecodeFailure {
+  if (!isRecord(raw)) return invalid
+  if (typeof raw.scanVersion === 'number' && raw.scanVersion !== USAGE_HISTORY_SCAN_VERSION) return mismatch
+  if (raw.scanVersion !== USAGE_HISTORY_SCAN_VERSION || raw.provider !== provider || raw.bucketSec !== USAGE_BUCKET_SEC) return invalid
+  if (!isTime(raw.from) || !isTime(raw.until) || raw.until <= raw.from || !Array.isArray(raw.samples) || typeof raw.complete !== 'boolean') return invalid
+  const samples: UsageHistorySample[] = []
+  for (const item of raw.samples) {
+    const sample = decodeSample(item)
+    if (sample === null) return invalid
+    samples.push(sample)
+  }
+  let anchor: UsageHistorySample | null = null
+  if (raw.anchor !== null && raw.anchor !== undefined) {
+    anchor = decodeSample(raw.anchor)
+    if (anchor === null) return invalid
+  }
+  return { ok: true, page: { provider, scanVersion: USAGE_HISTORY_SCAN_VERSION, bucketSec: USAGE_BUCKET_SEC, from: raw.from, until: raw.until, samples, anchor, complete: raw.complete } }
 }
 
 export function decodeHistorySummary(raw: unknown): { ok: true; summary: UsageHistorySummaryEntry[] } | HistoryDecodeFailure {

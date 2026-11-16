@@ -1,7 +1,8 @@
 import { USAGE_PROVIDERS } from '../../../shared/usage-contract';
 import { USAGE_HISTORY_SCAN_VERSION } from '../../../shared/usage-history-contract';
 import type { UsageProvider } from '../../../shared/usage-contract';
-import type { UsageHistoryPage, UsageHistoryQuery, UsageHistorySummary } from '../../../shared/usage-history-contract';
+import type { UsageHistoryBucketsPage, UsageHistoryBucketsQuery, UsageHistoryPage, UsageHistoryQuery, UsageHistorySummary } from '../../../shared/usage-history-contract';
+import type { BucketStore } from '../../domain/usage/bucket-store';
 import type { HistoryResult, HistoryStore } from '../../domain/usage/history-store';
 import { historySample } from '../../domain/usage/history-sample';
 import { encodeCursor } from '../../domain/usage/history-query';
@@ -23,4 +24,7 @@ export async function getUsageHistorySummary(store: HistoryStore): Promise<Histo
   const result = await store.readSummary(USAGE_PROVIDERS);
   return result.ok ? { ok: true, value: { summary: result.value } } : result;
 }
-export { parseHistoryQuery } from '../../domain/usage/history-query';
+export async function getUsageHistoryBuckets(store: BucketStore, provider: UsageProvider, query: UsageHistoryBucketsQuery): Promise<HistoryResult<UsageHistoryBucketsPage>> {
+  return store.readBuckets(provider, query);
+}
+export { parseHistoryQuery, parseHistoryBucketsQuery } from '../../domain/usage/history-query';

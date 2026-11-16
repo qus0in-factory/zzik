@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeHistoryPage, decodeHistorySummary } from '@domain/usage/history/decode-history'
+import { decodeHistoryBucketsPage, decodeHistoryPage, decodeHistorySummary } from '@domain/usage/history/decode-history'
 import { USAGE_HISTORY_SCAN_VERSION } from '../../../../shared/usage-history-contract'
 import claude from '../../../fixtures/usage-history/claude.samples.json'
 import emptyPage from '../../../fixtures/usage-history/empty-page.samples.json'
@@ -72,5 +72,32 @@ describe('Given the history summary decoder', () => {
     expect(decodeHistorySummary({ summary: [{ provider: 'nope', okCount: 1, firstOkAt: null, lastOkAt: null }] })).toEqual({ ok: false, reason: 'api_error', message: 'invalid_response' })
     expect(decodeHistorySummary({ summary: [{ provider: 'claude', okCount: 'x', firstOkAt: null, lastOkAt: null }] })).toEqual({ ok: false, reason: 'api_error', message: 'invalid_response' })
     expect(decodeHistorySummary(null)).toEqual({ ok: false, reason: 'api_error', message: 'invalid_response' })
+  })
+})
+
+
+describe('Given the 30-day bucket decoder', () => {
+  const sample = { id: 'flat:1', runAt: '2026-11-01T00:15:00.000Z', status: 'ok', fetchedAt: '2026-11-01T00:15:00.000Z', intervalSec: 900, values: [{ id: 'five_hour', usedPercent: 12, resetsAt: null, cycleSeconds: null }] }
+  const bucket = { provider: 'claude', scanVersion: USAGE_HISTORY_SCAN_VERSION, bucketSec: 900, from: '2026-11-01T00:00:00.000Z', until: '2026-11-16T00:00:00.000Z', samples: [sample], anchor: null, complete: true }
+  it('When the bucket response is valid Then it decodes fields only', () => {
+    const result = decodeHistoryBucketsPage({ ...bucket, rawText: 'secret' }, 'claude')
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.page).toMatchObject({ provider: 'claude', bucketSec: 900, complete: true, from: bucket.from, until: bucket.until })
+    expect(result.page.samples[0]?.id).toBe('flat:1')
+    expect(JSON.stringify(result)).not.toContain('secret')
+  })
+  it('When scanVersion differs Then scan_version_mismatch', () => {
+    expect(decodeHistoryBucketsPage({ ...bucket, scanVersion: 99 }, 'claude')).toEqual({ ok: false, reason: 'api_error', message: 'scan_version_mismatch' })
+  })
+  it.each([
+    ['provider', { ...bucket, provider: 'codex' }],
+    ['bucketSec', { ...bucket, bucketSec: 901 }],
+    ['complete', { ...bucket, complete: 'yes' }],
+    ['from', { ...bucket, from: 'nope' }],
+    ['until before from', { ...bucket, until: '2026-10-01T00:00:00.000Z' }],
+    ['samples', { ...bucket, samples: 'x' }],
+    ['anchor', { ...bucket, anchor: { id: 1 } }],
+  ])('When %s is invalid Then invalid_response', (_name, raw) => {
+    expect(decodeHistoryBucketsPage(raw, 'claude')).toEqual({ ok: false, reason: 'api_error', message: 'invalid_response' })
   })
 })

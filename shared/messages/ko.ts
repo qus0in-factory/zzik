@@ -54,6 +54,7 @@ export const ko = {
   'chart.range.7d': '7일',
   'chart.range.30d': '30일',
   'chart.loadFailed': '이력을 불러오지 못했습니다.',
+  'chart.note.partial': '일부 구간만 표시합니다.',
   'chart.error.prefix': '이력을 불러오지 못했습니다',
   'chart.time': '{month}월 {day}일 {hour}:{minute}',
   'chart.axis.time': '{hour}:{minute}',
