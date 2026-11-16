@@ -25,6 +25,7 @@
     "ACCESS_TEAM_DOMAIN": "qus0in.cloudflareaccess.com",
     "ACCESS_AUD": "d83bb3725ec247352d8a87ea9be8fc43a4aea78d68821b927a479f622bf29b79",
     "ALLOWED_EMAIL": "qus0in@gmail.com",
+    "USAGE_READ_STORE": "d1",
     "USAGE_DATA_GENERATION": "0"
   },
   "d1_databases": [
