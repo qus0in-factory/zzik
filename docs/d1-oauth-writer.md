@@ -16,7 +16,7 @@ D1은 기존 ZZIK_D1_ACCOUNT_ID·ZZIK_D1_DATABASE_ID가 필요하다. OAuth에�
 
 각 요청 전 파일을 읽고 만료60초 전부터 갱신한다. 유효 토큰은 단순 Wrangler 명령으로 갱신되지 않으므로, access/refresh token·scope를 보존한 채 expiry 메타만 과거로 atomic rename/fsync한다(임시 파일0600). 최대10초·비대화형 whoami가 실제 갱신·저장을 수행하고, 파일을 다시 읽어 새 토큰과 잔여 유효 시간을 확인한다. 프로세스 전역 single-flight/직렬 lane은 동시 성공과 실패를 공유한다. 갱신 도중 종료되면 다음 호출이 만료 상태를 보고 갱신할 수 있으며 오래된 백업으로 덮어쓰지 않는다.
 
-일시적인 파일 파싱/읽기·선제 refresh 네트워크/timeout 등 **credentials.get 실패**는 연속1·2회에 retry/60000ms를 반환해 기존 sender backoff에 맡긴다. 연속3회는 기존 authStopped에 기록한다. 성공적으로 자격을 읽으면 실패 횟수를0으로 되돌린다. 횟수는 프로세스 메모리에만 둔다. 시작 시 reconciliation 실패의 기존 종료 동작은 변경하지 않는다.
+일시적인 파일 파싱/읽기·선제 refresh 네트워크/timeout 등 **credentials.get 실패**는 연속1·2회에 retry/60000ms를 반환해 기존 sender backoff에 맡긴다. 연속3회는 기존 authStopped에 기록한다. 각 실패 뒤60초 게이트 안에서는 다른 provider의 get() 호출·카운트를 생략하고 남은 시간으로 retry한다. 따라서 영구 정지는 최소120초에 걸친3회 실패를 요구한다. 성공적으로 자격을 읽으면 실패 횟수와 게이트를0으로 되돌린다. 횟수는 프로세스 메모리에만 둔다. 시작 시 reconciliation 실패의 기존 종료 동작은 변경하지 않는다.
 
 HTTP401은 refresh 뒤 동일 batch를 새 토큰으로 한 번만 다시 보낸다. 이 경우 refresh 실패·재401·403은 기존대로 즉시 auth stop과 sender 알림으로 이어진다. 403은 응답에 따른 refresh를 하지 않는다. 재요청도 기존1요청/초·canRequest·15초 HTTP deadline을 거치며 operation id·seq·payload·ack 계약을 바꾸지 않는다.
 
