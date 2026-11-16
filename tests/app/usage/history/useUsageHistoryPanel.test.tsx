@@ -55,7 +55,7 @@ function harness(options: { events?: UsageHistorySample[]; summary?: UsageHistor
   const client = createTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <UsageGatewayProvider deps={{ gateway: usage, clock: createFakeUsageClock(), scheduler: createFakeUsageScheduler() }}>
+      <UsageGatewayProvider deps={{ gateway: usage, clock: createFakeUsageClock(new Date(NOW).toISOString()), scheduler: createFakeUsageScheduler() }}>
         <HistoryDepsProvider deps={deps}>{children}</HistoryDepsProvider>
       </UsageGatewayProvider>
     </QueryClientProvider>
@@ -370,6 +370,71 @@ describe('Given the sessionStorage open-panel list (N4: 정규화)', () => {
     expect(readOpenPanels(createMemoryKeyValue({ [CHART_OPEN_KEY]: '{oops' }))).toEqual([])
     expect(readOpenPanels(createMemoryKeyValue({ [CHART_OPEN_KEY]: JSON.stringify({ v: 2, open: ['claude'] }) }))).toEqual([])
     expect(read('claude')).toEqual([])
+  })
+})
+
+describe('Given a shared clock (usage-now-store) for both drawable-check and chart view', () => {
+  it('When deps.nowMs differs from usageState.nowIso Then both hasDrawableSuccess and buildView follow the shared clock at range boundaries', async () => {
+    const DAY = 86_400_000
+    const clockIso = '2026-11-14T12:00:00.000Z'
+    const clockMs = Date.parse(clockIso)
+    // 공유 클록 기준 24h 경계 안쪽(정확히 24h 전) 표본. deps.nowMs()는 10일 뒤를 가리켜 24h 범위 밖이 되도록 의도적으로 어긋나게 둔다.
+    const boundaryIso = new Date(clockMs - DAY).toISOString()
+    const boundarySample: UsageHistorySample = {
+      id: 'b-1',
+      runAt: boundaryIso,
+      status: 'ok',
+      fetchedAt: boundaryIso,
+      intervalSec: 900,
+      values: [{ id: 'five_hour', usedPercent: 33, resetsAt: null, cycleSeconds: null }],
+    }
+    const rec: HistoryCacheRecord = {
+      ...createRecord('claude', clockIso),
+      samples: [boundarySample],
+      seriesOrder: ['five_hour'],
+      labels: { five_hour: '5시간 한도' },
+    }
+
+    const h = harness({ record: rec, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    // 24h 범위 선택 + sync는 대기 상태로 막아 hasDrawableSuccess 판정이 loading 여부를 직접 결정하게 한다.
+    h.prefs.getState().setRange('claude', '24h')
+    h.gateway.onBeforeFetch = () => new Promise(() => {})
+    h.deps.nowMs = () => clockMs + 10 * DAY
+
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    expect(h.inputs.at(-1)?.nowMs).toBe(clockMs)
+  })
+
+  it('When a sample is 1ms outside the shared clock 24h boundary (even if inside deps.nowMs) Then loading spinner stays on during sync', async () => {
+    const DAY = 86_400_000
+    const clockIso = '2026-11-14T12:00:00.000Z'
+    const clockMs = Date.parse(clockIso)
+    const outsideIso = new Date(clockMs - DAY - 1).toISOString()
+    const outsideSample: UsageHistorySample = {
+      id: 'b-out',
+      runAt: outsideIso,
+      status: 'ok',
+      fetchedAt: outsideIso,
+      intervalSec: 900,
+      values: [{ id: 'five_hour', usedPercent: 33, resetsAt: null, cycleSeconds: null }],
+    }
+    const rec: HistoryCacheRecord = {
+      ...createRecord('claude', clockIso),
+      samples: [outsideSample],
+      seriesOrder: ['five_hour'],
+      labels: { five_hour: '5시간 한도' },
+    }
+
+    const h = harness({ record: rec, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    h.prefs.getState().setRange('claude', '24h')
+    h.gateway.onBeforeFetch = () => new Promise(() => {})
+    // deps.nowMs()가 1시간 전이면 outsideSample이 범위 안에 들어가지만, 공유 클록(clockMs) 기준으로는 범위 밖이다.
+    h.deps.nowMs = () => clockMs - 3_600_000
+
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel).not.toBeNull())
+    expect(result.current.panel?.state.phase).toBe('loading')
   })
 })
 

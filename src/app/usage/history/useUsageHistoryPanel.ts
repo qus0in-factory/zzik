@@ -3,11 +3,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStore } from 'zustand'
 import { USAGE_HISTORY_MIN_OK_EVENTS } from '../../../../shared/usage-history-contract'
 import type { UsageHistorySummaryEntry } from '../../../../shared/usage-history-contract'
+import { RANGE_MS, hasDrawableSuccess } from '@domain/usage/history/chart-time-domain'
 import { historyEligibility } from '@domain/usage/history/eligibility'
 import type { HistoryEligibility } from '@domain/usage/history/eligibility'
 import type { KeyValueStorage } from '@domain/usage/history/ports'
 import { withLabels } from '@domain/usage/history/record'
-import type { ChartRange, HistoryCacheRecord } from '@domain/usage/history/types'
+import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import { USAGE_PROVIDERS } from '@domain/usage/providers'
 import type { UsageProvider } from '@domain/usage/providers'
 import { t } from '@shared/messages'
@@ -24,7 +25,6 @@ import { HISTORY_DATA_GC_MS, historyDataKey, historyWarmKey, historyDataQueryOpt
 /** 이 탭에서 열어 둔 패널(sessionStorage). 같은 탭의 새로고침·재로그인 복귀에서만 복원된다. */
 export const CHART_OPEN_KEY = 'zzik:chart-open:v1'
 const NONE: readonly string[] = []
-const RANGE_MS: Record<ChartRange, number> = { '24h': 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000 }
 
 export function readOpenPanels(storage: KeyValueStorage): UsageProvider[] {
   try {
@@ -57,23 +57,6 @@ function hintFor(eligibility: HistoryEligibility): string | null {
   if (eligibility.reason === 'no_data') return t('chart.hint.noData')
   if (eligibility.reason === 'too_few') return t('chart.hint.tooFew', { min: USAGE_HISTORY_MIN_OK_EVENTS, n: eligibility.okCount })
   return t('chart.hint.tooShort', { hours: Math.max(1, Math.ceil((eligibility.remainingMs ?? 0) / 3_600_000)) })
-}
-
-function sampleMs(sample: { runAt: string; fetchedAt: string | null }): number | null {
-  const ms = Date.parse(sample.fetchedAt ?? sample.runAt)
-  return Number.isFinite(ms) ? ms : null
-}
-
-/** 선택 범위 안에 그릴 수 있는 성공 표본(values가 있는 표본)이 있는가. 커버리지(백필 완료)와 스피너 판정은 별개다. */
-function hasDrawableSuccess(record: HistoryCacheRecord | null, range: ChartRange, nowMs: number): boolean {
-  if (record === null) return false
-  const from = nowMs - RANGE_MS[range]
-  const drawable = (sample: { values: readonly unknown[] | null }): boolean => sample.values !== null && sample.values.length > 0
-  const inRange = (sample: { runAt: string; fetchedAt: string | null }): boolean => {
-    const t = sampleMs(sample)
-    return t !== null && t >= from && t <= nowMs
-  }
-  return record.samples.some((sample) => inRange(sample) && drawable(sample)) || (record.anchor !== null && inRange(record.anchor) && drawable(record.anchor))
 }
 
 export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanelBinding {
@@ -137,6 +120,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
           nowMs: deps.nowMs,
           budget: deps.budget,
         },
+        // 동기화 범위 계산(wantFromMs)은 표시용 공유 클록(usageState.nowIso)과 분리해 저장/동기화 시계(deps.nowMs)를 쓴다.
         { provider, snapshotRunAt: runAt, wantFromMs: deps.nowMs() - RANGE_MS[range] },
       )
       if (outcome.record !== null) {
@@ -258,8 +242,9 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
 
   // 스피너는 선택 범위에 그릴 성공 표본이 하나도 없을 때만 표시한다.
   // 이미 그릴 표본이 있으면 범위 확장·백그라운드 sync·탭 재방문 중에도 기존 차트를 유지하고 완료 시 한 번만 교체한다.
+  const nowMs = usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso)
   const waitingForHistory = syncQuery.isPending || syncQuery.isFetching
-  const hasDrawable = hasDrawableSuccess(record, range, deps.nowMs())
+  const hasDrawable = hasDrawableSuccess(record, range, nowMs)
   const isInitialLoading = record === null && (dataQuery.isPending || snapshot.isPending || waitingForHistory)
   const isUncoveredSwitch = !hasDrawable && waitingForHistory
   const isLoading = !preloadReady || isInitialLoading || isUncoveredSwitch
@@ -286,12 +271,12 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
       shown: shown ?? NONE,
       cardLabels,
       size,
-      nowMs: usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso),
+      nowMs,
       windows: usageState.report?.windows,
     })
     prevViewRef.current = { view: built, key: uiKey }
     return built
-  }, [waitingForHistory, isLoading, preloadError, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, usageState.report, deps])
+  }, [waitingForHistory, isLoading, preloadError, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, nowMs, usageState.report])
 
   if (!deps.enabled || !open) return { button, panel: null }
   const errorMessage = preloadError
@@ -310,6 +295,6 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
           ? errorMessage !== null
             ? { phase: 'error', message: errorMessage }
             : { phase: 'loading' }
-          : { phase: 'ready', view, syncing: syncQuery.isFetching, progress: null, note: errorMessage }
+          : { phase: 'ready', view, syncing: syncQuery.isFetching, note: errorMessage }
   return { button, panel: { panelId, regionLabel: t('chart.regionLabel', { provider: meta.title }), range, state, actions } }
 }
