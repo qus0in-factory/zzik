@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { History, Loader2, RefreshCw } from 'lucide-react'
+import { ChartLine, History, Loader2, RefreshCw } from 'lucide-react'
 import { t } from '@shared/messages'
 import type { ChartButtonState } from '@app/usage/history/chart-view'
 
@@ -37,6 +37,7 @@ export function StatusBar({ lastSuccessText, onRetry = null, refreshing = false,
             onPointerEnter={chart.onIntent}
             onFocus={chart.onIntent}
           >
+            <ChartLine aria-hidden="true" className="size-4" />
             {chart.label}
           </button>
           {chart.hint !== null && <span id={`${chart.panelId}-hint`} className="sr-only">{chart.hint}</span>}
