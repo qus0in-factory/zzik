@@ -224,7 +224,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   }
   const samples = record.samples.filter(inRange)
   const anchorTime = record.anchor === null ? null : sampleTime(record.anchor)
-  const { from } = chartTimeDomain(samples.map(s => sampleTime(s)!).filter(Number.isFinite), windowFrom, nowMs, record.anchor?.values == null ? null : anchorTime)
+  const { from } = chartTimeDomain(samples.filter(s => s.values !== null).map(s => sampleTime(s)!).filter(Number.isFinite), windowFrom, nowMs, record.anchor?.values == null ? null : anchorTime)
   const anchor: UsageHistorySample | null =
     record.anchor !== null && record.anchor.values !== null && anchorTime !== null && anchorTime >= from && anchorTime <= to
       ? record.anchor : null

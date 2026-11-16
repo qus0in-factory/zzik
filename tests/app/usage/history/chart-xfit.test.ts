@@ -84,3 +84,82 @@ describe('Given the actual Codex anchor outside the 24h period', () => {
     expect(data.columns[0].at(-1)).toBe(sample.values![0].usedPercent)
   })
 })
+
+describe('Given a Grok 24h window where a token_expired sample precedes the first ok sample', () => {
+  const grokNow = Date.parse('2026-11-16T04:27:00.000Z')
+  const resetsAt = '2026-11-19T07:44:56.981Z'
+  const oldAnchor = {
+    id: '851',
+    runAt: '2026-11-15T02:09:15.577Z',
+    status: 'ok' as const,
+    fetchedAt: '2026-11-15T02:09:15.577Z',
+    intervalSec: 900,
+    values: [{ id: 'credits', usedPercent: 67, resetsAt, cycleSeconds: 604800 }],
+  }
+  const leadingError = {
+    id: '941',
+    runAt: '2026-11-15T07:39:16.552Z',
+    status: 'token_expired' as const,
+    fetchedAt: '2026-11-15T07:24:17.410Z',
+    intervalSec: 900,
+    values: null,
+  }
+  const firstOk = {
+    id: '991',
+    runAt: '2026-11-15T10:39:14.814Z',
+    status: 'ok' as const,
+    fetchedAt: '2026-11-15T10:39:14.814Z',
+    intervalSec: 900,
+    values: [{ id: 'credits', usedPercent: 67, resetsAt, cycleSeconds: 604800 }],
+  }
+  const latestOk = {
+    id: '1273',
+    runAt: '2026-11-16T03:39:15.232Z',
+    status: 'ok' as const,
+    fetchedAt: '2026-11-16T03:39:15.232Z',
+    intervalSec: 900,
+    values: [{ id: 'credits', usedPercent: 77, resetsAt, cycleSeconds: 604800 }],
+  }
+  const grokRecord: HistoryCacheRecord = {
+    v: 1,
+    scanVersion: 2,
+    provider: 'grok',
+    coveredFrom: '2026-11-15T04:27:00.000Z',
+    cursor: `${latestOk.runAt}_${latestOk.id}`,
+    anchor: oldAnchor,
+    samples: [leadingError, firstOk, latestOk],
+    labels: { credits: '주간 크레딧' },
+    seriesOrder: ['credits'],
+    syncedThroughRunAt: latestOk.runAt,
+    syncedAt: '2026-11-16T04:27:00.000Z',
+  }
+  const grokInput = {
+    provider: 'grok' as const,
+    providerTitle: 'Grok',
+    record: grokRecord,
+    tailEnd: grokNow,
+    range: '24h' as const,
+    hidden: [],
+    shown: [],
+    cardLabels: { credits: '주간 크레딧' },
+    size: { width: 800, height: 240 },
+    nowMs: grokNow,
+  }
+
+  it('When a leading error sample precedes the first ok sample Then the domain starts at the first ok sample', () => {
+    const view = buildChartView(grokInput)
+    const data = chartAlignedData(view)!
+    expect(data.from).toBe(Date.parse(firstOk.fetchedAt) / 1000)
+    expect(data.to).toBe(grokNow / 1000)
+    expect(data.columns[0][0]).toBe(67)
+  })
+
+  it('When only error samples exist in the window Then empty no_points and the three-minute minimum span hold', () => {
+    const view = buildChartView({ ...grokInput, record: { ...grokRecord, samples: [leadingError] } })
+    const data = chartAlignedData(view)!
+    expect(data.to - data.from).toBe(180)
+    expect(view.empty).toBe('no_points')
+    expect(view.series).toEqual([])
+    expect(view.stops).toEqual([])
+  })
+})
