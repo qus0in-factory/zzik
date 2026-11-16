@@ -35,3 +35,9 @@ LedgerPort.checkpointPrune을 추가했다. unknown 첫 주기와 기존 ledger�
 ## 검증과 운영
 
 가짜 provider/REST/Discord와 로컬 SQLite/PGlite만 쓴다. 실제 PG 연결 하나의 BEGIN→ROLLBACK→BEGIN→COMMIT 순서 및 유예 중 provider·HTTP 동시 대기를 검증한다. 운영 자격·D1·Discord 호출, PM2 변경, 재시작, 배포는 하지 않는다. 두 핵심 경로 리뷰 관문 및 D 단계 운영 전환은 별도다.
+
+## 격리분을 보내지 않고 재개하는 운영자 명령
+
+승인 후 기존 D1 collector를 quiesce해 process lock을 해제한 상태에서, release의 명시적 `ZZIK_STORE=d1` 환경으로 `node collector/main.mjs --resume-without-quarantine <provider>`를 실행한다. 일반 수집 시작/--once/--dry-run과 함께 쓰지 않는다. 이 명령은 수집을 시작하지 않고 현재 격리 FIFO head 하나만 폐기·재고정한 뒤 종료한다. 다른 격리 head가 있으면 사실을 다시 확인한 별도 명령이 필요하다.
+
+startup 대조 뒤 head와 직접 후속 operation의 UUID 및 provider/seq를 조회하여 둘 다 receipt가 없을 때만 기존 sender 전이를 호출한다. 조회 실패·receipt 존재·실행 중인 resident에는 적용하지 않는다. 출력은 ok/reason만이며 봉투·receipt 원문은 출력하지 않는다. postgres 기본 경로에서는 78로 거부한다. 실행 뒤 일반 collector 재기동은 별도 운영 승인 절차다.

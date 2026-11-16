@@ -6,7 +6,7 @@ import { runD1Provider } from './run-d1-provider.mjs'
 import { createQuiescer } from './quiesce.mjs'
 /** @param {{ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,query:import('../../domain/usage/d1-sender-types.ts').D1QueryPort,timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,clock:{now():number},random:()=>number,operationId:()=>string,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort,notifyAlerts:(alerts:unknown[])=>Promise<void>,providers:Array<{id:string,ports:import('../../domain/usage/ports.mjs').CollectorPorts,runOptions?:object}>,intervals:Record<string,number>,retentionDays:number,collectorVersion:string,once?:boolean}} options */
 export function createD1Resident(options){
- let stopping=false
+ let stopping=false,started=false
  /** @type {()=>void} */let cancel=()=>{}
  /** @type {Promise<unknown>|null} */let sending=null
  /** @type {Promise<unknown>|null} */let maintaining=null
@@ -28,7 +28,14 @@ export function createD1Resident(options){
  }
  const quiesce=createQuiescer({timer:options.timer,stop:()=>{stopping=true;cancel();scheduler.stop()},pending:()=>[...scheduler.pending(),...(sending?[sending]:[]),...(maintaining?[maintaining]:[])],close:async()=>{options.ledger.close()}})
  const loop=()=>{if(!stopping){pump();cancel=options.timer.schedule(250,loop)}}
- return {canRequest:()=>!stopping,start:loop,pump,
+ return {canRequest:()=>!stopping,start:()=>{started=true;loop()},pump,
+  /** Operator-only pre-start action. The process lock and receipt probe belong to main.
+   * @param {import('../../../shared/usage-contract.ts').UsageProvider} provider
+   * @param {import('../../domain/usage/d1-ledger-types.ts').ReceiptFacts} receipts */
+  resumeWithoutQuarantine(provider,receipts){
+   if(started||stopping||sending!==null||maintaining!==null||scheduler.pending().length>0)return {ok:false,reason:'not_quiesced'}
+   return sender.resumeWithoutQuarantine(provider,receipts)
+  },
   onceDone:()=>scheduler.pending().length===0&&sending===null&&options.providers.every(bundle=>{
    const provider=/** @type {import('../../../shared/usage-contract.ts').UsageProvider} */(bundle.id)
    if(completed.has(provider)||!sender.canCollect(provider))return true
