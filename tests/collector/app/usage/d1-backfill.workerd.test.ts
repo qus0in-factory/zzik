@@ -30,9 +30,9 @@ describe('Given local actual D1 and an explicit confirmed plan',()=>{
   expect((await runBackfill({source:src,destination,checkpoint:cp,ledgerOutboxCount:0,apply:true,confirmation,batchSize:1})).ok).toBe(true)
   expect(successValue(await destination.inspect())).toMatchObject({events:3,maxId:'9007199254740994',sequence:'9007199254740994'})
  })
- it('When a later statement fails inside a batch Then D1 rolls back earlier statements and a replay succeeds',async()=>{
+ for(const point of ['middle','last'] as const)it(`When the ${point} statement fails inside a batch Then D1 rolls back earlier statements and a replay succeeds`,async()=>{
   await reset();const destination=createD1BackfillDestination(query),src=source(),cp=checkpoint(),confirmation='APPLY '+successValue(planBackfill(src)).summary.planSha256
-  const broken:BackfillDestination={...destination,write:sql=>destination.write([...sql,{sql:'INSERT INTO usage_write_receipt(operation_id) VALUES(NULL)',params:[]}])}
+  const broken:BackfillDestination={...destination,write:sql=>{const index=point==='middle'?2:sql.length;return destination.write([...sql.slice(0,index),{sql:'INSERT INTO usage_write_receipt(operation_id) VALUES(NULL)',params:[]},...sql.slice(index)])}}
   expect((await runBackfill({source:src,destination:broken,checkpoint:cp,ledgerOutboxCount:0,apply:true,confirmation})).ok).toBe(false)
   expect(successValue(await destination.inspect()).events).toBe(0)
   expect((await runBackfill({source:src,destination,checkpoint:cp,ledgerOutboxCount:0,apply:true,confirmation})).ok).toBe(true)
