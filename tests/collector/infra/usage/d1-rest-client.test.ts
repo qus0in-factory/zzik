@@ -55,3 +55,33 @@ describe('Given a fake D1 REST endpoint and a single request lane',()=>{
   for(const [mode,dryRun] of [['postgres',false],['d1',true]] as const){let calls=0;const c=createD1RestClient({mode,dryRun,control:fakeD1Control(),accountId:'fake',databaseId:'fake',token:'fake',clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;throw Error('must not send')}});expect((await c.query([statement])).ok).toBe(false);expect(calls).toBe(0)}
  })
 })
+
+describe('Given an OAuth credential port on the unchanged REST writer',()=>{
+ it('When 401 rejects a valid token Then refreshes once and retries the exact batch with the reread token',async()=>{
+  let now=0,token='old-synthetic',refreshes=0;const sent:Array<{auth:string,body:string}>=[],control=fakeD1Control()
+  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>({ok:true,value:{token}}),refresh:async rejected=>{expect(rejected).toBe('old-synthetic');token='new-synthetic';refreshes++;return {ok:true,value:{token}}}},clock:{now:()=>now},wait:async ms=>{now+=ms},fetch:async(_url,init)=>{sent.push({auth:init.headers.Authorization,body:init.body});return {status:sent.length===1?401:200,headers:{get:()=>null},json:async()=>({success:true,result:[{success:true}]})}}})
+  expect((await c.query([statement])).ok).toBe(true);expect(refreshes).toBe(1);expect(sent.map(s=>s.auth)).toEqual(['Bearer old-synthetic','Bearer new-synthetic']);expect(sent[0].body).toBe(sent[1].body);expect(now).toBe(1000);expect(c.authStopped()).toBe(false);expect(JSON.stringify(control.read())).not.toContain('synthetic')
+ })
+ for(const status of [401,403])it(`When refresh fails or ${status} persists Then uses the durable auth stop path without more requests`,async()=>{
+  let calls=0,refreshes=0
+  const c=createD1RestClient({mode:'d1',dryRun:false,control:fakeD1Control(),accountId:'fake',databaseId:'fake',credentials:{get:async()=>({ok:true,value:{token:'synthetic-secret'}}),refresh:async()=>{refreshes++;return {ok:false,reason:'oauth_refresh_failed'}}},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;return {status,headers:{get:()=>null},json:async()=>{throw Error('must not decode auth body')}}}})
+  expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth',status});expect(c.authStopped()).toBe(true);await c.query([statement]);expect(calls).toBe(1);expect(refreshes).toBe(status===401?1:0)
+ })
+ it('When the refreshed token is also rejected Then refreshes once, stops durably and never loops',async()=>{
+  let token='old-synthetic',calls=0,refreshes=0,now=0
+  const c=createD1RestClient({mode:'d1',dryRun:false,control:fakeD1Control(),accountId:'fake',databaseId:'fake',credentials:{get:async()=>({ok:true,value:{token}}),refresh:async()=>{token='new-synthetic';refreshes++;return {ok:true,value:{token}}}},clock:{now:()=>now},wait:async ms=>{now+=ms},fetch:async()=>{calls++;return {status:401,headers:{get:()=>null},json:async()=>({})}}})
+  expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth',status:401});await c.query([statement]);expect(calls).toBe(2);expect(refreshes).toBe(1);expect(c.authStopped()).toBe(true)
+ })
+ for(const throws of [false,true])it(`When OAuth retrieval ${throws?'throws':'fails'} Then retries twice and stops only on the third consecutive failure`,async()=>{
+  let calls=0,gets=0;const control=fakeD1Control()
+  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>{gets++;if(throws)throw Error('synthetic-secret');return {ok:false,reason:'oauth_file_unavailable'}},refresh:async()=>{throw Error('unused')}},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;throw Error('unused')}})
+  for(let i=0;i<2;i++){expect(await c.query([statement])).toMatchObject({ok:false,reason:'retry',status:null,retryAfterMs:60000});expect(c.authStopped()).toBe(false)}
+  expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth'});await c.query([statement]);expect(calls).toBe(0);expect(gets).toBe(3);expect(c.authStopped()).toBe(true)
+ })
+ it('When a credential read succeeds between failures Then resets the consecutive failure streak',async()=>{
+  let gets=0,calls=0;const control=fakeD1Control()
+  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>++gets===3?{ok:true,value:{token:'synthetic'}}:{ok:false,reason:'temporary'},refresh:async()=>({ok:false,reason:'unused'})},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;return {status:200,headers:{get:()=>null},json:async()=>({success:true,result:[{success:true}]})}}})
+  expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'retry'});expect((await c.query([statement])).ok).toBe(true)
+  expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'auth'});expect(calls).toBe(1)
+ })
+})

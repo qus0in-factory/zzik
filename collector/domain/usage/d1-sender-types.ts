@@ -21,3 +21,15 @@ export interface D1ControlPort {
 }
 
 export interface MaintenanceNoticeState {claim(reason:string,atMs:number):import('../../../shared/d1-contract.ts').D1Result<boolean>}
+
+/** Access tokens are transient in-memory values, never ledger/control payloads. */
+export interface D1Credential {token:string}
+export interface D1CredentialPort {
+ get():Promise<import('../../../shared/d1-contract.ts').D1Result<D1Credential>>
+ refresh(rejectedToken:string):Promise<import('../../../shared/d1-contract.ts').D1Result<D1Credential>>
+}
+export interface WranglerOAuthFilePort {
+ read():import('../../../shared/d1-contract.ts').D1Result<D1Credential & {expiresAtMs:number}>
+ expire(expectedToken:string):import('../../../shared/d1-contract.ts').D1Result<void>
+}
+export interface OAuthRefreshPort {run():Promise<import('../../../shared/d1-contract.ts').D1Result<void>>}

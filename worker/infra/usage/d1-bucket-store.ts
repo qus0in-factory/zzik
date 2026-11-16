@@ -168,7 +168,7 @@ export class D1BucketStore implements BucketStore {
         `SELECT CAST(id AS TEXT) AS id, run_at AS runAtMs, status, envelope
            FROM usage_event
           WHERE provider = ? AND id > CAST(? AS INTEGER) AND run_at >= ? AND run_at < ?
-          ORDER BY id ASC`,
+          ORDER BY usage_event.id ASC`,
         [provider, lastProcessedId, fromMs, untilMs],
       )
       let state = createBucketFoldState(previous)

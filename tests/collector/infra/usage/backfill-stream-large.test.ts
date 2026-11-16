@@ -12,6 +12,8 @@ describe('Given a source whose total envelopes exceed the previous 128MiB budget
   let bytes=0,maxPage=0
   const source=createPgBackfillSource({pageSize:50,maxBytes:128*1024*1024,query:async(sql:string,params?:unknown[])=>{
    if(sql.includes('jsonb_typeof'))return {rows:[{bad:'0'}]}
+   if(sql.includes('AS events,'))return {rows:[{events:String(total),snapshots:'0',minId:base.toString(),maxId:(base+BigInt(total-1)).toString()}]}
+   if(sql.includes('GROUP BY provider'))return {rows:[{provider:'claude',n:String(total)}]}
    if(sql.includes('WHERE id>')){const after=String(params?.[0]),start=after==='0'?0:Number(BigInt(after)-base+1n);return {rows:Array.from({length:Math.max(0,Math.min(50,total-start))},(_,i)=>({id:(base+BigInt(start+i)).toString(),provider:'claude',status:'ok',runAt:D1_NOW,rawSha256:null,envelopeJson}))}}
    return {rows:[]}
   }})
