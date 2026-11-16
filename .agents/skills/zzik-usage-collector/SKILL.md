@@ -5,7 +5,7 @@ description: zzik 수집기 PM2 설치·재시작·장애 대응 시 사용. P3 
 
 # zzik usage collector 운영
 
-ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P2/P3 게이트·배포·롤백은 zzik-deploy 스킬 참조.
+ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P2/P3 게이트·배포·롤백은 zzik-deploy 스킬 참조. D1 이전 진행 중(ADR 0.10), 단계별 게이트는 ADR §11.
 
 ## 전제
 

@@ -5,7 +5,7 @@ description: zzik 배포·배포 후 검증·수집기 재시작 시 사용. P3 
 
 # zzik 배포 · 검증
 
-Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 docs/adr/0.5-postgres-storage.md를 따른다. 최신 설정값은 ADR/코드가 정본이다.
+Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 docs/adr/0.5-postgres-storage.md를 따른다. 최신 설정값은 ADR/코드가 정본이다. D1 이전 진행 중(ADR 0.10), 단계별 게이트는 ADR §11.
 
 ## 1. 저장소 상태 (ADR 0.5 P3)
 
