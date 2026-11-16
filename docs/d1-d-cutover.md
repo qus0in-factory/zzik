@@ -1,40 +1,86 @@
-# D 전환 런북 — WIP, 실행 금지
+# D1 전환(Cutover) 및 롤백 런북 (ADR 0.10 §11 D)
 
-주간 잔여 1% 도달 지시에 따라 조사 단계에서 중단한 초안이다. 단계별 실행 명령·점검 스크립트·테스트는 아직 작성하지 않았다. 이 문서는 운영 실행 승인이 아니며 현재 상태로 전환하지 않는다.
+정본: `docs/adr/0.10-d1-storage.md` §11 D. 이 문서는 운영 실행 절차·중단 조건·승인 경계를 정리한 런북이며, 실제 전환·배포는 각 단계별 **사용자 승인** 후에만 실행한다.
 
-## 확인한 정본과 승인 경계
+## 공통 원칙
+- **사용자 승인 지점**: `[승인]` 표시 단계(관측 정지·PM2 변경, 백필/역이관 쓰기, Worker 플래그 배포)는 사용자 승인 없이 실행하지 않는다.
+- **비밀값 비노출**: `DB_URL`, `ZZIK_D1_API_TOKEN`, `ZZIK_D1_ACCOUNT_ID`, `ZZIK_D1_DATABASE_ID`, `ALLOWED_EMAIL`, Access `Location` 전문, 원문 응답은 stdout·로그에 출력하지 않는다.
+- **타임아웃**: macOS 환경에는 `timeout` 명령이 없으므로 사용하지 않는다. 도구 제한 시간은 Node 타이머(`setTimeout`)로 처리한다.
+- **선행 게이트**: A·B1·B2·B3·C·E·export patch의 교차 리뷰 및 `work-reviewer` 통과 기록이 모두 있어야 D를 연다.
 
-- ADR `docs/adr/0.10-d1-storage.md` §11 D가 순서의 정본이다.
-- `.agents/skills/zzik-deploy/SKILL.md`, `.agents/skills/zzik-usage-collector/SKILL.md`의 현재 본문은 PG 운영 기준이다. D1 전환에는 ADR의 단계별 별도 승인과 핵심 경로 두 리뷰 관문이 우선한다.
-- 관측 정지/PM2 변경, D1/PG 접근과 쓰기, Worker 배포·플래그 변경은 각각 사용자 승인 지점이다. 비밀값·Location 전문·응답 원문은 출력하지 않는다.
-- 이 환경에는 `timeout`이 없다. 후속 도구의 제한 시간은 Node 포트/타이머로 구현해야 한다.
+---
 
-## 정방향 순서 — 명령 미작성
+## 0. 사전 점검 (`scripts/d1-preflight.mjs` — dry-run 전용)
 
-1. A/B/C/E/export 및 B3 리뷰 수정본의 게이트 기록과 운영 배포본을 대조한다. 기록이 없으면 중단한다.
-2. 승인 후 PG 관측을 정지하고 B3의 30초 quiesce 결과와 Antigravity 자식 종료를 확인한다.
-3. PG in-flight transaction 종료를 확인한다. **PG 모드에는 outbox가 없으므로 이 단계의 drain은 PG in-flight 완료 확인이다.** D1의 UUID ack/응답 유실/미전송 분류로 대체하지 않는다.
-4. 승인 후 receipt=0, snapshot seq=0/op=NULL, ledger outbox=0, hash/id/sequence 펜스를 다시 확인하고 최종 백필한다.
-5. 승인 후 collector를 d1·900초·capability 없음으로 기동하고 6제공자 receipt/snapshot을 확인한다. Worker 읽기는 아직 PG다.
-6. 승인 후 Worker 읽기 플래그만 d1로 배포한다. binding/export/bucket은 이미 배포돼 있어야 한다.
-7. 대상 D1과 배포 번들을 사용하는 원격 opt-in으로 6제공자 200/decode, history id 문자열을 확인한다. Access 302/workers.dev 404와 인증된 화면 확인은 별도 필수다.
+전환 착수 전 `scripts/d1-preflight.mjs`로 PM2 상태·`ZZIK_STORE`·ledger 존재·outbox 0·export/버킷 배포 여부·`USAGE_READ_STORE`를 값 노출 없이 `PASS`/`FAIL`로 점검한다. 기본은 읽기 전용 dry-run이며, 실제 PM2·wrangler·DB·D1을 호출하지 않는다.
 
-## 롤백 순서 — 명령 미작성
+```bash
+node scripts/d1-preflight.mjs --state-dir <ZZIK_STATE_DIR> [--evidence <preflight-evidence.json>]
+```
 
-1. 승인 후 새 관측을 막고 현재 sender HTTP까지 최대 30초 기다린다.
-2. D1 접근 가능 시 outbox를 분류하고 미전송은 **같은 operation id**로 drain한다. 실패하면 임의 재번호나 큐 삭제를 하지 않는다.
-3. 승인 후 D1 관측을 PG 단일 transaction으로 역이관하고 commit 뒤 sequence를 위로만 맞춘다. hash 충돌이면 중단한다.
-4. PG commit 확인 뒤 ledger의 outbox 정리와 rolled-back 내부 마커를 한 transaction으로 기록하고 현재 JSON을 복구한다. C의 finalizeLedgerRollback 계약을 검토해 연결해야 한다. 이전 백업 JSON으로 덮거나 마커를 삭제하지 않는다.
-5. 두 플래그 postgres, 간격 900으로 복구한다. provider별 180 override와 capability는 승인된 절차로 제거한다.
-6. D1을 열 수 없으면 역이관을 시도하지 않는다. ADR의 허용 손실 경로를 사용자에게 명시하고 PG 마지막 remoteCommitted 기준으로 복귀하는 별도 승인 절차가 필요하다.
+- **확인할 출력 형태**:
+  ```json
+  {"ok":true,"dryRun":true,"checks":[{"name":"pm2_process","status":"PASS"},{"name":"zzik_store","status":"PASS"},{"name":"ledger_exists","status":"PASS"},{"name":"ledger_outbox_zero","status":"PASS"},{"name":"export_bucket_deployed","status":"PASS"},{"name":"usage_read_store","status":"PASS"}]}
+  ```
+- **중단 조건**: `ok: false` 또는 어느 한 항목이라도 `FAIL`이면 원인을 해소할 때까지 다음 단계로 진행하지 않는다.
 
-## 조사에서 확인한 실행 차단 사항
+---
 
-- 현재 `collector/ecosystem.config.cjs`는 `ZZIK_STORE=postgres`를 명시한다. private env-file만 d1로 바꾸고 기존 ecosystem을 재시작해서 전환됐다고 판단하면 안 된다. runtime/saved 설정 대조 및 비밀값을 PM2에 복제하지 않는 변경 명령을 후속 구현에서 확정해야 한다.
-- 현재 `tests/worker/infra/usage/db.workerd.test.ts`는 DB_URL 기반 **PG opt-in**이다. D1 원격 게이트로 재사용해 PASS라고 기록할 수 없다. z-ds의 대상 D1·배포 번들 opt-in 경로를 받아야 한다.
-- 이 브랜치의 Worker 조립/설정에서 D1 읽기 플래그·export/bucket 배포 증거는 아직 확인되지 않았다. 파일이 있다는 이유나 로컬 테스트로 배포 여부를 PASS 처리하지 않는다.
-- B3 수정 브랜치와 겹치는 파일: `collector/app/usage/d1-maintenance.mjs`, ADR, B2 문서 및 maintenance 테스트. 이 작업에서 수정하지 않았다.
+## 1. 정방향 전환 순서 (유지 창)
 
-## 재개할 작업
+### 1) 관측 정지 `[승인]`
+```bash
+pm2 stop zzik-usage-collector
+```
+- **확인**: B3의 30초 quiesce 유예 내 종료 및 Antigravity CLI 자식 프로세스 잔존 없음(`pgrep -fl agy` 등)을 확인한다.
+- **중단 조건**: 자식 프로세스나 in-flight 요청이 정리되지 않으면 진행하지 않는다.
 
-신규 파일로 dry-run 기본 preflight와 가짜 PM2/ledger/배포 증거 포트, 실패 테스트를 먼저 작성한다. 기본 모드에서 운영 명령을 실행하지 않게 한다. 실제 읽기 probe는 별도 명시적 opt-in/승인으로 제한하고 PM2 원문·환경 값은 메모리 안에서 PASS/FAIL로 축약한다. 단계별 명령·확인 출력·중단/복구 조건을 완성한 뒤 5개 필수 검사를 실행한다.
+### 2) drain
+- **최초 PG → D1 전환**: PG 모드에는 outbox가 없으므로 PG in-flight 트랜잭션 완료만 확인한다. (D1 모드에서 재전환·실패 복구일 때만 UUID 기반 outbox drain을 수행한다.)
+
+### 3) 최종 백필 (`scripts/d1-backfill.mjs`) `[승인]`
+먼저 dry-run으로 계획을 생성하고 요약을 확인한다:
+```bash
+node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DIR>
+```
+- **확인할 출력 형태 (dry-run)**:
+  - `{"ok":true,"value":{"planSha256":"<64-hex>", ...}}` (건수·min/max id 문자열·`migration_row_sha256` 포함, 원문·비밀값 없음)
+  - 사전 불변식: `receipt = 0`, `usage_snapshot.write_seq = 0`, `operation_id = NULL`, `ledger outbox = 0`, `sqlite_sequence >= max(id)`.
+- 계획 확인 및 승인 후 `--apply` 실행:
+  ```bash
+  node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DIR> --apply
+  ```
+  프롬프트에 `APPLY <planSha256>`을 정확히 입력한다.
+- **중단 조건**: `ledger_outbox_not_empty`(exit 78), `jsonb` 비객체 행, 해시 불일치, `sqlite_sequence` 펜스 미달 시 즉시 중단한다.
+
+### 4) 수집기 `d1` 기동 (간격 900, capability 없음) `[승인]`
+- **주의**: `collector/ecosystem.config.cjs`에 `ZZIK_STORE=postgres`가 명시돼 있으면 private env-file만 바꿔서는 전환되지 않는다. 승인된 설정으로 `ZZIK_STORE=d1`, 간격 `900`, capability 파일 없음 상태를 맞춘 뒤 기동한다.
+  ```bash
+  pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --update-env
+  ```
+- **확인**: 첫 주기 후 6개 제공자 `usage_write_receipt` 및 `usage_snapshot` seq 증가를 개수·상태 코드로만 확인한다. (Worker 읽기는 아직 `postgres`다.)
+- **중단 조건**: 6개 제공자 receipt/snapshot 누락, `auth` 401/403, 또는 `local_commit_failed` 발생 시 즉시 정지 후 아래 롤백 절차로 복귀한다.
+
+### 5) Worker 읽기 플래그 `d1` 배포 `[승인]`
+- export patch와 E에서 `d1_databases`, `r2_buckets`, `triggers.crons` 바인딩이 이미 배포돼 있어야 한다.
+- `USAGE_READ_STORE=d1`만 변경해 `pnpm run deploy`를 실행한다(드라이버 삭제와 플래그 전환을 한 배포에 묶지 않는다).
+
+### 6) 원격 opt-in 6개 제공자 확인
+- 대상 원격 D1 + 배포된 Worker 번들로 6개 제공자 `/api/usage`, `/api/usage/:provider` 200·decode boolean 및 `/api/usage-history/:provider` id 문자열 왕복을 확인한다.
+- **주의**: 기존 `tests/worker/infra/usage/db.workerd.test.ts`는 `DB_URL` 기반 PG opt-in이므로 D1 원격 게이트를 대체하지 않는다.
+- 쿠키 없는 요청(`/`, `/api/usage`, `/api/usage/<provider>`) `302` 및 `workers.dev` `404`를 확인한다.
+
+### 7) 인증된 운영 화면 확인
+- 사용자가 인증된 브라우저에서 6개 제공자 최신값·7일 이력·30일 버킷 차트를 직접 확인한 뒤 전환 완료로 보고한다.
+
+---
+
+## 2. 롤백 순서 (G 전 무손실 경로)
+
+1. **관측 정지 `[승인]`**: 새 관측을 중지하고 D1 모드면 sender의 진행 중 HTTP가 끝나기를 최대 30초 기다린다.
+2. **drain**:
+   - D1 접근 가능 시: outbox를 분류하고 미전송 operation을 **같은 operation id**로 D1에 drain한다(임의 재번호·큐 삭제 금지).
+   - D1 접근 불가 시: 역이관을 시작하지 않고 사용자에게 공백(정지 시각 이후 허용 손실)을 보고한 뒤 PG 마지막 `remoteCommitted` 기준으로 복귀하는 별도 승인을 받는다.
+3. **PG 단일 트랜잭션 역이관 `[승인]`**: D1 관측을 PG 단일 트랜잭션으로 역이관하고 커밋 후 트랜잭션 밖에서 sequence를 위로만 맞춘다. 해시 불일치 시 즉시 중단한다.
+4. **ledger 정리 · `rolled-back` 마커 기록**: PG 커밋 성공 뒤에만 한 ledger 트랜잭션에서 역이관된 outbox 행을 삭제하고 `acked_seq`를 맞춘 뒤 현재 JSON(`gate`, `alerts`, `previous`, `lastEventAt`, `lastRun` + `usage-prune.json`의 `lastPruneAt`)을 복구하며, import 마커를 **`rolled-back`으로 표시한다(마커 삭제 금지, 이전 백업 JSON 덮어쓰기 금지)**.
+5. **두 플래그 `postgres` · 간격 `900` 복구 `[승인]`**: `USAGE_READ_STORE=postgres`, `ZZIK_STORE=postgres`, 간격 `900`으로 되돌리고 capability 파일과 `ZZIK_INTERVAL_SEC_*` `180` 설정을 제거한다.
