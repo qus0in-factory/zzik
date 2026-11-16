@@ -62,7 +62,6 @@ export function UsageHistoryPanel({ panelId, regionLabel, range, state, actions 
       {state.phase === 'ready' && (
         <>
           {state.syncing && <span className="chart-syncing" aria-live="polite">{CHART_MESSAGES.syncing}</span>}
-          {state.progress !== null && <span className="chart-progress" aria-live="polite">{state.progress}</span>}
           {state.note !== null && <span className="chart-note">{state.note}</span>}
           {state.view.empty === 'no_points' && <p className="chart-empty">{CHART_MESSAGES.emptyNoPoints}</p>}
           {state.view.empty === 'all_hidden' && (

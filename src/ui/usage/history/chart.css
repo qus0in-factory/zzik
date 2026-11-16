@@ -170,7 +170,7 @@
 .chart-table th, .chart-table td { padding: 4px 6px; border-bottom: 1px solid var(--chart-grid); text-align: left; }
 .chart-table thead th { color: var(--chart-muted); font-weight: 600; }
 
-.chart-skeleton, .chart-error, .chart-empty, .chart-syncing, .chart-progress, .chart-note {
+.chart-skeleton, .chart-error, .chart-empty, .chart-syncing, .chart-note {
   padding: 12px 4px;
   font-size: 13px;
 }
@@ -185,7 +185,7 @@
 .chart-error { display: flex; align-items: center; gap: 12px; color: var(--destructive); }
 .chart-retry { border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; background: transparent; color: inherit; cursor: pointer; }
 .chart-empty { color: var(--chart-muted); }
-.chart-syncing, .chart-progress, .chart-note { color: var(--chart-muted); font-size: 12px; padding: 2px 4px; }
+.chart-syncing, .chart-note { color: var(--chart-muted); font-size: 12px; padding: 2px 4px; }
 
 /* 강제 색 모드에서도 실측 계열은 실선을 유지하고, 활성/숨김은 굵기·취소선·테두리로 구분한다. */
 @media (forced-colors: active) {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { chartTimeDomain, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
+import { chartTimeDomain, hasDrawableSuccess, isDrawableSample, isSuccessSample, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
 import { elapsedPercent } from '@domain/usage/elapsed'
+import type { HistoryCacheRecord } from '@domain/usage/history/types'
+import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 import live from '../../../fixtures/usage-history/codex.xfit-live.json'
 
 const now = Date.parse(live.now)
@@ -76,5 +78,59 @@ describe('Given a retained anchor three days before now on the 24h tab', () => {
   })
   it('When the anchor itself is in the selected period Then its actual time is preserved', () => {
     expect(chartTimeDomain([now], now - day, now, now - 60 * 60_000)).toEqual({from:now - 60 * 60_000,to:now})
+  })
+})
+
+describe('Given the unified drawable-sample predicate (values: [] 포함)', () => {
+  const sample = (id: string, iso: string, values: UsageHistorySample['values']): UsageHistorySample => ({
+    id,
+    runAt: iso,
+    status: values === null ? 'network_error' : 'ok',
+    fetchedAt: iso,
+    intervalSec: 900,
+    values,
+  })
+  const makeRecord = (samples: UsageHistorySample[], anchor: UsageHistorySample | null = null): HistoryCacheRecord => ({
+    v: 1,
+    scanVersion: 1,
+    provider: 'codex',
+    coveredFrom: null,
+    cursor: null,
+    anchor,
+    samples,
+    labels: {},
+    seriesOrder: [],
+    syncedThroughRunAt: null,
+    syncedAt: new Date(now).toISOString(),
+  })
+
+  it('When values is null or empty [] Then isDrawableSample returns false, while isSuccessSample returns true for [] (ADR 0.7 계약 분리)', () => {
+    expect(isDrawableSample(null)).toBe(false)
+    expect(isDrawableSample(undefined)).toBe(false)
+    expect(isDrawableSample(sample('1', live.now, null))).toBe(false)
+    expect(isDrawableSample(sample('2', live.now, []))).toBe(false)
+    expect(isDrawableSample(sample('3', live.now, [{ id: 'five_hour', usedPercent: 10, resetsAt: null, cycleSeconds: null }]))).toBe(true)
+
+    expect(isSuccessSample(null)).toBe(false)
+    expect(isSuccessSample(undefined)).toBe(false)
+    expect(isSuccessSample(sample('1', live.now, null))).toBe(false)
+    expect(isSuccessSample(sample('2', live.now, []))).toBe(true)
+    expect(isSuccessSample(sample('3', live.now, [{ id: 'five_hour', usedPercent: 10, resetsAt: null, cycleSeconds: null }]))).toBe(true)
+  })
+
+  it('When only values: [] samples exist in range Then hasDrawableSuccess returns false', () => {
+    const emptyRec = makeRecord([sample('1', new Date(now - 60_000).toISOString(), [])], sample('0', new Date(now - 120_000).toISOString(), []))
+    expect(hasDrawableSuccess(null, '24h', now)).toBe(false)
+    expect(hasDrawableSuccess(emptyRec, '24h', now)).toBe(false)
+  })
+
+  it('When a drawable sample sits at the exact range boundaries Then inclusive [nowMs - range, nowMs] is drawable and outside is not', () => {
+    const val = [{ id: 'five_hour', usedPercent: 10, resetsAt: null, cycleSeconds: null }]
+    expect(hasDrawableSuccess(makeRecord([sample('in-start', new Date(now - day).toISOString(), val)]), '24h', now)).toBe(true)
+    expect(hasDrawableSuccess(makeRecord([sample('in-end', new Date(now).toISOString(), val)]), '24h', now)).toBe(true)
+    expect(hasDrawableSuccess(makeRecord([sample('before', new Date(now - day - 1).toISOString(), val)]), '24h', now)).toBe(false)
+    expect(hasDrawableSuccess(makeRecord([sample('after', new Date(now + 1).toISOString(), val)]), '24h', now)).toBe(false)
+    expect(hasDrawableSuccess(makeRecord([], sample('anchor-in', new Date(now - day).toISOString(), val)), '24h', now)).toBe(true)
+    expect(hasDrawableSuccess(makeRecord([], sample('anchor-before', new Date(now - day - 1).toISOString(), val)), '24h', now)).toBe(false)
   })
 })

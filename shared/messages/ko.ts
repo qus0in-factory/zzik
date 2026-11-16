@@ -50,7 +50,6 @@ export const ko = {
   'chart.regionLabel': '{provider} 사용률 추이',
   'chart.title': '{provider} 사용률 추이 · 최근 {range}',
   'chart.empty.description': '{provider} 사용률 추이: 표시할 이력이 없습니다.',
-  'chart.progress': '{range} 이력 불러오는 중 ({done}/{total}일)',
   'chart.range.24h': '24시간',
   'chart.range.7d': '7일',
   'chart.range.30d': '30일',
