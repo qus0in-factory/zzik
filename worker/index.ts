@@ -1,3 +1,6 @@
+import { D1SnapshotStore } from './infra/usage/d1-snapshot-store'
+import { D1HistoryStore } from './infra/usage/d1-history-store'
+import type { HistoryStore } from './domain/usage/history-store'
 import { PostgresHistoryStore } from './infra/usage/postgres-history-store'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -38,7 +41,7 @@ export interface ScheduledContextLike {
   waitUntil?(promise: Promise<unknown>): void
 }
 
-function bucketStoreFor(env: Env, history: PostgresHistoryStore): BucketStore | null {
+function bucketStoreFor(env: Env, history: HistoryStore): BucketStore | null {
   const read = resolveUsageReadStore(env)
   if (!read.ok) return null
   if (read.store === 'd1') {
@@ -60,19 +63,21 @@ export function createWorker(deps: {
   const exportSink = deps.exportSink ?? ((env: Env) => env.EXPORT_BUCKET === undefined ? null : new R2ExportObjectStore(env.EXPORT_BUCKET))
   return {
     fetch(request: Request, env: Env, context: RequestContext): Promise<Response> {
+      const read = resolveUsageReadStore(env)
+      const isD1 = read.ok && read.store === 'd1'
       const config = readConfig(env)
       const verifierConfig = config.ok ? config.config : { issuer: 'https://invalid.cloudflareaccess.com', audience: '' }
       return withRequestResource(
         request,
-        () => createDb(env, deps.connect ?? connect),
+        () => read.ok && read.store === 'postgres' ? createDb(env, deps.connect ?? connect) : null,
         resource => {
-          const history = new PostgresHistoryStore(resource?.db ?? null)
+          const history = isD1 ? new D1HistoryStore(env.DB ?? null) : new PostgresHistoryStore(resource?.db ?? null)
           return createRouter({
             config,
             verifier: (deps.createVerifier ?? createVerifier)(verifierConfig),
             history,
             buckets: bucketStoreFor(env, history),
-            store: new PostgresSnapshotStore(resource?.db ?? null),
+            store: isD1 ? new D1SnapshotStore(env.DB ?? null) : new PostgresSnapshotStore(resource?.db ?? null),
             assets: env.ASSETS,
           }).fetch(request)
         },
