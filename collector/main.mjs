@@ -13,14 +13,25 @@
  * 제공자 목록: env ZZIK_PROVIDERS(기본 전체 6개). 하나의 제공자 실패가 다른
  * 제공자를 막지 않는다(예외 격리, 제공자별 상태 파일·게이트).
  *
- * 저장소는 Postgres 단독이다. DB_URL은 Node --env-file로 주입하며,
+ * 기본 저장소는 Postgres다. 명시적 ZZIK_STORE=d1에서만 ledger/sender를 조립한다.
+ * DB_URL은 Node --env-file로 주입하며,
  * 수집기 연결은 유휴 5초 후 닫혀 Neon의 suspend를 방해하지 않는다.
  */
 
+import {resumeQuarantinedProvider} from './app/usage/resume-quarantine.mjs'
+import {randomUUID} from 'node:crypto'
+import {openSqliteLedger} from './infra/usage/sqlite-ledger.mjs'
+import {createD1ControlFile} from './infra/usage/d1-control-file.mjs'
+import {createD1RestClient} from './infra/usage/d1-rest-client.mjs'
+import {createCollectorNotice} from './infra/usage/collector-notice.mjs'
+import {readLegacyLedgerInputs,reconcileD1Startup} from './app/usage/d1-startup.mjs'
+import {createD1Resident} from './app/usage/d1-resident.mjs'
+import {createStartupGate} from './app/usage/startup-quiesce.mjs'
 import postgres from 'postgres'
 import { readAlertConfig } from './domain/usage/alert-config.mjs'
 import { createDiscordAlerts } from './infra/usage/discord-alerts.mjs'
 import { createPostgresEnvelopeWriter } from './infra/usage/postgres-envelope-writer.mjs'
+import { readIntervalCapability } from './infra/usage/interval-capability.mjs'
 import { readStorageConfig } from './domain/usage/storage-config.mjs'
 import { createLogAppender } from './infra/usage/log.mjs'
 import { createUsageClient as createClaudeUsageClient } from './infra/usage/claude-usage-client.mjs'
@@ -36,6 +47,8 @@ import { createCodexUsageClient } from './infra/usage/codex-usage-client.mjs'
 import { createStateFile } from './infra/usage/state-file.mjs'
 import { DEFAULT_CREDENTIALS_PATH, readCredentialsFile } from './infra/usage/claude-credentials-file.mjs'
 import { DEFAULT_CODEX_AUTH_PATH, readCodexCredentials } from './infra/usage/codex-credentials-file.mjs'
+import { createResidentCollector } from './app/usage/resident-collector.mjs'
+import { createCollectorTimer } from './infra/usage/collector-timer.mjs'
 import { runCycle } from './app/usage/run-cycle.mjs'
 import { buildProviderBundles } from './app/usage/provider-bundles.mjs'
 import { USAGE_COLLECTOR_VERSION, USAGE_REDACTION_PATHS, USAGE_PROVIDERS as PROVIDER_IDS, parseProvidersEnv } from './domain/usage/providers.mjs'
@@ -44,7 +57,7 @@ import { join } from 'node:path'
 
 const alerts = createDiscordAlerts({ ...readAlertConfig(process.env), fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
-/** @type {{mode:'postgres',intervalSec:number,retentionDays:number}} */
+/** @type {{mode:'postgres'|'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>}} */
 let storageConfig = {mode:'postgres',intervalSec:900,retentionDays:30}
 /** @type {ReturnType<typeof postgres>|null} */
 let database = null
@@ -84,23 +97,28 @@ if (enabledProviders.length === 0) {
   process.exit(78)
 }
 
-const USAGE_TEXT = '사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity|opencode|grok|ollama] [--credentials-file <path>]'
+const USAGE_TEXT = '격리 재개: ZZIK_STORE=d1 node collector/main.mjs --resume-without-quarantine <provider> (기동 전 운영자 명령)\n사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity|opencode|grok|ollama] [--credentials-file <path>]'
 
 /** @typedef {import('./domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
-/** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean }} ParsedFlags */
+/** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean, resumeWithoutQuarantine:string|null }} ParsedFlags */
 
 /**
  * @param {string[]} argv
  * @returns {{ error: string|null, flags: ParsedFlags | null }}
  */
 function parseArgs(argv) {
-  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean }} */
-  const flags = { dryRun: false, once: false, credentialsPath: null, provider: null, codexAccountHeader: false }
+  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean, resumeWithoutQuarantine:string|null }} */
+  const flags = { dryRun: false, once: false, credentialsPath: null, provider: null, codexAccountHeader: false, resumeWithoutQuarantine:null }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--dry-run') flags.dryRun = true
     else if (arg === '--codex-account-header') flags.codexAccountHeader = true
     else if (arg === '--once') flags.once = true
+    else if(arg==='--resume-without-quarantine'){
+      const value=argv[++index]
+      if(!PROVIDER_IDS.includes(value))return {error:'InvalidResumeProvider',flags:null}
+      flags.resumeWithoutQuarantine=value
+    }
     else if (arg === '--provider') {
       const value = /** @type {string|null} */ (argv[index + 1] ?? null)
       if (value === null || !PROVIDER_IDS.includes(value)) return { error: `알 수 없는 제공자: ${value ?? '(없음)'}`, flags: null }
@@ -111,6 +129,7 @@ function parseArgs(argv) {
       index += 1
     } else return { error: `알 수 없는 인자: ${arg}`, flags: null }
   }
+  if(flags.resumeWithoutQuarantine!==null&&(flags.dryRun||flags.once||flags.provider!==null||flags.credentialsPath!==null))return {error:'ResumeCommandMustBeStandalone',flags:null}
   if (flags.credentialsPath !== null && (flags.dryRun !== true || flags.provider === null)) {
     return { error: '--credentials-file은 --provider와 --dry-run이 함께 있을 때만 쓴다(시험 자격 증명으로 다른 제공자의 저장소에 쓰는 일을 막는다)', flags: null }
   }
@@ -188,11 +207,15 @@ function buildProviders(flags) {
 /** @param {ParsedFlags} flags @returns {Promise<void>} */
 async function once(flags) {
   const intervalSec = storageConfig.intervalSec
-  const { results } = await runCycle({maintenance,alerts}, buildProviders(flags), {
-    dryRun: flags.dryRun,
-    collectorVersion: VERSION,
-    intervalSec,
+  /** @type {Awaited<ReturnType<typeof runCycle>>} */let completed={results:[],exitCode:0}
+  const runner=createResidentCollector({periodMs:intervalSec*1000,timer:createCollectorTimer(),
+    run:async shouldStop=>{completed=await runCycle({maintenance,alerts},buildProviders(flags),{dryRun:flags.dryRun,collectorVersion:VERSION,intervalSec,shouldStop})},
+    close:async()=>{await database?.end({timeout:1})},
+    onError:()=>{completed={results:[{id:'collector',exitCode:4}],exitCode:4}},
   })
+  bindShutdown(runner)
+  await runner.runOnce()
+  const {results}=completed
   for (const result of results) {
     if (flags.dryRun) {
       const report = /** @type {{ provider: string, status: string, called: boolean, keys: string[], sha256: string|null, diag?: string|null }} */ (result.dryRunReport ?? { provider: result.id, status: 'unknown', called: false, keys: [], sha256: null })
@@ -209,37 +232,63 @@ async function once(flags) {
       process.stdout.write(`provider=${result.id} exit=${result.exitCode}\n`)
     }
   }
-  await database?.end({timeout:1})
+  await runner.shutdown()
   process.exit(Math.max(0, ...results.map((result) => result.exitCode)))
 }
 
+/** @param {{shutdown():Promise<{timedOut:boolean}>}} runner */
+function bindShutdown(runner){
+ const shutdown=()=>{void runner.shutdown().then(result=>{process.stderr.write(`[zzik-usage-collector] shutdown=${result.timedOut?'timeout':'complete'}\n`);process.exit(0)})}
+ process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown)
+}
+
 function startResident() {
-  let inFlight = false
-  process.on('SIGINT', () => process.exit(0))
-  process.on('SIGTERM', () => process.exit(0))
-  const tick = async () => {
-    if (inFlight) {
-      process.stderr.write('[zzik-usage-collector] 이전 주기가 아직 진행 중이라 이번 주기를 건너뛴다\n')
-      return
-    }
-    inFlight = true
-    try {
-      const intervalSec = storageConfig.intervalSec
-      const { results } = await runCycle({maintenance,alerts}, buildProviders({ credentialsPath: null, provider: null, dryRun: false, once: false, codexAccountHeader: false }), { collectorVersion: VERSION, intervalSec })
-      const failures = results.filter((result) => result.exitCode !== 0)
-      if (failures.length > 0) {
-        process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map((result) => `${result.id}=exit${result.exitCode}`).join(', ')}\n`)
-      }
-    } catch (error) {
-      process.stderr.write('[zzik-usage-collector] 주기 실패: CycleError\n')
-    } finally {
-      inFlight = false
-    }
+  const runner=createResidentCollector({
+    periodMs:storageConfig.intervalSec*1000,timer:createCollectorTimer(),
+    run:async shouldStop=>{
+      const {results}=await runCycle({maintenance,alerts},buildProviders({credentialsPath:null,provider:null,dryRun:false,once:false,codexAccountHeader:false,resumeWithoutQuarantine:null}),{collectorVersion:VERSION,intervalSec:storageConfig.intervalSec,shouldStop})
+      const failures=results.filter(result=>result.exitCode!==0)
+      if(failures.length>0)process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map(result=>`${result.id}=exit${result.exitCode}`).join(', ')}\n`)
+    },
+    close:async()=>{await database?.end({timeout:1})},
+    onError:()=>{process.stderr.write('[zzik-usage-collector] 주기 실패: CycleError\n')},
+  })
+  bindShutdown(runner)
+  runner.start()
+}
+
+/** @param {ParsedFlags} flags */
+async function startD1(flags){
+  const providers=buildProviders(flags)
+  const imported=await readLegacyLedgerInputs(providers,createStateFile({path:join(STATE_DIR,'usage-prune.json')}))
+  const opened=openSqliteLedger({directory:STATE_DIR,nowMs:Date.now(),...imported})
+  if(!opened.ok){process.stderr.write('D1 ledger startup error: '+opened.reason+'\n');process.exit(78);return}
+  const ledger=opened.value,clock={now:()=>Date.now()},control=createD1ControlFile({path:join(STATE_DIR,'d1-sender-control.json')})
+  const notice=createCollectorNotice({...readAlertConfig(process.env),fetchImpl:globalThis.fetch,log:line=>process.stderr.write(line+'\n')})
+  /** @type {ReturnType<typeof createD1Resident>|null} */let activeRuntime=null
+  /** @type {()=>boolean} */let startupStopped=()=>false
+  const query=createD1RestClient({mode:'d1',dryRun:false,control,clock,canRequest:()=>!startupStopped()&&(activeRuntime?.canRequest()??true),
+    accountId:/** @type {string} */(process.env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(process.env.ZZIK_D1_DATABASE_ID),token:/** @type {string} */(process.env.ZZIK_D1_API_TOKEN),
+    fetch:globalThis.fetch,wait:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
+  })
+  const notifyAlerts=async(/** @type {unknown[]} */events)=>{await alerts.send(/** @type {import('./domain/usage/alert-types.mjs').AlertEvent[]} */(events))}
+  const gate=createStartupGate({timer:createCollectorTimer(),
+    reconcile:stop=>{startupStopped=stop;return reconcileD1Startup({ledger,query,clock,providers:providers.map(bundle=>/** @type {import('../shared/usage-contract.ts').UsageProvider} */(bundle.id)),notifyAlerts})},
+    closeStartup:async()=>{ledger.close()},
+    onReady:()=>{activeRuntime=createD1Resident({ledger,control,query,clock,notice,notifyAlerts,timer:createCollectorTimer(),random:Math.random,operationId:randomUUID,providers,intervals:storageConfig.intervals??{},retentionDays:storageConfig.retentionDays,collectorVersion:VERSION,once:flags.once});return activeRuntime},
+  })
+  bindShutdown(gate)
+  const reconciled=/** @type {Awaited<ReturnType<typeof reconcileD1Startup>>} */(await gate.start())
+  if(gate.stopping())return
+  if(!reconciled.ok){ledger.close();process.stderr.write('D1 reconciliation error: '+reconciled.reason+'\n');process.exit(78);return}
+  const active=/** @type {ReturnType<typeof createD1Resident>} */(gate.activate())
+  if(flags.resumeWithoutQuarantine!==null){
+    const result=await resumeQuarantinedProvider({mode:'d1',provider:/** @type {import('../shared/usage-contract.ts').UsageProvider} */(flags.resumeWithoutQuarantine),ledger,query,resume:(provider,facts)=>active.resumeWithoutQuarantine(provider,facts)})
+    process.stdout.write(JSON.stringify({ok:result.ok,...(!result.ok?{reason:result.reason}:{})})+'\n')
+    await active.shutdown();process.exit(result.ok?0:3);return
   }
-  void tick()
-  setInterval(() => {
-    void tick()
-  }, storageConfig.intervalSec * 1000)
+  active.start()
+  if(flags.once){while(!active.onceDone())await new Promise(resolve=>setTimeout(resolve,100));const code=active.exitCode();await active.shutdown();process.exit(code)}
 }
 
 async function main() {
@@ -249,15 +298,17 @@ async function main() {
     process.exit(64)
     return
   }
-  const configured = readStorageConfig(process.env, {dryRun:parsed.flags.dryRun})
+  const configured = readStorageConfig(process.env, {dryRun:parsed.flags.dryRun,capability:process.env.ZZIK_STORE==='d1'?readIntervalCapability(join(STATE_DIR,'interval-capability.json')):null})
   if (!configured.ok) {
     process.stderr.write('Storage configuration error: ' + configured.reason + '\n')
     process.exit(78)
     return
   }
+  if(parsed.flags.resumeWithoutQuarantine!==null&&configured.mode!=='d1'){process.stderr.write('ResumeCommandRequiresD1\n');process.exit(78);return}
   storageConfig = configured
+  if(configured.mode==='d1'&&!parsed.flags.dryRun){await startD1(parsed.flags);return}
   // Dry-run never creates a DB connection or a retention task.
-  if (!parsed.flags.dryRun) {
+  if (!parsed.flags.dryRun && configured.mode==='postgres') {
     try {
       const client = postgres(/** @type {string} */ (process.env.DB_URL), {max:1,idle_timeout:5,connect_timeout:10,prepare:false,onnotice:()=>{}})
       database = client
