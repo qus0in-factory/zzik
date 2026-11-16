@@ -10,9 +10,11 @@ import type { ChartView } from '@app/usage/history/chart-view'
 import type { ChartViewInput } from '@app/usage/history/chart-view-input'
 import { buildChartView } from '@app/usage/history/chart-view'
 import { createHistoryBudget } from '@app/usage/history/sync-history'
+import { CHART_OPEN_KEY } from '@app/usage/history/useUsageHistoryPanel'
+import { applyForward } from '@domain/usage/history/record'
 import { PaceChips } from '@ui/usage/PaceChips'
 import { UsageSection } from '@ui/usage/UsageSection'
-import { createFakeHistoryCache, createFakeHistoryGateway, createFakeHistoryServer, createMemoryKeyValue } from '../../../fakes/history-ports'
+import { createFakeHistoryCache, createFakeHistoryGateway, createFakeHistoryServer, createMemoryKeyValue, syntheticEvents } from '../../../fakes/history-ports'
 import { createFakeUsageClock, createFakeUsageGateway, createFakeUsageScheduler } from '../../../fakes/usage-ports'
 import { createTestQueryClient } from '../../../helpers/query'
 import type { UsageHistoryPage } from '../../../../shared/usage-history-contract'
@@ -136,6 +138,64 @@ describe('Given an open chart receiving a snapshot between shared clock ticks', 
     expect(view.pace?.points.at(-1)?.t).toBe(Date.parse(fetchedAt))
     expect(view.pace?.points.at(-1)?.p).toBe(view.summary?.pace.elapsedPercent)
     expect(region.querySelector('.chart-toolbar')?.textContent).toContain(screen.getByTestId('usage-pace-codex').textContent)
+  })
+})
+
+describe('Given a cached chart whose background sync is still running', () => {
+  it('When preload already completed and hover/focus repeats Then the existing uPlot and DOM stay unchanged', async () => {
+    const canvas = enableFakeCanvas2D()
+    const now = Date.parse('2026-11-14T12:00:00.000Z')
+    const events = syntheticEvents(60, new Date(now - 18 * 3_600_000).toISOString(), 900_000)
+    const server = createFakeHistoryServer('claude', events)
+    const first = server.page({ from: new Date(now - 86_400_000).toISOString(), limit: 50, anchor: true })
+    const record = applyForward(null, null, first, { provider: 'claude', now: new Date(now).toISOString(), initialFrom: new Date(now - 86_400_000).toISOString() })!
+    const gateway = createFakeHistoryGateway({ claude: server })
+    gateway.summary = [{ provider: 'claude', okCount: 4, firstOkAt: '2026-11-10T00:00:00.000Z', lastOkAt: events.at(-1)!.runAt }]
+    let gated = true
+    let releaseSync!: () => void
+    gateway.onBeforeFetch = () => gated ? new Promise<void>((resolve) => { releaseSync = () => { gated = false; resolve() } }) : Promise.resolve()
+    const usage = createFakeUsageGateway()
+    usage.pushResult({ ok: true, usage: { five_hour: { utilization: 40, resets_at: null } }, collection: { schema: 1, provider: 'claude', status: 'ok', called: true, runAt: '2026-11-14T11:45:00.000Z', fetchedAt: '2026-11-14T11:45:00.000Z', httpStatus: 200, retryAt: null, tokenExpiresAt: null, kvTokenExpiresAt: null, intervalSec: 900, collectorVersion: 'x', rawOmitted: null }, rawText: null })
+    let preloadCalls = 0
+    const deps = {
+      enabled: true,
+      gateway,
+      cache: createFakeHistoryCache([record]),
+      session: createMemoryKeyValue({ [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) }),
+      prefs: createChartPrefsStore(createMemoryKeyValue()),
+      budget: createHistoryBudget({ now: () => now }),
+      memory: new Map(),
+      inflight: new Map(),
+      nowMs: () => now,
+      preload: () => { preloadCalls += 1; return Promise.resolve() },
+      buildView: buildChartView,
+    }
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <UsageGatewayProvider deps={{ gateway: usage, clock: createFakeUsageClock('2026-11-14T12:00:00.000Z'), scheduler: createFakeUsageScheduler() }}>
+          <HistoryDepsProvider deps={deps}><UsageSection provider="claude" /></HistoryDepsProvider>
+        </UsageGatewayProvider>
+      </QueryClientProvider>,
+    )
+    const region = await screen.findByRole('region', { name: 'Claude 사용률 추이' })
+    await waitFor(() => expect(region.querySelector('.uplot')).toBeTruthy())
+    await waitFor(() => expect(gateway.queries.length).toBeGreaterThan(0))
+    const plot = region.querySelector('.uplot')
+    const initialContexts = canvas.count()
+    const close = screen.getByRole('button', { name: '차트 닫기' })
+
+    // preload는 이미 완료됐고 sync는 아직 게이트에 걸려 있다. hover/focus는 뷰를 다시 만들지 않아야 한다.
+    fireEvent.pointerEnter(close)
+    fireEvent.focus(close)
+    fireEvent.pointerEnter(close)
+    fireEvent.focus(close)
+    expect(preloadCalls).toBe(1)
+    expect(canvas.count()).toBe(initialContexts)
+    expect(region.querySelector('.uplot')).toBe(plot)
+
+    act(() => releaseSync())
+    await waitFor(() => expect(canvas.count()).toBe(initialContexts + 1))
+    expect(region.querySelector('.uplot')).toBeTruthy()
   })
 })
 
