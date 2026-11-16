@@ -1,7 +1,7 @@
 /**
  * 이력 계층의 포트(ADR 0.7 6.5절). 구현은 infra, 테스트는 가짜를 주입한다.
  */
-import type { UsageHistoryPage, UsageHistoryQuery, UsageHistorySummaryEntry } from '../../../../shared/usage-history-contract'
+import type { UsageHistoryBucketsPage, UsageHistoryBucketsQuery, UsageHistoryPage, UsageHistoryQuery, UsageHistorySummaryEntry } from '../../../../shared/usage-history-contract'
 import type { UsageGatewayFailureReason } from '../gateway'
 import type { UsageProvider } from '../providers'
 import type { HistoryCacheRecord } from './types'
@@ -16,6 +16,7 @@ export interface UsageHistoryGatewayFailure {
 export interface UsageHistoryGateway {
   fetchSummary(): Promise<{ ok: true; summary: UsageHistorySummaryEntry[] } | UsageHistoryGatewayFailure>
   fetchSamples(provider: UsageProvider, query: UsageHistoryQuery): Promise<{ ok: true; page: UsageHistoryPage } | UsageHistoryGatewayFailure>
+  fetchBuckets(provider: UsageProvider, query: UsageHistoryBucketsQuery): Promise<{ ok: true; page: UsageHistoryBucketsPage } | UsageHistoryGatewayFailure>
 }
 
 export type HistoryCacheUpdateResult = { ok: true; written: boolean } | { ok: false; reason: 'unavailable' | 'quota' }

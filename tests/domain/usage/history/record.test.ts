@@ -144,3 +144,20 @@ describe('Given validation, pruning, bookkeeping', () => {
     expect(isForwardStale({ ...createRecord('claude', NOW), cursor: null }, Date.parse(NOW))).toBe(false)
   })
 })
+
+import { bucketRecordFromPage } from '../../../../src/domain/usage/history/record'
+import type { UsageHistoryBucketsPage } from '../../../../shared/usage-history-contract'
+describe('Given a 30-day bucket page', () => {
+  it('When it becomes an in-memory record Then samples/anchor/coveredFrom are copied and labels/seriesOrder survive', () => {
+    const page: UsageHistoryBucketsPage = {
+      provider: 'claude', scanVersion: 2, bucketSec: 900,
+      from: '2026-11-01T00:00:00.000Z', until: '2026-11-16T00:00:00.000Z',
+      samples: [{ id: 'flat:1', runAt: '2026-11-01T00:15:00.000Z', status: 'ok', fetchedAt: '2026-11-01T00:15:00.000Z', intervalSec: 900, values: [{ id: 'five_hour', usedPercent: 12, resetsAt: null, cycleSeconds: null }] }],
+      anchor: null, complete: true,
+    }
+    const base = { v: 1 as const, scanVersion: 2, provider: 'claude' as const, coveredFrom: null, cursor: null, anchor: null, samples: [], labels: { five_hour: '5시간 한도' }, seriesOrder: ['five_hour'], syncedThroughRunAt: null, syncedAt: '2026-11-16T00:00:00.000Z' }
+    const record = bucketRecordFromPage(page, '2026-11-16T00:00:00.000Z', base)
+    expect(record).toMatchObject({ provider: 'claude', coveredFrom: page.from, samples: page.samples, anchor: null, labels: { five_hour: '5시간 한도' }, seriesOrder: ['five_hour'] })
+    expect(record.cursor).toBeNull()
+  })
+})

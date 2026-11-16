@@ -19,5 +19,7 @@ export type HistoryResult<T> = {
 export interface HistoryStore {
   readRows(provider: UsageProvider, query: UsageHistoryQuery): Promise<HistoryResult<HistoryRow[]>>;
   readAnchorRow(provider: UsageProvider, from: string): Promise<HistoryResult<HistoryRow | null>>;
+  /** Last event of any status before `before`; used to fold the first bucket in PG fallback. */
+  readRowBefore(provider: UsageProvider, before: string): Promise<HistoryResult<HistoryRow | null>>;
   readSummary(providers: readonly UsageProvider[]): Promise<HistoryResult<UsageHistorySummaryEntry[]>>;
 }

@@ -56,7 +56,7 @@ export function createDisabledHistoryDeps(): HistoryDeps {
   const inert: KeyValueStorage = { get: () => null, set: () => false, remove: () => {} }
   return {
     enabled: false,
-    gateway: { fetchSummary: async () => off, fetchSamples: async () => off },
+    gateway: { fetchSummary: async () => off, fetchSamples: async () => off, fetchBuckets: async () => off },
     cache: { read: async () => null, update: async () => ({ ok: false, reason: 'unavailable' }), remove: async () => {}, listProviders: async () => [] },
     session: inert,
     prefs: Object.assign(createStore<ChartPrefsState>(() => ({ providers: {}, setRange: () => {}, toggleSeries: () => {}, showAll: () => {} })), { persist: { rehydrate: () => {} } }) as ChartPrefsStore,

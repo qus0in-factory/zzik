@@ -120,6 +120,37 @@ export interface UsageHistoryPage {
   hasMore: boolean
 }
 
+/** 30일 버킷 경로(ADR 0.10 §7). `bucketSec=900`만 허용한다. */
+export const USAGE_BUCKET_SEC = 900
+export const USAGE_BUCKET_SUFFIX = 'buckets'
+export const USAGE_BUCKET_MAX_POINTS = 4_000
+export const USAGE_BUCKET_READ_BUDGET_MS = 8_000
+export const USAGE_BUCKET_MAX_SPAN_MS = 30 * 86_400_000
+
+/** `GET /api/usage-history/:provider/buckets`의 요청. 저장소를 읽기 전에 검증한다. */
+export interface UsageHistoryBucketsQuery {
+  from: string
+  until: string
+  bucketSec: typeof USAGE_BUCKET_SEC
+}
+
+/**
+ * 30일 버킷 응답. `samples`는 기존 이력 표본과 같은 모양이지만, `flat` 대표의 id는
+ * 이벤트 id가 아닌 안정적인 합성 문자열일 수 있다(클라이언트는 커서로 쓰지 않는다).
+ * `runAt`은 버킷 시작이 아니라 그 대표 이벤트의 실행 시각이다.
+ */
+export interface UsageHistoryBucketsPage {
+  provider: UsageProvider
+  scanVersion: number
+  bucketSec: typeof USAGE_BUCKET_SEC
+  from: string
+  until: string
+  samples: UsageHistorySample[]
+  anchor: UsageHistorySample | null
+  /** false면 4,000점 또는 8초 예산에서 잘렸다. */
+  complete: boolean
+}
+
 /** `GET /api/usage-history` 요약의 제공자 한 줄. okCount는 0~MIN_OK_EVENTS. */
 export interface UsageHistorySummaryEntry {
   provider: UsageProvider
