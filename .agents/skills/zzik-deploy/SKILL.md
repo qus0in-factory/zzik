@@ -18,6 +18,7 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 
 
 ## 2. release 배포
 
+- 반복 릴리스·배포 검증은 `scripts/release-prep.mjs`(기본 dry-run, `--apply`)와 `scripts/deploy-verify.mjs`(기본 검증, `--deploy`일 때만 실제 배포)를 쓴다. 사용법은 각 `--help`.
 - **배포 PR을 만들기 전에 dev에서 `pnpm screenshot:readme`를 실행하고, `docs/screenshots/desktop.png`가 바뀌면 같은 PR에 커밋한다.**
 - 로컬에서 실데이터를 렌더링할 수 없으면 **`?fixture=normal`**로 촬영한다. 로컬 `/api/usage`는 Access JWT·원격 DB가 필요하므로 fixture 없이 찍으면 전 섹션 오류 화면이 될 수 있다. `pnpm screenshot:readme`는 고정 시각·normal fixture를 사용한다.
 - fixture 스크린샷은 레이아웃·배지·문구 확인용이며 실제 계정 사용량·수집 상태·인증/API/DB 연결·운영 화면 검증의 근거가 아니다. 보고·Discord 확인 요청에 **fixture 사용 여부와 이 한계**를 명시하고 운영 확인과 구분한다. 실데이터 렌더가 꼭 필요하면 아래 `/tmp` 임시 워크트리 절차만 쓰고, 작업·release 워크트리에는 인증 우회 패치를 넣지 않는다.
