@@ -108,6 +108,14 @@ describe('Given a private SQLite WAL ledger and a process-lifetime lock',()=>{
   expect(successValue(l.pending(now+7*86400000+1))).toEqual([])
   expect(successValue(l.read('claude')).rows[0].quarantined).toBe(true)
  })
+ it('When a seven-day row is quarantined Then stats excludes it and new collection continues',()=>{
+  const l=open(dir());successValue(add(l))
+  expect(successValue(l.quarantine(now+7*86400000+1))).toBe(1)
+  expect(successValue(l.stats())).toEqual({count:0,bytes:0,oldestMs:null})
+  expect(successValue(l.stats()).count).toBe(0)
+  expect(add(l,2)).toMatchObject({ok:true})
+  expect(successValue(l.stats()).count).toBe(1)
+ })
  it('When an existing operation is assigned another seq Then rejects without altering accepted bytes',()=>{
   const l=open(dir());successValue(add(l));const before=successValue(l.read('claude'))
   const changed=successValue(createCollectorD1Write({...before.rows[0].operation,writeSeq:2}))

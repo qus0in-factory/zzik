@@ -73,5 +73,16 @@ export function createD1Sender(options) {
       if(result.ok&&!persistPause(provider,null))return {ok:false,reason:'local_commit_failed'}
       return result
     },
+    /** Operator action only; caller must have quiesced HTTP and confirmed receipt absence.
+     * B1 breakChain resume_without_quarantine removes the quarantined FIFO head.
+     * @param {Provider} provider @param {import('../../domain/usage/d1-ledger-types.ts').ReceiptFacts} receipts */
+    resumeWithoutQuarantine(provider,receipts){
+      if(busy)return {ok:false,reason:'not_quiesced_or_paused'}
+      const current=options.ledger.read(provider)
+      if(!current.ok)return current
+      const head=current.value.rows[0]
+      if(!head||!head.quarantined)return {ok:false,reason:'not_quarantined'}
+      return options.ledger.update(provider,data=>breakChain(data,{operationId:head.operation.operationId,mode:'resume_without_quarantine',receipts}))
+    },
   }
 }

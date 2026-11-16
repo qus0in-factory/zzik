@@ -61,6 +61,9 @@ describe('Given an explicit local interval capability and synthetic expired cred
    writeFileSync(join(dir,'interval-capability.json'),JSON.stringify({v:1,readStore:'d1',bucketRoute:true}))
    const accepted=run('180');expect(accepted.status).toBe(0);expect(accepted.stdout).toContain('called=0')
    expect(run('179').status).toBe(78)
+   const runClaude=(interval:string)=>spawnSync(process.execPath,['collector/main.mjs','--once','--dry-run','--provider','claude','--credentials-file',credentials],{encoding:'utf8',timeout:10000,env:{...process.env,ZZIK_STORE:'d1',ZZIK_STATE_DIR:dir,ZZIK_PROVIDERS:'claude',ZZIK_INTERVAL_SEC:'900',ZZIK_INTERVAL_SEC_CLAUDE:interval}})
+   expect(runClaude('180').status).toBe(78)
+   expect(runClaude('899').status).toBe(78)
    expect(readdirSync(dir).sort()).toEqual(['auth.json','interval-capability.json'])
   }finally{rmSync(dir,{recursive:true,force:true})}
  })

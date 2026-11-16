@@ -5,7 +5,8 @@ export function createResidentCollector(options){
  /** @type {Promise<unknown>|null} */let active=null
  /** @type {()=>void} */let cancel=()=>{}
  const tick=()=>{
-  if(stopping||active!==null)return
+  if(stopping)return
+  if(active!==null){try{process.stderr.write('[zzik-usage-collector] 이전 주기가 아직 진행 중이라 이번 주기를 건너뛴다\n')}catch{};return}
   active=Promise.resolve().then(()=>options.run(()=>stopping)).catch(()=>{try{options.onError()}catch{}}).finally(()=>{active=null})
  }
  const schedule=()=>{if(!stopping)cancel=options.timer.schedule(options.periodMs,()=>{tick();schedule()})}

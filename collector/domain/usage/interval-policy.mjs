@@ -9,7 +9,9 @@ export function readIntervalPolicy(env,{mode,capability}){
  /** @type {Record<string,number>} */const value={}
  for(const provider of USAGE_PROVIDERS){
   const interval=Number(env[`ZZIK_INTERVAL_SEC_${provider.toUpperCase()}`]??base)
-  if(!Number.isSafeInteger(interval)||interval<(enabled?180:900))return {ok:false,reason:'InvalidProviderInterval',exitCode:78}
+  // claude stays at 900 even with a valid D1 capability (ADR §2/§11 F).
+  const minimum=provider==='claude'?900:enabled?180:900
+  if(!Number.isSafeInteger(interval)||interval<minimum)return {ok:false,reason:'InvalidProviderInterval',exitCode:78}
   value[provider]=interval
  }
  return {ok:true,value}

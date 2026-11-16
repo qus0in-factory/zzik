@@ -9,5 +9,8 @@ describe('Given explicit per-provider interval capability',()=>{
   expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_OLLAMA:'180'},{mode:'d1',capability})).toMatchObject({ok:true,value:{ollama:180,claude:900,codex:900}})
   expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_OLLAMA:'179'},{mode:'d1',capability})).toMatchObject({ok:false,exitCode:78})
   expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_OLLAMA:'180'},{mode:'postgres',capability}).ok).toBe(false)
+  expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'180'},{mode:'d1',capability})).toMatchObject({ok:false,exitCode:78})
+  expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'899'},{mode:'d1',capability})).toMatchObject({ok:false,exitCode:78})
+  expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'900'},{mode:'d1',capability})).toMatchObject({ok:true,value:{claude:900}})
  })
 })

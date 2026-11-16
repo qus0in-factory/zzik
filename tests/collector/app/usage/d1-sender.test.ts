@@ -39,6 +39,15 @@ describe('Given accepted outbox operations behind an inert sender port',()=>{
   expect(h.sender.discard400('claude',{[rows[0].operation.operationId]:null,[rows[1].operation.operationId]:null}).ok).toBe(true)
   expect(h.calls).toHaveLength(1);expect(h.sender.canCollect('claude')).toBe(true)
  })
+ it('When an operator resumes a quarantined head Then breakChain removes only that head after explicit receipt absence',async()=>{
+  const h=setup();h.queue();h.queue('claude',2)
+  const rows=h.data.get('claude')!.rows
+  h.data.get('claude')!.rows[0].quarantined=true
+  expect(h.sender.resumeWithoutQuarantine('claude',{}).ok).toBe(false)
+  expect(h.sender.resumeWithoutQuarantine('claude',{[rows[0].operation.operationId]:null,[rows[1].operation.operationId]:null}).ok).toBe(true)
+  expect(h.data.get('claude')!.rows).toHaveLength(1)
+  expect(h.calls).toHaveLength(0)
+ })
  it('When two ticks overlap Then starts only one send and rotates providers while preserving each FIFO',async()=>{
   const h=setup();h.queue();h.queue('claude',2);h.queue('codex');await Promise.all([h.sender.tick(),h.sender.tick()]);expect(h.calls).toHaveLength(1);await h.sender.tick();expect(h.data.get('codex')!.rows).toHaveLength(0);expect(h.data.get('claude')!.rows).toHaveLength(1)
  })

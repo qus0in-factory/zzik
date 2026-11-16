@@ -99,7 +99,7 @@ export function openSqliteLedger(options) {
       return {state,rows}
     }
     const stats=()=>{
-      const r=conn.prepare('SELECT count(*) AS n,coalesce(sum(length(CAST(payload_json AS BLOB))+length(CAST(alert_json AS BLOB))),0) AS bytes,min(created_at_ms) AS oldest FROM outbox').get()
+      const r=conn.prepare('SELECT count(*) AS n,coalesce(sum(length(CAST(payload_json AS BLOB))+length(CAST(alert_json AS BLOB))),0) AS bytes,min(created_at_ms) AS oldest FROM outbox WHERE quarantined=0').get()
       return {count:Number(r?.n),bytes:Number(r?.bytes),oldestMs:r?.oldest===null?null:Number(r?.oldest)}
     }
     for(const provider of PROVIDERS)load(provider)
@@ -119,7 +119,8 @@ export function openSqliteLedger(options) {
         try{
           conn.exec('BEGIN IMMEDIATE')
           const current=JSON.parse(String(conn.prepare("SELECT value FROM ledger_meta WHERE key='prune'").get()?.value))
-          const next=kind==='completed'?{lastPruneAt:new Date(atMs).toISOString(),skipFirstPrune:false}:current.skipFirstPrune?{lastPruneAt:current.lastPruneAt,skipFirstPrune:false,skippedAtMs:atMs}:current
+          const validLast=typeof current.lastPruneAt==='string'&&Number.isFinite(Date.parse(current.lastPruneAt))
+          const next=kind==='completed'?{lastPruneAt:new Date(atMs).toISOString(),skipFirstPrune:false}:(current.skipFirstPrune||(current.skippedAtMs===undefined&&!validLast))?{lastPruneAt:current.lastPruneAt,skipFirstPrune:false,skippedAtMs:atMs}:current
           conn.prepare("UPDATE ledger_meta SET value=? WHERE key='prune'").run(JSON.stringify(next));conn.exec('COMMIT')
           return {ok:true,value:undefined}
         }catch{try{conn.exec('ROLLBACK')}catch{}failed=true;return {ok:false,reason:'local_commit_failed'}}

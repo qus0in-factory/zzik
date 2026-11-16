@@ -25,6 +25,7 @@ import {createD1RestClient} from './infra/usage/d1-rest-client.mjs'
 import {createCollectorNotice} from './infra/usage/collector-notice.mjs'
 import {readLegacyLedgerInputs,reconcileD1Startup} from './app/usage/d1-startup.mjs'
 import {createD1Resident} from './app/usage/d1-resident.mjs'
+import {createStartupGate} from './app/usage/startup-quiesce.mjs'
 import postgres from 'postgres'
 import { readAlertConfig } from './domain/usage/alert-config.mjs'
 import { createDiscordAlerts } from './infra/usage/discord-alerts.mjs'
@@ -257,17 +258,23 @@ async function startD1(flags){
   if(!opened.ok){process.stderr.write('D1 ledger startup error: '+opened.reason+'\n');process.exit(78);return}
   const ledger=opened.value,clock={now:()=>Date.now()},control=createD1ControlFile({path:join(STATE_DIR,'d1-sender-control.json')})
   const notice=createCollectorNotice({...readAlertConfig(process.env),fetchImpl:globalThis.fetch,log:line=>process.stderr.write(line+'\n')})
-  /** @type {ReturnType<typeof createD1Resident>|null} */let runtime=null
-  const query=createD1RestClient({mode:'d1',dryRun:false,control,clock,canRequest:()=>runtime?.canRequest()??true,
+  /** @type {ReturnType<typeof createD1Resident>|null} */let activeRuntime=null
+  /** @type {()=>boolean} */let startupStopped=()=>false
+  const query=createD1RestClient({mode:'d1',dryRun:false,control,clock,canRequest:()=>!startupStopped()&&(activeRuntime?.canRequest()??true),
     accountId:/** @type {string} */(process.env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(process.env.ZZIK_D1_DATABASE_ID),token:/** @type {string} */(process.env.ZZIK_D1_API_TOKEN),
     fetch:globalThis.fetch,wait:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
   })
   const notifyAlerts=async(/** @type {unknown[]} */events)=>{await alerts.send(/** @type {import('./domain/usage/alert-types.mjs').AlertEvent[]} */(events))}
-  const reconciled=await reconcileD1Startup({ledger,query,clock,providers:providers.map(bundle=>/** @type {import('../shared/usage-contract.ts').UsageProvider} */(bundle.id)),notifyAlerts})
+  const gate=createStartupGate({timer:createCollectorTimer(),
+    reconcile:stop=>{startupStopped=stop;return reconcileD1Startup({ledger,query,clock,providers:providers.map(bundle=>/** @type {import('../shared/usage-contract.ts').UsageProvider} */(bundle.id)),notifyAlerts})},
+    closeStartup:async()=>{ledger.close()},
+    onReady:()=>{activeRuntime=createD1Resident({ledger,control,query,clock,notice,notifyAlerts,timer:createCollectorTimer(),random:Math.random,operationId:randomUUID,providers,intervals:storageConfig.intervals??{},retentionDays:storageConfig.retentionDays,collectorVersion:VERSION,once:flags.once});return activeRuntime},
+  })
+  bindShutdown(gate)
+  const reconciled=/** @type {Awaited<ReturnType<typeof reconcileD1Startup>>} */(await gate.start())
+  if(gate.stopping())return
   if(!reconciled.ok){ledger.close();process.stderr.write('D1 reconciliation error: '+reconciled.reason+'\n');process.exit(78);return}
-  runtime=createD1Resident({ledger,control,query,clock,notice,notifyAlerts,timer:createCollectorTimer(),random:Math.random,operationId:randomUUID,providers,intervals:storageConfig.intervals??{},retentionDays:storageConfig.retentionDays,collectorVersion:VERSION,once:flags.once})
-  const active=runtime
-  bindShutdown(active)
+  const active=/** @type {ReturnType<typeof createD1Resident>} */(gate.activate())
   active.start()
   if(flags.once){while(!active.onceDone())await new Promise(resolve=>setTimeout(resolve,100));const code=active.exitCode();await active.shutdown();process.exit(code)}
 }

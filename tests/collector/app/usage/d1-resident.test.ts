@@ -5,9 +5,17 @@ import {tmpdir} from 'node:os'
 import {openSqliteLedger} from '../../../../collector/infra/usage/sqlite-ledger.mjs'
 import {createD1Resident} from '../../../../collector/app/usage/d1-resident.mjs'
 import {fakeD1Control} from '../../../fakes/d1-control'
+import {senderFixture} from '../../../fakes/d1-sender'
+import {acceptObservation,initialLedgerState} from '../../../../collector/domain/usage/d1-ledger.mjs'
 import {D1_NOW,D1_OPERATION_ID,successValue} from '../../../fakes/d1-contract'
 import type {D1QueryResult} from '../../../../collector/domain/usage/d1-sender-types'
 describe('Given D1 runtime ports without operational credentials',()=>{
+ it('When quarantine marks an old row Then emits a safe queue notice instead of silently stopping collection',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation});const ledger={...h.ledger,quarantine:()=>({ok:true as const,value:1})}
+  const runtime=createD1Resident({ledger,control:h.control,query:h.query,clock:h.clock,timer:{schedule:()=>()=>{}},random:()=>0,operationId:()=>D1_OPERATION_ID,notice:h.notice,notifyAlerts:h.notifyAlerts,providers:[],intervals:{},retentionDays:30,collectorVersion:'test',once:false})
+  runtime.pump();for(let i=0;i<20;i++)await Promise.resolve()
+  expect(h.notices).toContainEqual({reason:'queue_quarantined'})
+ })
  it('When shutdown arrives during upstream and HTTP Then accepts the finished observation before closing and starts no new HTTP',async()=>{
   const directory=mkdtempSync(join(tmpdir(),'zzik-b3-runtime-')),now=Date.parse(D1_NOW)
   const ledger=successValue(openSqliteLedger({directory,nowMs:now}))

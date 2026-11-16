@@ -21,6 +21,7 @@ export function createD1Resident(options){
   if(stopping)return
   const quarantined=options.ledger.quarantine(options.clock.now())
   if(!quarantined.ok){scheduler.stop();return}
+  if(quarantined.value>0)void options.notice.notify({reason:'queue_quarantined'}).catch(()=>{})
   scheduler.pump()
   if(sending===null)sending=sender.tick().catch(()=>{}).finally(()=>{sending=null})
   if(maintaining===null)maintaining=runLedgerMaintenance({ledger:options.ledger,maintenance,clock:options.clock,notice:options.notice,retentionDays:options.retentionDays}).catch(()=>{}).finally(()=>{maintaining=null})

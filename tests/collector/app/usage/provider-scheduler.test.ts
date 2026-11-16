@@ -38,6 +38,28 @@ describe('Given provider due times and upstream-start checkpoints',()=>{
  it('When stopped Then never starts another provider and exposes current work for quiesce',async()=>{
   const h=setup();h.scheduler.pump();h.scheduler.stop();expect(h.scheduler.pending()).toHaveLength(2);h.release.splice(0).forEach(r=>r());await flush();h.scheduler.pump();expect(h.calls).toHaveLength(2)
  })
+ it('When a provider reports queue_limit Then notifies and another provider still starts',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation});const calls:string[]=[]
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[
+   {id:'claude',intervalSec:900,run:async()=>{calls.push('claude');return {reason:'queue_limit'}}},
+   {id:'codex',intervalSec:900,run:async()=>{calls.push('codex')}},
+  ]})
+  scheduler.pump();await flush()
+  expect(h.notices).toContainEqual({reason:'queue_limit',provider:'claude'})
+  expect(calls).toContain('codex')
+ })
+ it('When one provider throws Then only that provider is isolated and another provider still starts',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation});const calls:string[]=[]
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[
+   {id:'claude',intervalSec:900,run:async()=>{calls.push('claude');throw new Error('provider boom')}},
+   {id:'codex',intervalSec:900,run:async()=>{calls.push('codex')}},
+   {id:'antigravity',intervalSec:900,run:async()=>{calls.push('antigravity')}},
+  ]})
+  scheduler.pump();await flush();scheduler.pump();await flush()
+  expect(calls).toEqual(['claude','codex','antigravity'])
+  expect(h.notices).toContainEqual({reason:'provider_execution_failed',provider:'claude'})
+  expect(successValue(h.ledger.read('claude')).state.nextDueMs).toBeGreaterThan(h.clock.now())
+ })
  it('When canCollect is false Then performs no provider work',()=>{
   const h=senderFixture({initialLedgerState,acceptObservation});let calls=0
   const s=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>false,notice:h.notice,providers:[{id:'claude',intervalSec:900,run:async()=>{calls++}}]});s.pump();expect(calls).toBe(0)

@@ -5,11 +5,13 @@ export async function runLedgerMaintenance(options){
  const state=options.ledger.pruneState()
  if(!state.ok)return state
  const now=options.clock.now(),s=state.value
- if(s.skipFirstPrune){
+ const lastMs=s.lastPruneAt===null?NaN:Date.parse(s.lastPruneAt)
+ const invalidLast=!Number.isFinite(lastMs)
+ if(s.skipFirstPrune || (invalidLast && s.skippedAtMs===undefined)){
   try{await options.notice.notify({reason:'prune_time_unknown'})}catch{}
   return options.ledger.checkpointPrune({kind:'skipped',atMs:now})
  }
- const baseline=s.lastPruneAt??(s.skippedAtMs===undefined?null:new Date(s.skippedAtMs).toISOString())
+ const baseline=invalidLast?(s.skippedAtMs===undefined?null:new Date(s.skippedAtMs).toISOString()):s.lastPruneAt
  if(baseline===null||now-Date.parse(baseline)<86400000)return {ok:true,value:undefined}
  const result=await options.maintenance.prune(baseline,options.retentionDays)
  if(!result.ok)return {ok:false,reason:'prune_failed'}
