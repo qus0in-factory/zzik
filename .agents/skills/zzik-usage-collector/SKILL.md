@@ -70,3 +70,5 @@ ADR 0.2/0.3/0.4/0.6과 docs/adr/0.5-postgres-storage.md가 정본이다. P0/P1/P
 ## 금지
 
 운영 재시작·DB migration·Worker secret 주입·배포는 해당 지시가 있을 때만 실행한다. 실제 자격 증명·DB_URL·refresh token·이메일·계정 ID 출력 금지. 상태/게이트 삭제, 개발 --once 실쓰기, 승인 없는 DB seed/삭제, KV 네임스페이스 삭제 금지. **워커는 agy 등 운영 자격 증명을 건드리는 CLI(로그인·재인증·토큰 갱신 유발)를 실행하지 않는다.**
+
+재시작은 주기 사이에 하고, 운영 승인 시 quiesce 30초보다 긴 PM2 `kill_timeout`(예: 35000ms)을 권고한다(기존 ecosystem 설정은 변경하지 않는다).
