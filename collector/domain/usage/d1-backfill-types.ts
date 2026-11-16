@@ -9,3 +9,10 @@ export interface BackfillDestination {
 }
 export interface BackfillCheckpoint {planSha256:string;completed:number}
 export interface BackfillCheckpointPort {read():D1Result<BackfillCheckpoint|null>;write(value:BackfillCheckpoint):D1Result<void>}
+export interface BackfillCommandPorts {
+ source:{read():Promise<D1Result<{events:unknown[];snapshots:unknown[]}>>}
+ destination:BackfillDestination
+ checkpoint:BackfillCheckpointPort
+ ledgerOutboxCount:number
+ close():Promise<void>
+}

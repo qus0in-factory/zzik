@@ -19,3 +19,16 @@ describe('Given the backfill CLI confirmation prompt', () => {
     await expect(readConfirmation({ input, output, planSha256: hash })).resolves.toBe(`APPLY ${hash}`)
   })
 })
+
+import {planBackfill} from '../../collector/domain/usage/d1-backfill.mjs'
+import {backfillCliSource} from '../fakes/backfill-cli-source'
+import {successValue} from '../fakes/d1-contract'
+describe('Given a spawned --apply command wired only to explicit fake ports',()=>{
+ it('When stdin confirms this plan Then prompts and writes; wrong/empty input and missing --apply write nothing',()=>{
+  const hash=successValue(planBackfill(backfillCliSource())).summary.planSha256
+  const run=(input:string,apply=true)=>spawnSync(process.execPath,['tests/fixtures/collector/backfill-cli-harness.mjs',...(apply?['--apply']:[]),'--state-dir','/synthetic-unused'],{input,encoding:'utf8',timeout:10000})
+  const correct=run(`APPLY ${hash}\n`);expect(correct.status).toBe(0);expect(correct.stderr).toContain(`type APPLY ${hash}`);expect(correct.stdout).toContain('"testWrites":1')
+  for(const input of ['no\n','']){const refused=run(input);expect(refused.status).toBe(1);expect(refused.stdout).toContain('"testWrites":0')}
+  const dry=run(`APPLY ${hash}\n`,false);expect(dry.status).toBe(0);expect(dry.stdout).toContain('"testWrites":0');expect(dry.stderr).not.toContain('Confirm collector')
+ })
+})
