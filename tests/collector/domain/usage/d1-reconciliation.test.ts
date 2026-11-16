@@ -59,3 +59,37 @@ describe('Given invalid reconciliation input from a diagnostic reader', () => {
     }
   })
 })
+
+describe('Given the full PG/receipt/outbox action table', () => {
+  const { op, receipt, expected } = facts()
+  const snapshotExpected = { ...expected, id: null }
+  const older = '2026-11-16T02:45:00.000Z'
+  const snapshotActual = {
+    ...snapshotExpected,
+    runAt: older,
+    envelopeJson: JSON.stringify(d1Envelope({ runAt: older, fetchedAt: older })),
+  }
+  const pgCases = [
+    ['missing', { expected, actual: null }],
+    ['snapshot_replace', { expected: snapshotExpected, actual: snapshotActual }],
+    ['matching', { expected, actual: expected }],
+    ['not_checked', undefined],
+  ] as const
+  const action = (pg: string, hasReceipt: boolean, hasOutbox: boolean): string => {
+    if (!hasReceipt && !hasOutbox) return 'untracked_operation'
+    if (hasOutbox && (pg === 'matching' || ((pg === 'missing' || pg === 'snapshot_replace') && hasReceipt))) return 'clear_after_pg_commit'
+    if (hasReceipt && hasOutbox) return 'acknowledge_local'
+    if (hasReceipt) return 'none'
+    return 'replay_same_operation'
+  }
+  it.each(pgCases)('When pg is %s Then every receipt/outbox combination keeps its intended action', (pg, pgRow) => {
+    for (const hasReceipt of [true, false]) {
+      for (const hasOutbox of [true, false]) {
+        const result = classifyD1Operation({ operation: op, receipt: hasReceipt ? receipt : null, outboxPresent: hasOutbox, ...(pgRow === undefined ? {} : { pgRow }) })
+        const intended = action(pg, hasReceipt, hasOutbox)
+        if (intended === 'untracked_operation') expect(result).toEqual({ ok: false, reason: 'untracked_operation' })
+        else expect(result).toMatchObject({ ok: true, value: { action: intended } })
+      }
+    }
+  })
+})
