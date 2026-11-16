@@ -43,11 +43,12 @@ export function useHistoryWarmSync(): void {
             if (runAt === null) continue
             const record = deps.memory.get(provider) ?? (await deps.cache.read(provider))
             if (record === null || record.syncedThroughRunAt === runAt) continue
-            await runDedupedSync(
+            const outcome = await runDedupedSync(
               deps.inflight,
-              { gateway: deps.gateway, cache: deps.cache, memory: deps.memory, nowMs: deps.nowMs, budget: deps.budget, onRecord: (next) => client.setQueryData(historyDataKey(provider), next) },
+              { gateway: deps.gateway, cache: deps.cache, memory: deps.memory, nowMs: deps.nowMs, budget: deps.budget },
               { provider, snapshotRunAt: runAt, wantFromMs: null },
             )
+            if (outcome.ok) client.setQueryData(historyDataKey(provider), outcome.record)
           }
         } while (again.current && !cancelled)
       } finally {

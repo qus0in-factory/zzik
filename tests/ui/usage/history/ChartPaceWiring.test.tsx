@@ -20,7 +20,49 @@ import agyRaw from '../../../fixtures/antigravity-usage.gemini-argon.json'
 import agySamples from '../../../fixtures/usage-history/antigravity.samples.json'
 import live from '../../../fixtures/usage-history/codex.xfit-live.json'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  delete (window as unknown as Record<string, unknown>).CanvasRenderingContext2D
+})
+
+function enableFakeCanvas2D() {
+  let contexts = 0
+  ;(window as unknown as Record<string, unknown>).CanvasRenderingContext2D = class {}
+  ;(window as unknown as Record<string, unknown>).Path2D = class {
+    moveTo() {}
+    lineTo() {}
+    rect() {}
+    arc() {}
+    closePath() {}
+  }
+  window.matchMedia = (() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
+  HTMLCanvasElement.prototype.getContext = function () {
+    contexts += 1
+    return {
+      save() {},
+      restore() {},
+      scale() {},
+      translate() {},
+      clearRect() {},
+      beginPath() {},
+      moveTo() {},
+      lineTo() {},
+      stroke() {},
+      fill() {},
+      arc() {},
+      clip() {},
+      rect() {},
+      fillRect() {},
+      strokeRect() {},
+      setLineDash() {},
+      fillText() {},
+      strokeText() {},
+      closePath() {},
+      measureText: (t: string) => ({ width: String(t).length * 6 }),
+    } as unknown as RenderingContext
+  } as unknown as typeof HTMLCanvasElement.prototype.getContext
+  return { count: () => contexts }
+}
 
 describe('Given the top pace chips and the provider chart sharing real Codex-shaped data', () => {
   it('When the chart opens through its real hook Then the same summary appears beside the chart tabs and the dashed pace legend appears', async () => {
@@ -50,7 +92,8 @@ describe('Given the top pace chips and the provider chart sharing real Codex-sha
 
 
 describe('Given an open chart receiving a snapshot between shared clock ticks', () => {
-  it('When a new real-shaped sample arrives Then its time and value appear without waiting for the next 30s tick', async () => {
+  it('When a new real-shaped sample arrives Then the existing chart stays mounted during sync and uPlot is recreated once on completion', async () => {
+    const canvas = enableFakeCanvas2D()
     const page = live.page as UsageHistoryPage
     const clock = createFakeUsageClock(live.now)
     const scheduler = createFakeUsageScheduler()
@@ -68,22 +111,37 @@ describe('Given an open chart receiving a snapshot between shared clock ticks', 
     await waitFor(()=>expect(open.getAttribute('aria-disabled')).toBeNull())
     fireEvent.click(open)
     await waitFor(()=>expect(views.at(-1)?.table[0]?.current).toBe('86%'))
+    const region = screen.getByRole('region',{name:'ChatGPT (Codex) 사용률 추이'})
+    await waitFor(()=>expect(region.querySelector('.uplot')).toBeTruthy())
+    expect(canvas.count()).toBe(1)
+
+    let releaseBgSync!: () => void
+    let holdBg = true
+    gateway.onBeforeFetch = () => (holdBg ? new Promise<void>((resolve) => { releaseBgSync = () => { holdBg = false; resolve() } }) : Promise.resolve())
     const fetchedAt = new Date(Date.parse(live.now)+15_000).toISOString()
     const next = {...page.samples.at(-1)!,id:'999999',runAt:fetchedAt,fetchedAt,values:page.samples.at(-1)!.values!.map(v=>({...v,usedPercent:87}))}
     server.events.push(next)
     clock.setIso(fetchedAt)
     act(()=>client.setQueryData(usageQueryKey('codex'),{ok:true,usage:{...live.raw,rate_limit:{...live.raw.rate_limit,primary_window:{...live.raw.rate_limit.primary_window,used_percent:87}}},collection:{...collection,runAt:fetchedAt,fetchedAt},rawText:null}))
+    // 백그라운드 sync 중에도 스피너로 바뀌지 않고 기존 uPlot 캔버스가 그대로 유지된다
+    await waitFor(()=>expect(gateway.queries.length).toBeGreaterThan(1))
+    expect(region.querySelector('[data-testid="chart-loading-spinner"]')).toBeNull()
+    expect(region.querySelector('.uplot')).toBeTruthy()
+    expect(canvas.count()).toBe(1)
+
+    act(()=>releaseBgSync())
     await waitFor(()=>expect(views.at(-1)?.stops.some(s=>s.t===Date.parse(fetchedAt)&&s.values.some(v=>v.percent===87))).toBe(true))
+    await waitFor(()=>expect(canvas.count()).toBe(2))
     const view = views.at(-1)!
     expect(view.pace?.points.at(-1)?.t).toBe(Date.parse(fetchedAt))
     expect(view.pace?.points.at(-1)?.p).toBe(view.summary?.pace.elapsedPercent)
-    const region = screen.getByRole('region',{name:'ChatGPT (Codex) 사용률 추이'})
     expect(region.querySelector('.chart-toolbar')?.textContent).toContain(screen.getByTestId('usage-pace-codex').textContent)
   })
 })
 
 describe('Given the Antigravity multi-series chart (including Gemini 4 Argon)', () => {
-  it('When opened Then a spinner shows during loading, the chart renders once on completion, and all five usage series stay solid while only pace is dashed', async () => {
+  it('When opened Then a spinner shows during loading, uPlot is created once on completion, and all five usage series stay solid while only pace is dashed', async () => {
+    const canvas = enableFakeCanvas2D()
     const page = agySamples as unknown as UsageHistoryPage
     const nowIso = '2026-11-14T00:30:00.000Z'
     const now = Date.parse(nowIso)
@@ -127,11 +185,13 @@ describe('Given the Antigravity multi-series chart (including Gemini 4 Argon)', 
     await waitFor(() => expect(region.querySelector('[data-testid="chart-loading-spinner"]')).toBeTruthy())
     expect(region.querySelector('.chart-canvas-host')).toBeNull()
     expect(views).toHaveLength(0)
+    expect(canvas.count()).toBe(0)
 
     act(() => releaseFetch())
-    await waitFor(() => expect(region.querySelector('.chart-canvas-host')).toBeTruthy())
+    await waitFor(() => expect(region.querySelector('.uplot')).toBeTruthy())
     expect(region.querySelector('[data-testid="chart-loading-spinner"]')).toBeNull()
     expect(views).toHaveLength(1)
+    expect(canvas.count()).toBe(1)
     expect(views[0].series.map((s) => [s.id, s.dash])).toEqual([
       ['gemini-5h', null],
       ['gemini-weekly', null],
