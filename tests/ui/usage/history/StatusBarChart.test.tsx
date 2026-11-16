@@ -49,4 +49,23 @@ describe('Given the chart button in the status bar', () => {
     render(<StatusBar lastSuccessText={null} />)
     expect(screen.queryByRole('button', { name: /차트/ })).toBeNull()
   })
+
+  it('Then both open and close states render an aria-hidden icon on the left without changing the accessible name', () => {
+    const open = chart({ label: '차트 보기', expanded: false })
+    const { rerender } = render(<StatusBar lastSuccessText={null} chart={open.state} />)
+    const openBtn = screen.getByRole('button', { name: '차트 보기' })
+    const openIcon = openBtn.querySelector('svg')
+    expect(openIcon).not.toBeNull()
+    expect(openIcon?.getAttribute('aria-hidden')).toBe('true')
+    expect(openIcon?.getAttribute('class')).toContain('size-4')
+    expect(openBtn.firstElementChild).toBe(openIcon)
+
+    const close = chart({ label: '차트 닫기', expanded: true })
+    rerender(<StatusBar lastSuccessText={null} chart={close.state} />)
+    const closeBtn = screen.getByRole('button', { name: '차트 닫기' })
+    const closeIcon = closeBtn.querySelector('svg')
+    expect(closeIcon).not.toBeNull()
+    expect(closeIcon?.getAttribute('aria-hidden')).toBe('true')
+    expect(closeBtn.firstElementChild).toBe(closeIcon)
+  })
 })
