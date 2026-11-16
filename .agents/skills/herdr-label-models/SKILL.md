@@ -36,8 +36,8 @@ herdr agent list | grep -o '"name":"[^"]*"'
 - 새 모델: 스크립트 `detect()`에 `agent` 종류별 분기 또는 하단 상태줄 패턴을 추가한다(소문자·버전 없는 단어 패턴 금지). 테스트: `tests/scripts/herdr-label-models.test.ts`.
 
 ## 운영 규칙
-- 탭·패널·에이전트 이름은 모델 약칭으로 통일한다: `opus`, `sol`, `fable`, `ds`, `beam`, `grok`, `hydro`(닫힌 패널 감지 규칙은 재사용 대비로 남긴다).
-- 수동 rename 대신 스크립트로 수행하고, `SELF_LABEL`을 반드시 지정한다.
-- 다른 에이전트에 작업을 보낼 때는 pane ID 대신 약칭을 쓴다: `herdr agent prompt sol "..." --wait`.
+- 탭·패널·에이전트 이름은 모델 약칭으로 통일하며, 워크스페이스별 접두어 라벨(`z-`, `e-`) 규칙을 따른다(예: zzik 워크스페이스 상주 구성 `z-opus`, `z-sol`, `z-ds`, `z-grok`, `z-hydro`; 닫힌 패널 감지 규칙은 재사용 대비로 남기되 `argon`·`astra`는 상주 구성에서 제외).
+- 수동 rename 대신 스크립트로 수행하고, `SELF_LABEL`을 반드시 지정한다. 새 패널을 띄운 뒤에는 `herdr agent rename <pane> <이름>`으로 이름을 지정한다.
+- 다른 에이전트에 작업을 보낼 때는 pane ID 대신 라벨 이름을 쓴다: `herdr agent prompt z-sol "..." --wait`.
 - `/model` 변경이나 에이전트 재시작 후에는 스크립트를 다시 실행한다.
 - 같은 모델이 둘 이상이면 `sol2`처럼 숫자를 붙인다.
