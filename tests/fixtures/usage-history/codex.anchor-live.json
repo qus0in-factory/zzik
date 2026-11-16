@@ -1,0 +1,117 @@
+{
+  "source": "Read-only production usage_event; normalized by existing historySample. Actual 24h-outside Codex anchor and selected recent actual samples. No raw identity fields.",
+  "now": "2026-11-16T03:41:04.240Z",
+  "page": {
+    "provider": "codex",
+    "scanVersion": 2,
+    "anchor": {
+      "id": "873",
+      "runAt": "2026-11-15T03:39:04.595Z",
+      "status": "ok",
+      "fetchedAt": "2026-11-15T03:39:04.595Z",
+      "intervalSec": 900,
+      "values": [
+        {
+          "id": "rate_limit.primary_window",
+          "usedPercent": 78,
+          "resetsAt": "2026-11-16T09:48:55.000Z",
+          "cycleSeconds": 604800
+        }
+      ]
+    },
+    "samples": [
+      {
+        "id": "1246",
+        "runAt": "2026-11-16T02:24:04.975Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T02:24:04.975Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1250",
+        "runAt": "2026-11-16T02:39:04.703Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T02:39:04.703Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1255",
+        "runAt": "2026-11-16T02:54:04.395Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T02:54:04.395Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1260",
+        "runAt": "2026-11-16T03:09:04.504Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T03:09:04.504Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1265",
+        "runAt": "2026-11-16T03:24:04.588Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T03:24:04.588Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1270",
+        "runAt": "2026-11-16T03:39:04.240Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T03:39:04.240Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      }
+    ],
+    "nextCursor": "2026-11-16T03:39:04.240Z_1270",
+    "hasMore": false
+  }
+}

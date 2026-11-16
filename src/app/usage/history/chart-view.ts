@@ -217,7 +217,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const hiddenSet = new Set(hidden)
   const shownSet = new Set(shown)
 
-  // 선택 기간은 조회 필터이고 축은 실제 수집 시작에 맞춘다. anchor는 from 직전 경계를 채우도록 from으로 옮겨 포함한다.
+  // 선택 기간은 조회 필터이고 축은 실제 수집 시작에 맞춘다. anchor도 선택 기간 안의 실제 시각만 인정하며 오래된 값을 새 경계로 옮기지 않는다.
   const inRange = (sample: UsageHistorySample): boolean => {
     const t = sampleTime(sample)
     return t !== null && t >= windowFrom && t <= to
@@ -225,13 +225,9 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const samples = record.samples.filter(inRange)
   const anchorTime = record.anchor === null ? null : sampleTime(record.anchor)
   const { from } = chartTimeDomain(samples.map(s => sampleTime(s)!).filter(Number.isFinite), windowFrom, nowMs, record.anchor?.values == null ? null : anchorTime)
-  const boundaryIso = new Date(from).toISOString()
   const anchor: UsageHistorySample | null =
-    record.anchor !== null && record.anchor.values !== null && anchorTime !== null
-      ? anchorTime < from
-        ? { ...record.anchor, runAt: boundaryIso, fetchedAt: boundaryIso }
-        : anchorTime <= to ? record.anchor : null
-      : null
+    record.anchor !== null && record.anchor.values !== null && anchorTime !== null && anchorTime >= from && anchorTime <= to
+      ? record.anchor : null
   const tailEnd = Math.max(from, Math.min(to, effectiveTail))
 
   // 스냅샷 시각을 못 받으면 now까지 마지막 값을 유지한 수평선(꼬리)을 이어 그린다.

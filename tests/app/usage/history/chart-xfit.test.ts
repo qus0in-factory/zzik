@@ -4,6 +4,7 @@ import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import { buildCodexUsageView } from '@domain/usage/codex-view'
 import { summaryPaceOf } from '@app/usage/summary-pace'
 import { buildChartView, chartAlignedData, chartCursorAtTime } from '@app/usage/history/chart-view'
+import anchorLive from '../../../fixtures/usage-history/codex.anchor-live.json'
 import live from '../../../fixtures/usage-history/codex.xfit-live.json'
 
 const page = live.page as UsageHistoryPage
@@ -51,5 +52,35 @@ describe('Given the same summary policy across monthly and weekly windows', () =
     expect(view.summary?.pace.unit).toBe('month')
     expect(view.pace?.points.at(-1)?.p).toBe(view.summary?.pace.elapsedPercent)
     expect(chartAlignedData(view)!.columns.at(-1)!.at(-1)).toBe(view.summary?.pace.elapsedPercent)
+  })
+})
+
+
+describe('Given the actual Codex anchor outside the 24h period', () => {
+  const anchorPage = anchorLive.page as UsageHistoryPage
+  const anchorNow = Date.parse(anchorLive.now)
+  const anchorInput = {...input,range:'24h' as const, nowMs:anchorNow,tailEnd:anchorNow, windows:buildCodexUsageView(live.raw,{now:new Date(anchorNow)}).windows, record:{...record,...anchorPage}}
+  it('When recent samples are present Then the first real sample defines the domain and no old value is fabricated', () => {
+    const view = buildChartView(anchorInput)
+    const data = chartAlignedData(view)!
+    expect(data.from).toBe(Date.parse(anchorPage.samples[0].fetchedAt!)/1000)
+    expect(data.to-data.from).toBeLessThan(90*60)
+    expect(data.columns[0][0]).toBe(anchorPage.samples[0].values![0].usedPercent)
+  })
+  it('When zero samples are in-window Then the old anchor creates neither a series nor a retained tail', () => {
+    const view = buildChartView({...anchorInput,record:{...anchorInput.record,samples:[]}})
+    const data = chartAlignedData(view)!
+    expect(data.to-data.from).toBe(180)
+    expect(view.empty).toBe('no_points')
+    expect(view.series).toEqual([])
+    expect(view.stops).toEqual([])
+  })
+  it('When the only sample is now Then the span is three minutes and the left padding stays empty', () => {
+    const sample = {...anchorPage.samples.at(-1)!,runAt:anchorLive.now,fetchedAt:anchorLive.now}
+    const view = buildChartView({...anchorInput,record:{...anchorInput.record,samples:[sample]}})
+    const data = chartAlignedData(view)!
+    expect(data.to-data.from).toBe(180)
+    expect(data.columns[0][0]).toBeNull()
+    expect(data.columns[0].at(-1)).toBe(sample.values![0].usedPercent)
   })
 })

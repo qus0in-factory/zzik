@@ -101,7 +101,7 @@ export function toUplotSeries(view: ChartView, palette: ChartPalette): uPlot.Ser
 export function toUplotOptions(view: ChartView, palette: ChartPalette, onCursor?: (point: ChartStop | null) => void): uPlot.Options {
   const aligned = chartAlignedData(view)
   const span = aligned === null ? null : aligned.to - aligned.from
-  const timeAxis = view.range === '24h' || (span !== null && span < DAY_SEC)
+  const timeAxis = view.range === '24h' || (span !== null && span <= DAY_SEC)
   return {
     width: view.width,
     height: view.height,

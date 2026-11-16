@@ -6,7 +6,7 @@ export const MIN_CHART_SPAN_MS = 3 * 60_000
 export function chartTimeDomain(times: readonly number[], windowFrom: number, nowMs: number, anchorTime: number | null = null): { from: number; to: number } {
   let first = nowMs
   for (const t of times) if (Number.isFinite(t) && t >= windowFrom && t <= nowMs) first = Math.min(first, t)
-  if (anchorTime !== null && Number.isFinite(anchorTime) && anchorTime <= nowMs) first = Math.min(first, Math.max(windowFrom, anchorTime))
+  if (anchorTime !== null && Number.isFinite(anchorTime) && anchorTime >= windowFrom && anchorTime <= nowMs) first = Math.min(first, anchorTime)
   return { from: Math.min(first, nowMs - MIN_CHART_SPAN_MS), to: nowMs }
 }
 

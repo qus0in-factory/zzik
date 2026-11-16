@@ -76,7 +76,7 @@ function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragP
         onBlur={drag.onBlur}
         onContextMenu={drag.onContextMenu}
         onFocus={(event) => event.currentTarget.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })}
-        className={'fade-in inline-flex max-w-full rounded-full hover:bg-accent ' + (drag.grabbed ? 'shadow-md ring-2 ring-ring' : '')}
+        className={'group fade-in inline-flex max-w-full rounded-full ' + (drag.grabbed ? 'shadow-md ring-2 ring-ring' : '')}
       >
         <PaceSummary provider={provider} pace={pace} />
       </a>

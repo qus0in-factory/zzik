@@ -76,16 +76,16 @@ describe('Given the review reproduction (claude.samples.json five_hour)', () => 
     expect(series[1].points?.size).toBe(4) // 반지름 2px
   })
 
-  it('Then the anchor sample is included at the left boundary (its own time, or clamped to from when it precedes the range)', () => {
+  it('When an anchor is in-window Then its actual time is included, and an out-of-window anchor is discarded', () => {
     const aligned = chartAlignedData(buildChartView(input()))!
     expect(aligned.times[0]).toBe(sec('2026-11-13T22:45:00.000Z'))
     const anchorSec = sec('2026-11-13T22:45:00.000Z')
     expect(aligned.times).toContain(anchorSec)
     expect(aligned.columns[0][aligned.times.indexOf(anchorSec)]).toBe(88)
-    // anchor가 from보다 앞서는 범위에서는 from으로 옮겨 왼쪽 끝을 채운다
+    // 선택 기간 밖 anchor를 현재 도메인으로 옮겨 오래된 값을 이어 그리지 않는다
     const shifted = chartAlignedData(buildChartView(input({ nowMs: NOW + DAY })))!
-    expect(shifted.times[0]).toBe(NOW / 1000)
-    expect(shifted.columns[0][0]).toBe(88)
+    expect(shifted.times[0]).toBe((NOW + DAY - 180_000) / 1000)
+    expect(shifted.columns).toEqual([])
   })
 
   it('When the chosen window exceeds collected history Then scales.x fits the provider collection interval', () => {
@@ -113,5 +113,20 @@ describe('Given a three-minute provider history on the seven-day tab', () => {
     expect(options.axes?.[0]?.incrs).toContain(60)
     const values = options.axes![0].values as (self:unknown,splits:number[])=>string[]
     expect(values(null,[NOW/1000-60,NOW/1000])[1]).toMatch(/^\d{2}:\d{2}$/)
+  })
+})
+
+
+describe('Given an exactly 24-hour domain on the seven-day or thirty-day tab', () => {
+  it('When ticks are built Then they use hours and time labels', () => {
+    for (const range of ['7d','30d'] as const) {
+      const first = {...page.samples.at(-1)!,runAt:new Date(NOW-DAY).toISOString(),fetchedAt:new Date(NOW-DAY).toISOString()}
+      const view = buildChartView(input({range,record:{...record,anchor:null,samples:[first,page.samples.at(-1)!]}}))
+      const options = toUplotOptions(view,FALLBACK_PALETTE)
+      expect(chartAlignedData(view)!.to-chartAlignedData(view)!.from).toBe(86400)
+      expect(options.axes![0].incrs).toContain(3600)
+      const values = options.axes![0].values as (self:unknown,splits:number[])=>string[]
+      expect(values(null,[NOW/1000-3600,NOW/1000])[1]).toMatch(/^\d{2}:\d{2}$/)
+    }
   })
 })
