@@ -140,6 +140,41 @@ describe('Given R2 export objects and a scratch target', () => {
     expect(target.events.size).toBe(0)
   })
 
+  it('When documents share a high-water but have different exportedAt Then the newer document is applied last', async () => {
+    const reader = new FakeExportObjectReader()
+    const base = {
+      provider: 'codex' as const,
+      envelope: envelope(),
+      status: 'ok' as const,
+      runAtMs: 1_000,
+      fetchedAtMs: 1_000,
+      rawSha256: null,
+      updatedAtMs: 1_000,
+      writeSeq: 0,
+      operationId: null,
+    }
+    const older = buildExportDocument({
+      part: 1,
+      manifest: { eventHighWaterId: '10', receiptCutMs: 0, dataGeneration: 0, exportedAtMs: 2_000 },
+      snapshots: [{ ...base, collectorVersion: 'old' }],
+    })
+    const newer = buildExportDocument({
+      part: 1,
+      manifest: { eventHighWaterId: '10', receiptCutMs: 0, dataGeneration: 0, exportedAtMs: 3_000 },
+      snapshots: [{ ...base, collectorVersion: 'new' }],
+    })
+    // list() sorts keys ascending, so the newer date would otherwise be restored first.
+    reader.objects.set('2026-11-17/part-0001.json', serializeExportDocument(older))
+    reader.objects.set('2026-11-16/part-0001.json', serializeExportDocument(newer))
+    const target = new FakeRestoreTarget()
+
+    const result = await restoreFromExportObjects(reader, target)
+
+    expect(result).toMatchObject({ ok: true, value: { documents: 2 } })
+    expect(target.snapshotWrites.map(row => row.collectorVersion)).toEqual(['old', 'new'])
+    expect(target.snapshots.get('codex')?.collectorVersion).toBe('new')
+  })
+
   it('When the export contains only receipts and no events Then no sequence fence is applied', async () => {
     const reader = new FakeExportObjectReader()
     reader.objects.set('2026-11-16/part-0001.json', serializeExportDocument(buildExportDocument({

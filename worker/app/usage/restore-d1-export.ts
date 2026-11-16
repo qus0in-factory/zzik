@@ -49,7 +49,14 @@ export async function restoreFromExportObjects(
     ? allDocuments
     : allDocuments.filter(document => document.manifest.dataGeneration === generation)
   if (options.dataGeneration !== undefined && documents.length === 0) return { ok: false, reason: 'generation_not_found' }
-  documents.sort((left, right) => compareDecimalIds(left.manifest.eventHighWaterId, right.manifest.eventHighWaterId) || left.part - right.part)
+  documents.sort((left, right) => {
+    const highWater = compareDecimalIds(left.manifest.eventHighWaterId, right.manifest.eventHighWaterId)
+    if (highWater !== 0) return highWater
+    if (left.manifest.exportedAtMs !== right.manifest.exportedAtMs) {
+      return left.manifest.exportedAtMs < right.manifest.exportedAtMs ? -1 : 1
+    }
+    return left.part - right.part
+  })
 
   let events = 0
   let snapshots = 0

@@ -244,10 +244,10 @@ export class D1RestoreTarget implements RestoreTarget {
     const maxId = maxRows[0]?.maxId ?? null
     if (maxId !== null && BigInt(nextId) <= BigInt(maxId)) return
     const seq = (BigInt(nextId) - 1n).toString()
-    const existing = await all<{ seq: number }>(this.db, "SELECT seq FROM sqlite_sequence WHERE name = 'usage_event'", [])
+    const existing = await all<{ seq: string | null }>(this.db, "SELECT CAST(seq AS TEXT) AS seq FROM sqlite_sequence WHERE name = 'usage_event'", [])
     if (existing.length === 0) {
       await run(this.db, "INSERT INTO sqlite_sequence(name, seq) VALUES ('usage_event', CAST(? AS INTEGER))", [seq])
-    } else {
+    } else if (existing[0]?.seq !== null && existing[0]?.seq !== undefined && BigInt(existing[0].seq) < BigInt(seq)) {
       await run(this.db, "UPDATE sqlite_sequence SET seq = CAST(? AS INTEGER) WHERE name = 'usage_event'", [seq])
     }
   }

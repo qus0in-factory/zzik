@@ -98,6 +98,7 @@ export class FakeExportObjectReader implements ExportObjectReader {
 export class FakeRestoreTarget implements RestoreTarget {
   events = new Map<string, ExportEventRow>()
   snapshots = new Map<string, ExportSnapshotRow>()
+  snapshotWrites: ExportSnapshotRow[] = []
   receipts = new Map<string, ExportReceiptRow>()
   fenced: string | null = null
 
@@ -113,6 +114,7 @@ export class FakeRestoreTarget implements RestoreTarget {
 
   async upsertSnapshot(row: ExportSnapshotRow): Promise<'inserted' | 'updated' | 'skipped'> {
     this.snapshots.set(row.provider, row)
+    this.snapshotWrites.push(row)
     return 'inserted'
   }
 

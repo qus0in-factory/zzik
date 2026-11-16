@@ -42,6 +42,7 @@ describe('Given the D1 export adapter inside actual workerd', () => {
   let sourceDb: Awaited<ReturnType<Miniflare['getD1Database']>>
   let restoreDb: Awaited<ReturnType<Miniflare['getD1Database']>>
   let restoreR2Db: Awaited<ReturnType<Miniflare['getD1Database']>>
+  let fenceDb: Awaited<ReturnType<Miniflare['getD1Database']>>
 
   beforeAll(async () => {
     mf = new Miniflare({
@@ -53,6 +54,7 @@ describe('Given the D1 export adapter inside actual workerd', () => {
             DB: { type: 'd1', id: 'd1-export-source' },
             DB2: { type: 'd1', id: 'd1-export-restore' },
             DB3: { type: 'd1', id: 'd1-export-restore-r2' },
+            DB4: { type: 'd1', id: 'd1-export-fence' },
             EXPORT_BUCKET: { type: 'r2', name: 'd1-export-bucket' },
           },
           manifest: { mainModule: 'probe.mjs', modules: { 'probe.mjs': { type: 'esm', contents: 'export default { fetch() { return new Response("ok") } }' } } },
@@ -63,9 +65,11 @@ describe('Given the D1 export adapter inside actual workerd', () => {
     sourceDb = await mf.getD1Database('DB')
     restoreDb = await mf.getD1Database('DB2')
     restoreR2Db = await mf.getD1Database('DB3')
+    fenceDb = await mf.getD1Database('DB4')
     await applyMigration(sourceDb)
     await applyMigration(restoreDb)
     await applyMigration(restoreR2Db)
+    await applyMigration(fenceDb)
     for (const [id, runAt] of [['9', 1_000], ['10', 1_000], ['100', 1_000]] as const) {
       await sourceDb.prepare('INSERT INTO usage_event (id, provider, run_at, status, envelope) VALUES (CAST(? AS INTEGER), ?, ?, ?, ?)')
         .bind(id, 'codex', runAt, 'ok', envelope()).run()
@@ -171,6 +175,22 @@ describe('Given the D1 export adapter inside actual workerd', () => {
     expect(await store.read('2026-11-16/part-0001.json')).toBe(body)
     await expect(restoreFromExportObjects(store, new D1RestoreTarget(restoreR2Db)))
       .resolves.toMatchObject({ ok: true, value: { events: 3 } })
+  })
+
+  it('When the existing sqlite_sequence is higher Then the restore fence never lowers it', async () => {
+    await fenceDb.prepare('INSERT INTO usage_event (id, provider, run_at, status, envelope) VALUES (CAST(? AS INTEGER), ?, ?, ?, ?)')
+      .bind('10', 'codex', 1_000, 'ok', envelope()).run()
+    await fenceDb.prepare("UPDATE sqlite_sequence SET seq = CAST(? AS INTEGER) WHERE name = 'usage_event'").bind('2000000').run()
+    const reader = new FakeExportObjectReader()
+    reader.objects.set('2026-11-16/part-0001.json', serializeExportDocument(buildExportDocument({
+      part: 1,
+      manifest: { eventHighWaterId: '10', receiptCutMs: 0, dataGeneration: 0, exportedAtMs: NOW },
+      events: [],
+    })))
+    await expect(restoreFromExportObjects(reader, new D1RestoreTarget(fenceDb)))
+      .resolves.toMatchObject({ ok: true, value: { nextIdFence: '1000010' } })
+    const sequence = await fenceDb.prepare("SELECT CAST(seq AS TEXT) AS seq FROM sqlite_sequence WHERE name = 'usage_event'").all<{ seq: string }>()
+    expect(sequence.results[0]?.seq).toBe('2000000')
   })
 
   it('When an exported id conflicts with a different restored row Then the restore fails', async () => {
