@@ -7,5 +7,5 @@ const ports={ledgerOutboxCount:0,source:{read:async()=>({ok:true,value:backfillC
  read:async(_kind,keys)=>({ok:true,value:keys.flatMap(key=>rows.has(key)?[rows.get(key)]:[])}),
  write:async statements=>{writes++;for(const s of statements)if(s.sql.startsWith('INSERT INTO usage_event')){const [id,provider,runAt,status,rawSha256,envelopeJson]=s.params;rows.set(id,{id,provider,status,runAt:new Date(runAt).toISOString(),rawSha256,envelopeJson})}return {ok:true,value:undefined}},
 },close:async()=>{}}
-try{await runBackfillCli({args:process.argv.slice(2),env:{DB_URL:'synthetic-unused',ZZIK_D1_API_TOKEN:'synthetic-unused',ZZIK_D1_ACCOUNT_ID:'synthetic-unused',ZZIK_D1_DATABASE_ID:'synthetic-unused'},createPorts:async()=>({ok:true,value:ports})})}catch{process.exitCode=1}
+try{await runBackfillCli({args:process.argv.slice(2),env:process.argv.includes('wrangler')?{DB_URL:'synthetic-unused'}:{DB_URL:'synthetic-unused',ZZIK_D1_API_TOKEN:'synthetic-unused',ZZIK_D1_ACCOUNT_ID:'synthetic-unused',ZZIK_D1_DATABASE_ID:'synthetic-unused'},createPorts:async()=>({ok:true,value:ports})})}catch{process.exitCode=1}
 process.stdout.write(JSON.stringify({testWrites:writes})+'\n')

@@ -32,3 +32,10 @@ describe('Given a spawned --apply command wired only to explicit fake ports',()=
   const dry=run(`APPLY ${hash}\n`,false);expect(dry.status).toBe(0);expect(dry.stdout).toContain('"testWrites":0');expect(dry.stderr).not.toContain('Confirm collector')
  })
 })
+
+describe('Given an explicitly selected Wrangler OAuth destination',()=>{
+ it('When no D1 API credentials are supplied Then still dry-runs through the injected backfill ports',()=>{
+  const result=spawnSync(process.execPath,['tests/fixtures/collector/backfill-cli-harness.mjs','--state-dir','/synthetic-unused','--transport','wrangler','--database','zzik-usage'],{encoding:'utf8',timeout:10000})
+  expect(result.status).toBe(0);expect(result.stdout).toContain('"dryRun":true');expect(result.stdout).toContain('"testWrites":0')
+ })
+})

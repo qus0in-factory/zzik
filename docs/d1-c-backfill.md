@@ -71,3 +71,21 @@ PG 역이관은 기존 `worker/infra/usage/pg-rollback.ts`를 재사용한다. e
 outbox 삭제·ackedSeq 갱신·복구 JSON 저장·내부 initialized=rolled-back은 한 SQLite transaction이다. JSON 파일과 외부 마커는 그 commit 뒤에 mirror한다. 파일 쓰기 실패면 rollback_files_pending을 반환하며, 재실행은 이미 커밋된 rollback_json에서 파일만 복구한다. 외부 marker=active인데 내부 initialized=rolled-back인 틈은 B1 부팅이 fail closed한다. 외부 rolled-back 마커는 JSON 파일을 모두 쓴 다음 마지막에 기록한다.
 
 리허설은 local DELETE trigger 실패를 주입해 outbox와 내부 마커가 함께 rollback됨을 확인하고, commit 뒤 JSON rename 실패·재개·B1 fresh JSON import까지 확인한다. 운영 PG/D1/ledger에는 이 절차를 실행하지 않았다.
+
+## Wrangler OAuth 목적지 (API 토큰 없는 C 단계)
+
+기존 streaming spool·canonical hash·확인·checkpoint·전후 대조를 그대로 사용하고 목적지 전송만 선택한다:
+
+```sh
+node --env-file=<approved-private-pg-env> scripts/d1-backfill.mjs \
+  --state-dir <approved-state-dir> --checkpoint <approved-checkpoint> \
+  --transport wrangler --database zzik-usage
+```
+
+기본은 dry-run이다. `--apply` 실행은 같은 프로세스가 출력한 planSha256을 검토한 뒤 `APPLY <planSha256>`을 stdin에 입력한다. preview와 apply는 동일하게 seal한 PG repeatable-read 계획을 재사용한다. PG 읽기용 DB_URL만 필요하며 D1 API 토큰·계정 ID 환경변수는 필요 없다. Wrangler의 기존 OAuth 로그인과 갱신을 사용한다. 수집기 런타임에는 이 전송을 연결하지 않는다.
+
+SELECT는 `--command`, 쓰기는 private SQL 파일의 `--file`로 전송한다. 문자열·64비트 id를 SQL literal로 안전하게 escape하고, 모든 쓰기 문을 preview 전에 렌더링해 문장당 100,000 bytes를 검사한다. 실행 청크는 최대 21문(guard+20행)·512KiB이며 전송은 직렬·최소 1초 간격이다. 오류·불완전 응답은 자동 재시도하지 않고 중단한다. 원격 file import에는 서비스 중 질의 불가 구간이 있으므로 D1이 아직 서빙하지 않는 C 단계에서만 사용한다.
+
+Wrangler stdout/stderr 원문과 자체 디스크 로그를 내보내지 않는다. SQL 임시 디렉터리 0700·파일 0600, 종료 후 자기 청크만 삭제한다. D1 검증 행은 메모리에서 기존 migration_row_sha256 함수로 대조하며 보고서에는 개수·id 범위·계획 해시·바이트 수만 남긴다. 응답에서 id는 CAST AS TEXT를 유지한다.
+
+초기 C 복사는 PG 수집을 유지한 채 일관된 과거 스냅샷을 복사할 수 있다. 이 경우 완료는 그 계획과의 일치만 의미하며 복사 이후 새 PG 관측은 포함하지 않는다. D 유지 창에는 수집을 정지한 뒤 새 계획·새 checkpoint로 최종 catch-up을 해야 한다. D1 writer가 있는 상태에서 이 도구를 실행하지 않는다.
