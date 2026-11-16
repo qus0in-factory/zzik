@@ -3,9 +3,15 @@ import { USAGE_PROVIDERS } from '../../domain/usage/providers.mjs'
 /** @param {{mode:string,dryRun:boolean,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,query:import('../../domain/usage/d1-sender-types.ts').D1QueryPort,clock:import('../../domain/usage/d1-sender-types.ts').D1Clock,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort}} options */
 export function createD1Maintenance(options) {
   let lastHealth=-Infinity,healthBusy=false,pruneBusy=false
+  /** @type {Map<string, number>} */const lastNoticeAt=new Map()
   const enabled=()=>options.mode==='d1'&&!options.dryRun
   /** @param {string} reason */
-  const notify=async reason=>{try{await options.notice.notify({reason})}catch{}}
+  const notify=async reason=>{
+    const now=options.clock.now(),prev=lastNoticeAt.get(reason)
+    if(prev!==undefined&&now-prev<86400000)return
+    lastNoticeAt.set(reason,now)
+    try{await options.notice.notify({reason})}catch{}
+  }
   return {
     async checkHealth(){
       if(!enabled())return {ok:false,reason:'disabled'}

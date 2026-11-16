@@ -75,4 +75,31 @@ it('When quiesce cancels a queued health read Then sends no outage alert and pre
  it('When lastPruneAt is unknown Then reports and skips immediate deletion',async()=>{
   const h=setup();expect(await h.maintenance.prune(null,30)).toMatchObject({ok:false,reason:'prune_time_unknown'});expect(h.calls).toHaveLength(0);expect(h.notices).toHaveLength(1)
  })
+ it('When control re-read fails right before writing the health checkpoint Then emits sender_control_failed without writing',async()=>{
+  const h=setup()
+  let reads=0,writes=0
+  const control={
+   read:()=>{reads+=1;return reads===1?h.control.read():{ok:false as const,reason:'control_corrupt'}},
+   write:(next:Parameters<typeof h.control.write>[0])=>{writes+=1;return h.control.write(next)},
+  }
+  const maintenance=createD1Maintenance({mode:'d1',dryRun:false,control,query:h.query,clock:h.clock,notice:h.notice})
+  h.responses.push({ok:true,value:[{results:[{ran_at_ms:Date.parse(D1_NOW)}]},{results:[]}]})
+  expect(await maintenance.checkHealth()).toMatchObject({ok:false,reason:'control_corrupt'})
+  expect(writes).toBe(0)
+  expect(h.notices).toEqual([{reason:'sender_control_failed'}])
+ })
+ it('When control stays broken across repeated calls Then throttles the same notice reason to once per 24 hours',async()=>{
+  const h=setup()
+  const control={read:()=>({ok:false as const,reason:'control_corrupt'}),write:h.control.write}
+  const maintenance=createD1Maintenance({mode:'d1',dryRun:false,control,query:h.query,clock:h.clock,notice:h.notice})
+  await maintenance.checkHealth()
+  await maintenance.checkHealth()
+  expect(h.notices).toEqual([{reason:'sender_control_failed'}])
+  h.advance(86400000-1)
+  await maintenance.checkHealth()
+  expect(h.notices).toHaveLength(1)
+  h.advance(1)
+  await maintenance.checkHealth()
+  expect(h.notices).toHaveLength(2)
+ })
 })

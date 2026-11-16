@@ -25,7 +25,7 @@ A의 buildD1WriteBatch를 그대로 POST한다. receipt→snapshot→조건부 e
 
 ## maintenance
 
-checkHealth는 D1 모드에서만 24시간에 한 번 마지막 성공 export와 stalled checkpoint를 같은 REST batch로 읽는다. 조회 시각은 제어 파일에 영속화한다. 36시간 초과·성공 export 없음·stall·읽기 실패는 안전한 reason만 notice port로 보낸다. 원문 응답/토큰은 알림에 넣지 않는다.
+checkHealth는 D1 모드에서만 24시간에 한 번 마지막 성공 export와 stalled checkpoint를 같은 REST batch로 읽는다. 조회 시각은 기록 직전 control 재읽기 후 `lastHealthCheckAtMs`만 갱신해 제어 파일에 영속화한다. 36시간 초과·성공 export 없음·stall·읽기 실패는 안전한 reason만 notice port로 보내며, 같은 사유 알림은 24시간에 1회로 제한한다. 원문 응답/토큰은 알림에 넣지 않는다.
 
 prune는 관측 batch와 섞지 않는다. provider별 이벤트(`usage_event`)·버킷 경계(`usage_bucket_boundary`)·receipt(`usage_write_receipt`)를 각각 별도 HTTP로 500행씩 지운다. 이벤트는 `run_at`, 경계는 `run_at_ms` 기준으로 `retentionDays`만큼 지우고, receipt는 `created_at_ms` 기준 35일이다. 경계는 `rowid` 배치 키로 지우며 체크포인트(`usage_bucket_checkpoint`)는 지우거나 되돌리지 않는다. 어느 단계든 실패하면 이전 lastPruneAt을 반환한다. 모두 끝난 경우만 새 값을 반환한다. 무한 삭제를 막기 위해 표·provider당 한 번의 호출은 최대 100 batch로 제한하며, 다 못 끝내면 incomplete로 반환한다.
 
