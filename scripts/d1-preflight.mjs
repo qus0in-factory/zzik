@@ -86,8 +86,8 @@ export async function runD1Preflight(ports, options) {
     const existsOk = exists === expectedLedgerExists
     checks.push(existsOk ? { name: 'ledger_exists', status: 'PASS' } : { name: 'ledger_exists', status: 'FAIL', reason: 'ledger_missing' })
 
-    const outboxOk = Number.isSafeInteger(outboxCount) && outboxCount === 0
-    checks.push(outboxOk ? { name: 'ledger_outbox_zero', status: 'PASS' } : { name: 'ledger_outbox_zero', status: 'FAIL', reason: 'ledger_outbox_non_empty' })
+    const outboxOk = exists === true && Number.isSafeInteger(outboxCount) && outboxCount === 0
+    checks.push(outboxOk ? { name: 'ledger_outbox_zero', status: 'PASS' } : { name: 'ledger_outbox_zero', status: 'FAIL', reason: exists === true ? 'ledger_outbox_non_empty' : 'ledger_missing' })
   }
 
   // 5-6. Worker export/bucket deployment & USAGE_READ_STORE
@@ -138,15 +138,25 @@ async function main() {
   if (args.includes('--help')) {
     process.stdout.write(
       'node scripts/d1-preflight.mjs --state-dir <directory> [--evidence <json-path>]\n' +
+      '  [--expected-pm2-status online|stopped|any] [--expected-zzik-store postgres|d1] [--expected-read-store postgres|d1]\n' +
+      'Defaults: --expected-pm2-status online --expected-zzik-store postgres --expected-read-store postgres (pre-cutover).\n' +
       'Dry-run only: never calls live PM2/wrangler/DB/D1 and never prints secrets.\n',
     )
     return
   }
   let stateDir = null
   let evidencePath = null
+  let expectedPm2Status = 'online'
+  let expectedZzikStore = 'postgres'
+  let expectedReadStore = 'postgres'
+  const pm2Statuses = new Set(['online', 'stopped', 'any'])
+  const stores = new Set(['postgres', 'd1'])
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--state-dir' && args[i + 1]) stateDir = resolve(args[++i])
     else if (args[i] === '--evidence' && args[i + 1]) evidencePath = resolve(args[++i])
+    else if (args[i] === '--expected-pm2-status' && args[i + 1] && pm2Statuses.has(args[i + 1])) expectedPm2Status = args[++i]
+    else if (args[i] === '--expected-zzik-store' && args[i + 1] && stores.has(args[i + 1])) expectedZzikStore = args[++i]
+    else if (args[i] === '--expected-read-store' && args[i + 1] && stores.has(args[i + 1])) expectedReadStore = args[++i]
     else {
       process.stdout.write(JSON.stringify({ ok: false, dryRun: true, reason: 'invalid_arguments' }) + '\n')
       process.exitCode = 64
@@ -172,7 +182,7 @@ async function main() {
       },
     },
   }
-  const result = await runD1Preflight(ports, { stateDir })
+  const result = await runD1Preflight(ports, { stateDir, expectedPm2Status, expectedZzikStore, expectedReadStore })
   process.stdout.write(JSON.stringify(result) + '\n')
   if (!result.ok) process.exitCode = 1
 }

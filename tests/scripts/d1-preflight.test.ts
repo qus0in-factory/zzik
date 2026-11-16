@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 // @ts-expect-error scripts/d1-preflight.mjs is plain ESM checked by vitest
 import { runD1Preflight } from '../../scripts/d1-preflight.mjs'
 
@@ -74,7 +79,8 @@ describe('Given the dry-run D1 cutover preflight script', () => {
       { stateDir: '/var/lib/zzik-fake' },
     )) as PreflightResult
     expect(missing.ok).toBe(false)
-    expect(missing.checks.find((c) => c.name === 'ledger_exists')).toMatchObject({ status: 'FAIL' })
+    expect(missing.checks.find((c) => c.name === 'ledger_exists')).toMatchObject({ status: 'FAIL', reason: 'ledger_missing' })
+    expect(missing.checks.find((c) => c.name === 'ledger_outbox_zero')).toMatchObject({ status: 'FAIL', reason: 'ledger_missing' })
 
     const nonEmpty = (await runD1Preflight(
       makePorts({
@@ -104,7 +110,7 @@ describe('Given the dry-run D1 cutover preflight script', () => {
     expect(result.checks.find((c) => c.name === 'usage_read_store')).toMatchObject({ status: 'FAIL' })
   })
 
-  it('When a port hangs past timeoutMs Then Node timer fails the check safely without shell timeout', async () => {
+  it('When a port hangs past timeoutMs Then Node timer fails pm2 and zzik_store safely without shell timeout', async () => {
     const result = (await runD1Preflight(
       makePorts({
         pm2: { readProcess: () => new Promise(() => {}) },
@@ -114,6 +120,26 @@ describe('Given the dry-run D1 cutover preflight script', () => {
 
     expect(result.ok).toBe(false)
     expect(result.checks.find((c) => c.name === 'pm2_process')).toMatchObject({ status: 'FAIL', reason: 'timeout' })
+    expect(result.checks.find((c) => c.name === 'zzik_store')).toMatchObject({ status: 'FAIL', reason: 'timeout' })
+  })
+
+  it('When ledger or worker port is unavailable Then its checks FAIL with fixed reasons and no raw error', async () => {
+    const ledgerSecret = 'postgresql://user:supersecret@db.example.com/zzik'
+    const ledger = (await runD1Preflight(
+      makePorts({ ledger: { inspect: async () => ({ ok: false as const, reason: ledgerSecret }) } }),
+      { stateDir: '/var/lib/zzik-fake' },
+    )) as PreflightResult
+    expect(ledger.checks.find((c) => c.name === 'ledger_exists')).toMatchObject({ status: 'FAIL', reason: 'ledger_unavailable' })
+    expect(ledger.checks.find((c) => c.name === 'ledger_outbox_zero')).toMatchObject({ status: 'FAIL', reason: 'ledger_unavailable' })
+
+    const workerSecret = 'wrangler secret token=supersecret'
+    const worker = (await runD1Preflight(
+      makePorts({ worker: { readDeployment: async () => ({ ok: false as const, reason: workerSecret }) } }),
+      { stateDir: '/var/lib/zzik-fake' },
+    )) as PreflightResult
+    expect(worker.checks.find((c) => c.name === 'export_bucket_deployed')).toMatchObject({ status: 'FAIL', reason: 'worker_unavailable' })
+    expect(worker.checks.find((c) => c.name === 'usage_read_store')).toMatchObject({ status: 'FAIL', reason: 'worker_unavailable' })
+    expect(JSON.stringify(worker)).not.toContain('supersecret')
   })
 
   it('When a port fails with a secret-like error string Then output never echoes raw secrets or connection strings', async () => {
@@ -129,5 +155,94 @@ describe('Given the dry-run D1 cutover preflight script', () => {
     expect(serialized).not.toContain('supersecret')
     expect(serialized).not.toContain('postgresql://')
     expect(result.checks.find((c) => c.name === 'pm2_process')).toMatchObject({ status: 'FAIL', reason: 'pm2_unavailable' })
+  })
+})
+
+
+describe('Given the preflight CLI branches', () => {
+  const SCRIPT = fileURLToPath(new URL('../../scripts/d1-preflight.mjs', import.meta.url))
+  const tmp = () => mkdtempSync(join(tmpdir(), 'zzik-preflight-'))
+  const run = (args: string[]) => spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' })
+
+  it('When --help is requested Then prints the expected-value flags and exits 0', () => {
+    const result = run(['--help'])
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('--expected-zzik-store')
+    expect(result.stdout).toContain('--expected-read-store')
+    expect(result.stdout).toContain('--expected-pm2-status')
+  })
+
+  it('When arguments are invalid Then exits 64 without running checks', () => {
+    for (const args of [[], ['--unknown'], ['--expected-zzik-store'], ['--expected-zzik-store', 'kv']] as const) {
+      const result = run(args as unknown as string[])
+      expect(result.status).toBe(64)
+      const body = JSON.parse(result.stdout)
+      expect(body).toMatchObject({ ok: false, dryRun: true })
+    }
+  })
+
+  it('When evidence is missing Then exits 1 with a fixed preflight_failed output', () => {
+    const dir = tmp()
+    try {
+      const result = run(['--state-dir', dir, '--evidence', join(dir, 'missing.json')])
+      expect(result.status).toBe(1)
+      expect(JSON.parse(result.stdout)).toEqual({ ok: false, dryRun: true, reason: 'preflight_failed' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('When the evidence already says d1 and the CLI defaults are pre-cutover Then store checks FAIL', () => {
+    const dir = tmp()
+    try {
+      const evidence = join(dir, 'evidence.json')
+      writeFileSync(evidence, JSON.stringify({
+        pm2: { status: 'online', zzikStore: 'd1' },
+        worker: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'd1' },
+      }))
+      const result = run(['--state-dir', dir, '--evidence', evidence])
+      expect(result.status).toBe(1)
+      const body = JSON.parse(result.stdout) as PreflightResult
+      expect(body.ok).toBe(false)
+      expect(body.checks.find((c) => c.name === 'zzik_store')).toMatchObject({ status: 'FAIL' })
+      expect(body.checks.find((c) => c.name === 'usage_read_store')).toMatchObject({ status: 'FAIL' })
+      expect(body.checks.find((c) => c.name === 'pm2_process')).toMatchObject({ status: 'PASS' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('When the expected PM2 status flag differs from evidence Then pm2_process uses the passed expectation', () => {
+    const dir = tmp()
+    try {
+      const evidence = join(dir, 'evidence.json')
+      writeFileSync(evidence, JSON.stringify({
+        pm2: { status: 'online', zzikStore: 'postgres' },
+        worker: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'postgres' },
+      }))
+      const result = run(['--state-dir', dir, '--evidence', evidence, '--expected-pm2-status', 'stopped'])
+      const body = JSON.parse(result.stdout) as PreflightResult
+      expect(body.checks.find((c) => c.name === 'pm2_process')).toMatchObject({ status: 'FAIL', reason: 'pm2_status_mismatch' })
+      expect(result.status).toBe(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('When the expected-value flags select d1 Then those checks use the passed expectations', () => {
+    const dir = tmp()
+    try {
+      const evidence = join(dir, 'evidence.json')
+      writeFileSync(evidence, JSON.stringify({
+        pm2: { status: 'online', zzikStore: 'd1' },
+        worker: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'd1' },
+      }))
+      const result = run(['--state-dir', dir, '--evidence', evidence, '--expected-zzik-store', 'd1', '--expected-read-store', 'd1'])
+      const body = JSON.parse(result.stdout) as PreflightResult
+      expect(body.checks.find((c) => c.name === 'zzik_store')).toMatchObject({ status: 'PASS' })
+      expect(body.checks.find((c) => c.name === 'usage_read_store')).toMatchObject({ status: 'PASS' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
