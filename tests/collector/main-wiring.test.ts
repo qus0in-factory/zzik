@@ -75,3 +75,14 @@ describe('Given an explicit quarantine resume operator flag',()=>{
   expect(result.status).toBe(78);expect(result.stderr).toContain('ResumeCommandRequiresD1');expect(result.stderr).not.toContain('synthetic-unused')
  })
 })
+
+describe('Given an explicit D1 authentication selector',()=>{
+ it('When OAuth is selected Then requires account and database IDs but no API token; PG ignores D1 auth',()=>{
+  const d1={ZZIK_STORE:'d1',ZZIK_D1_AUTH:'wrangler-oauth',ZZIK_D1_ACCOUNT_ID:'synthetic',ZZIK_D1_DATABASE_ID:'synthetic'}
+  expect(readStorageConfig(d1)).toMatchObject({ok:true,mode:'d1'})
+  expect(readStorageConfig({...d1,ZZIK_D1_ACCOUNT_ID:''}).ok).toBe(false)
+  expect(readStorageConfig({...d1,ZZIK_D1_AUTH:'unknown'})).toMatchObject({ok:false})
+  expect(readStorageConfig({...d1,ZZIK_D1_AUTH:'api-token'}).ok).toBe(false)
+  expect(readStorageConfig({DB_URL:'synthetic',ZZIK_D1_AUTH:'unknown'})).toMatchObject({ok:true,mode:'postgres'})
+ })
+})

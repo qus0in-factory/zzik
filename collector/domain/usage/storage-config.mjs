@@ -6,7 +6,9 @@ export function readStorageConfig(env, options = {}) {
   const mode = env.ZZIK_STORE ?? 'postgres'
   if (mode !== 'postgres' && mode !== 'd1') return {ok:false,reason:'InvalidStoreMode'}
   if (!options.dryRun && mode==='postgres' && !env.DB_URL?.trim()) return {ok:false,reason:'MissingDatabaseConfiguration'}
-  if(!options.dryRun && mode==='d1' && (!env.ZZIK_D1_API_TOKEN?.trim()||!env.ZZIK_D1_ACCOUNT_ID?.trim()||!env.ZZIK_D1_DATABASE_ID?.trim()))return {ok:false,reason:'MissingD1Configuration'}
+  const auth=env.ZZIK_D1_AUTH??'api-token'
+  if(mode==='d1'&&!['api-token','wrangler-oauth'].includes(auth))return {ok:false,reason:'InvalidD1AuthMode'}
+  if(!options.dryRun && mode==='d1' && (auth==='api-token'&&!env.ZZIK_D1_API_TOKEN?.trim()||!env.ZZIK_D1_ACCOUNT_ID?.trim()||!env.ZZIK_D1_DATABASE_ID?.trim()))return {ok:false,reason:'MissingD1Configuration'}
   const intervalSec = env.ZZIK_INTERVAL_SEC === undefined ? 900 : Number(env.ZZIK_INTERVAL_SEC)
   const retentionDays = env.ZZIK_EVENT_RETENTION_DAYS === undefined ? 30 : Number(env.ZZIK_EVENT_RETENTION_DAYS)
   const policy=readIntervalPolicy(env,{mode,capability:options.capability??null})

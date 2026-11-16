@@ -22,6 +22,9 @@ import {resumeQuarantinedProvider} from './app/usage/resume-quarantine.mjs'
 import {randomUUID} from 'node:crypto'
 import {openSqliteLedger} from './infra/usage/sqlite-ledger.mjs'
 import {createD1ControlFile} from './infra/usage/d1-control-file.mjs'
+import {createWranglerOAuthCredentials} from './app/usage/d1-oauth-credentials.mjs'
+import {createWranglerOAuthFile,defaultWranglerOAuthPath} from './infra/usage/wrangler-oauth-file.mjs'
+import {createWranglerOAuthRefresh} from './infra/usage/wrangler-oauth-refresh.mjs'
 import {createD1RestClient} from './infra/usage/d1-rest-client.mjs'
 import {createCollectorNotice} from './infra/usage/collector-notice.mjs'
 import {readLegacyLedgerInputs,reconcileD1Startup} from './app/usage/d1-startup.mjs'
@@ -267,8 +270,9 @@ async function startD1(flags){
   const notice=createCollectorNotice({...readAlertConfig(process.env),fetchImpl:globalThis.fetch,log:line=>process.stderr.write(line+'\n')})
   /** @type {ReturnType<typeof createD1Resident>|null} */let activeRuntime=null
   /** @type {()=>boolean} */let startupStopped=()=>false
-  const query=createD1RestClient({mode:'d1',dryRun:false,control,clock,canRequest:()=>!startupStopped()&&(activeRuntime?.canRequest()??true),
-    accountId:/** @type {string} */(process.env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(process.env.ZZIK_D1_DATABASE_ID),token:/** @type {string} */(process.env.ZZIK_D1_API_TOKEN),
+  const credentials=process.env.ZZIK_D1_AUTH==='wrangler-oauth'?createWranglerOAuthCredentials({file:createWranglerOAuthFile({path:defaultWranglerOAuthPath()}),refresh:createWranglerOAuthRefresh(),clock}):undefined
+  const query=createD1RestClient({credentials,mode:'d1',dryRun:false,control,clock,canRequest:()=>!startupStopped()&&(activeRuntime?.canRequest()??true),
+    accountId:/** @type {string} */(process.env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(process.env.ZZIK_D1_DATABASE_ID),token:credentials?undefined:process.env.ZZIK_D1_API_TOKEN,
     fetch:globalThis.fetch,wait:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
   })
   const notifyAlerts=async(/** @type {unknown[]} */events)=>{await alerts.send(/** @type {import('./domain/usage/alert-types.mjs').AlertEvent[]} */(events))}
