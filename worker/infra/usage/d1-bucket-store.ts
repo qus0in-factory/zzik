@@ -5,7 +5,7 @@
 import { USAGE_BUCKET_MAX_POINTS, USAGE_BUCKET_READ_BUDGET_MS, USAGE_HISTORY_SCAN_VERSION } from '../../../shared/usage-history-contract'
 import type { UsageHistoryBucketsPage, UsageHistoryBucketsQuery, UsageHistorySample } from '../../../shared/usage-history-contract'
 import type { UsageProvider, UsageStatus } from '../../../shared/usage-contract'
-import { truncateBucketSamples } from '../../domain/usage/bucket'
+import { bucketStartMs, createBucketFoldState, foldBucketPage, mergeBucketSamples, truncateBucketSamples } from '../../domain/usage/bucket'
 import type { BucketCheckpoint, BucketEvent, BucketStore, BucketWritePageInput, BucketWriterStore } from '../../domain/usage/bucket-store'
 import { historySample } from '../../domain/usage/history-sample'
 import type { HistoryResult } from '../../domain/usage/history-store'
@@ -97,13 +97,22 @@ export class D1BucketStore implements BucketStore {
     const fromMs = Date.parse(query.from)
     const untilMs = Date.parse(query.until)
     try {
+      const checkpointRows = await all<CheckpointDbRow>(
+        this.db,
+        `SELECT last_processed_id AS lastProcessedId, stalled_at_ms AS stalledAtMs
+           FROM usage_bucket_checkpoint
+          WHERE provider = ? AND scan_version = ? AND data_generation = ?`,
+        [provider, USAGE_HISTORY_SCAN_VERSION, this.dataGeneration],
+      )
+      const lastProcessedId = checkpointRows[0]?.lastProcessedId ?? '0'
+
       const flats = await all<BoundaryDbRow>(
         this.db,
         `SELECT bucket_start_ms AS bucketStartMs, run_at_ms AS runAtMs, status, envelope
            FROM usage_bucket_boundary
           WHERE provider = ? AND scan_version = ? AND data_generation = ?
             AND row_kind = 'flat' AND bucket_start_ms >= ? AND bucket_start_ms < ?`,
-        [provider, USAGE_HISTORY_SCAN_VERSION, this.dataGeneration, fromMs, untilMs],
+        [provider, USAGE_HISTORY_SCAN_VERSION, this.dataGeneration, bucketStartMs(fromMs), untilMs],
       )
       const points = await all<BoundaryDbRow>(
         this.db,
@@ -114,12 +123,72 @@ export class D1BucketStore implements BucketStore {
           ORDER BY run_at_ms ASC, CAST(source_event_id AS INTEGER) ASC`,
         [provider, USAGE_HISTORY_SCAN_VERSION, this.dataGeneration, fromMs, untilMs],
       )
-      const samples: UsageHistorySample[] = []
+      const boundaryPoints: UsageHistorySample[] = []
+      const flatByBucket = new Map<number, UsageHistorySample>()
       for (const row of flats) {
-        if (row.runAtMs >= fromMs && row.runAtMs < untilMs) samples.push(sampleOf(provider, row, `flat:${row.bucketStartMs}`))
+        if (row.runAtMs >= fromMs && row.runAtMs < untilMs) {
+          flatByBucket.set(row.bucketStartMs!, sampleOf(provider, row, `flat:${row.bucketStartMs}`))
+        }
       }
-      for (const row of points) samples.push(sampleOf(provider, row, row.sourceEventId ?? ''))
-      const truncated = truncateBucketSamples(samples, this.maxPoints)
+      for (const row of points) boundaryPoints.push(sampleOf(provider, row, row.sourceEventId ?? ''))
+
+      // Seed the tail fold the same way the writer resumes: the checkpoint event plus
+      // its bucket's stored flat representative. A missing checkpoint event just seeds nothing.
+      let previous: UsageHistorySample | null = null
+      let seedBucket: number | null = null
+      let seedFlat: UsageHistorySample | null = null
+      if (lastProcessedId !== '0') {
+        const checkpointEventRows = await all<EventDbRow>(
+          this.db,
+          `SELECT CAST(id AS TEXT) AS id, run_at AS runAtMs, status, envelope
+             FROM usage_event
+            WHERE provider = ? AND id = CAST(? AS INTEGER)`,
+          [provider, lastProcessedId],
+        )
+        const eventRow = checkpointEventRows[0]
+        if (eventRow !== undefined) {
+          previous = sampleOf(provider, eventRow, eventRow.id)
+          seedBucket = bucketStartMs(eventRow.runAtMs)
+          const seedFlatRows = await all<BoundaryDbRow>(
+            this.db,
+            `SELECT bucket_start_ms AS bucketStartMs, run_at_ms AS runAtMs, status, envelope
+               FROM usage_bucket_boundary
+              WHERE provider = ? AND scan_version = ? AND data_generation = ?
+                AND row_kind = 'flat' AND bucket_start_ms = ?`,
+            [provider, USAGE_HISTORY_SCAN_VERSION, this.dataGeneration, seedBucket],
+          )
+          const flatRow = seedFlatRows[0]
+          seedFlat = flatRow === undefined ? null : sampleOf(provider, flatRow, `flat:${flatRow.bucketStartMs}`)
+        }
+      }
+
+      // Raw observations after the checkpoint that the 15-minute cron has not folded yet.
+      const tailRows = await all<EventDbRow>(
+        this.db,
+        `SELECT CAST(id AS TEXT) AS id, run_at AS runAtMs, status, envelope
+           FROM usage_event
+          WHERE provider = ? AND id > CAST(? AS INTEGER) AND run_at >= ? AND run_at < ?
+          ORDER BY id ASC`,
+        [provider, lastProcessedId, fromMs, untilMs],
+      )
+      let state = createBucketFoldState(previous)
+      if (previous !== null && seedBucket !== null) {
+        state = { previous, flat: seedFlat, flatBucketStartMs: seedBucket }
+      }
+      const folded = foldBucketPage(
+        state,
+        tailRows.map(row => sampleOf(provider, row, row.id)),
+        { fromMs, untilMs },
+      )
+
+      // A tail point or flat supersedes the stored flat of every bucket the tail touches.
+      for (const row of tailRows) flatByBucket.delete(bucketStartMs(row.runAtMs))
+      for (const [bucket, sample] of folded.flats) flatByBucket.set(bucket, sample)
+
+      const merged = truncateBucketSamples(
+        mergeBucketSamples([...boundaryPoints, ...folded.points], flatByBucket),
+        this.maxPoints,
+      )
       return {
         ok: true,
         value: {
@@ -128,9 +197,9 @@ export class D1BucketStore implements BucketStore {
           bucketSec: query.bucketSec,
           from: query.from,
           until: query.until,
-          samples: truncated.samples,
+          samples: merged.samples,
           anchor: anchor.value === null ? null : historySample(provider, anchor.value),
-          complete: truncated.complete && this.now() - started <= this.budgetMs,
+          complete: merged.complete && this.now() - started <= this.budgetMs,
         },
       }
     } catch {

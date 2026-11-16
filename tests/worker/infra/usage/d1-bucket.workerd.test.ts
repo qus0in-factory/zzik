@@ -2,11 +2,17 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Miniflare, Log, LogLevel } from 'miniflare'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createTestDb } from '../../../fakes/pglite-db'
+import { usageEvent } from '../../../../shared/db/schema'
 import { runBucketWriter } from '../../../../worker/app/usage/bucket-writer'
 import { bucketStartMs } from '../../../../worker/domain/usage/bucket'
 import { D1BucketStore, D1BucketWriterStore } from '../../../../worker/infra/usage/d1-bucket-store'
 import type { BucketEvent } from '../../../../worker/domain/usage/bucket-store'
+import { PostgresBucketStore } from '../../../../worker/infra/usage/postgres-bucket-store'
+import { PostgresHistoryStore } from '../../../../worker/infra/usage/postgres-history-store'
+import type { SnapshotDatabase } from '../../../../worker/infra/usage/postgres-snapshot-store'
 import { USAGE_HISTORY_SCAN_VERSION } from '../../../../shared/usage-history-contract'
+import type { UsageEnvelope } from '../../../../shared/usage-contract'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 
 const migration = readFileSync(fileURLToPath(new URL('../../../../worker/migrations/0001_d1_storage.sql', import.meta.url)), 'utf8')
@@ -242,6 +248,69 @@ describe('Given the D1 bucket writer and reader inside actual workerd', () => {
     if (!page.ok) throw new Error('unreachable')
     expect(page.value.samples).toEqual([])
     expect(page.value.anchor?.id).toBe('1')
+  })
+
+  it('When from cuts through a bucket Then its in-range flat representative is still returned, matching PostgreSQL', async () => {
+    await insert([event('1', T0 + 6 * 60_000), event('2', T0 + 10 * 60_000)])
+    await run()
+    const from = new Date(T0 + 5 * 60_000).toISOString()
+    const until = new Date(T0 + 30 * DAY).toISOString()
+    const page = await read(from, until)
+    if (!page.ok) throw new Error('unreachable')
+    const actual = page.value.samples.map(item => [item.runAt, item.values === null ? null : item.values[0]?.usedPercent])
+
+    // PG fallback reads raw rows with run_at >= from; D1 must return the same representative.
+    const pg = await createTestDb()
+    try {
+      for (const atMs of [T0 + 6 * 60_000, T0 + 10 * 60_000]) {
+        await pg.db.insert(usageEvent).values({
+          provider,
+          status: 'ok',
+          runAt: new Date(atMs),
+          envelope: JSON.parse(envelope('claude', {
+            fetchedAt: new Date(atMs).toISOString(),
+            rawText: JSON.stringify({ five_hour: { utilization: 10 } }),
+          })) as UsageEnvelope,
+        })
+      }
+      const pgPage = await new PostgresBucketStore(new PostgresHistoryStore(pg.db as SnapshotDatabase))
+        .readBuckets(provider, { from, until, bucketSec: 900 })
+      if (!pgPage.ok) throw new Error('unreachable')
+      expect(actual).toEqual(pgPage.value.samples.map(item => [item.runAt, item.values === null ? null : item.values[0]?.usedPercent]))
+    } finally {
+      await pg.close()
+    }
+    expect(actual).toEqual([[new Date(T0 + 10 * 60_000).toISOString(), 10]])
+  })
+
+  it('When events arrive after the checkpoint Then readBuckets folds the raw tail without moving the checkpoint', async () => {
+    await insert([1, 2, 3, 4, 5].map(index => event(String(index), T0 + index * 60_000)))
+    await run()
+    await insert([event('6', T0 + 6 * 60_000, 20), event('7', T0 + 7 * 60_000, 20)])
+    const boundaryBefore = await db.prepare('SELECT count(*) AS count FROM usage_bucket_boundary WHERE provider = ?').bind(provider).all<{ count: number }>()
+    const page = await read(new Date(T0).toISOString(), new Date(T0 + 30 * DAY).toISOString())
+    if (!page.ok) throw new Error('unreachable')
+    expect(page.value.samples.map(item => [item.runAt, item.values === null ? null : item.values[0]?.usedPercent])).toEqual([
+      [new Date(T0 + 6 * 60_000).toISOString(), 20],
+      [new Date(T0 + 7 * 60_000).toISOString(), 20],
+    ])
+    const checkpoint = await db.prepare('SELECT last_processed_id AS lastId FROM usage_bucket_checkpoint WHERE provider = ?').bind(provider).all<{ lastId: string }>()
+    expect(checkpoint.results[0]?.lastId).toBe('5')
+    const boundaryAfter = await db.prepare('SELECT count(*) AS count FROM usage_bucket_boundary WHERE provider = ?').bind(provider).all<{ count: number }>()
+    expect(boundaryAfter.results[0]?.count).toBe(boundaryBefore.results[0]?.count)
+  })
+
+  it('When the raw tail reaches a new bucket Then its flat is added beside the stored boundary history', async () => {
+    await insert([1, 2, 3, 4, 5].map(index => event(String(index), T0 + index * 60_000)))
+    await run()
+    await insert([event('6', T0 + 16 * 60_000, 30), event('7', T0 + 17 * 60_000, 30)])
+    const page = await read(new Date(T0).toISOString(), new Date(T0 + 30 * DAY).toISOString())
+    if (!page.ok) throw new Error('unreachable')
+    expect(page.value.samples.map(item => [item.runAt, item.values === null ? null : item.values[0]?.usedPercent])).toEqual([
+      [new Date(T0 + 5 * 60_000).toISOString(), 10],
+      [new Date(T0 + 16 * 60_000).toISOString(), 30],
+      [new Date(T0 + 17 * 60_000).toISOString(), 30],
+    ])
   })
 
   it('When 10,000 events at 180 seconds are folded Then the boundary count is bucketed and the local writer stays within budget', async () => {
