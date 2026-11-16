@@ -31,6 +31,12 @@ node scripts/d1-preflight.mjs --state-dir <ZZIK_STATE_DIR> [--evidence <prefligh
 
 ---
 
+## 전환 전 운영 안전 확인
+
+- **격리 해제 `[승인]`**: `--resume-without-quarantine <provider>`는 D1 모드에서 PM2 collector를 정지한 직후의 유지 창에만 실행한다. 정지 전에 PM2 `kill_timeout`이 **35000ms 이상**인지 승인된 설정에서 확인하고, `pm2 stop zzik-usage-collector`로 30초 quiesce를 완료한다. 마지막 D1 요청 이후 원격 in-flight 쓰기까지 끝났다고 확인할 수 있어야 한다. PM2 stopped 표시나 HTTP 응답 유실만으로 원격 완료를 단정하지 않는다. 요청이 아직 커밋될 가능성이 남으면 실행을 중단한다. 이 명령은 **receipt 부재를 근거로 operation을 폐기**하므로 진행 중 요청과 경쟁하면 늦은 커밋을 놓칠 수 있다. 다른 writer도 멈춘 상태를 유지하고, 격리 해제 뒤 일반 수집 재기동은 별도로 승인한다. 이번 문서 변경은 ecosystem 설정을 바꾸지 않는다.
+- **백필 디스크**: 백필 전에 `df -h <state-dir>`로 여유 공간을 확인한다. 전체 봉투를 담는 SQLite spool과 journal 및 기존 ledger를 위한 여유를 확보하고, 부족하거나 규모를 판단할 수 없으면 시작하지 않는다. 중단 후에는 백필 프로세스가 종료되고 해당 디렉터리를 사용하는 실행이 없는지 확인한 뒤 `ls -ld <state-dir>/backfill-plan-*`로 남은 spool을 확인한다. 정상 종료는 자기 spool을 지우지만 비정상 종료 잔여물은 재사용하지 않는다. 내용을 검토한 **자기 중단 실행의 경로 하나씩만** `rm -r -- <state-dir>/backfill-plan-<확인한-이름>`으로 수동 삭제한다. wildcard 삭제나 state-dir 전체 삭제는 금지하며 ledger·checkpoint·lock 파일을 지우지 않는다.
+- **알림 확인**: Discord에 알림이 없어도 PM2 로그의 `[zzik collector] reason=` 줄을 확인한다. 예: `pm2 logs zzik-usage-collector --nostream --lines 200 | rg -F '[zzik collector] reason='`. Discord 비활성·전송 실패 시에도 해당 안전 로그가 남을 수 있다. 24시간 제한이나 손상된 알림 메타로 알림 자체가 생략된 경우에는 줄이 없을 수 있으므로, 로그 부재를 정상 판정 근거로 삼지 않는다. 로그·설정 원문 전체를 보고서에 붙이지 않는다.
+
 ## 1. 정방향 전환 순서 (유지 창)
 
 ### 1) 관측 정지 `[승인]`
