@@ -1,29 +1,63 @@
 import {canonicalEnvelope,checkMigrationTimeOrder,normalizeD1Instant,parseD1Envelope} from '../../../shared/d1-canonical.ts'
 import {migrationRowSha256,normalizeMigrationRow} from './d1-migration.mjs'
-import {sha256Hex} from './envelope.mjs'
+import {createHash} from 'node:crypto'
 /** @typedef {import('./d1-backfill-types.ts').BackfillPlan} Plan */
 /** @typedef {import('../../../shared/d1-contract.ts').D1MigrationRow} Row */
-/** @param {{events:unknown[],snapshots:unknown[]}} source @returns {import('../../../shared/d1-contract.ts').D1Result<Plan>} */
+/** Normalize one row without retaining the rest of the source.
+ * @param {unknown} input @param {'event'|'snapshot'} kind @returns {import('../../../shared/d1-contract.ts').D1Result<import('./d1-backfill-types.ts').BackfillRow>} */
+export function prepareBackfillRow(input,kind){
+ const normalized=normalizeMigrationRow(input);if(!normalized.ok)return normalized
+ const row=normalized.value
+ if((kind==='snapshot')!==(row.id===null))return {ok:false,reason:'invalid_migration_identity'}
+ const canonical=canonicalEnvelope(row.envelopeJson);if(!canonical.ok)return canonical
+ const hash=migrationRowSha256(row);if(!hash.ok)return hash
+ const extra=/** @type {{updatedAtMs?:unknown}} */(input)
+ if(kind==='snapshot'&&(!Number.isSafeInteger(extra.updatedAtMs)||!Number.isFinite(new Date(/** @type {number} */(extra.updatedAtMs)).getTime())))return {ok:false,reason:'missing_snapshot_updated_at'}
+ return {ok:true,value:{row:{...row,envelopeJson:canonical.value},sha256:hash.value,...(kind==='snapshot'?{updatedAtMs:/** @type {number} */(extra.updatedAtMs)}:{})}}
+}
+/** JSON array framing is byte-identical to the original JSON.stringify(items.map(...)). */
+export function createBackfillAccumulator(){
+ const hash=createHash('sha256');hash.update('[')
+ let events=0,snapshots=0,total=0
+ /** @type {string|null} */let minId=null
+ /** @type {string|null} */let maxId=null
+ /** @type {string|null} */let lastProvider=null
+ /** @type {Plan['summary']|null} */let sealed=null
+ return {
+  /** @param {import('./d1-backfill-types.ts').BackfillRow} item @returns {import('../../../shared/d1-contract.ts').D1Result<void>} */
+  append(item){
+   if(sealed!==null)return {ok:false,reason:'plan_sealed'}
+   const checked=migrationRowSha256(item.row);if(!checked.ok||checked.value!==item.sha256)return {ok:false,reason:'migration_hash_mismatch'}
+   if(item.row.id!==null){
+    if(snapshots>0||maxId!==null&&BigInt(item.row.id)<=BigInt(maxId))return {ok:false,reason:'invalid_plan_order'}
+    minId??=item.row.id;maxId=item.row.id;events++
+   }else{
+    if(lastProvider!==null&&item.row.provider.localeCompare(lastProvider)<=0)return {ok:false,reason:'duplicate_snapshot'}
+    lastProvider=item.row.provider;snapshots++
+   }
+   if(total++>0)hash.update(',')
+   hash.update(JSON.stringify([item.row.id??item.row.provider,item.sha256,item.updatedAtMs??null]))
+   return {ok:true,value:undefined}
+  },
+  finish(){
+   if(sealed===null){hash.update(']');sealed={events,snapshots,minId,maxId,planSha256:hash.digest('hex')}}
+   return {...sealed}
+  },
+ }
+}
+/** Legacy array API retained for callers/tests; the CLI uses the disk-backed page plan.
+ * @param {{events:unknown[],snapshots:unknown[]}} source @returns {import('../../../shared/d1-contract.ts').D1Result<Plan>} */
 export function planBackfill(source){
  const order=checkMigrationTimeOrder(source.events);if(!order.ok)return order
  /** @type {Plan['items']} */const items=[]
- const snapshots=new Set()
  for(const [kind,rows] of /** @type {['event'|'snapshot',unknown[]][]} */([['event',source.events],['snapshot',source.snapshots]]))for(const input of rows){
-  const normalized=normalizeMigrationRow(input);if(!normalized.ok)return normalized
-  const row=normalized.value
-  if((kind==='snapshot')!==(row.id===null))return {ok:false,reason:'invalid_migration_identity'}
-  if(kind==='snapshot'&&snapshots.has(row.provider))return {ok:false,reason:'duplicate_snapshot'}
-  snapshots.add(kind==='snapshot'?row.provider:'')
-  const canonical=canonicalEnvelope(row.envelopeJson);if(!canonical.ok)return canonical
-  const hash=migrationRowSha256(row);if(!hash.ok)return hash
-  const extra=/** @type {{updatedAtMs?:unknown}} */(input)
-  if(kind==='snapshot'&&(!Number.isSafeInteger(extra.updatedAtMs)||!Number.isFinite(new Date(/** @type {number} */(extra.updatedAtMs)).getTime())))return {ok:false,reason:'missing_snapshot_updated_at'}
-  items.push({row:{...row,envelopeJson:canonical.value},sha256:hash.value,...(kind==='snapshot'?{updatedAtMs:/** @type {number} */(extra.updatedAtMs)}:{})})
+  const prepared=prepareBackfillRow(input,kind);if(!prepared.ok)return prepared
+  items.push(prepared.value)
  }
  items.sort((a,b)=>a.row.id===null?(b.row.id===null?a.row.provider.localeCompare(b.row.provider):1):b.row.id===null?-1:BigInt(a.row.id)<BigInt(b.row.id)?-1:BigInt(a.row.id)>BigInt(b.row.id)?1:0)
- const events=items.filter(item=>item.row.id!==null)
- const summary={events:events.length,snapshots:source.snapshots.length,minId:events[0]?.row.id??null,maxId:events.at(-1)?.row.id??null,planSha256:sha256Hex(JSON.stringify(items.map(i=>[i.row.id??i.row.provider,i.sha256,i.updatedAtMs??null])))}
- return {ok:true,value:{items,summary}}
+ const digest=createBackfillAccumulator()
+ for(const item of items){const added=digest.append(item);if(!added.ok)return added}
+ return {ok:true,value:{items,summary:digest.finish()}}
 }
 /** @param {boolean} apply @param {string} confirmation @param {string} hash */
 export function authorizeBackfill(apply,confirmation,hash){return !apply?{ok:true,value:false}:confirmation===`APPLY ${hash}`?{ok:true,value:true}:{ok:false,reason:'confirmation_required'}}

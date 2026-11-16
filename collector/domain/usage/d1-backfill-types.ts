@@ -10,9 +10,22 @@ export interface BackfillDestination {
 export interface BackfillCheckpoint {planSha256:string;completed:number}
 export interface BackfillCheckpointPort {read():D1Result<BackfillCheckpoint|null>;write(value:BackfillCheckpoint):D1Result<void>}
 export interface BackfillCommandPorts {
- source:{read():Promise<D1Result<{events:unknown[];snapshots:unknown[]}>>}
+ source:{read():Promise<D1Result<BackfillInput>>}
  destination:BackfillDestination
  checkpoint:BackfillCheckpointPort
  ledgerOutboxCount:number
  close():Promise<void>
 }
+export interface BackfillReplayPlan {
+ summary:BackfillPlan['summary']
+ pages():AsyncIterable<readonly BackfillRow[]>
+}
+export interface BackfillSpool {
+ append(kind:'event'|'snapshot',rows:unknown[]):D1Result<void>
+ seal():D1Result<BackfillReplayPlan>
+ close():void
+}
+export interface BackfillPageSource {
+ scan(consume:(kind:'event'|'snapshot',rows:Record<string,unknown>[])=>D1Result<void>|Promise<D1Result<void>>):Promise<D1Result<void>>
+}
+export type BackfillInput={events:unknown[];snapshots:unknown[]}|BackfillReplayPlan

@@ -1,4 +1,7 @@
-import {readFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {createBackfillSpool} from '../../../../collector/infra/usage/backfill-spool.mjs'
+import {mkdtempSync,rmSync,readFileSync} from 'node:fs'
 import {Miniflare,Log,LogLevel} from 'miniflare'
 import {describe,it,expect,beforeAll,afterAll} from 'vitest'
 import {runBackfill} from '../../../../collector/app/usage/d1-backfill.mjs'
@@ -95,6 +98,26 @@ describe('Given local actual D1 and an explicit confirmed plan',()=>{
   const options={source:src,destination:counted,checkpoint:durable,ledgerOutboxCount:0,apply:true,confirmation:'APPLY '+successValue(planBackfill(src)).summary.planSha256}
   expect((await runBackfill(options)).ok).toBe(false);expect(successValue(await destination.inspect()).events).toBe(3)
   fail=false;expect((await runBackfill(options)).ok).toBe(true);expect(writes).toBe(1);expect(cp.read().value?.completed).toBe(3)
+ })
+
+ it('When a replayable disk plan is applied Then matches the original plan hash and all row counts',async()=>{
+  await reset();const directory=mkdtempSync(join(tmpdir(),'zzik-stream-apply-')),spool=successValue(createBackfillSpool({directory,pageSize:2})),src=source()
+  try{successValue(spool.append('event',[...src.events].reverse()));const plan=successValue(spool.seal()),old=successValue(planBackfill(src))
+   const result=await runBackfill({source:plan,destination:createD1BackfillDestination(query),checkpoint:checkpoint(),ledgerOutboxCount:0,apply:true,confirmation:'APPLY '+old.summary.planSha256})
+   expect(result).toMatchObject({ok:true,value:{...old.summary,written:3,completed:3}})
+  }finally{spool.close();rmSync(directory,{recursive:true,force:true})}
+ })
+
+ it('When a disk-plan batch fails and the spool is rebuilt Then resumes at the same numeric cursor without duplicate rows',async()=>{
+  await reset();const directory=mkdtempSync(join(tmpdir(),'zzik-stream-resume-')),src=source(),destination=createD1BackfillDestination(query),cp=checkpoint()
+  let spool=successValue(createBackfillSpool({directory,pageSize:1})),calls=0
+  const makePlan=()=>{successValue(spool.append('event',[...src.events].reverse()));return successValue(spool.seal())}
+  try{
+   const first=makePlan(),broken:BackfillDestination={...destination,write:sql=>++calls===2?Promise.resolve({ok:false,reason:'injected_failure'}):destination.write(sql)}
+   expect(await runBackfill({source:first,destination:broken,checkpoint:cp,ledgerOutboxCount:0,apply:true,confirmation:'APPLY '+first.summary.planSha256,batchSize:1})).toMatchObject({ok:false,completed:1})
+   spool.close();spool=successValue(createBackfillSpool({directory,pageSize:2}));const second=makePlan();expect(second.summary).toEqual(first.summary)
+   expect(await runBackfill({source:second,destination,checkpoint:cp,ledgerOutboxCount:0,apply:true,confirmation:'APPLY '+second.summary.planSha256,batchSize:1})).toMatchObject({ok:true,value:{alreadyPresent:1,written:2,completed:3}})
+  }finally{spool.close();rmSync(directory,{recursive:true,force:true})}
  })
 
 })

@@ -36,6 +36,12 @@ export function normalizeD1Instant(value: unknown): D1Result<{ ms: number; iso: 
   return parsed === null ? { ok: false, reason: 'invalid_instant' } : { ok: true, value: { ms: parsed.ms, iso: parsed.iso } }
 }
 
+/** Exact sub-ms key for disk-backed migration ordering; shares the Worker ms parser. */
+export function migrationTimeKey(value:unknown):D1Result<{ms:number;microRemainder:number}> {
+  const parsed=instant(value)
+  return parsed===null?{ok:false,reason:'invalid_instant'}:{ok:true,value:{ms:parsed.ms,microRemainder:Number(parsed.micros-BigInt(parsed.ms)*1000n)}}
+}
+
 function canonical(value: unknown): string | null {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value)
   if (typeof value === 'number') return Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value)) ? JSON.stringify(value) : null

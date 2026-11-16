@@ -4,6 +4,7 @@ import postgres from 'postgres'
 import {createInterface} from 'node:readline/promises'
 import {join,resolve} from 'node:path'
 import {pathToFileURL} from 'node:url'
+import {createBackfillSpool} from '../collector/infra/usage/backfill-spool.mjs'
 import {createPgBackfillSource} from '../collector/infra/usage/pg-backfill-source.mjs'
 import {createD1BackfillDestination} from '../collector/infra/usage/d1-backfill-destination.mjs'
 import {createD1RestClient} from '../collector/infra/usage/d1-rest-client.mjs'
@@ -17,16 +18,21 @@ async function createLivePorts({directory,checkpointPath,env}){
  const locked=lockBackfillLedger(directory);if(!locked.ok)return locked
  if(locked.value.outboxCount!==0){locked.value.close();return {ok:false,reason:'ledger_outbox_not_empty'}}
  /** @type {ReturnType<typeof postgres>|undefined} */let client
+ /** @type {import('../collector/domain/usage/d1-backfill-types.ts').BackfillSpool|undefined} */let ownSpool
  try{
   client=postgres(/** @type {string} */(env.DB_URL),{max:1,idle_timeout:5,connect_timeout:10,prepare:false,onnotice:()=>{}})
   const connection=client
+  const openedSpool=createBackfillSpool({directory});if(!openedSpool.ok){await connection.end({timeout:1});locked.value.close();return openedSpool}
+  const spool=openedSpool.value;ownSpool=spool
+  const reader=createPgBackfillSource({query:async(sql,params)=>({rows:await connection.unsafe(sql,/** @type {any} */(params??[]))})})
+  /** @type {Promise<import('../shared/d1-contract.ts').D1Result<import('../collector/domain/usage/d1-backfill-types.ts').BackfillInput>>|null} */let prepared=null
   const query=createD1RestClient({mode:'d1',dryRun:false,control:createD1ControlFile({path:join(directory,'backfill-rest-control.json')}),accountId:/** @type {string} */(env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(env.ZZIK_D1_DATABASE_ID),token:/** @type {string} */(env.ZZIK_D1_API_TOKEN),clock:{now:()=>Date.now()},wait:ms=>new Promise(r=>setTimeout(r,ms)),fetch:globalThis.fetch})
   return {ok:true,value:{
-   source:createPgBackfillSource({query:async(sql,params)=>({rows:await connection.unsafe(sql,/** @type {any} */(params??[]))})}),
+   source:{read(){prepared??=(async()=>{const read=await reader.scan((kind,rows)=>spool.append(kind,rows));return read.ok?spool.seal():read})();return prepared}},
    destination:createD1BackfillDestination(query),checkpoint:createBackfillCheckpoint(checkpointPath??join(directory,'d1-backfill-checkpoint.json')),ledgerOutboxCount:locked.value.outboxCount,
-   close:async()=>{try{await connection.end({timeout:1})}finally{locked.value.close()}},
+   close:async()=>{try{spool.close()}finally{try{await connection.end({timeout:1})}finally{locked.value.close()}}},
   }}
- }catch{await client?.end({timeout:1});locked.value.close();return {ok:false,reason:'backfill_setup_failed'}}
+ }catch{ownSpool?.close();await client?.end({timeout:1});locked.value.close();return {ok:false,reason:'backfill_setup_failed'}}
 }
 /** Dependency injection is a module API for local tests; the command has no fake-port flag/env hook.
  * @param {{args?:string[],env?:Record<string,string|undefined>,createPorts?:typeof createLivePorts}} [options] */
