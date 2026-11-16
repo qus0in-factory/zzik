@@ -15,9 +15,10 @@ description: opus가 Herdr 워커에 작업을 분배하고 감시자·검수자
 | `z-hydro` (`hydro`) | 경량 구현·문서·하네스 동기화 (Antigravity, Gemini 4 Hydrogen medium) | 범위가 명확한 소규모 구현, 문서·하네스·스킬 동기화, 테스트 보강, 리뷰 지적 반영. 설계·운영 배포 제외 |
 | `fable` | Herdr 패널 미배치 (설계·핵심 경로 리뷰 예외용) | Herdr 패널은 현재 미배치이나 `fable-designer` 서브에이전트(effort high)는 설계·핵심 경로 리뷰에 계속 사용한다. 아키텍처·인터페이스·데이터 모델 설계, 설계 리뷰·핵심 경로 리뷰(effort high). **구현·잡무 및 코드 수정 금지. 리뷰 검증을 위한 읽기·검색·오라클·테스트 실행은 허용**. 설계는 Herdr fable 패널 또는 fable-designer 서브에이전트(effort high)로 호출 |
 | `z-ds` (`ds`) | 경량 구현/잡무·교차 리뷰 (OpenCode, DeepSeek V4.1 Flash via Ollama Cloud) | 범위가 명확한 소규모 구현, 테스트 보강, 하네스·스크립트·문서 동기화, 리뷰 지적 반영, 구현자가 아닌 쪽의 교차 리뷰(리뷰 시 high). 설계·운영 배포·대규모 구조 변경 제외 |
+| `z-hf` (`hf`) | 소규모 구현·소규모 교차 리뷰·문서 동기화 (OpenCode, Hy4 flash Free) | 범위가 명확한 소규모 구현, 소규모 교차 리뷰, 문서·하네스 동기화, 리뷰 지적 반영. 설계·핵심 경로(수집기·DB 쓰기) 리뷰·운영 배포 제외 |
 | `.claude/agents/` 전용 서브에이전트<br>(`worker-watcher`, `work-reviewer`, `fable-designer`) | 대기·최종 판정·설계 예외 | opus는 구현·리뷰를 Claude Code 서브에이전트(sonnet)에 직접 위임하지 않고 Herdr 워커끼리 협업한다. 예외는 `worker-watcher`(대기·요약), `work-reviewer`(최종 판정), `fable-designer`(설계 예외)이며, 각 워커가 자기 도구 안에서 쓰는 내부 보조 서브에이전트(예: sol의 `.codex/agents/` terra)는 허용 |
 
-**현재 zzik 워커 구성**: `z-opus`(총괄)·`z-sol`·`z-ds`·`z-grok`·`z-hydro` (워크스페이스별 접두어 라벨 `z-`, `e-` 규칙). `beam`·`fable`은 미배치이며 임의로 추가하지 않는다. `argon` 패널은 쿼터 소진으로 닫았고 `astra` 패널은 사라져 상주 구성에서 제외한다.
+**현재 zzik 워커 구성**: `z-opus`(총괄)·`z-sol`·`z-ds`·`z-grok`·`z-hydro`·`z-hf` (워크스페이스별 접두어 라벨 `z-`, `e-` 규칙). `beam`·`fable`은 미배치이며 임의로 추가하지 않는다. `argon` 패널은 쿼터 소진으로 닫았고 `astra` 패널은 사라져 상주 구성에서 제외한다.
 
 ## fable 사용 제한 (설계·핵심 리뷰)
 - fable은 설계와 핵심 경로 리뷰에만 쓴다. 구현·잡무·코드 수정은 금지한다. 설계·리뷰 검증을 위한 읽기·검색·오라클·테스트 실행은 허용한다.

@@ -19,7 +19,7 @@ SELF_LABEL=<내 모델 약칭> scripts/herdr-label-models.sh [--force] [--dry-ru
 1. `herdr agent list`로 워크스페이스의 에이전트를 읽는다. **이미 이름이 있는 에이전트(`name`≠null)는 건너뛴다.** 이름이 없는 패널만 감지·라벨링하고, `--force`일 때만 이름이 있어도 다시 감지한다. `--dry-run`은 감지 결과만 출력하고 이름을 바꾸지 않는다.
 2. `agent` 필드로 1차 판정한다: `codex`→`sol`, `grok`→`grok`. 그 밖의 모호한 종류는 `herdr pane read --source visible`의 **화면 맨 아래 상태줄 영역(비어 있지 않은 마지막 5줄)** 에서 확인한다.
    - `agy`: `Gemini <버전> Hydrogen` 또는 `Hydrogen`→`hydro`, 그 외 `Gemini <버전>`→`gemini`.
-   - `opencode`: `GPT-<버전>-Sol`→`sol`, `DeepSeek <버전>`→`ds`, `Hy<버전>`→`hy`, `GLM-<버전>`→`glm`, `Beam Free`→`beam`.
+   - `opencode`: `GPT-<버전>-Sol`→`sol`, `DeepSeek <버전>`→`ds`, `Hy<버전>`→`hy`, `Hy4 flash`→`hf`(`hy`와 구분), `GLM-<버전>`→`glm`, `Beam Free`→`beam`.
    - `claude`: `Opus|Fable|Sonnet <버전>`→`opus`|`fable`|`sonnet`(마지막 줄 우선).
    - 상태줄에서 확인되지 않으면 이름을 바꾸지 않고 건너뛴다. 본문 인용문(위쪽 줄)은 보지 않는다. 자기 패널은 `SELF_LABEL`을 쓴다.
 3. `herdr agent rename` 성공 시 `herdr tab rename`, `herdr pane rename`으로 세 곳을 지정한다. 에이전트 이름 지정이 실패하면 tab/pane 변경과 출력은 생략하고, tab/pane 라벨 실패는 경고만 남기고 다음 패널로 계속한다.
