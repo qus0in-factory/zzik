@@ -14,10 +14,9 @@ export interface ChartPlot {
 const PADDING = { top: 10, right: 46, bottom: 24, left: 34 } as const
 
 export const CHART_Y_TICKS: readonly number[] = [0, 25, 50, 75, 100]
-/** 슬롯 1~8의 기본 테마 무늬(ADR 11절 ④). 1~3은 실선. */
-export const CHART_SLOT_DASH: readonly (string | null)[] = [null, null, null, '6 3', '2 3', '8 3 2 3', '1 3', '10 3']
-/** 9번째 이후(슬롯 0)의 중립 회색 파선. */
-export const CHART_OVERFLOW_DASH = '4 4'
+/** 실제 사용량 계열(슬롯 1~8 및 0)은 모두 실선(null)이다. 점선은 시간 대비 예상 보조선에만 쓴다. */
+export const CHART_SLOT_DASH: readonly (string | null)[] = [null, null, null, null, null, null, null, null]
+export const CHART_OVERFLOW_DASH: string | null = null
 
 export function chartPlot(width: number, height: number): ChartPlot {
   return {
@@ -68,6 +67,6 @@ export function slotForOrdinal(ordinal: number): number {
   return ordinal < 8 ? ordinal + 1 : 0
 }
 
-export function dashForSlot(slot: number): string | null {
-  return slot === 0 ? CHART_OVERFLOW_DASH : CHART_SLOT_DASH[slot - 1]
+export function dashForSlot(_slot: number): string | null {
+  return null
 }
