@@ -64,6 +64,17 @@ describe('Given a private SQLite WAL ledger and a process-lifetime lock',()=>{
   expect(openSqliteLedger({directory:d,nowMs:now})).toMatchObject({ok:false,reason:'already_running',exitCode:78})
   l.close();expect(open(d)).toBeDefined()
  })
+ for(const corrupt of ['{broken','null','[]','{"prune_failed":"yesterday"}'])it(`When maintenance notice metadata is corrupt (${corrupt}) Then skips notices without stopping observation commits`,()=>{
+  let db:DatabaseSync|undefined
+  const l=open(dir(),{databaseFactory:(p:string)=>{db=new DatabaseSync(p);return db}})
+  db!.prepare("INSERT INTO ledger_meta(key,value) VALUES('maintenance_notices',?)").run(corrupt)
+  expect(l.claimMaintenanceNotice('prune_failed',now)).toMatchObject({ok:false})
+  expect(add(l)).toMatchObject({ok:true})
+  expect(successValue(l.read('claude')).rows).toHaveLength(1)
+  expect(l.claimMaintenanceNotice('prune_failed',now+86400000)).toMatchObject({ok:false})
+  expect(add(l,2)).toMatchObject({ok:true})
+  expect(db!.prepare("SELECT value FROM ledger_meta WHERE key='maintenance_notices'").get()!.value).toBe(corrupt)
+ })
  it('When SQLite runs out of pages at local commit Then rolls back state and queue and stops further acceptance',()=>{
   let db:DatabaseSync|undefined
   const l=open(dir(),{databaseFactory:(p:string)=>{db=new DatabaseSync(p);return db}})
