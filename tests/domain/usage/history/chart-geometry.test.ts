@@ -49,10 +49,11 @@ describe('Given chart geometry with a fixed 0~100% y axis', () => {
     expect(nearestIndex([0, 10, 20], 20)).toBe(2)
   })
 
-  it('Then slots follow seriesOrder ordinals, the ninth and later are 0, with the ADR dash table', () => {
+  it('Then slots follow seriesOrder ordinals, the ninth and later are 0, and every usage slot is a solid line', () => {
     expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(slotForOrdinal)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 0, 0])
-    expect(CHART_SLOT_DASH).toEqual([null, null, null, '6 3', '2 3', '8 3 2 3', '1 3', '10 3'])
-    expect([1, 2, 3, 4, 5, 6, 7, 8].map(dashForSlot)).toEqual(CHART_SLOT_DASH)
-    expect(dashForSlot(0)).toBe(CHART_OVERFLOW_DASH)
+    expect(CHART_SLOT_DASH).toEqual([null, null, null, null, null, null, null, null])
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map(dashForSlot)).toEqual([null, null, null, null, null, null, null, null])
+    expect(CHART_OVERFLOW_DASH).toBeNull()
+    expect(dashForSlot(0)).toBeNull()
   })
 })

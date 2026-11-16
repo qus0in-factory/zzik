@@ -72,7 +72,7 @@ export function toUplotData(view: ChartView): uPlot.AlignedData {
   return [xs, ...columns] as uPlot.AlignedData
 }
 
-/** 슬롯 색·4~8번 파선·숨김 제외를 uPlot series 옵션으로 옮긴다(0번은 x축 자리). */
+/** 슬롯 색·숨김 제외를 uPlot series 옵션으로 옮긴다(0번은 x축 자리). 실제 사용량 계열은 항상 실선이고, 시간 대비 예상 보조선만 파선이다. */
 export function toUplotSeries(view: ChartView, palette: ChartPalette): uPlot.Series[] {
   const aligned = chartAlignedData(view)
   const visible = view.series.filter((series) => !series.hidden)
@@ -85,7 +85,7 @@ export function toUplotSeries(view: ChartView, palette: ChartPalette): uPlot.Ser
         label: series.label,
         stroke: palette.slots[series.slot] ?? palette.slots[0],
         width: 2,
-        dash: series.dash === null ? undefined : series.dash.split(' ').map(Number),
+        dash: undefined,
         spanGaps: false,
         points: { show: dotIndices.length > 0, size: 4, filter: dotIndices },
       } satisfies uPlot.Series

@@ -3,6 +3,7 @@ import type { UsageHistoryPage, UsageHistorySample } from '../../../../shared/us
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import type { ChartViewInput } from '@app/usage/history/chart-view-input'
 import { buildChartView, nearestStopIndex } from '@app/usage/history/chart-view'
+import antigravityPage from '../../../fixtures/usage-history/antigravity.samples.json'
 import claudePage from '../../../fixtures/usage-history/claude.samples.json'
 
 const page = claudePage as unknown as UsageHistoryPage
@@ -143,7 +144,7 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
     expect(nearestStopIndex(buildChartView(input({}, { samples: [], anchor: null })), 100)).toBe(-1)
   })
 
-  it('Then the ninth series falls to slot 0, is hidden by default and uses the overflow dash', () => {
+  it('Then the ninth series falls to slot 0, is hidden by default, and all usage series stay solid', () => {
     const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
     const sample: UsageHistorySample = {
       id: '1',
@@ -154,12 +155,40 @@ describe('Given the Claude usage-history fixture through the T2 ChartViewInput',
       values: ids.map((id) => ({ id, usedPercent: 10, resetsAt: null, cycleSeconds: null })),
     }
     const view = buildChartView(input({}, { samples: [sample], anchor: null, seriesOrder: ids }))
-    expect(view.series[3].dash).toBe('6 3')
-    expect(view.series[7].dash).toBe('10 3')
+    expect(view.series.map((s) => s.dash)).toEqual(Array.from({ length: 9 }, () => null))
     expect(view.series[8].slot).toBe(0)
-    expect(view.series[8].dash).toBe('4 4')
     expect(view.series[8].hidden).toBe(true)
     expect(view.stops[0].values.every((v) => v.seriesId !== 'i')).toBe(true)
+  })
+
+  it('When a multi-series provider like Antigravity (including Gemini 4 Argon) is built Then every actual usage series is solid (dash: null)', () => {
+    const agy = antigravityPage as unknown as UsageHistoryPage
+    const agyOrder = ['gemini-5h', 'gemini-weekly', '3p-5h', '3p-weekly', 'argon-weekly']
+    const view = buildChartView(
+      input(
+        { provider: 'antigravity', providerTitle: 'Antigravity', cardLabels: {} },
+        {
+          provider: 'antigravity',
+          samples: agy.samples,
+          anchor: agy.anchor,
+          seriesOrder: agyOrder,
+          labels: {
+            'gemini-5h': 'Gemini Models (5h)',
+            'gemini-weekly': 'Gemini Models (Weekly)',
+            '3p-5h': 'Claude and GPT models (5h)',
+            '3p-weekly': 'Claude and GPT models (Weekly)',
+            'argon-weekly': 'Gemini 4 Argon (Weekly)',
+          },
+        },
+      ),
+    )
+    expect(view.series.map((s) => [s.id, s.slot, s.dash])).toEqual([
+      ['gemini-5h', 1, null],
+      ['gemini-weekly', 2, null],
+      ['3p-5h', 3, null],
+      ['3p-weekly', 4, null],
+      ['argon-weekly', 5, null],
+    ])
   })
 })
 

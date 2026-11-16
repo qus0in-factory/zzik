@@ -90,13 +90,20 @@ describe('Given the uPlot history chart panel', () => {
     expect(tooltip?.getAttribute('role')).toBe('status')
   })
 
-  it('Then slot 1~3 swatches are solid and slot 4 carries its 6 3 dash', () => {
-    const { container } = setup()
-    const lines = [...container.querySelectorAll('.chart-swatch-line')]
-    expect(lines.find((line) => line.getAttribute('data-slot') === '4')?.getAttribute('stroke-dasharray')).toBe('6 3')
-    for (const slot of ['1', '2', '3']) {
-      for (const line of lines.filter((item) => item.getAttribute('data-slot') === slot)) expect(line.getAttribute('stroke-dasharray')).toBeNull()
-    }
+  it('Then all usage series swatches (including slot 4+) are solid and only the pace swatch is dashed', () => {
+    const { container } = setup({
+      state: {
+        phase: 'ready',
+        view: makeView({ pace: { id: '__time_pace__', label: '시간 대비 예상', points: [{ t: 0, p: 50 }] } }),
+        syncing: false,
+        progress: null,
+        note: null,
+      },
+    })
+    const usageLines = [...container.querySelectorAll('.chart-swatch-line:not(.chart-pace-swatch)')]
+    expect(usageLines).toHaveLength(4)
+    for (const line of usageLines) expect(line.getAttribute('stroke-dasharray')).toBeNull()
+    expect(container.querySelector('.chart-pace-swatch')?.getAttribute('stroke-dasharray')).toBe('6 4')
   })
 
   it('Then the range input is focusable (clipped), max = stops.length − 1 and aria-valuetext from the view', () => {
@@ -157,9 +164,11 @@ describe('Given the uPlot history chart panel', () => {
     expect(calls).toContain('showAll')
   })
 
-  it('Then loading shows a skeleton and error shows the message plus a retry action', () => {
-    setup({ state: { phase: 'loading' } })
-    expect(document.querySelector('[data-slot="skeleton"]')).toBeTruthy()
+  it('Then loading shows a spinner without the chart canvas and error shows the message plus a retry action', () => {
+    const { container } = setup({ state: { phase: 'loading' } })
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="chart-loading-spinner"]')).toBeTruthy()
+    expect(container.querySelector('.chart-canvas-host')).toBeNull()
     cleanup()
     const calls: string[] = []
     render(<UsageHistoryPanel panelId="chart-claude" regionLabel="Claude 사용률 추이" range="7d" state={{ phase: 'error', message: '이력을 불러오지 못했습니다' }} actions={{ onSelectRange: () => {}, onToggleSeries: () => {}, onShowAllSeries: () => {}, onRetry: () => calls.push('retry'), onResize: () => {} }} />)

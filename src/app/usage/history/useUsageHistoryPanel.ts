@@ -16,7 +16,7 @@ import { providerMetaFor } from '../provider-meta'
 import { useUsage } from '../useUsage'
 import { useUsageDeps } from '../UsageGatewayContext'
 import type { ChartButtonState, ChartPanelActions, ChartPanelState, UsageHistoryPanelBinding } from './chart-view'
-import { DEFAULT_CHART_SIZE, RANGE_MESSAGE_KEY } from './chart-view-input'
+import { DEFAULT_CHART_SIZE } from './chart-view-input'
 import { prefsOf } from './chart-prefs-store'
 import { resolveViewBuilder, useHistoryDeps } from './HistoryDepsContext'
 import { HISTORY_DATA_GC_MS, historyDataKey, historyWarmKey, historyDataQueryOptions, historySummaryQueryOptions, historySyncKey, runDedupedSync, throwForOutcome } from './history-query'
@@ -68,7 +68,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
 
   const [open, setOpen] = useState(() => deps.enabled && readOpenPanels(deps.session).includes(provider))
   const [size, setSize] = useState<{ width: number; height: number }>({ ...DEFAULT_CHART_SIZE })
-  const [progress, setProgress] = useState<string | null>(null)
+  const [preloadReady, setPreloadReady] = useState(() => deps.preload === undefined)
   /** 지연 청크의 뷰 빌더가 준비되면 올라가 뷰를 다시 만든다(빌더가 늦게 도착해도 빈 뷰에 머물지 않게). */
   const [builderTick, setBuilderTick] = useState(0)
 
@@ -89,10 +89,21 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     return Number.isFinite(ms) ? ms : null
   })()
 
-  // 동기화: 패널이 열려 있고 레코드를 읽은 뒤에 시작한다. 스냅샷 runAt·범위가 바뀌면 다시 돈다(생략 규칙은 syncHistory가 판단).
+  // 카드에서 본 라벨을 레코드에 기억한다(바뀐 것만).
+  const cardLabels = useMemo<Record<string, string>>(() => {
+    const labels: Record<string, string> = {}
+    for (const item of [...(usageState.report?.windows ?? []), ...(usageState.report?.metrics ?? [])]) labels[item.id] = item.label
+    return labels
+  }, [usageState.report])
+
+  // 패널 조작·동기화 완료 시점에 최신 값을 ref로 읽는다.
+  const latest = useRef({ record, range, cardLabels })
+  latest.current = { record, range, cardLabels }
+
+  // 동기화: 패널이 열려 있고 레코드·스냅샷을 읽은 뒤에 시작한다. 중간 조각마다 부분 데이터를 흘리지 않고 완료 시 한 번에 반영한다.
   const syncQuery = useQuery({
     queryKey: [...historySyncKey(provider), runAt ?? 'none', range],
-    enabled: deps.enabled && open && dataQuery.isSuccess,
+    enabled: deps.enabled && open && dataQuery.isSuccess && !snapshot.isPending,
     staleTime: Infinity,
     gcTime: HISTORY_DATA_GC_MS,
     refetchOnWindowFocus: false,
@@ -105,24 +116,23 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
           memory: deps.memory,
           nowMs: deps.nowMs,
           budget: deps.budget,
-          onRecord: (next) => client.setQueryData(historyDataKey(provider), next),
-          onProgress: (done, total) => setProgress(done >= total ? null : t('chart.progress', { range: t(RANGE_MESSAGE_KEY[range]), done, total })),
         },
         { provider, snapshotRunAt: runAt, wantFromMs: deps.nowMs() - RANGE_MS[range] },
       )
-      setProgress(null)
+      if (outcome.record !== null) {
+        const labeled = withLabels(outcome.record, latest.current.cardLabels)
+        if (labeled !== outcome.record) {
+          if (deps.memory.has(provider)) deps.memory.set(provider, labeled)
+          else void deps.cache.update(provider, (current) => (current === null ? null : withLabels(current, latest.current.cardLabels)))
+        }
+        client.setQueryData(historyDataKey(provider), labeled)
+      }
       const synced = throwForOutcome(outcome)
       void client.invalidateQueries({ queryKey: historyWarmKey }) // 레코드가 생겼으니 워밍 대상에 들어간다
       return synced
     },
   })
 
-  // 카드에서 본 라벨을 레코드에 기억한다(바뀐 것만).
-  const cardLabels = useMemo<Record<string, string>>(() => {
-    const labels: Record<string, string> = {}
-    for (const item of [...(usageState.report?.windows ?? []), ...(usageState.report?.metrics ?? [])]) labels[item.id] = item.label
-    return labels
-  }, [usageState.report])
   useEffect(() => {
     if (record === null) return
     const next = withLabels(record, cardLabels)
@@ -152,14 +162,21 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     })
   }, [deps.enabled, deps.session, provider])
   const onIntent = useCallback(() => {
-    if (deps.enabled) void Promise.resolve(deps.preload?.()).then(() => setBuilderTick((tick) => tick + 1))
+    if (deps.enabled)
+      void Promise.resolve(deps.preload?.()).then(() => {
+        setPreloadReady(true)
+        setBuilderTick((tick) => tick + 1)
+      })
   }, [deps])
   // 패널이 열리면(호버·포커스 없이 열려도) 뷰 빌더를 받아 둔다.
   useEffect(() => {
     if (!deps.enabled || !open) return
     let active = true
     void Promise.resolve(deps.preload?.()).then(() => {
-      if (active) setBuilderTick((tick) => tick + 1)
+      if (active) {
+        setPreloadReady(true)
+        setBuilderTick((tick) => tick + 1)
+      }
     })
     return () => {
       active = false
@@ -178,9 +195,6 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
         onIntent,
       }
 
-  // 패널 조작: 참조가 유지되도록 최신 값은 ref로 읽는다.
-  const latest = useRef({ record, range })
-  latest.current = { record, range }
   const actions = useMemo<ChartPanelActions>(
     () => ({
       onSelectRange: (next) => deps.prefs.getState().setRange(provider, next),
@@ -196,19 +210,22 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     [deps.prefs, provider, syncQuery.refetch],
   )
 
+  const isLoading = dataQuery.isPending || snapshot.isPending || syncQuery.isPending || syncQuery.isFetching || !preloadReady
   const buildView = resolveViewBuilder(deps)
   const view = useMemo(
-    () => (record === null ? null : buildView({ provider, providerTitle: meta.title, record, tailEnd, range, hidden: hidden ?? NONE, shown: shown ?? NONE, cardLabels, size, nowMs: usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso), windows: usageState.report?.windows })),
-    [buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, usageState.report],
+    () => (isLoading || record === null ? null : buildView({ provider, providerTitle: meta.title, record, tailEnd, range, hidden: hidden ?? NONE, shown: shown ?? NONE, cardLabels, size, nowMs: usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso), windows: usageState.report?.windows })),
+    [isLoading, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, usageState.report],
   )
 
   if (!deps.enabled || !open) return { button, panel: null }
   const errorMessage = syncQuery.error instanceof UsageLoadError ? syncQuery.error.message : syncQuery.isError ? t('chart.loadFailed') : null
   const state: ChartPanelState =
-    view === null
-      ? errorMessage !== null
-        ? { phase: 'error', message: errorMessage }
-        : { phase: 'loading' }
-      : { phase: 'ready', view, syncing: syncQuery.isFetching, progress, note: errorMessage }
+    isLoading
+      ? { phase: 'loading' }
+      : view === null
+        ? errorMessage !== null
+          ? { phase: 'error', message: errorMessage }
+          : { phase: 'loading' }
+        : { phase: 'ready', view, syncing: false, progress: null, note: errorMessage }
   return { button, panel: { panelId, regionLabel: t('chart.regionLabel', { provider: meta.title }), range, state, actions } }
 }

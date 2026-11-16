@@ -16,6 +16,8 @@ import { createFakeHistoryCache, createFakeHistoryGateway, createFakeHistoryServ
 import { createFakeUsageClock, createFakeUsageGateway, createFakeUsageScheduler } from '../../../fakes/usage-ports'
 import { createTestQueryClient } from '../../../helpers/query'
 import type { UsageHistoryPage } from '../../../../shared/usage-history-contract'
+import agyRaw from '../../../fixtures/antigravity-usage.gemini-argon.json'
+import agySamples from '../../../fixtures/usage-history/antigravity.samples.json'
 import live from '../../../fixtures/usage-history/codex.xfit-live.json'
 
 afterEach(cleanup)
@@ -77,5 +79,69 @@ describe('Given an open chart receiving a snapshot between shared clock ticks', 
     expect(view.pace?.points.at(-1)?.p).toBe(view.summary?.pace.elapsedPercent)
     const region = screen.getByRole('region',{name:'ChatGPT (Codex) 사용률 추이'})
     expect(region.querySelector('.chart-toolbar')?.textContent).toContain(screen.getByTestId('usage-pace-codex').textContent)
+  })
+})
+
+describe('Given the Antigravity multi-series chart (including Gemini 4 Argon)', () => {
+  it('When opened Then a spinner shows during loading, the chart renders once on completion, and all five usage series stay solid while only pace is dashed', async () => {
+    const page = agySamples as unknown as UsageHistoryPage
+    const nowIso = '2026-11-14T00:30:00.000Z'
+    const now = Date.parse(nowIso)
+    const gateway = createFakeHistoryGateway({ antigravity: createFakeHistoryServer('antigravity', page.samples) })
+    gateway.summary = [{ provider: 'antigravity', okCount: 4, firstOkAt: '2026-11-12T23:00:00.000Z', lastOkAt: page.samples.at(-1)!.runAt }]
+    let blocked = true
+    let releaseFetch!: () => void
+    gateway.onBeforeFetch = () => (blocked ? new Promise<void>((resolve) => { releaseFetch = () => { blocked = false; resolve() } }) : Promise.resolve())
+    const usage = createFakeUsageGateway()
+    usage.pushResultFor('antigravity', { ok: true, usage: agyRaw, collection: null, rawText: null })
+    const views: ChartView[] = []
+    const deps = {
+      enabled: true,
+      gateway,
+      cache: createFakeHistoryCache(),
+      session: createMemoryKeyValue(),
+      prefs: createChartPrefsStore(createMemoryKeyValue()),
+      budget: createHistoryBudget({ now: () => now }),
+      memory: new Map(),
+      inflight: new Map(),
+      nowMs: () => now,
+      buildView: (input: ChartViewInput) => {
+        const view = buildChartView(input)
+        views.push(view)
+        return view
+      },
+    }
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <UsageGatewayProvider deps={{ gateway: usage, clock: createFakeUsageClock(nowIso), scheduler: createFakeUsageScheduler() }}>
+          <HistoryDepsProvider deps={deps}>
+            <UsageSection provider="antigravity" />
+          </HistoryDepsProvider>
+        </UsageGatewayProvider>
+      </QueryClientProvider>,
+    )
+    const open = await screen.findByRole('button', { name: '차트 보기' })
+    await waitFor(() => expect(open.getAttribute('aria-disabled')).toBeNull())
+    fireEvent.click(open)
+    const region = await screen.findByRole('region', { name: 'Antigravity 사용률 추이' })
+    await waitFor(() => expect(region.querySelector('[data-testid="chart-loading-spinner"]')).toBeTruthy())
+    expect(region.querySelector('.chart-canvas-host')).toBeNull()
+    expect(views).toHaveLength(0)
+
+    act(() => releaseFetch())
+    await waitFor(() => expect(region.querySelector('.chart-canvas-host')).toBeTruthy())
+    expect(region.querySelector('[data-testid="chart-loading-spinner"]')).toBeNull()
+    expect(views).toHaveLength(1)
+    expect(views[0].series.map((s) => [s.id, s.dash])).toEqual([
+      ['gemini-5h', null],
+      ['gemini-weekly', null],
+      ['3p-5h', null],
+      ['3p-weekly', null],
+      ['argon-weekly', null],
+    ])
+    const usageSwatches = [...region.querySelectorAll('.chart-swatch-line:not(.chart-pace-swatch)')]
+    expect(usageSwatches).toHaveLength(5)
+    for (const swatch of usageSwatches) expect(swatch.getAttribute('stroke-dasharray')).toBeNull()
+    expect(region.querySelector('.chart-pace-swatch')?.getAttribute('stroke-dasharray')).toBe('6 4')
   })
 })

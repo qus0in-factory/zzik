@@ -3,7 +3,7 @@
 @import 'uplot/dist/uPlot.min.css';
 
 :root {
-  /* 계열 색(8.3절): 흰 카드 대비 3.41 이상. 슬롯 4~8은 파선으로도 구분한다. */
+  /* 계열 색(8.3절): 흰 카드 대비 3.41 이상. 실제 사용량 계열은 모두 실선이다. */
   --chart-1: #2a78d6;
   --chart-2: #e0591f;
   --chart-3: #199e70;
@@ -62,7 +62,7 @@
 .usage-history-chart [data-slot='8'] { --chart-color: var(--chart-8); }
 .usage-history-chart [data-slot='0'] { --chart-color: var(--chart-overflow); }
 
-.chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; }
+.chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; margin-bottom: 10px; }
 .chart-toolbar > :first-child:not(.chart-range-tabs) { margin-right: auto; }
 .chart-pace-legend { cursor: default; }
 .chart-range-tabs { display: inline-flex; gap: 4px; }
@@ -174,7 +174,14 @@
   padding: 12px 4px;
   font-size: 13px;
 }
-.chart-skeleton { color: var(--chart-muted); }
+.chart-skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 240px;
+  color: var(--chart-muted);
+}
 .chart-error { display: flex; align-items: center; gap: 12px; color: var(--destructive); }
 .chart-retry { border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; background: transparent; color: inherit; cursor: pointer; }
 .chart-empty { color: var(--chart-muted); }

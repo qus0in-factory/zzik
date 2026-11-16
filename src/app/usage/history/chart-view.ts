@@ -48,7 +48,7 @@ export interface ChartSeriesView {
    * seriesOrder의 순번(0부터)이 i일 때 i < 8이면 i + 1, 아니면 0. 숨김·범위·정렬로 바뀌지 않는다.
    */
   slot: number
-  /** 기본 테마의 stroke-dasharray. 슬롯 1~3은 null(실선), 4~8과 0은 무늬 문자열. */
+  /** 기본 테마의 stroke-dasharray. 실제 사용량 계열은 항상 null(실선)이다. */
   dash: string | null
   /** 숨김이면 paths·dots는 빈 배열, endLabel은 null이고 stops에도 나오지 않는다. */
   hidden: boolean

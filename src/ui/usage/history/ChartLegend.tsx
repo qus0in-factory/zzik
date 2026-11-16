@@ -17,7 +17,7 @@ export function ChartLegend({ view, onToggle, onShowAll }: { view: ChartView; on
           onClick={() => onToggle(series.id)}
         >
           <svg className="chart-swatch" width="20" height="8" aria-hidden="true">
-            <line className="chart-swatch-line" data-slot={series.slot} x1="0" y1="4" x2="20" y2="4" strokeDasharray={series.dash ?? undefined} />
+            <line className="chart-swatch-line" data-slot={series.slot} x1="0" y1="4" x2="20" y2="4" />
           </svg>
           <span>{series.label}</span>
         </button>
