@@ -3,7 +3,7 @@ import {describe,it,expect} from 'vitest'
 import {mkdtempSync,readFileSync,readdirSync,rmSync,statSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {createWranglerD1Query,renderWranglerSql} from '../../../../collector/infra/usage/wrangler-d1-query.mjs'
+import {createWranglerD1Query,executeWrangler,renderWranglerSql} from '../../../../collector/infra/usage/wrangler-d1-query.mjs'
 describe('Given a bounded Wrangler OAuth destination with an injected executor',()=>{
  it('When binding strings and 64-bit IDs Then escapes literals without converting string IDs to numbers',()=>{
   expect(renderWranglerSql({sql:"SELECT CAST(? AS INTEGER),?,?,'?'",params:['9007199254740993',"a'; DELETE FROM usage_event; --",null]})).toEqual({ok:true,value:"SELECT CAST('9007199254740993' AS INTEGER),'a''; DELETE FROM usage_event; --',NULL,'?'"})
@@ -26,6 +26,21 @@ describe('Given a bounded Wrangler OAuth destination with an injected executor',
  it('When the process fails or returns malformed/unsuccessful JSON Then returns only a safe failure and does not retry',async()=>{
   const directory=mkdtempSync(join(tmpdir(),'wrangler-errors-'))
   try{for(const response of [{exitCode:1,stdout:'secret-account-token'},{exitCode:0,stdout:'secret-account-token'},{exitCode:0,stdout:'[{"success":false,"error":"secret-account-token"}]'}]){let calls=0;const q=createWranglerD1Query({directory,database:'zzik-usage',execute:async()=>{calls++;return response}});const r=await q.query([{sql:'SELECT 1',params:[]}]);expect(r.ok).toBe(false);expect(JSON.stringify(r)).not.toContain('secret');expect(calls).toBe(1)}}finally{rmSync(directory,{recursive:true,force:true})}
+ })
+})
+
+describe('Given a parent environment that holds operator secrets',()=>{
+ it('When Wrangler runs Then the child keeps the runtime allowlist and collector profile and drops secret keys',async()=>{
+  let seen:{env:NodeJS.ProcessEnv}|undefined
+  const result=await executeWrangler(['d1','execute','zzik-usage'],{env:{HOME:'/synthetic-home',PATH:'/synthetic-bin',XDG_CONFIG_HOME:'/synthetic-xdg',TMPDIR:'/synthetic-tmp',LANG:'ko_KR.UTF-8',HTTPS_PROXY:'http://127.0.0.1:9',NODE_EXTRA_CA_CERTS:'/synthetic-ca.pem',SSL_CERT_FILE:'/synthetic-ca.pem',CLOUDFLARE_AUTH_PROFILE:'zzik-collector',CLOUDFLARE_AUTH_USE_KEYRING:'false',DISCORD_WEBHOOK_URL:'synthetic-secret',ZZIK_ALERT_WEBHOOK_URL:'synthetic-secret',DB_URL:'synthetic-secret',ZZIK_D1_API_TOKEN:'synthetic-secret',ZZIK_D1_ACCOUNT_ID:'synthetic-account',ZZIK_D1_DATABASE_ID:'synthetic-account',CLOUDFLARE_API_TOKEN:'synthetic-secret',CF_API_TOKEN:'synthetic-secret',CLOUDFLARE_API_KEY:'synthetic-secret',CF_API_KEY:'synthetic-secret',CLOUDFLARE_EMAIL:'synthetic-secret',CF_EMAIL:'synthetic-secret',CLOUDFLARE_ACCOUNT_ID:'synthetic-account',CF_ACCOUNT_ID:'synthetic-account',CLOUDFLARE_API_BASE_URL:'https://synthetic-secret.example'},execute:async request=>{seen=request;return {exitCode:0,stdout:''}}})
+  expect(result).toEqual({exitCode:0,stdout:''})
+  expect(seen?.env).toMatchObject({HOME:'/synthetic-home',PATH:'/synthetic-bin',XDG_CONFIG_HOME:'/synthetic-xdg',TMPDIR:'/synthetic-tmp',LANG:'ko_KR.UTF-8',HTTPS_PROXY:'http://127.0.0.1:9',NODE_EXTRA_CA_CERTS:'/synthetic-ca.pem',SSL_CERT_FILE:'/synthetic-ca.pem',CLOUDFLARE_AUTH_PROFILE:'zzik-collector',CLOUDFLARE_AUTH_USE_KEYRING:'false',CI:'true',WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',NO_COLOR:'1',WRANGLER_API_ENVIRONMENT:'production'})
+  expect(JSON.stringify(seen?.env)).not.toContain('synthetic-secret')
+  expect(seen?.env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined()
+  expect(seen?.env.CF_ACCOUNT_ID).toBeUndefined()
+  expect(seen?.env.ZZIK_D1_ACCOUNT_ID).toBeUndefined()
+  expect(seen?.env.DISCORD_WEBHOOK_URL).toBeUndefined()
+  expect(seen?.env.DB_URL).toBeUndefined()
  })
 })
 

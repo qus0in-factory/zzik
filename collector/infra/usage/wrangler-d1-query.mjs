@@ -28,18 +28,29 @@ export function renderWranglerSql(statement){
   return {ok:true,value:sql}
  }catch{return {ok:false,reason:'invalid_sql_parameters'}}
 }
+/** Runtime and Wrangler profile settings only. DB, Discord, API credentials, account ids, and endpoint overrides are never inherited.
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {NodeJS.ProcessEnv} */
+function wranglerChildEnv(env=process.env){
+ /** @type {NodeJS.ProcessEnv} */const child={}
+ for(const key of ['HOME','PATH','XDG_CONFIG_HOME','XDG_CACHE_HOME','TMPDIR','TMP','TEMP','APPDATA','LOCALAPPDATA','SYSTEMROOT','LANG','LC_ALL','LC_CTYPE','HTTPS_PROXY','HTTP_PROXY','ALL_PROXY','NO_PROXY','https_proxy','http_proxy','all_proxy','no_proxy','NODE_EXTRA_CA_CERTS','NODE_USE_ENV_PROXY','SSL_CERT_FILE','SSL_CERT_DIR','CLOUDFLARE_AUTH_PROFILE','CLOUDFLARE_AUTH_USE_KEYRING'])if(env[key]!==undefined)child[key]=env[key]
+ Object.assign(child,{CI:'true',WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',NO_COLOR:'1',WRANGLER_API_ENVIRONMENT:'production'})
+ return child
+}
 /** Captured output is never logged. OAuth refresh remains Wrangler's responsibility.
- * @param {readonly string[]} args @returns {Promise<{exitCode:number,stdout:string}>} */
-export function executeWrangler(args){
- const env={...process.env,WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',NO_COLOR:'1'}
- for(const key of ['DB_URL','ZZIK_D1_API_TOKEN','ZZIK_D1_ACCOUNT_ID','ZZIK_D1_DATABASE_ID','CLOUDFLARE_API_TOKEN','CF_API_TOKEN','CLOUDFLARE_API_KEY','CF_API_KEY','CLOUDFLARE_EMAIL','CF_EMAIL','CLOUDFLARE_ACCOUNT_ID','CF_ACCOUNT_ID'])delete /** @type {Record<string,string|undefined>} */(env)[key]
- return new Promise(resolve=>execFile(process.execPath,[fileURLToPath(new URL('../../../node_modules/wrangler/bin/wrangler.js',import.meta.url)),...args],{cwd:fileURLToPath(new URL('../../../',import.meta.url)),encoding:'utf8',timeout:120000,maxBuffer:16*1024*1024,env},(error,stdout)=>resolve({exitCode:error?1:0,stdout:error?'':stdout})))
+ * @param {readonly string[]} args
+ * @param {{env?:NodeJS.ProcessEnv,execute?:(request:{file:string,args:string[],cwd:string,env:NodeJS.ProcessEnv})=>Promise<{exitCode:number,stdout:string}>}} [options]
+ * @returns {Promise<{exitCode:number,stdout:string}>} */
+export function executeWrangler(args,options={}){
+ const env=wranglerChildEnv(options.env??process.env)
+ const run=options.execute??(/** @param {{file:string,args:string[],cwd:string,env:NodeJS.ProcessEnv}} request */request=>new Promise(resolve=>execFile(request.file,request.args,{cwd:request.cwd,encoding:'utf8',timeout:120000,maxBuffer:16*1024*1024,env:request.env},(error,stdout)=>resolve({exitCode:error?1:0,stdout:error?'':stdout}))))
+ return run({file:process.execPath,args:[fileURLToPath(new URL('../../../node_modules/wrangler/bin/wrangler.js',import.meta.url)),...args],cwd:fileURLToPath(new URL('../../../',import.meta.url)),env})
 }
 /** Operator-only transport. No automatic retries, remote credentials, or collector runtime wiring.
- * @param {{directory:string,database:string,execute?:(args:readonly string[])=>Promise<{exitCode:number,stdout:string}>,remote?:boolean,persistTo?:string,configPath?:string,wait?:(ms:number)=>Promise<void>,now?:()=>number}} options
+ * @param {{directory:string,database:string,env?:NodeJS.ProcessEnv,execute?:(args:readonly string[])=>Promise<{exitCode:number,stdout:string}>,remote?:boolean,persistTo?:string,configPath?:string,wait?:(ms:number)=>Promise<void>,now?:()=>number}} options
  * @returns {import('../../domain/usage/d1-sender-types.ts').D1QueryPort} */
 export function createWranglerD1Query(options){
- const execute=options.execute??executeWrangler,now=options.now??Date.now,wait=options.wait??(ms=>new Promise(r=>setTimeout(r,ms)))
+ const execute=options.execute??(args=>executeWrangler(args,{env:options.env})),now=options.now??Date.now,wait=options.wait??(ms=>new Promise(r=>setTimeout(r,ms)))
  let next=0,tail=Promise.resolve()
  /** @param {readonly import('../../../shared/d1-contract.ts').D1SqlStatement[]} statements @returns {Promise<import('../../domain/usage/d1-sender-types.ts').D1QueryResult>} */
  const send=async statements=>{
