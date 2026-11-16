@@ -58,6 +58,7 @@ export async function runD1Preflight(ports, options) {
 
   /** @type {Array<{name: string, status: 'PASS' | 'FAIL', reason?: string}>} */
   const checks = []
+  let initialPostgresProcess = false
 
   // 1-2. PM2 process status & ZZIK_STORE
   const pm2Call = await withNodeTimeout(ports.pm2.readProcess(), timeoutMs)
@@ -72,6 +73,7 @@ export async function runD1Preflight(ports, options) {
 
     const storeValid = typeof zzikStore === 'string' && VALID_STORES.has(zzikStore)
     const storeMatches = options.expectedZzikStore === undefined ? storeValid : zzikStore === options.expectedZzikStore
+    initialPostgresProcess = statusOk && zzikStore === 'postgres' && options.expectedZzikStore === 'postgres' && options.expectedReadStore === 'postgres'
     checks.push(storeMatches ? { name: 'zzik_store', status: 'PASS' } : { name: 'zzik_store', status: 'FAIL', reason: 'invalid_zzik_store' })
   }
 
@@ -82,12 +84,15 @@ export async function runD1Preflight(ports, options) {
     checks.push({ name: 'ledger_exists', status: 'FAIL', reason })
     checks.push({ name: 'ledger_outbox_zero', status: 'FAIL', reason })
   } else {
-    const { exists, outboxCount } = ledgerCall.value.value
-    const existsOk = exists === expectedLedgerExists
-    checks.push(existsOk ? { name: 'ledger_exists', status: 'PASS' } : { name: 'ledger_exists', status: 'FAIL', reason: 'ledger_missing' })
+    const { exists, marker, outboxCount } = ledgerCall.value.value
+    // PG has no D1 ledger before the first cutover. Never create one to satisfy
+    // this read-only gate, and never excuse an existing marker or damaged DB.
+    const initialPostgres = initialPostgresProcess && options.expectedLedgerExists === undefined && exists === false && marker === null && outboxCount === 0
+    const existsOk = exists === expectedLedgerExists || initialPostgres
+    checks.push(existsOk ? { name: 'ledger_exists', status: 'PASS', ...(initialPostgres ? {reason:'initial_postgres_no_ledger'} : {}) } : { name: 'ledger_exists', status: 'FAIL', reason: 'ledger_missing' })
 
-    const outboxOk = exists === true && Number.isSafeInteger(outboxCount) && outboxCount === 0
-    checks.push(outboxOk ? { name: 'ledger_outbox_zero', status: 'PASS' } : { name: 'ledger_outbox_zero', status: 'FAIL', reason: exists === true ? 'ledger_outbox_non_empty' : 'ledger_missing' })
+    const outboxOk = initialPostgres || exists === true && Number.isSafeInteger(outboxCount) && outboxCount === 0
+    checks.push(outboxOk ? { name: 'ledger_outbox_zero', status: 'PASS', ...(initialPostgres ? {reason:'initial_postgres_no_ledger'} : {}) } : { name: 'ledger_outbox_zero', status: 'FAIL', reason: exists === true ? 'ledger_outbox_non_empty' : 'ledger_missing' })
   }
 
   // 5-6. Worker export/bucket deployment & USAGE_READ_STORE
@@ -118,10 +123,14 @@ function createReadOnlyLedgerInspector() {
     async inspect(stateDir) {
       const dbPath = join(stateDir, 'collector-ledger.sqlite')
       const markerPath = join(stateDir, 'collector-ledger.marker.json')
-      if (!existsSync(dbPath) || statSync(dbPath).size === 0) {
+      const markerExists = existsSync(markerPath)
+      const marker = markerExists ? JSON.parse(readFileSync(markerPath, 'utf8'))?.status ?? 'invalid' : null
+      if (markerExists && !['active','rolled-back'].includes(marker)) return {ok:false,reason:'invalid_ledger_marker'}
+      if (!existsSync(dbPath)) {
+        if (markerExists) return {ok:false,reason:'ledger_missing_with_marker'}
         return { ok: true, value: { exists: false, marker: null, outboxCount: 0 } }
       }
-      const marker = existsSync(markerPath) ? JSON.parse(readFileSync(markerPath, 'utf8'))?.status ?? null : null
+      if (statSync(dbPath).size === 0) return {ok:false,reason:'empty_ledger'}
       const db = new DatabaseSync(dbPath, { readOnly: true })
       try {
         const row = db.prepare('SELECT count(*) AS n FROM outbox').get()

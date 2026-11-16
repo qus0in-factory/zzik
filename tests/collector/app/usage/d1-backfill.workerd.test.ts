@@ -18,6 +18,13 @@ const query:D1QueryPort={authStopped:()=>false,async query(statements){try{retur
 function checkpoint(){let saved:BackfillCheckpoint|null=null;return {read:()=>({ok:true as const,value:saved}),write:(v:BackfillCheckpoint)=>{saved=v;return {ok:true as const,value:undefined}}}}
 async function reset(){await db.batch(['DELETE FROM usage_event','DELETE FROM usage_snapshot','DELETE FROM usage_write_receipt',"DELETE FROM sqlite_sequence WHERE name='usage_event'"].map(sql=>db.prepare(sql)))}
 describe('Given local actual D1 and an explicit confirmed plan',()=>{
+ it('When a PG aggregate disagrees with the sealed plan Then refuses before inspecting or writing D1',async()=>{
+  await reset();const src=source(),p=successValue(planBackfill(src));let inspected=0
+  const destination=createD1BackfillDestination(query),checked={...destination,inspect:async()=>{inspected++;return destination.inspect()}}
+  const plan={summary:p.summary,sourceFacts:{events:4,snapshots:0,minId:p.summary.minId,maxId:p.summary.maxId,eventsByProvider:{claude:4}},async *pages(){yield p.items}}
+  expect(await runBackfill({source:plan,destination:checked,checkpoint:checkpoint(),ledgerOutboxCount:0,apply:true,confirmation:'APPLY '+p.summary.planSha256})).toMatchObject({ok:false,reason:'pg_plan_count_mismatch'})
+  expect(inspected).toBe(0)
+ })
  it('When dry-running or ledger has pending rows Then performs no D1 writes',async()=>{
   await reset();const destination=createD1BackfillDestination(query),src=source(),cp=checkpoint()
   expect((await runBackfill({source:src,destination,checkpoint:cp,ledgerOutboxCount:0})).ok).toBe(true)

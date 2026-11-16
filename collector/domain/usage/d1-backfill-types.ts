@@ -16,7 +16,9 @@ export interface BackfillCommandPorts {
  ledgerOutboxCount:number
  close():Promise<void>
 }
+export interface PgBackfillFacts {events:number;snapshots:number;minId:string|null;maxId:string|null;eventsByProvider:Record<string,number>}
 export interface BackfillReplayPlan {
+ sourceFacts?:PgBackfillFacts
  summary:BackfillPlan['summary']
  pages():AsyncIterable<readonly BackfillRow[]>
 }
@@ -26,6 +28,6 @@ export interface BackfillSpool {
  close():void
 }
 export interface BackfillPageSource {
- scan(consume:(kind:'event'|'snapshot',rows:Record<string,unknown>[])=>D1Result<void>|Promise<D1Result<void>>):Promise<D1Result<void>>
+ scan(consume:(kind:'event'|'snapshot',rows:Record<string,unknown>[])=>D1Result<void>|Promise<D1Result<void>>):Promise<D1Result<PgBackfillFacts>>
 }
 export type BackfillInput={events:unknown[];snapshots:unknown[]}|BackfillReplayPlan

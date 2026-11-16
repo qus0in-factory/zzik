@@ -97,6 +97,27 @@ describe('Given the D1 bucket writer and reader inside actual workerd', () => {
     }
   }
 
+  it('When the raw tail crosses decimal digit boundaries Then folds in numeric id order',async()=>{
+    await insert([event('9',T0+1000),event('10',T0+2000),event('100',T0+3000)])
+    const result=await new D1BucketStore(db,{dataGeneration:0}).readBuckets(provider,{from:new Date(T0).toISOString(),until:new Date(T0+900000).toISOString(),bucketSec:900})
+    expect(result.ok).toBe(true)
+    if(result.ok)expect(result.value.samples.map(s=>s.id)).toEqual(['100'])
+  })
+
+  it('When earlier raw IDs are backfilled Then clearing only the two derived tables rebuilds from ID zero',async()=>{
+    await insert([event('1000',T0+3000,10)])
+    const writer=()=>runBucketWriter(new D1BucketWriterStore(db),{scanVersion:USAGE_HISTORY_SCAN_VERSION,dataGeneration:0,nowMs:T0+900000,providers:[provider]})
+    expect((await writer()).ok).toBe(true)
+    await insert([event('12',T0+1000,20),event('100',T0+2000,30)])
+    expect((await writer()).ok).toBe(true)
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM usage_bucket_boundary').first('n')).toBe(1)
+    await db.batch(['DELETE FROM usage_bucket_boundary','DELETE FROM usage_bucket_checkpoint'].map(sql=>db.prepare(sql)))
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM usage_event').first('n')).toBe(3)
+    expect((await writer()).ok).toBe(true)
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM usage_bucket_boundary').first('n')).toBe(3)
+    expect(await db.prepare('SELECT last_processed_id FROM usage_bucket_checkpoint').first('last_processed_id')).toBe('1000')
+  })
+
   const run = (pageRows = 100) => runBucketWriter(new D1BucketWriterStore(db), {
     scanVersion: USAGE_HISTORY_SCAN_VERSION,
     dataGeneration: 0,

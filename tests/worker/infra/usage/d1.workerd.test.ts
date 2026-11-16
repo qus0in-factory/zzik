@@ -44,7 +44,7 @@ describe('Given the D1 schema inside actual workerd', () => {
       await db.prepare('INSERT INTO usage_event (id, provider, run_at, status, envelope) VALUES (CAST(? AS INTEGER), ?, ?, ?, ?)')
         .bind(id, 'codex', runAt, 'ok', envelope()).run()
     }
-    const rows = await db.prepare('SELECT CAST(id AS TEXT) AS id FROM usage_event ORDER BY id ASC').all<{ id: string }>()
+    const rows = await db.prepare('SELECT CAST(id AS TEXT) AS id FROM usage_event ORDER BY usage_event.id ASC').all<{ id: string }>()
     expect(rows.results.map((row: { id: string }) => row.id)).toEqual(['9007199254740992', '9007199254740993', '9223372036854775807'])
     const store = new D1HistoryStore(db)
     const history = await store.readRows('codex', { limit: 10 })

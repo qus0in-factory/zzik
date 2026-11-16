@@ -10,6 +10,26 @@
 
 ---
 
+## 준비 커밋과 환경 소스 (0.6.25 배포 전)
+
+이 준비 커밋만으로 운영 저장소를 전환하지 않는다. 기본 ecosystem env는 계속 `ZZIK_STORE=postgres`·900초다. kill_timeout=35000을 선언하고 D1은 명시적 PM2 `--env d1`로만 선택한다. release 반영·검증 전에 수집기를 정지하거나 재시작하지 않는다.
+
+| 키/설정 | 정본 소스 | 전환 시 사용 |
+|---|---|---|
+| ZZIK_STORE | ecosystem 기본 env / env_d1 / env_postgres | 기본 postgres, 명시적 d1 전환, 명시적 postgres 복귀 |
+| ZZIK_D1_AUTH | ecosystem env_d1 | wrangler-oauth |
+| ZZIK_D1_OAUTH_PROFILE | ecosystem env_d1 | zzik-collector |
+| ZZIK_D1_ACCOUNT_ID·ZZIK_D1_DATABASE_ID | release .env (현재 root .env symlink) | 4단계 전 승인된 자원 식별자로 설정, 값 출력 금지 |
+| DB_URL·알림 webhook | 기존 release .env | PG 및 롤백용으로 유지, PM2 env/save에 복제하지 않음 |
+| OAuth access/refresh token | 수집기 전용 Wrangler config/zzik-collector.toml | 파일0600, .env/PM2/git에 복제하지 않음 |
+| kill_timeout | ecosystem app 설정 | 35000ms, 30초 quiesce보다 길게 |
+
+Node --env-file은 이미 주입된 환경 값을 덮지 않는다. 따라서 .env의 ZZIK_STORE만 바꿔 전환하지 않는다. 식별자/DB_URL을 ecosystem에서 process.env로 복사하지 않으며, 4단계 전 PM2/saved 환경에 같은 private 키가 별도로 남아 있지 않은지 **키 존재 여부만** 확인한다. .env 수정 후에도 출력은 선택한 키 이름/존재 Boolean으로 제한한다.
+
+준비 커밋이 release에 들어와도 기존 실행 중 PM2의 kill_timeout 메타가 자동 갱신되는 것은 아니다. 재개 시 실제 등록 메타가35000 이상인지 값만 확인하고, 충족하지 않으면 30초 quiesce가 보장되는 승인된 적용 방법을 확인하기 전 관측 정지를 실행하지 않는다.
+
+정방향 전환은 release에서 `--env d1`, PG 복귀는 `--env postgres`를 명시한다. named environment는 PM2의 공식 env_<name> 선택 방식이다([PM2 환경 변수](https://pm2.keymetrics.io/docs/usage/environment/), 확인2026-11-16). 이 준비 작업은 모드 선택을 선언만 하며 실제 선택·restart/save는 승인된 유지 창의4단계에서 한다.
+
 ## 0. 사전 점검 (`scripts/d1-preflight.mjs` — dry-run 전용)
 
 전환 착수 전 `scripts/d1-preflight.mjs`로 PM2 상태·`ZZIK_STORE`·ledger 존재·outbox 0·export/버킷 배포 여부·`USAGE_READ_STORE`를 값 노출 없이 `PASS`/`FAIL`로 점검한다. 기본은 읽기 전용 dry-run이며, 실제 PM2·wrangler·DB·D1을 호출하지 않는다.
@@ -21,6 +41,7 @@ node scripts/d1-preflight.mjs --state-dir <ZZIK_STATE_DIR> [--evidence <prefligh
   [--expected-read-store postgres|d1]
 ```
 
+- **최초 PG 상태의 ledger 예외**: 실제/기대 수집기와 기대 Worker가 모두 postgres이며 SQLite와 마커가 모두 없는 첫 전환은 outbox0으로 인정한다. ledger 두 검사에 PASS와 `initial_postgres_no_ledger`를 함께 표시한다. preflight는 ledger를 생성하지 않는다. D1 모드의 ledger 부재, 마커만 남은 상태, 빈/깨진 SQLite는 계속 FAIL이다. 기존 ledger가 있으면 outbox0 검사를 그대로 수행한다.
 - **기본 기대값(전환 전)**: `--expected-pm2-status online`, `--expected-zzik-store postgres`, `--expected-read-store postgres`. 이미 `ZZIK_STORE`/`USAGE_READ_STORE`가 `d1`이면 기본값에서 FAIL이므로 전환 전 상태를 확인한다. 롤백 뒤/재전환 전 점검처럼 기대값이 다르면 플래그로 명시한다.
 - **확인할 출력 형태**:
   ```json
@@ -65,9 +86,9 @@ node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DI
 - **중단 조건**: `ledger_outbox_not_empty`(exit 78), `jsonb` 비객체 행, 해시 불일치, `sqlite_sequence` 펜스 미달 시 즉시 중단한다.
 
 ### 4) 수집기 `d1` 기동 (간격 900, capability 없음) `[승인]`
-- **주의**: `collector/ecosystem.config.cjs`에 `ZZIK_STORE=postgres`가 명시돼 있으면 private env-file만 바꿔서는 전환되지 않는다. 승인된 설정으로 `ZZIK_STORE=d1`, 간격 `900`, capability 파일 없음 상태를 맞춘 뒤 기동한다.
+- **주의**: 기본 env의 postgres를 편집하거나 .env로 덮지 않는다. release .env의 D1 식별자 두 키와 전용 profile 준비를 확인하고, 승인된 env_d1을 선택한다. 간격900·capability 파일 없음은 유지한다.
   ```bash
-  pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --update-env
+  pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --env d1 --update-env
   ```
 - **확인**: 첫 주기 후 6개 제공자 `usage_write_receipt` 및 `usage_snapshot` seq 증가를 개수·상태 코드로만 확인한다. **첫 전환의 다음 `write_seq`는 1**이어야 하며, 1이 아니면 잔여 세대/재전환 상태로 보고 중단한다. (Worker 읽기는 아직 `postgres`다.)
 - **중단 조건**: 6개 제공자 receipt/snapshot 누락, `auth` 401/403, 또는 `local_commit_failed` 발생 시 즉시 정지 후 아래 롤백 절차로 복귀한다.
@@ -95,7 +116,7 @@ node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DI
    - D1 접근 불가 시: 3·4항을 건너뛰고 **즉시 5항의 두 플래그를 `postgres`로 되돌린다.** 화면은 정지 시각까지의 PG로 복구하며, **그 구간의 알림은 다시 보내지 않는다.** JSON `previous`는 PG 마지막 `remoteCommitted`로 두고 이전 백업 JSON으로 덮지 않는다. 사용자에게 공백(정지 시각 이후 허용 손실)을 보고하고 별도 승인을 받는다.
 3. **PG 단일 트랜잭션 역이관 `[승인]`**: D1 관측을 PG 단일 트랜잭션으로 역이관하고, **receipt는 PG 표로 복사하지 않는다.** 커밋 후 트랜잭션 밖에서 sequence를 위로만 맞추고 **다음 기본 id가 `max(id)+1`인지 확인한다.** 해시 불일치 시 즉시 중단한다. **setval·다음 id 확인·4항 완료 전에는 수집기를 켜지 않는다.**
 4. **ledger 정리 · `rolled-back` 마커 기록**: PG 커밋 성공 뒤에만 한 ledger 트랜잭션에서 역이관된 outbox 행을 삭제하고 `acked_seq`를 맞춘 뒤 현재 JSON(`gate`, `alerts`, `previous`, `lastEventAt`, `lastRun` + `usage-prune.json`의 `lastPruneAt`)을 복구하며, import 마커를 **`rolled-back`으로 표시한다(마커 삭제 금지, 이전 백업 JSON 덮어쓰기 금지)**. **PG 커밋과 이 ledger 트랜잭션 사이에 종료되면 역이관을 재실행하고, 같은 해시는 건너뛰고 outbox 삭제를 다시 한다.**
-5. **두 플래그 `postgres` · 간격 `900` 복구 `[승인]`**: `USAGE_READ_STORE=postgres`, `ZZIK_STORE=postgres`, 간격 `900`으로 되돌리고 capability 파일과 `ZZIK_INTERVAL_SEC_*` `180` 설정을 제거한다. 2항의 D1 접근 불가 경로에서는 이미 이 플래그 복구를 시작했고, 3·4항의 역이관/ledger 정리는 수행하지 않는다.
+5. **두 플래그 `postgres` · 간격 `900` 복구 `[승인]`**: 수집기는 release에서 `pm2 restart collector/ecosystem.config.cjs --only zzik-usage-collector --env postgres --update-env`와 `pm2 save`로 명시적 env_postgres를 선택한다. `USAGE_READ_STORE=postgres`, `ZZIK_STORE=postgres`, 간격 `900`으로 되돌리고 capability 파일과 `ZZIK_INTERVAL_SEC_*` `180` 설정을 제거한다. 2항의 D1 접근 불가 경로에서는 이미 이 플래그 복구를 시작했고, 3·4항의 역이관/ledger 정리는 수행하지 않는다.
 
 ---
 
@@ -108,7 +129,7 @@ node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DI
 - 2항의 D1 접근 불가 경로로 돌아간 뒤의 재전환은 D1 표를 비우고 `data_generation`을 올린 뒤 첫 전환과 같은 전량 백필을 한다(그 D1 잔여 관측은 이미 허용 손실로 선언됨).
 - 재전환 기동 전에 `previous`와 `lastEventAt`이 `remoteCommitted`와 같은지 확인한다. 다르면 그 값으로 맞춘 뒤에 켠다.
 
-재시작은 주기 사이에 하고, 운영 승인 시 quiesce 30초보다 긴 PM2 `kill_timeout`(예: 35000ms)을 권고한다(기존 ecosystem 설정은 변경하지 않는다).
+재시작은 주기 사이에 하고, 준비 커밋의 PM2 kill_timeout=35000이 실제 등록 메타에도 적용됐는지 확인한다.
 
 ---
 

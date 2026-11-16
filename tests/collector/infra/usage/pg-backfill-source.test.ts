@@ -29,6 +29,8 @@ describe('Given a paged source consumer instead of an in-memory source array',()
   let eventQueries=0,release!:()=>void,entered!:()=>void;const enteredPromise=new Promise<void>(r=>{entered=r})
   const source=createPgBackfillSource({pageSize:2,maxBytes:1,query:async(sql:string,params?:unknown[])=>{
    if(sql.includes('jsonb_typeof'))return {rows:[{bad:'0'}]}
+   if(sql.includes('AS events,'))return {rows:[{events:'3',snapshots:'0',minId:'1',maxId:'3'}]}
+   if(sql.includes('GROUP BY provider'))return {rows:[{provider:'claude',n:'3'}]}
    if(sql.includes('WHERE id>')){eventQueries++;return {rows:rows.filter(r=>BigInt(r.id)>BigInt(String(params?.[0]))).slice(0,2)}}
    return {rows:[]}
   }})
@@ -53,5 +55,36 @@ describe('Given actual synthetic PG event and snapshot rows',()=>{
    let max=0;successValue(await createPgBackfillSource({query,pageSize:1}).scan((kind,rows)=>{max=Math.max(max,rows.length);return spool.append(kind,rows)}))
    expect(max).toBe(1);expect(successValue(spool.seal()).summary).toEqual(old.summary)
   }finally{spool.close();await db.close();rmSync(directory,{recursive:true,force:true})}
+ })
+})
+
+describe('Given more than 250 PG events crossing decimal digit boundaries',()=>{
+ it('When planned from one repeatable-read snapshot Then copies every numeric ID and matches independent COUNT(*)',async()=>{
+  const db=await createTestDb()
+  try{
+   await db.client.query("INSERT INTO usage_event(id,provider,status,run_at,envelope) OVERRIDING SYSTEM VALUE SELECT n,'claude','ok',$1,$2::jsonb FROM generate_series(12,1432) AS n",[D1_NOW,JSON.stringify(d1Envelope())])
+   let transaction=false,countedInTransaction=false
+   const query=async(sql:string,p?:unknown[])=>{
+    if(sql.startsWith('BEGIN'))transaction=true
+    if(sql.includes('AS events,')){expect(transaction).toBe(true);countedInTransaction=true}
+    const result=await db.client.query<Record<string,unknown>>(sql,p)
+    if(sql==='COMMIT'||sql==='ROLLBACK')transaction=false
+    return result
+   }
+   const source=createPgBackfillSource({query}),read=successValue(await source.read()),plan=successValue(planBackfill(read))
+   expect(countedInTransaction).toBe(true);expect(transaction).toBe(false)
+   const count=await db.client.query<{n:number}>('SELECT COUNT(*)::int AS n FROM usage_event')
+   expect(plan.summary.events).toBe(count.rows[0].n);expect(plan.summary.events).toBe(1421)
+   expect(read.events.map(r=>r.id)).toEqual(Array.from({length:1421},(_,i)=>String(i+12)))
+   expect(read.events.map(r=>r.id)).toEqual(expect.arrayContaining(['12','100','1000','261','262','511','512']))
+  }finally{await db.close()}
+ })
+ it('When a faulty page source drops one original row Then rejects against same-transaction PG COUNT(*)',async()=>{
+  const db=await createTestDb()
+  try{
+   await db.client.query("INSERT INTO usage_event(id,provider,status,run_at,envelope) OVERRIDING SYSTEM VALUE SELECT n,'claude','ok',$1,$2::jsonb FROM generate_series(12,1012) AS n",[D1_NOW,JSON.stringify(d1Envelope())])
+   const source=createPgBackfillSource({query:async(sql:string,p?:unknown[])=>{const r=await db.client.query<Record<string,unknown>>(sql,p);if(sql.includes('WHERE id>'))r.rows=r.rows.filter(row=>row.id!=='100');return r}})
+   expect(await source.scan(()=>({ok:true,value:undefined}))).toMatchObject({ok:false,reason:'pg_source_count_mismatch'})
+  }finally{await db.close()}
  })
 })
