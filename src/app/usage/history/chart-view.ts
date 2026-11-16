@@ -6,8 +6,7 @@
 import type { ChartRange } from '@domain/usage/history/types'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 import type { ChartViewInput } from './chart-view-input'
-import { chartTimeDomain, pacePoints } from '@domain/usage/history/chart-time-domain'
-import { elapsedPercent } from '@domain/usage/elapsed'
+import { chartTimeDomain, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
 import { summaryWindowOf } from '@domain/usage/summary-window'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { SummaryPace } from '../summary-pace'
@@ -48,7 +47,7 @@ export interface ChartSeriesView {
    * seriesOrder의 순번(0부터)이 i일 때 i < 8이면 i + 1, 아니면 0. 숨김·범위·정렬로 바뀌지 않는다.
    */
   slot: number
-  /** 기본 테마의 stroke-dasharray. 슬롯 1~3은 null(실선), 4~8과 0은 무늬 문자열. */
+  /** 기본 테마의 stroke-dasharray. 실제 사용량 계열은 항상 null(실선)이다. */
   dash: string | null
   /** 숨김이면 paths·dots는 빈 배열, endLabel은 null이고 stops에도 나오지 않는다. */
   hidden: boolean
@@ -224,7 +223,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   }
   const samples = record.samples.filter(inRange)
   const anchorTime = record.anchor === null ? null : sampleTime(record.anchor)
-  const { from } = chartTimeDomain(samples.map(s => sampleTime(s)!).filter(Number.isFinite), windowFrom, nowMs, record.anchor?.values == null ? null : anchorTime)
+  const { from } = chartTimeDomain(samples.filter(s => s.values !== null).map(s => sampleTime(s)!).filter(Number.isFinite), windowFrom, nowMs, record.anchor?.values == null ? null : anchorTime)
   const anchor: UsageHistorySample | null =
     record.anchor !== null && record.anchor.values !== null && anchorTime !== null && anchorTime >= from && anchorTime <= to
       ? record.anchor : null
@@ -290,7 +289,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   })
   const timesMs = [...timeSet].sort((a, b) => a - b)
   const columns = visible.map((s, column) => timesMs.map((t) => (forcedNulls[column].has(t) ? null : valueAt(byId.get(s.id)!.segments, t))))
-  if (pace !== null && paceWindow !== null) columns.push(timesMs.map(t => elapsedPercent(paceWindow.resetsAt, paceWindow.cycleSeconds ?? null, new Date(t))))
+  if (pace !== null && paceWindow !== null) columns.push(timesMs.map(t => paceValueAt(paceWindow, t)))
   const dots = visible.map((s) =>
     byId.get(s.id)!.segments
       .filter((segment) => segment.points.length === 1)
@@ -325,7 +324,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
         return b.percent - a.percent || ordinal(a.seriesId) - ordinal(b.seriesId)
       })
     if (pace !== null && paceWindow !== null) {
-      const percent = elapsedPercent(paceWindow.resetsAt, paceWindow.cycleSeconds ?? null, new Date(t))
+      const percent = paceValueAt(paceWindow, t)
       values.push({seriesId: pace.id, percent, text: percent === null ? CHART_MESSAGES.gapText : percentText(percent), y: percent === null ? null : yForPercent(percent, plot)})
     }
     const named = values.filter((v) => v.percent !== null).map((v) => `${v.seriesId === pace?.id ? pace.label : series[ordinal(v.seriesId)].label} ${v.text}`).join(', ')

@@ -78,16 +78,21 @@ describe('Given accessibility and reduced motion', () => {
     expect(chartCss).toContain('transition: none')
   })
 
-  it('Then the uPlot default legend is hidden and a single custom tooltip is styled', () => {
+  it('Then the uPlot default legend is hidden, the toolbar is spaced above the plot, and a single custom tooltip is styled', () => {
     expect(chartCss).toContain('.chart-canvas-host .u-legend')
     expect(chartCss).toContain('display: none')
+    expect(chartCss).toMatch(/\.chart-toolbar\s*\{[^}]*margin-bottom:\s*\d+px/)
     expect(chartCss).toContain('.chart-tooltip')
     expect(chartCss).toContain('.chart-tooltip[hidden]')
     expect(chartCss).toContain('--chart-tooltip-bg')
   })
 
-  it('Then forced-colors turns on dashes for the first three slots too', () => {
+  it('Then actual usage series swatches never use stroke-dasharray in normal, hidden, or forced-colors modes', () => {
+    expect(chartCss).not.toMatch(/\.chart-swatch-line\[data-slot=[^\]]+\]\s*\{[^}]*stroke-dasharray/)
+    expect(chartCss).not.toMatch(/\.chart-legend-item\.is-hidden\s+\.chart-swatch-line\s*\{[^}]*stroke-dasharray/)
     expect(chartCss).toContain('@media (forced-colors: active)')
-    for (const slot of ['1', '2', '3']) expect(chartCss).toContain(`.chart-swatch-line[data-slot='${slot}']`)
+    const forced = chartCss.slice(chartCss.indexOf('@media (forced-colors: active)'))
+    expect(forced).toContain('.chart-swatch-line:not(.chart-pace-swatch)')
+    expect(forced).toMatch(/stroke-dasharray:\s*none/)
   })
 })

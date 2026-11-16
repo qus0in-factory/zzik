@@ -63,14 +63,20 @@ describe('Given the ChartView → uPlot adapter', () => {
     expect(data[1]).toEqual([42, 50])
   })
 
-  it('Then slots 4~8 map to uPlot dash arrays and colours come from the CSS palette', () => {
+  it('Then actual usage series (including slots 4~8 and 0) are always solid and only the pace line uses a dash array', () => {
     const series = toUplotSeries(view, FALLBACK_PALETTE)
     expect(series).toHaveLength(4)
     expect(series[1].dash).toBeUndefined()
-    expect(series[2].dash).toEqual([6, 3])
-    expect(series[3].dash).toEqual([4, 4])
+    expect(series[2].dash).toBeUndefined()
+    expect(series[3].dash).toBeUndefined()
     expect(series[1].stroke).toBe(FALLBACK_PALETTE.slots[1])
+    expect(series[2].stroke).toBe(FALLBACK_PALETTE.slots[4])
     expect(series[3].stroke).toBe(FALLBACK_PALETTE.slots[0])
+
+    const withPace = toUplotSeries({ ...view, pace: { id: '__time_pace__', label: '시간 대비 예상', points: [{ t: 1_700_000_000_000, p: 20 }] } }, FALLBACK_PALETTE)
+    expect(withPace).toHaveLength(5)
+    expect(withPace.slice(1, 4).every((s) => s.dash === undefined)).toBe(true)
+    expect(withPace[4].dash).toEqual([6, 4])
   })
 
   it('Then y is pinned to 0~100, x is time and the duplicate uPlot legend is OFF', () => {

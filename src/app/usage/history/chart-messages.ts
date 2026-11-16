@@ -60,6 +60,7 @@ export const CHART_MESSAGES = {
   loading: t('chart.loading'),
   retry: t('action.retry'),
   syncing: t('chart.syncing'),
+  progress: (range: string, done: number, total: number): string => t('chart.progress', { range, done, total }),
   emptyNoPoints: t('chart.empty.noPoints'),
   emptyAllHidden: t('chart.empty.allHidden'),
   errorPrefix: t('chart.error.prefix'),

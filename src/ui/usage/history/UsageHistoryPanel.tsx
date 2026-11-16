@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import { Loader2 } from 'lucide-react'
 import type { UsageHistoryPanelProps } from '@app/usage/history/chart-view'
 import { CHART_MESSAGES } from '@app/usage/history/chart-messages'
 import { PaceSummary } from '../PaceSummary'
@@ -14,7 +15,7 @@ export function UsageHistoryPanel({ panelId, regionLabel, range, state, actions 
   const frameRef = useRef<HTMLDivElement>(null)
   const lastSize = useRef('')
 
-  // 크기 측정 → 150ms 디바운스로 app에 알린다(조립 루트가 그 크기로 ChartView를 다시 만든다).
+  // 크기 측정 → 마운트 시(폭 > 0) 즉시 반영하고 이후 리사이즈는 150ms 디바운스로 app에 알린다.
   useEffect(() => {
     const element = frameRef.current
     if (element === null || typeof ResizeObserver === 'undefined') return
@@ -27,6 +28,7 @@ export function UsageHistoryPanel({ panelId, regionLabel, range, state, actions 
       lastSize.current = key
       actions.onResize({ width, height })
     }
+    if (Math.round(element.getBoundingClientRect().width) > 0) notify()
     const observer = new ResizeObserver(() => {
       if (timer !== undefined) clearTimeout(timer)
       timer = setTimeout(notify, 150)
@@ -46,7 +48,10 @@ export function UsageHistoryPanel({ panelId, regionLabel, range, state, actions 
       </div>
 
       {state.phase === 'loading' && (
-        <div className="chart-skeleton" data-slot="skeleton" aria-busy="true">{CHART_MESSAGES.loading}</div>
+        <div className="chart-skeleton" data-slot="skeleton" aria-busy="true">
+          <Loader2 data-testid="chart-loading-spinner" aria-hidden="true" className="refresh-spinner size-4 shrink-0" />
+          <span>{CHART_MESSAGES.loading}</span>
+        </div>
       )}
       {state.phase === 'error' && (
         <div className="chart-error" role="alert">

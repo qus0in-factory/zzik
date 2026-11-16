@@ -128,25 +128,91 @@ describe('Given opening the panel', () => {
     await waitFor(() => expect(h.gateway.summaryCalls).toBe(1))
     expect(h.gateway.queries).toHaveLength(0)
   })
-  it('When opened with a cached record Then the cached chart is shown first (ready) and then synced', async () => {
-    const events = syntheticEvents(12, new Date(NOW - 6 * 3_600_000).toISOString())
+  it('When opened with a cached record Then the cached chart stays ready during background sync and updates once on completion', async () => {
+    const events = syntheticEvents(60, new Date(NOW - 18 * 3_600_000).toISOString(), 900_000)
     const first = createFakeHistoryServer('claude', events.slice(0, 6)).page({ from: new Date(NOW - 86_400_000).toISOString(), limit: 50, anchor: true })
     const record = applyForward(null, null, first, { provider: 'claude', now: new Date(NOW).toISOString(), initialFrom: new Date(NOW - 86_400_000).toISOString() })!
     const h = harness({ events, record, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    let releaseSync!: () => void
+    let gated = true
+    h.gateway.onBeforeFetch = () =>
+      gated
+        ? new Promise<void>((resolve) => {
+            releaseSync = () => {
+              gated = false
+              resolve()
+            }
+          })
+        : new Promise((resolve) => setTimeout(resolve, 1))
+    const phases: string[] = []
+    const { result } = renderHook(
+      () => {
+        const binding = useUsageHistoryPanel('claude')
+        if (binding.panel !== null) phases.push(binding.panel.state.phase)
+        return binding
+      },
+      { wrapper: h.wrapper },
+    )
+    // 백그라운드 sync가 진행 중일 때도 캐시된 차트가 즉시 ready(syncing: true)로 보인다
+    await waitFor(() => expect(result.current.panel?.state).toMatchObject({ phase: 'ready', syncing: true }))
+    expect(h.inputs).toHaveLength(1)
+    expect(h.inputs[0]?.record.samples).toHaveLength(6)
+
+    act(() => releaseSync())
+    await waitFor(() => expect(h.cache.records.get('claude')?.samples).toHaveLength(60))
+    await waitFor(() => expect(result.current.panel?.state).toMatchObject({ phase: 'ready', syncing: false }))
+    expect(h.gateway.queries[0]).toMatchObject({ after: expect.stringMatching(/_6$/) })
+    // ready 진입 이후 백그라운드 sync 중에 loading으로 깜빡이지 않고 완료 시 1회만 새 뷰로 교체된다
+    expect(phases.slice(phases.indexOf('ready')).every((p) => p === 'ready')).toBe(true)
+    expect(h.inputs).toHaveLength(2)
+    expect(h.inputs[1]?.record.samples).toHaveLength(60)
+  })
+  it('When the first sync completes Then the panel stays loading until sync finishes and builds the view once with card labels and tail', async () => {
+    const events = syntheticEvents(96 * 4, new Date(NOW - 4 * 86_400_000).toISOString(), 900_000)
+    const h = harness({ events, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    h.gateway.onBeforeFetch = () => new Promise((resolve) => setTimeout(resolve, 1))
+    const phases: string[] = []
+    const { result } = renderHook(
+      () => {
+        const binding = useUsageHistoryPanel('claude')
+        if (binding.panel !== null) phases.push(binding.panel.state.phase)
+        return binding
+      },
+      { wrapper: h.wrapper },
+    )
+    await waitFor(() => expect(h.cache.records.get('claude')?.samples).toHaveLength(events.length))
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
+    expect(h.inputs).toHaveLength(1)
+    const input = h.inputs[0]!
+    expect(input.cardLabels.five_hour).toBe('5시간 한도')
+    expect(input).toMatchObject({ provider: 'claude', providerTitle: 'Claude', range: '7d', tailEnd: Date.parse(RUN_AT), size: { width: 640, height: 240 } })
+    expect(h.cache.records.get('claude')?.labels.five_hour).toBe('5시간 한도')
+    // ready 전환 이후 다시 loading으로 흔들리지 않고, 로딩 중에는 loading만 보이다 완료 시 한 번에 ready가 된다
+    expect(phases[0]).toBe('loading')
+    expect(phases.at(-1)).toBe('ready')
+    expect(phases.slice(phases.indexOf('ready')).every((p) => p === 'ready')).toBe(true)
+  })
+  it('When switching from 7d to 30d requires backfill Then the panel shows loading during backfill, builds the 30d view once, and revisiting 7d/24h stays ready without loading', async () => {
+    const events = syntheticEvents(150, new Date(NOW - 15 * 86_400_000).toISOString(), 2 * 3_600_000)
+    const h = harness({ events, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    h.gateway.onBeforeFetch = () => new Promise((resolve) => setTimeout(resolve, 1))
     const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
     await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
-    await waitFor(() => expect(h.cache.records.get('claude')?.samples).toHaveLength(12))
-    expect(h.gateway.queries[0]).toMatchObject({ after: expect.stringMatching(/_6$/) })
-  })
-  it('When the first sync completes Then the record exists, labels come from the card, and the view builder gets the range and tail', async () => {
-    const h = harness({ session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
-    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
-    await waitFor(() => expect(h.cache.records.get('claude')?.samples).toHaveLength(12))
-    await waitFor(() => expect(h.inputs.at(-1)?.cardLabels.five_hour).toBe('5시간 한도'))
-    const input = h.inputs.at(-1)!
-    expect(input).toMatchObject({ provider: 'claude', providerTitle: 'Claude', range: '7d', tailEnd: Date.parse(RUN_AT), size: { width: 640, height: 240 } })
-    await waitFor(() => expect(h.cache.records.get('claude')?.labels.five_hour).toBe('5시간 한도'))
-    expect(result.current.panel?.state).toMatchObject({ phase: 'ready' })
+    await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
+    expect(h.inputs).toHaveLength(1)
+    act(() => result.current.panel?.actions.onSelectRange('30d'))
+    expect(result.current.panel?.state.phase).toBe('loading')
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
+    expect(h.inputs).toHaveLength(2)
+    expect(h.inputs[1]?.range).toBe('30d')
+
+    // 이미 커버된 범위(7d·24h)로 재방문할 때는 loading으로 가지 않고 즉시 ready를 유지한다
+    act(() => result.current.panel?.actions.onSelectRange('24h'))
+    expect(result.current.panel?.state.phase).toBe('ready')
+    expect(h.inputs).toHaveLength(3)
+    expect(h.inputs[2]?.range).toBe('24h')
   })
 })
 
@@ -222,6 +288,30 @@ describe('Given a view builder that arrives late (지연 청크)', () => {
     const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
     await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
     await waitFor(() => expect((result.current.panel?.state as { view: { title: string } }).view.title).toBe('LOADED'))
+  })
+  it('When preload rejects Then it enters the error state without unhandled rejection, and retry recovers when preload succeeds', async () => {
+    const h = harness()
+    let shouldFail = true
+    let current = emptyChartViewBuilder
+    h.deps.buildView = (input) => current(input)
+    h.deps.preload = () =>
+      shouldFail
+        ? Promise.reject(new Error('chunk_load_failed'))
+        : Promise.resolve().then(() => {
+            current = (input) => ({ ...emptyChartViewBuilder(input), title: 'RECOVERED' })
+          })
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.button.disabled).toBe(false))
+    // onIntent에서 preload가 실패해도 unhandled rejection이 나지 않는다
+    act(() => result.current.button.onIntent())
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    act(() => result.current.button.onToggle())
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('error'))
+
+    shouldFail = false
+    act(() => result.current.panel?.actions.onRetry())
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    expect((result.current.panel?.state as { view: { title: string } }).view.title).toBe('RECOVERED')
   })
 })
 

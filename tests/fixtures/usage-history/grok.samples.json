@@ -51,7 +51,7 @@
     {
       "id": "9404",
       "runAt": "2026-11-13T23:45:00.000Z",
-      "status": "upstream_error",
+      "status": "token_expired",
       "fetchedAt": "2026-11-13T23:30:00.000Z",
       "intervalSec": 900,
       "values": null

@@ -66,7 +66,15 @@ export function throwForOutcome(outcome: SyncOutcome): HistoryCacheRecord {
 /** 같은 제공자의 동기화가 진행 중이면 그 결과를 기다린다(패널·워밍이 겹쳐도 요청이 두 번 나가지 않는다). */
 export function runDedupedSync(inflight: Map<UsageProvider, Promise<SyncOutcome>>, deps: SyncDeps, args: SyncArgs): Promise<SyncOutcome> {
   const running = inflight.get(args.provider)
-  if (running !== undefined) return running
+  if (running !== undefined) {
+    if (args.wantFromMs === null) return running
+    return running.then((outcome) => {
+      if (!outcome.ok || outcome.backfillComplete) return outcome
+      const coveredFrom = outcome.record.coveredFrom === null ? NaN : Date.parse(outcome.record.coveredFrom)
+      if (Number.isFinite(coveredFrom) && args.wantFromMs !== null && args.wantFromMs < coveredFrom) return runDedupedSync(inflight, deps, args)
+      return outcome
+    })
+  }
   // 동기화 엔진은 처음 필요할 때 받는다(메인 번들에서 뺀다). 같은 모듈이 main.tsx의 동적 import와 한 청크로 묶인다.
   const promise = import('./sync-history').then(({ syncHistory }) => syncHistory(deps, args)).finally(() => inflight.delete(args.provider))
   inflight.set(args.provider, promise)
