@@ -1,6 +1,8 @@
 {
   "name": "zzik",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "compatibility_date": "2026-11-11",
   "assets": {
     "directory": "./dist",
@@ -22,6 +24,27 @@
   "vars": {
     "ACCESS_TEAM_DOMAIN": "qus0in.cloudflareaccess.com",
     "ACCESS_AUD": "d83bb3725ec247352d8a87ea9be8fc43a4aea78d68821b927a479f622bf29b79",
-    "ALLOWED_EMAIL": "qus0in@gmail.com"
+    "ALLOWED_EMAIL": "qus0in@gmail.com",
+    "USAGE_DATA_GENERATION": "0"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zzik-usage",
+      "database_id": "79d7f2d2-eb96-4748-8a4f-81b4b654f910",
+      "migrations_dir": "worker/migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "EXPORT_BUCKET",
+      "bucket_name": "zzik-usage-export"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "0 3 * * *",
+      "*/15 * * * *"
+    ]
   }
 }
