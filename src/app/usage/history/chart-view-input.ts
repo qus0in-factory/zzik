@@ -4,6 +4,7 @@
  */
 import type { HistoryCacheRecord, ChartRange } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
+import type { UsageWindow } from '@domain/usage/types'
 import type { ChartView } from './chart-view'
 import { t } from '@shared/messages'
 import type { MessageKey } from '@shared/messages'
@@ -25,6 +26,8 @@ export interface ChartViewInput {
   size: { width: number; height: number }
   /** 지금(epoch ms). x축 범위의 오른쪽 끝 계산용 */
   nowMs: number
+  /** 현재 카드와 같은 창·경과율. 최상단 요약 정책을 재사용한다. */
+  windows?: readonly UsageWindow[]
 }
 
 export type ChartViewBuilder = (input: ChartViewInput) => ChartView

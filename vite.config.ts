@@ -5,13 +5,17 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // iOS reads the home-screen icon without the Access cookie. Inline it only in the built document.
+// Match the whole link tag so a stray href in a comment or meta tag can never be rewritten.
+const appleTouchIconLink = /<link\b(?=[^>]*\brel="apple-touch-icon")(?=[^>]*\bhref="\/apple-touch-icon\.png")[^>]*>/
+
 export function inlineAppleTouchIcon(html: string, png: Buffer): string {
-  const marker = 'href="/apple-touch-icon.png"'
-  if (!html.includes(marker)) throw new Error('apple-touch-icon link is missing from index.html')
-  return html.replace(marker, `href="data:image/png;base64,${png.toString('base64')}"`)
+  const link = appleTouchIconLink.exec(html)
+  if (!link) throw new Error('apple-touch-icon link is missing from index.html')
+  const inlined = link[0].replace('href="/apple-touch-icon.png"', `href="data:image/png;base64,${png.toString('base64')}"`)
+  return html.slice(0, link.index) + inlined + html.slice(link.index + link[0].length)
 }
 
-function inlineAppleTouchIconPlugin(): Plugin {
+export function inlineAppleTouchIconPlugin(): Plugin {
   return {
     name: 'inline-apple-touch-icon',
     apply: 'build',

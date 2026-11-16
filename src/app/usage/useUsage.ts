@@ -6,7 +6,7 @@ import { buildUsageLoadView } from './load-usage'
 import type { UsageCollectionStatus } from './load-usage'
 import { describeGatewayFailure, usageQueryOptions, UsageLoadError } from './usage-query'
 import { composeCollectionNote, composeLastSuccessText, composeStaleNoteText } from './usage-text'
-import { useUsageDeps } from './UsageGatewayContext'
+import { useUsageDeps, useUsageNow } from './UsageGatewayContext'
 
 /** 화면이 관측하는 사용량 상태(0.2.1 계약 유지 — ui는 바뀌지 않는다). */
 export type UsageUiStatus = 'ready' | 'loading' | 'error' | 'stale'
@@ -35,8 +35,6 @@ export interface UsageUiStateValue {
   refresh: () => Promise<void>
 }
 
-const USAGE_NOW_TICK_MS = 30_000
-
 /**
  * 제공자 하나의 사용량을 TanStack Query로 구독하는 얇은 훅(스택 부록 A4, ADR 0.3 D8).
  *
@@ -57,32 +55,20 @@ const USAGE_NOW_TICK_MS = 30_000
 export function useUsage(provider: UsageProvider): UsageUiStateValue {
   const deps = useUsageDeps()
   const query = useQuery({ ...usageQueryOptions(deps.gateway, provider) })
-  const [nowIso, setNowIso] = useState<string>(() => deps.clock.nowIso())
+  const { nowIso, refreshNow } = useUsageNow()
   /** observer가 error를 비우는 경우를 보완하는 수동 재조회 실패(A4). */
   const [refetchFailure, setRefetchFailure] = useState<UsageLoadError | null>(null)
-
-  // 상대 시각은 30초마다 다시 계산한다(ADR 0.2 D9). 제공자 섹션마다 자기 틱을 갖는다.
-  useEffect(() => {
-    let cancel = (): void => {}
-    const scheduleTick = (): void => {
-      cancel = deps.scheduler.schedule(USAGE_NOW_TICK_MS, () => {
-        setNowIso(deps.clock.nowIso())
-        scheduleTick()
-      })
-    }
-    scheduleTick()
-    return () => cancel()
-  }, [deps])
 
   const view = useMemo(
     () => (query.data !== undefined ? buildUsageLoadView(query.data, new Date(nowIso), provider) : null),
     [query.data, nowIso, provider],
   )
 
-  // 성공 데이터가 도착하면 수동 재조회 실패 표시를 지운다(다음 실패에서 다시 세팅된다).
+  // 성공 데이터가 도착하면 공유 클록을 즉시 갱신하고 수동 재조회 실패 표시를 지운다(다음 실패에서 다시 세팅된다).
   useEffect(() => {
+    if (query.dataUpdatedAt > 0) refreshNow()
     setRefetchFailure((prev) => (prev === null ? prev : null))
-  }, [query.dataUpdatedAt])
+  }, [query.dataUpdatedAt, refreshNow])
 
   const queryErrorFound = query.error !== null && query.error !== undefined
   const effectiveError: UsageLoadError | null = queryErrorFound

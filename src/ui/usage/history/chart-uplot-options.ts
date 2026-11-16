@@ -3,8 +3,8 @@
  * 색은 CSS 변수에서 읽어 주입받는다 — 이 모듈은 DOM을 보지 않으므로 node에서 그대로 테스트된다.
  */
 import type uPlot from 'uplot'
-import type { ChartView } from '@app/usage/history/chart-view'
-import { chartAlignedData } from '@app/usage/history/chart-view'
+import type { ChartStop, ChartView } from '@app/usage/history/chart-view'
+import { chartAlignedData, chartCursorAtTime } from '@app/usage/history/chart-view'
 import type { ChartRange } from '@domain/usage/history/types'
 import { formatAxisDate, formatAxisDayBoundary, formatAxisTime } from '@app/usage/history/chart-messages'
 
@@ -34,6 +34,7 @@ export const DAY_INCRS = [DAY_SEC, 2 * DAY_SEC, 3 * DAY_SEC, 7 * DAY_SEC, 14 * D
 /** 24시간: 시간 단위 눈금(HH:mm). */
 export const HOUR_INCRS = [HOUR_SEC, 2 * HOUR_SEC, 3 * HOUR_SEC, 4 * HOUR_SEC, 6 * HOUR_SEC, 8 * HOUR_SEC, 12 * HOUR_SEC]
 /** 라벨이 겹치지 않게 눈금 사이 최소 간격(px). */
+export const MINUTE_INCRS = [60, 120, 180, 300, 600, 900, 1800, ...HOUR_INCRS]
 export const AXIS_MIN_SPACE = 60
 
 /**
@@ -63,7 +64,7 @@ export function xAxisValues(range: ChartRange) {
 export function toUplotData(view: ChartView): uPlot.AlignedData {
   const aligned = chartAlignedData(view)
   if (aligned !== null) return [aligned.times, ...aligned.columns] as uPlot.AlignedData
-  const visible = view.series.filter((series) => !series.hidden)
+  const visible = [...view.series.filter((series) => !series.hidden), ...(view.pace == null ? [] : [view.pace])]
   const xs = view.stops.map((stop) => stop.t / 1000)
   const columns = visible.map((series) =>
     view.stops.map((stop) => stop.values.find((value) => value.seriesId === series.id)?.percent ?? null),
@@ -89,22 +90,25 @@ export function toUplotSeries(view: ChartView, palette: ChartPalette): uPlot.Ser
         points: { show: dotIndices.length > 0, size: 4, filter: dotIndices },
       } satisfies uPlot.Series
     }),
+    ...(view.pace == null ? [] : [{ label: view.pace.label, stroke: palette.slots[0], width: 2, dash: [6, 4], spanGaps: false, points: { show: false } } satisfies uPlot.Series]),
   ]
 }
 
 /**
- * y는 0~100 고정, x는 [from, to]로 고정(B2). 기본 범례는 끄고 우리 범례·툴팁 하나로 통일한다.
- * onCursor는 setCursor 훅이 알려주는 최근접 데이터 인덱스를 우리 툴팁에 전달한다.
+ * y는 0~100 고정, x는 제공자의 수집 구간 [from, to](최소 3분)이다. 기본 범례는 끄고 우리 범례·툴팁 하나로 통일한다.
+ * onCursor는 커서 x를 시간으로 변환해 같은 시각의 값을 전달한다. 두 배열의 인덱스를 섞지 않는다.
  */
-export function toUplotOptions(view: ChartView, palette: ChartPalette, onCursor?: (idx: number | null) => void): uPlot.Options {
+export function toUplotOptions(view: ChartView, palette: ChartPalette, onCursor?: (point: ChartStop | null) => void): uPlot.Options {
   const aligned = chartAlignedData(view)
+  const span = aligned === null ? null : aligned.to - aligned.from
+  const timeAxis = view.range === '24h' || (span !== null && span <= DAY_SEC)
   return {
     width: view.width,
     height: view.height,
     padding: [10, 46, 24, 34],
     legend: { show: false },
-    ...(onCursor === undefined ? {} : { hooks: { setCursor: [(self: uPlot) => onCursor(self.cursor.idx ?? null)] } }),
-    cursor: { drag: { x: false, y: false } },
+    ...(onCursor === undefined ? {} : { hooks: { setCursor: [(self: uPlot) => onCursor(self.cursor.left === undefined || self.cursor.left < 0 || self.cursor.top === undefined || self.cursor.top < 0 ? null : chartCursorAtTime(view, Math.round(self.posToVal(self.cursor.left, 'x') * 1000)))] } }),
+    cursor: { points: { show: false }, drag: { x: false, y: false } },
     scales: {
       x: { time: true, ...(aligned === null ? {} : { range: [aligned.from, aligned.to] as [number, number] }) },
       y: { range: [0, 100] },
@@ -115,8 +119,8 @@ export function toUplotOptions(view: ChartView, palette: ChartPalette, onCursor?
         grid: { stroke: palette.grid, width: 1 },
         ticks: { stroke: palette.grid, width: 1 },
         space: AXIS_MIN_SPACE,
-        incrs: view.range === '24h' ? HOUR_INCRS : DAY_INCRS,
-        values: xAxisValues(view.range),
+        incrs: span !== null && span < 3 * HOUR_SEC ? MINUTE_INCRS : timeAxis ? HOUR_INCRS : DAY_INCRS,
+        values: xAxisValues(timeAxis ? '24h' : view.range),
       },
       {
         stroke: palette.text,

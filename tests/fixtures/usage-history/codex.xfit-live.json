@@ -1,0 +1,265 @@
+{
+  "source": "Read-only usage_event query, 2026-11-16; normalized by production historySample; selected real samples, no raw identity fields",
+  "now": "2026-11-16T03:26:04.588Z",
+  "raw": {
+    "rate_limit": {
+      "allowed": true,
+      "limit_reached": false,
+      "primary_window": {
+        "used_percent": 86,
+        "limit_window_seconds": 604800,
+        "reset_at": 1794822534
+      },
+      "secondary_window": null
+    }
+  },
+  "page": {
+    "provider": "codex",
+    "scanVersion": 2,
+    "anchor": null,
+    "samples": [
+      {
+        "id": "13",
+        "runAt": "2026-11-13T00:07:31.607Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T00:07:31.607Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 43,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "18",
+        "runAt": "2026-11-13T00:22:32.422Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T00:22:32.422Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 44,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "22",
+        "runAt": "2026-11-13T00:33:51.679Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T00:33:51.679Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 44,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "48",
+        "runAt": "2026-11-13T02:03:52.472Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T02:03:52.472Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 44,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "80",
+        "runAt": "2026-11-13T04:03:52.910Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T04:03:52.910Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 44,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "145",
+        "runAt": "2026-11-13T08:03:52.626Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T08:03:52.626Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 44,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "274",
+        "runAt": "2026-11-13T15:54:22.547Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T15:54:22.547Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 47,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "403",
+        "runAt": "2026-11-13T23:54:22.999Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-13T23:54:22.999Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 47,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "533",
+        "runAt": "2026-11-14T07:21:36.896Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-14T07:21:36.896Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 56,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "669",
+        "runAt": "2026-11-14T15:06:59.223Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-14T15:06:59.223Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 77,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "793",
+        "runAt": "2026-11-14T22:54:04.294Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-14T22:54:04.294Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 77,
+            "resetsAt": "2026-11-16T09:48:55.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "926",
+        "runAt": "2026-11-15T06:54:04.377Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-15T06:54:04.377Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 78,
+            "resetsAt": "2026-11-16T09:48:55.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1067",
+        "runAt": "2026-11-15T14:54:03.899Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-15T14:54:03.899Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 82,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1255",
+        "runAt": "2026-11-16T02:54:04.395Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T02:54:04.395Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1260",
+        "runAt": "2026-11-16T03:09:04.504Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T03:09:04.504Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      },
+      {
+        "id": "1265",
+        "runAt": "2026-11-16T03:24:04.588Z",
+        "status": "ok",
+        "fetchedAt": "2026-11-16T03:24:04.588Z",
+        "intervalSec": 900,
+        "values": [
+          {
+            "id": "rate_limit.primary_window",
+            "usedPercent": 86,
+            "resetsAt": "2026-11-16T09:48:54.000Z",
+            "cycleSeconds": 604800
+          }
+        ]
+      }
+    ],
+    "nextCursor": "2026-11-16T03:24:04.588Z_1265",
+    "hasMore": false
+  }
+}
