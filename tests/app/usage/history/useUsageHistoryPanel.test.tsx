@@ -102,6 +102,20 @@ describe('Given the history panel button state (10절)', () => {
     act(() => result.current.button.onIntent())
     expect(h.preloaded.count).toBe(1)
   })
+  it('When preload has already completed Then repeated hover/focus intent does not rebuild the view', async () => {
+    const h = harness({ session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    const builds = h.inputs.length
+    const preloads = h.preloaded.count
+    act(() => {
+      result.current.button.onIntent()
+      result.current.button.onIntent()
+      result.current.button.onIntent()
+    })
+    expect(h.inputs).toHaveLength(builds)
+    expect(h.preloaded.count).toBe(preloads)
+  })
 })
 
 describe('Given opening the panel', () => {
@@ -193,26 +207,56 @@ describe('Given opening the panel', () => {
     expect(phases.at(-1)).toBe('ready')
     expect(phases.slice(phases.indexOf('ready')).every((p) => p === 'ready')).toBe(true)
   })
-  it('When switching from 7d to 30d requires backfill Then the panel shows loading during backfill, builds the 30d view once, and revisiting 7d/24h stays ready without loading', async () => {
-    const events = syntheticEvents(150, new Date(NOW - 15 * 86_400_000).toISOString(), 2 * 3_600_000)
+  it('When a cached record has only failed samples Then the spinner remains until sync supplies a drawable success sample', async () => {
+    const events = syntheticEvents(12, new Date(NOW - 6 * 3_600_000).toISOString(), 900_000)
+    const base = createRecord('claude', new Date(NOW).toISOString())
+    const record: HistoryCacheRecord = {
+      ...base,
+      coveredFrom: events[0]!.runAt,
+      samples: events.slice(0, 2).map((sample) => ({ ...sample, status: 'token_expired' as const, values: null })),
+    }
+    const h = harness({ events, record, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    let release!: () => void
+    let gated = true
+    h.gateway.onBeforeFetch = () => gated ? new Promise<void>((resolve) => { release = () => { gated = false; resolve() } }) : Promise.resolve()
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('loading'))
+    expect(h.inputs).toHaveLength(0)
+    await waitFor(() => expect(release).toBeTypeOf('function'))
+    act(() => release())
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    expect(h.inputs).toHaveLength(1)
+    expect(h.inputs[0]?.record.samples.some((sample) => sample.values !== null)).toBe(true)
+  })
+  it('When expanding from 7d to 30d Then the cached chart stays ready during backfill, builds the 30d view once on completion, and revisiting 24h also waits without loading', async () => {
+    const events = syntheticEvents(150, new Date(NOW - 149 * 2 * 3_600_000).toISOString(), 2 * 3_600_000)
     const h = harness({ events, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
     h.gateway.onBeforeFetch = () => new Promise((resolve) => setTimeout(resolve, 1))
     const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
     await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
     await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
     expect(h.inputs).toHaveLength(1)
+    const viewBefore = (result.current.panel?.state as { view: unknown }).view
     act(() => result.current.panel?.actions.onSelectRange('30d'))
-    expect(result.current.panel?.state.phase).toBe('loading')
+    // 7d 표본은 30d 범위에도 그릴 수 있으므로 스피너가 아니라 기존 차트를 유지한다
+    expect(result.current.panel?.state.phase).toBe('ready')
+    expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(true)
+    expect(h.inputs).toHaveLength(1)
+    expect((result.current.panel?.state as { view: unknown }).view).toBe(viewBefore)
     await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
     await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
     expect(h.inputs).toHaveLength(2)
     expect(h.inputs[1]?.range).toBe('30d')
+    expect((result.current.panel?.state as { view: unknown }).view).not.toBe(viewBefore)
 
-    // 이미 커버된 범위(7d·24h)로 재방문할 때는 loading으로 가지 않고 즉시 ready를 유지한다
+    // 이미 커버된 범위(24h)로 재방문할 때도 기존 차트를 유지하고 동기화 완료 시 한 번만 교체한다
+    const beforeRevisit = h.inputs.length
     act(() => result.current.panel?.actions.onSelectRange('24h'))
     expect(result.current.panel?.state.phase).toBe('ready')
-    expect(h.inputs).toHaveLength(3)
-    expect(h.inputs[2]?.range).toBe('24h')
+    expect(h.inputs).toHaveLength(beforeRevisit)
+    await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
+    expect(h.inputs).toHaveLength(beforeRevisit + 1)
+    expect(h.inputs.at(-1)?.range).toBe('24h')
   })
 })
 
