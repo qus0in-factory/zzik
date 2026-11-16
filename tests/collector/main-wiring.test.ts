@@ -86,3 +86,13 @@ describe('Given an explicit D1 authentication selector',()=>{
   expect(readStorageConfig({DB_URL:'synthetic',ZZIK_D1_AUTH:'unknown'})).toMatchObject({ok:true,mode:'postgres'})
  })
 })
+
+describe('Given isolated collector OAuth profile selection',()=>{
+ it('When OAuth is chosen Then isolates the collector from ambient human profile and rejects reserved or traversal names',()=>{
+  const d1={ZZIK_STORE:'d1',ZZIK_D1_AUTH:'wrangler-oauth',ZZIK_D1_ACCOUNT_ID:'synthetic',ZZIK_D1_DATABASE_ID:'synthetic',CLOUDFLARE_AUTH_PROFILE:'human-profile'}
+  expect(readStorageConfig(d1)).toMatchObject({ok:true,oauthProfile:'zzik-collector'})
+  expect(readStorageConfig({...d1,ZZIK_D1_OAUTH_PROFILE:'zzik-secondary'})).toMatchObject({ok:true,oauthProfile:'zzik-secondary'})
+  for(const profile of ['default','staging','../default',''])expect(readStorageConfig({...d1,ZZIK_D1_OAUTH_PROFILE:profile})).toMatchObject({ok:false,reason:'InvalidD1OAuthProfile'})
+  expect(readStorageConfig({DB_URL:'synthetic',ZZIK_D1_OAUTH_PROFILE:'../default'})).toMatchObject({ok:true,mode:'postgres'})
+ })
+})

@@ -1,12 +1,14 @@
+import {DEFAULT_COLLECTOR_OAUTH_PROFILE,isCollectorOAuthProfile} from '../../domain/usage/d1-oauth-profile.mjs'
 import {readFileSync,writeFileSync,renameSync,openSync,closeSync,fsyncSync,rmSync,existsSync} from 'node:fs'
 import {join,dirname} from 'node:path'
 import {homedir} from 'node:os'
 import {randomUUID} from 'node:crypto'
 /** Mirrors Wrangler legacy-home precedence and macOS/XDG config placement. */
-export function defaultWranglerOAuthPath(){
+export function defaultWranglerOAuthPath(profile=DEFAULT_COLLECTOR_OAUTH_PROFILE){
+ if(!isCollectorOAuthProfile(profile))throw Error('InvalidD1OAuthProfile')
  const home=homedir(),legacy=join(home,'.wrangler')
  const base=existsSync(legacy)?legacy:join(process.env.XDG_CONFIG_HOME??(process.platform==='darwin'?join(home,'Library','Preferences'):process.platform==='win32'?join(process.env.APPDATA??join(home,'AppData','Roaming'),'xdg.config'):join(home,'.config')),'.wrangler')
- return join(base,'config','default.toml')
+ return join(base,'config',profile+'.toml')
 }
 /** Narrow top-level string fields from Wrangler's own plaintext TOML layout.
  * @param {string} raw */

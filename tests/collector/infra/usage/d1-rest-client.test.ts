@@ -72,9 +72,16 @@ describe('Given an OAuth credential port on the unchanged REST writer',()=>{
   const c=createD1RestClient({mode:'d1',dryRun:false,control:fakeD1Control(),accountId:'fake',databaseId:'fake',credentials:{get:async()=>({ok:true,value:{token}}),refresh:async()=>{token='new-synthetic';refreshes++;return {ok:true,value:{token}}}},clock:{now:()=>now},wait:async ms=>{now+=ms},fetch:async()=>{calls++;return {status:401,headers:{get:()=>null},json:async()=>({})}}})
   expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth',status:401});await c.query([statement]);expect(calls).toBe(2);expect(refreshes).toBe(1);expect(c.authStopped()).toBe(true)
  })
- it('When OAuth retrieval fails Then sends no HTTP and reports a durable safe auth failure',async()=>{
+ for(const throws of [false,true])it(`When OAuth retrieval ${throws?'throws':'fails'} Then retries twice and stops only on the third consecutive failure`,async()=>{
   let calls=0,gets=0;const control=fakeD1Control()
-  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>{gets++;return {ok:false,reason:'oauth_file_unavailable'}},refresh:async()=>{throw Error('unused')}},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;throw Error('unused')}})
-  expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth'});await c.query([statement]);expect(calls).toBe(0);expect(gets).toBe(1);expect(c.authStopped()).toBe(true)
+  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>{gets++;if(throws)throw Error('synthetic-secret');return {ok:false,reason:'oauth_file_unavailable'}},refresh:async()=>{throw Error('unused')}},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;throw Error('unused')}})
+  for(let i=0;i<2;i++){expect(await c.query([statement])).toMatchObject({ok:false,reason:'retry',status:null,retryAfterMs:60000});expect(c.authStopped()).toBe(false)}
+  expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth'});await c.query([statement]);expect(calls).toBe(0);expect(gets).toBe(3);expect(c.authStopped()).toBe(true)
+ })
+ it('When a credential read succeeds between failures Then resets the consecutive failure streak',async()=>{
+  let gets=0,calls=0;const control=fakeD1Control()
+  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>++gets===3?{ok:true,value:{token:'synthetic'}}:{ok:false,reason:'temporary'},refresh:async()=>({ok:false,reason:'unused'})},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;return {status:200,headers:{get:()=>null},json:async()=>({success:true,result:[{success:true}]})}}})
+  expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'retry'});expect((await c.query([statement])).ok).toBe(true)
+  expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'auth'});expect(calls).toBe(1)
  })
 })

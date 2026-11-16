@@ -2,7 +2,7 @@ import {describe,it,expect} from 'vitest'
 import {mkdtempSync,writeFileSync,readFileSync,rmSync,statSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {createWranglerOAuthFile} from '../../../../collector/infra/usage/wrangler-oauth-file.mjs'
+import {createWranglerOAuthFile,defaultWranglerOAuthPath} from '../../../../collector/infra/usage/wrangler-oauth-file.mjs'
 describe('Given a private fake Wrangler OAuth file',()=>{
  it('When expiring a rejected token Then preserves every credential field and changes only expiry atomically',()=>{
   const directory=mkdtempSync(join(tmpdir(),'oauth-file-')),path=join(directory,'default.toml')
@@ -26,9 +26,17 @@ describe('Given a real temporary OAuth file and fake Wrangler/fetch executors',(
   writeFileSync(path,raw,{mode:0o600})
   try{
    const clock={now:()=>now},file=createWranglerOAuthFile({path}),control=fakeD1Control()
-   const credentials=createWranglerOAuthCredentials({file,clock,refresh:createWranglerOAuthRefresh({execute:async args=>{expect(args).toEqual(['whoami','--json']);expect(readFileSync(path,'utf8')).toContain('2000-01-01');writeFileSync(path,raw.replace('old-synthetic','new-synthetic'));refreshes++;return 0}})})
+   const credentials=createWranglerOAuthCredentials({file,clock,refresh:createWranglerOAuthRefresh({execute:async request=>{expect(request.args.slice(1)).toEqual(['whoami','--json']);expect(request.env.CLOUDFLARE_AUTH_PROFILE).toBe('zzik-collector');expect(readFileSync(path,'utf8')).toContain('2000-01-01');writeFileSync(path,raw.replace('old-synthetic','new-synthetic'));refreshes++;return 0}})})
    const client=createD1RestClient({mode:'d1',dryRun:false,accountId:'fake',databaseId:'fake',control,clock,credentials,wait:async ms=>{now+=ms},fetch:async(_url,init)=>{calls++;expect(init.headers.Authorization).toBe(calls===1?'Bearer old-synthetic':'Bearer new-synthetic');return {status:calls===1?401:200,headers:{get:()=>null},json:async()=>({success:true,result:[{success:true}]})}}})
    expect((await client.query([{sql:'SELECT 1',params:[]}])).ok).toBe(true);expect(calls).toBe(2);expect(refreshes).toBe(1);expect(JSON.stringify(control.read())).not.toContain('synthetic')
   }finally{rmSync(directory,{recursive:true,force:true})}
+ })
+})
+
+describe('Given the collector OAuth profile path',()=>{
+ it('When the process has a human active profile Then still defaults to the dedicated collector file',()=>{
+  expect(defaultWranglerOAuthPath()).toMatch(/config[\\/]zzik-collector\.toml$/)
+  expect(defaultWranglerOAuthPath('zzik-secondary')).toMatch(/config[\\/]zzik-secondary\.toml$/)
+  for(const profile of ['default','staging','../default',''])expect(()=>defaultWranglerOAuthPath(profile)).toThrow()
  })
 })

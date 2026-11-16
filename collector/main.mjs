@@ -60,7 +60,7 @@ import { join } from 'node:path'
 
 const alerts = createDiscordAlerts({ ...readAlertConfig(process.env), fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
-/** @type {{mode:'postgres'|'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>}} */
+/** @type {{mode:'postgres'|'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}} */
 let storageConfig = {mode:'postgres',intervalSec:900,retentionDays:30}
 /** @type {ReturnType<typeof postgres>|null} */
 let database = null
@@ -270,7 +270,7 @@ async function startD1(flags){
   const notice=createCollectorNotice({...readAlertConfig(process.env),fetchImpl:globalThis.fetch,log:line=>process.stderr.write(line+'\n')})
   /** @type {ReturnType<typeof createD1Resident>|null} */let activeRuntime=null
   /** @type {()=>boolean} */let startupStopped=()=>false
-  const credentials=process.env.ZZIK_D1_AUTH==='wrangler-oauth'?createWranglerOAuthCredentials({file:createWranglerOAuthFile({path:defaultWranglerOAuthPath()}),refresh:createWranglerOAuthRefresh(),clock}):undefined
+  const credentials=process.env.ZZIK_D1_AUTH==='wrangler-oauth'?createWranglerOAuthCredentials({file:createWranglerOAuthFile({path:defaultWranglerOAuthPath(storageConfig.oauthProfile)}),refresh:createWranglerOAuthRefresh({profile:storageConfig.oauthProfile}),clock}):undefined
   const query=createD1RestClient({credentials,mode:'d1',dryRun:false,control,clock,canRequest:()=>!startupStopped()&&(activeRuntime?.canRequest()??true),
     accountId:/** @type {string} */(process.env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(process.env.ZZIK_D1_DATABASE_ID),token:credentials?undefined:process.env.ZZIK_D1_API_TOKEN,
     fetch:globalThis.fetch,wait:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
