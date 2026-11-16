@@ -8,7 +8,8 @@ export async function runLedgerMaintenance(options){
  const lastMs=s.lastPruneAt===null?NaN:Date.parse(s.lastPruneAt)
  const invalidLast=!Number.isFinite(lastMs)
  if(s.skipFirstPrune || (invalidLast && s.skippedAtMs===undefined)){
-  try{await options.notice.notify({reason:'prune_time_unknown'})}catch{}
+  const claimed=options.ledger.claimMaintenanceNotice('prune_time_unknown',now)
+  if(claimed.ok&&claimed.value)try{await options.notice.notify({reason:'prune_time_unknown'})}catch{}
   return options.ledger.checkpointPrune({kind:'skipped',atMs:now})
  }
  const baseline=invalidLast?(s.skippedAtMs===undefined?null:new Date(s.skippedAtMs).toISOString()):s.lastPruneAt

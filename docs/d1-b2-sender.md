@@ -36,3 +36,5 @@ B1 LedgerPort는 pruneState 읽기만 제공한다. 실제 runtime 조립 전 **
 B1 LedgerSenderPort의 단순 send/receipt 결과만으로는 HTTP 분류·maintenance를 표현할 수 없어 B2 전용 D1QueryPort/D1ControlPort를 추가했다. B1 타입은 변경하지 않았다. runtime 조립에서 포트를 명시적으로 선택해야 한다.
 
 B3 scheduler·signal quiesce·provider gate 조립, 실제 토큰 교체/Discord/원격 D1 검증, export cron/R2 생성은 이 patch가 하지 않는다. 핵심 경로 두 리뷰 관문과 운영 승인은 별도다.
+
+maintenance 알림 제한은 ledger meta의 maintenance_notices에 reason별 시각을 기록한다. 외부 알림 전에 SQLite transaction으로 24시간 슬롯을 claim하므로 runtime 재생성·재기동과 control 파일 오류에도 제한이 유지된다. 첫 unknown prune 알림도 같은 저장소를 공유한다. claim을 영속화할 수 없으면 추적되지 않은 외부 알림을 보내지 않는다. 이 메타는 기존 ledger_meta에 저장하며 새 schema migration은 없다.

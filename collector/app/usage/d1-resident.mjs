@@ -12,7 +12,7 @@ export function createD1Resident(options){
  /** @type {Promise<unknown>|null} */let maintaining=null
  const completed=new Set()
  const sender=createD1Sender({...options,mode:'d1',dryRun:false})
- const maintenance=createD1Maintenance({...options,mode:'d1',dryRun:false})
+ const maintenance=createD1Maintenance({...options,mode:'d1',dryRun:false,noticeState:{claim:(reason,atMs)=>options.ledger.claimMaintenanceNotice(reason,atMs)}})
  const scheduler=createProviderScheduler({...options,mode:'d1',canCollect:provider=>sender.canCollect(provider)&&(!options.once||!completed.has(provider)),providers:options.providers.map(bundle=>({
   id:/** @type {import('../../../shared/usage-contract.ts').UsageProvider} */(bundle.id),intervalSec:options.intervals[bundle.id],
   run:async context=>{const result=await runD1Provider({...options,provider:/** @type {import('../../../shared/usage-contract.ts').UsageProvider} */(bundle.id),intervalSec:options.intervals[bundle.id],ports:bundle.ports,runOptions:bundle.runOptions,context});completed.add(bundle.id);return result},

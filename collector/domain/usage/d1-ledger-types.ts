@@ -42,6 +42,7 @@ export interface LedgerPort {
   pending(nowMs: number): D1Result<OutboxRow[]>
   pruneState(): D1Result<{lastPruneAt: string | null; skipFirstPrune: boolean;skippedAtMs?:number}>
   checkpointPrune(input:{kind:'skipped'|'completed';atMs:number}):D1Result<void>
+  claimMaintenanceNotice(reason:string,atMs:number):D1Result<boolean>
   close(): void
 }
 /** B2 supplies the transport; B1 has no sender and no runtime assembly. */

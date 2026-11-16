@@ -19,3 +19,5 @@ export interface D1ControlPort {
  read():import('../../../shared/d1-contract.ts').D1Result<D1ControlState>
  write(state:D1ControlState):import('../../../shared/d1-contract.ts').D1Result<void>
 }
+
+export interface MaintenanceNoticeState {claim(reason:string,atMs:number):import('../../../shared/d1-contract.ts').D1Result<boolean>}

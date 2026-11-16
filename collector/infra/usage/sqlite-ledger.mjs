@@ -113,6 +113,20 @@ export function openSqliteLedger(options) {
       read:provider=>read(()=>load(provider)),
       stats:()=>read(stats),
       pruneState:()=>read(()=>JSON.parse(String(conn.prepare("SELECT value FROM ledger_meta WHERE key='prune'").get()?.value))),
+      claimMaintenanceNotice(reason,atMs){
+        if(failed||closed)return {ok:false,reason:'local_commit_failed'}
+        if(!/^[a-z_]{1,80}$/.test(reason)||!Number.isSafeInteger(atMs)||atMs<0)return {ok:false,reason:'invalid_notice_checkpoint'}
+        try{
+          conn.exec('BEGIN IMMEDIATE')
+          const raw=conn.prepare("SELECT value FROM ledger_meta WHERE key='maintenance_notices'").get()
+          const times=raw===undefined?{}:JSON.parse(String(raw.value))
+          if(times===null||typeof times!=='object'||Array.isArray(times)||!Object.values(times).every(at=>typeof at==='number'&&Number.isSafeInteger(at)&&at>=0))throw new Error('invalid_notice_meta')
+          const previous=times[reason]
+          if(typeof previous==='number'&&atMs-previous<86400000){conn.exec('ROLLBACK');return {ok:true,value:false}}
+          conn.prepare("INSERT INTO ledger_meta(key,value) VALUES('maintenance_notices',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(JSON.stringify({...times,[reason]:atMs}))
+          conn.exec('COMMIT');return {ok:true,value:true}
+        }catch{try{conn.exec('ROLLBACK')}catch{}failed=true;return {ok:false,reason:'local_commit_failed'}}
+      },
       checkpointPrune({kind,atMs}){
         if(failed||closed)return {ok:false,reason:'local_commit_failed'}
         if(!Number.isSafeInteger(atMs)||!Number.isFinite(new Date(atMs).getTime())||!['skipped','completed'].includes(kind))return {ok:false,reason:'invalid_prune_checkpoint'}
