@@ -24,7 +24,7 @@ export const SKIPPED_BUDGET_STATUS = 'skipped_budget'
  * } }} deps 시계는 주입(테스트)
  * @typedef {import('../../domain/usage/ports.mjs').CollectorPorts} CollectorPorts
  * @param {Array<{ id: string, ports: CollectorPorts, runOptions?: object }>} providers 런타임 계약 — ports는 조립 루트 계약, 배선 검증은 provider-bundles 테스트가 담당
- * @param {{ dryRun?: boolean, collectorVersion?: string, cycleBudgetMs?: number, intervalSec?: number }} options
+ * @param {{ dryRun?: boolean, collectorVersion?: string, cycleBudgetMs?: number, intervalSec?: number, shouldStop?:()=>boolean }} options
  * @returns {Promise<{ results: Array<{ id: string, exitCode: number, skippedBudget?: boolean, dryRunReport?: object }>, exitCode: number }>}
  */
 export async function runCycle(deps, providers = [], options = {}) {
@@ -36,6 +36,7 @@ export async function runCycle(deps, providers = [], options = {}) {
   const results = []
   const alertEvents = /** @type {import('../../domain/usage/alert-types.mjs').AlertEvent[]} */([])
   for (const provider of providers) {
+    if(options.shouldStop?.())break
     // 시작 전 예산 확인(v2): 넘었으면 이번 주기에서 건너뛴다.
     const elapsed = (clock ? clock.now() : Date.now()) - cycleStartMs
     if (elapsed >= budgetMs) {
@@ -88,7 +89,7 @@ export async function runCycle(deps, providers = [], options = {}) {
   }
   // Checkpoints have already been persisted by each successful runOnce.
   try { await deps.alerts?.send(alertEvents, {dryRun:options.dryRun}) } catch { /* delivery must never fail collection */ }
-  if (!options.dryRun && deps.maintenance) {
+  if (!options.dryRun && !options.shouldStop?.() && deps.maintenance) {
     const maintenance = deps.maintenance
     try {
       const state = /** @type {import('../../domain/usage/ports.mjs').CollectorState|null} */ (await maintenance.state.read())

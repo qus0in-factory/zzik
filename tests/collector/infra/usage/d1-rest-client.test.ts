@@ -46,6 +46,11 @@ describe('Given a fake D1 REST endpoint and a single request lane',()=>{
   const c=createD1RestClient({mode:'d1',dryRun:false,control:fakeD1Control(),accountId:'fake',databaseId:'fake',token:'fake',clock:{now:()=>Date.now()},wait:async()=>{},fetch:async(_url,init)=>{signal=init.signal;return new Promise(()=>{})}})
   expect(await c.query([statement])).toMatchObject({ok:false,reason:'retry'});expect(signal?.aborted).toBe(true)
  },20000)
+ it('When shutdown begins while a request waits for its lane Then never starts that queued HTTP',async()=>{
+  let allowed=true,calls=0,release!:()=>void;const control=fakeD1Control()
+  const client=createD1RestClient({mode:'d1',dryRun:false,control,canRequest:()=>allowed,accountId:'fake',databaseId:'fake',token:'fake',clock:{now:()=>0},wait:async()=>new Promise<void>(r=>{release=r}),fetch:async()=>{calls++;return {status:200,headers:{get:()=>null},json:async()=>({success:true,result:[{success:true}]})}}})
+  await client.query([statement]);const queued=client.query([statement]);for(let i=0;i<5;i++)await Promise.resolve();allowed=false;release();expect(await queued).toMatchObject({ok:false,reason:'disabled'});expect(calls).toBe(1)
+ })
  it('When postgres or dry-run is selected Then performs zero remote I/O',async()=>{
   for(const [mode,dryRun] of [['postgres',false],['d1',true]] as const){let calls=0;const c=createD1RestClient({mode,dryRun,control:fakeD1Control(),accountId:'fake',databaseId:'fake',token:'fake',clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;throw Error('must not send')}});expect((await c.query([statement])).ok).toBe(false);expect(calls).toBe(0)}
  })

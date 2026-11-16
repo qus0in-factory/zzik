@@ -49,6 +49,16 @@ describe('Given a private SQLite WAL ledger and a process-lifetime lock',()=>{
  it('When prune timestamp is absent or broken Then records skip-first-prune rather than pruning immediately',()=>{
   for(const at of [undefined,'broken'])expect(successValue(open(dir(),{lastPruneAt:at}).pruneState())).toEqual({lastPruneAt:null,skipFirstPrune:true})
  })
+ it('When the first unknown prune cycle is skipped Then persists a distinct skip checkpoint; successful prune persists its real time',()=>{
+  const d=dir(),l=open(d)
+  successValue(l.checkpointPrune({kind:'skipped',atMs:now}));l.close()
+  const next=open(d)
+  expect(successValue(next.pruneState())).toEqual({lastPruneAt:null,skipFirstPrune:false,skippedAtMs:now})
+  successValue(next.checkpointPrune({kind:'skipped',atMs:now+1000}))
+  expect(successValue(next.pruneState()).skippedAtMs).toBe(now)
+  successValue(next.checkpointPrune({kind:'completed',atMs:now+86400000}))
+  expect(successValue(next.pruneState())).toEqual({lastPruneAt:new Date(now+86400000).toISOString(),skipFirstPrune:false})
+ })
  it('When another owner starts Then returns exit 78; closing releases the lock',()=>{
   const d=dir(),l=open(d)
   expect(openSqliteLedger({directory:d,nowMs:now})).toMatchObject({ok:false,reason:'already_running',exitCode:78})

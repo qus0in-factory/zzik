@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { d1RetryAfterMs } from '../../domain/usage/d1-delivery-policy.mjs'
 /** @typedef {import('../../domain/usage/d1-sender-types.ts').D1QueryPort} Query */
 /** @typedef {import('../../domain/usage/d1-sender-types.ts').D1QueryResult} Outcome */
-/** @param {{mode:string,dryRun:boolean,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,accountId:string,databaseId:string,token:string,clock:import('../../domain/usage/d1-sender-types.ts').D1Clock,wait:(ms:number)=>Promise<void>,fetch:import('../../domain/usage/d1-sender-types.ts').D1Fetch}} options @returns {Query} */
+/** @param {{mode:string,dryRun:boolean,canRequest?:()=>boolean,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,accountId:string,databaseId:string,token:string,clock:import('../../domain/usage/d1-sender-types.ts').D1Clock,wait:(ms:number)=>Promise<void>,fetch:import('../../domain/usage/d1-sender-types.ts').D1Fetch}} options @returns {Query} */
 export function createD1RestClient(options) {
   let tail=Promise.resolve(),lastStart=-Infinity,blockedUntil=0,auth=false
   const credentialKey=createHash('sha256').update(options.token).digest('hex')
@@ -16,7 +16,7 @@ export function createD1RestClient(options) {
   const failure=(reason,status=null,retryAfterMs=0)=>({ok:false,reason,status,retryAfterMs})
   /** @param {readonly import('../../../shared/d1-contract.ts').D1SqlStatement[]} statements @returns {Promise<Outcome>} */
   const perform=async statements=>{
-    if(options.mode!=='d1'||options.dryRun)return failure('disabled')
+    if(options.mode!=='d1'||options.dryRun||options.canRequest?.()===false)return failure('disabled')
     const state=control();if(state===null)return failure('local')
     auth=state.authStopped
     if(auth)return failure('auth')
@@ -25,6 +25,7 @@ export function createD1RestClient(options) {
     const waitMs=Math.max(0,Math.max(lastStart+1000,blockedUntil)-options.clock.now())
     if(waitMs>0)await options.wait(waitMs)
     if(auth)return failure('auth')
+    if(options.canRequest?.()===false)return failure('disabled')
     lastStart=options.clock.now()
     const current=control();if(current===null||!options.control.write({...current,nextRequestAtMs:lastStart+1000}).ok)return failure('local')
     const controller=new AbortController()

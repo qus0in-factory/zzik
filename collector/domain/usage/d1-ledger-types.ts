@@ -1,6 +1,8 @@
 import type { UsageEnvelope, UsageProvider } from '../../../shared/usage-contract.ts'
 import type { CollectorD1WriteV1, D1WriteReceipt, D1Result } from '../../../shared/d1-contract.ts'
 export interface LedgerState {
+  clockSkewCount?: number
+  clockStopped?: boolean
   previous: UsageEnvelope | null
   lastEventAt: string | null
   remoteCommitted: UsageEnvelope | null
@@ -38,7 +40,8 @@ export interface LedgerPort {
   stats(): D1Result<QueueStats>
   quarantine(nowMs: number): D1Result<number>
   pending(nowMs: number): D1Result<OutboxRow[]>
-  pruneState(): D1Result<{lastPruneAt: string | null; skipFirstPrune: boolean}>
+  pruneState(): D1Result<{lastPruneAt: string | null; skipFirstPrune: boolean;skippedAtMs?:number}>
+  checkpointPrune(input:{kind:'skipped'|'completed';atMs:number}):D1Result<void>
   close(): void
 }
 /** B2 supplies the transport; B1 has no sender and no runtime assembly. */

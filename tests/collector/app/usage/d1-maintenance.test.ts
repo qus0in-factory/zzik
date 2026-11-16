@@ -20,6 +20,10 @@ describe('Given a D1-only maintenance module on the shared request lane',()=>{
   const restarted=createD1Maintenance({mode:'d1',dryRun:false,control:h.control,query:h.query,clock:h.clock,notice:h.notice})
   await restarted.checkHealth();expect(h.calls).toHaveLength(1)
  })
+ it('When quiesce cancels a queued health read Then sends no outage alert and preserves the previous health checkpoint',async()=>{
+  const h=setup();h.responses.push({ok:false,reason:'disabled',status:null,retryAfterMs:0});await h.maintenance.checkHealth()
+  expect(h.notices).toHaveLength(0);const saved=h.control.read();expect(saved.ok&&saved.value.lastHealthCheckAtMs).toBeNull()
+ })
  it('When pruning Then uses separate provider-specific 500-row event and receipt batches and advances only after all succeed',async()=>{
   const h=setup();for(let i=0;i<12;i++)h.responses.push({ok:true,value:[{meta:{changes:0}}]})
   expect(await h.maintenance.prune('2026-11-14T00:00:00Z',30)).toMatchObject({ok:true,lastPruneAt:D1_NOW})

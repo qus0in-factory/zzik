@@ -113,6 +113,17 @@ export function openSqliteLedger(options) {
       read:provider=>read(()=>load(provider)),
       stats:()=>read(stats),
       pruneState:()=>read(()=>JSON.parse(String(conn.prepare("SELECT value FROM ledger_meta WHERE key='prune'").get()?.value))),
+      checkpointPrune({kind,atMs}){
+        if(failed||closed)return {ok:false,reason:'local_commit_failed'}
+        if(!Number.isSafeInteger(atMs)||!Number.isFinite(new Date(atMs).getTime())||!['skipped','completed'].includes(kind))return {ok:false,reason:'invalid_prune_checkpoint'}
+        try{
+          conn.exec('BEGIN IMMEDIATE')
+          const current=JSON.parse(String(conn.prepare("SELECT value FROM ledger_meta WHERE key='prune'").get()?.value))
+          const next=kind==='completed'?{lastPruneAt:new Date(atMs).toISOString(),skipFirstPrune:false}:current.skipFirstPrune?{lastPruneAt:current.lastPruneAt,skipFirstPrune:false,skippedAtMs:atMs}:current
+          conn.prepare("UPDATE ledger_meta SET value=? WHERE key='prune'").run(JSON.stringify(next));conn.exec('COMMIT')
+          return {ok:true,value:undefined}
+        }catch{try{conn.exec('ROLLBACK')}catch{}failed=true;return {ok:false,reason:'local_commit_failed'}}
+      },
       update(provider,transition){
         if(failed||closed)return {ok:false,reason:'local_commit_failed'}
         try {

@@ -22,6 +22,12 @@ export function createD1Maintenance(options) {
           {sql:'SELECT ran_at_ms FROM usage_export_log WHERE ok=1 ORDER BY ran_at_ms DESC LIMIT 1',params:[]},
           {sql:'SELECT provider,stalled_at_ms FROM usage_bucket_checkpoint WHERE stalled_at_ms IS NOT NULL',params:[]},
         ])
+        if(!r.ok&&r.reason==='disabled'){
+          const current=options.control.read()
+          if(current.ok&&current.value.lastHealthCheckAtMs===lastHealth)options.control.write({...current.value,lastHealthCheckAtMs:control.value.lastHealthCheckAtMs})
+          lastHealth=control.value.lastHealthCheckAtMs??-Infinity
+          return {ok:false,reason:'disabled'}
+        }
         if(!r.ok){await notify(r.reason==='auth'?'d1_auth':'d1_export_read_failed');return {ok:false,reason:r.reason}}
         const latest=/** @type {{ran_at_ms?:unknown}[]|undefined} */(r.value[0]?.results)
         const stalls=/** @type {{stalled_at_ms?:unknown}[]|undefined} */(r.value[1]?.results)
@@ -50,7 +56,7 @@ export function createD1Maintenance(options) {
             let finished=false
             for(let batch=0;batch<100;batch++){
               const r=await options.query.query([{sql:`DELETE FROM ${table} WHERE ${key} IN (SELECT ${key} FROM ${table} WHERE provider=? AND ${time}<? LIMIT 500)`,params:[provider,now-days*86400000]}])
-              if(!r.ok){await notify(r.reason==='auth'?'d1_auth':'d1_prune_failed');return {ok:false,reason:r.reason,lastPruneAt}}
+              if(!r.ok){if(r.reason!=='disabled')await notify(r.reason==='auth'?'d1_auth':'d1_prune_failed');return {ok:false,reason:r.reason,lastPruneAt}}
               const meta=/** @type {{changes?:unknown}|undefined} */(r.value[0]?.meta),changes=meta?.changes
               if(typeof changes!=='number'||!Number.isSafeInteger(changes)||changes<0){await notify('d1_prune_failed');return {ok:false,reason:'invalid_prune_result',lastPruneAt}}
               if(changes===0){finished=true;break}
