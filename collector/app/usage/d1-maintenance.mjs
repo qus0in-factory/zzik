@@ -24,7 +24,11 @@ export function createD1Maintenance(options) {
         const stalls=/** @type {{stalled_at_ms?:unknown}[]|undefined} */(r.value[1]?.results)
         if(!Array.isArray(latest)||!Array.isArray(stalls)){await notify('d1_export_read_failed');return {ok:false,reason:'invalid_health_result'}}
         const checkedAt=options.clock.now()
-        const saved=options.control.write({...control.value,lastHealthCheckAtMs:checkedAt})
+        // Re-read just before writing: a REST call on the same lane may have advanced
+        // nextRequestAtMs (or another control field) while the health query was in flight.
+        const current=options.control.read()
+        if(!current.ok){await notify('sender_control_failed');return {ok:false,reason:current.reason}}
+        const saved=options.control.write({...current.value,lastHealthCheckAtMs:checkedAt})
         if(!saved.ok){await notify('sender_control_failed');return {ok:false,reason:saved.reason}}
         lastHealth=checkedAt
         const at=latest[0]?.ran_at_ms

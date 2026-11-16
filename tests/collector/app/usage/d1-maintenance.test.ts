@@ -20,6 +20,21 @@ describe('Given a D1-only maintenance module on the shared request lane',()=>{
   const restarted=createD1Maintenance({mode:'d1',dryRun:false,control:h.control,query:h.query,clock:h.clock,notice:h.notice})
   await restarted.checkHealth();expect(h.calls).toHaveLength(1)
  })
+ it('When the REST client advances nextRequestAtMs during the health query Then recording the checkpoint preserves it',async()=>{
+  const h=setup()
+  const advanced=Date.parse(D1_NOW)+4242
+  const originalQuery=h.query
+  const racingQuery={authStopped:()=>false,async query(statements:unknown){
+   const result=await originalQuery.query(statements)
+   const current=h.control.read();if(!current.ok)throw new Error('control read failed')
+   h.control.write({...current.value,nextRequestAtMs:advanced})
+   return result
+  }}
+  const maintenance=createD1Maintenance({mode:'d1',dryRun:false,control:h.control,query:racingQuery,clock:h.clock,notice:h.notice})
+  h.responses.push({ok:true,value:[{results:[{ran_at_ms:Date.parse(D1_NOW)}]},{results:[]}]})
+  expect((await maintenance.checkHealth()).ok).toBe(true)
+  expect(h.control.read()).toMatchObject({ok:true,value:{lastHealthCheckAtMs:Date.parse(D1_NOW),nextRequestAtMs:advanced}})
+ })
  it('When health read fails Then does not advance checkpoint and retries on the next cycle',async()=>{
   const h=setup()
   h.responses.push({ok:false,reason:'retry',status:503,retryAfterMs:0})
