@@ -82,7 +82,7 @@ ledger 입력은 현재 provider/gate/alerts/lastRun/lastPruneAt다. pgCommitted
 - lastPruneAt: 별도 pruneState에도 넣는다. 없거나 깨지면null과 prune_time_unknown 경고를 반환하고 현재 시각을 발명하지 않는다. B1의 첫 prune 건너뛰기 정책은 그 경고를 소비해야 한다.
 - 기존 JSON schema1의 필드만 projection하고 복사본을 반환한다. ledger의 내부 컬럼은 구 JSON으로 흘리지 않는다.
 
-이 함수는 파일·outbox·acked_seq·마커를 변경하지 않는다. PG commit 후 상태 파일의 원자적 저장과 import 마커 rolled-back/제거는 후속 rollback 조립 도구의 책임이다.
+이 함수는 파일·outbox·acked_seq·마커를 변경하지 않는다. PG commit 후 상태 파일의 원자적 저장과 import 마커 rolled-back 표시는 후속 rollback 조립 도구의 책임이다. (2026-11-16 B1 결정으로 정정)
 
 ## z-ds 연결 요청
 
