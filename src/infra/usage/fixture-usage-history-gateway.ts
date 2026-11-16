@@ -4,7 +4,7 @@ import codex from '../../../tests/fixtures/usage-history/codex.samples.json'
 import grok from '../../../tests/fixtures/usage-history/grok.samples.json'
 import ollama from '../../../tests/fixtures/usage-history/ollama.samples.json'
 import opencode from '../../../tests/fixtures/usage-history/opencode.samples.json'
-import { USAGE_HISTORY_MIN_OK_EVENTS, USAGE_HISTORY_SCAN_VERSION } from '../../../shared/usage-history-contract'
+import { USAGE_BUCKET_SEC, USAGE_HISTORY_MIN_OK_EVENTS, USAGE_HISTORY_SCAN_VERSION } from '../../../shared/usage-history-contract'
 import type { UsageHistoryPage, UsageHistorySummaryEntry } from '../../../shared/usage-history-contract'
 import { decodeHistoryPage } from '@domain/usage/history/decode-history'
 import type { UsageHistoryGateway } from '@domain/usage/history/ports'
@@ -33,6 +33,12 @@ export function createFixtureUsageHistoryGateway(): UsageHistoryGateway {
         return { provider, okCount: Math.min(oks.length, USAGE_HISTORY_MIN_OK_EVENTS), firstOkAt, lastOkAt }
       })
       return { ok: true, summary }
+    },
+    async fetchBuckets(provider, query) {
+      const page = pages.get(provider)
+      if (page === undefined) return { ok: false, reason: 'api_error', message: 'not_found' }
+      const samples = page.samples.filter(sample => sample.runAt >= query.from && sample.runAt < query.until)
+      return { ok: true, page: { provider, scanVersion: USAGE_HISTORY_SCAN_VERSION, bucketSec: USAGE_BUCKET_SEC, from: query.from, until: query.until, samples, anchor: null, complete: true } }
     },
     async fetchSamples(provider, query) {
       const page = pages.get(provider)

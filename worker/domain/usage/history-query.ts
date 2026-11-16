@@ -1,5 +1,5 @@
-import { USAGE_HISTORY_ANCHOR_ON, USAGE_HISTORY_CURSOR_RE, USAGE_HISTORY_INSTANT_RE, USAGE_HISTORY_LIMIT_MAX, USAGE_HISTORY_LIMIT_RE, USAGE_HISTORY_PAGE_LIMIT } from '../../../shared/usage-history-contract';
-import type { UsageHistoryQuery } from '../../../shared/usage-history-contract';
+import { USAGE_BUCKET_MAX_SPAN_MS, USAGE_BUCKET_SEC, USAGE_HISTORY_ANCHOR_ON, USAGE_HISTORY_CURSOR_RE, USAGE_HISTORY_INSTANT_RE, USAGE_HISTORY_LIMIT_MAX, USAGE_HISTORY_LIMIT_RE, USAGE_HISTORY_PAGE_LIMIT } from '../../../shared/usage-history-contract';
+import type { UsageHistoryBucketsQuery, UsageHistoryQuery } from '../../../shared/usage-history-contract';
 /** Reject JS Date's normalization of impossible calendar days. */
 export function historyInstant(value: string): string | null {
   if (!USAGE_HISTORY_INSTANT_RE.test(value))
@@ -59,4 +59,26 @@ export function parseHistoryQuery(params: URLSearchParams): {
   if (query.from !== undefined && query.until !== undefined && query.until <= query.from)
     return invalid;
   return { ok: true, query };
+}
+
+/** `GET /api/usage-history/:provider/buckets` query. Validates before any storage read. */
+export function parseHistoryBucketsQuery(params: URLSearchParams): {
+  ok: true;
+  query: UsageHistoryBucketsQuery;
+} | {
+  ok: false;
+  reason: 'invalid_query';
+} {
+  const invalid = { ok: false as const, reason: 'invalid_query' as const };
+  const from = params.get('from');
+  const until = params.get('until');
+  if (from === null || until === null || params.get('bucketSec') !== String(USAGE_BUCKET_SEC))
+    return invalid;
+  const fromIso = historyInstant(from);
+  const untilIso = historyInstant(until);
+  if (fromIso === null || untilIso === null || untilIso <= fromIso)
+    return invalid;
+  if (Date.parse(untilIso) - Date.parse(fromIso) > USAGE_BUCKET_MAX_SPAN_MS)
+    return invalid;
+  return { ok: true, query: { from: fromIso, until: untilIso, bucketSec: USAGE_BUCKET_SEC } };
 }

@@ -1,8 +1,8 @@
 import type ky from 'ky'
 import { TimeoutError } from 'ky'
-import { USAGE_HISTORY_PATH } from '../../../shared/usage-history-contract'
-import type { UsageHistoryQuery } from '../../../shared/usage-history-contract'
-import { decodeHistoryPage, decodeHistorySummary } from '@domain/usage/history/decode-history'
+import { USAGE_BUCKET_SEC, USAGE_HISTORY_PATH } from '../../../shared/usage-history-contract'
+import type { UsageHistoryBucketsQuery, UsageHistoryQuery } from '../../../shared/usage-history-contract'
+import { decodeHistoryBucketsPage, decodeHistoryPage, decodeHistorySummary } from '@domain/usage/history/decode-history'
 import type { UsageHistoryGateway, UsageHistoryGatewayFailure } from '@domain/usage/history/ports'
 import type { UsageProvider } from '@domain/usage/providers'
 
@@ -43,6 +43,12 @@ export function createHttpUsageHistoryGateway(client: typeof ky, basePath: strin
       const result = await request(basePath)
       if (!result.ok) return result
       return decodeHistorySummary(result.body)
+    },
+    async fetchBuckets(provider: UsageProvider, query: UsageHistoryBucketsQuery) {
+      const params = new URLSearchParams({ from: query.from, until: query.until, bucketSec: String(USAGE_BUCKET_SEC) })
+      const result = await request(`${basePath}/${provider}/buckets?${params.toString()}`)
+      if (!result.ok) return result
+      return decodeHistoryBucketsPage(result.body, provider)
     },
     async fetchSamples(provider: UsageProvider, query: UsageHistoryQuery) {
       const params = new URLSearchParams()

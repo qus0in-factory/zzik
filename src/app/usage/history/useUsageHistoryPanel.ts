@@ -7,7 +7,7 @@ import { RANGE_MS, hasDrawableSuccess } from '@domain/usage/history/chart-time-d
 import { historyEligibility } from '@domain/usage/history/eligibility'
 import type { HistoryEligibility } from '@domain/usage/history/eligibility'
 import type { KeyValueStorage } from '@domain/usage/history/ports'
-import { withLabels } from '@domain/usage/history/record'
+import { bucketRecordFromPage, withLabels } from '@domain/usage/history/record'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import { USAGE_PROVIDERS } from '@domain/usage/providers'
 import type { UsageProvider } from '@domain/usage/providers'
@@ -20,7 +20,7 @@ import type { ChartButtonState, ChartPanelActions, ChartPanelState, ChartView, U
 import { DEFAULT_CHART_SIZE } from './chart-view-input'
 import { prefsOf } from './chart-prefs-store'
 import { resolveViewBuilder, useHistoryDeps } from './HistoryDepsContext'
-import { HISTORY_DATA_GC_MS, historyDataKey, historyWarmKey, historyDataQueryOptions, historySummaryQueryOptions, historySyncKey, runDedupedSync, throwForOutcome } from './history-query'
+import { HISTORY_DATA_GC_MS, historyBucketsQueryOptions, historyDataKey, historyWarmKey, historyDataQueryOptions, historySummaryQueryOptions, historySyncKey, runDedupedSync, throwForOutcome } from './history-query'
 
 /** 이 탭에서 열어 둔 패널(sessionStorage). 같은 탭의 새로고침·재로그인 복귀에서만 복원된다. */
 export const CHART_OPEN_KEY = 'zzik:chart-open:v1'
@@ -82,6 +82,12 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   const record = dataQuery.data ?? null
 
   const range = useStore(deps.prefs, (state) => prefsOf(state, provider).range)
+  const bucketQuery = useQuery({ ...historyBucketsQueryOptions(deps, provider), enabled: deps.enabled && open && range === '30d' })
+  const bucketRecord = useMemo(
+    () => bucketQuery.data === undefined ? null : bucketRecordFromPage(bucketQuery.data, new Date(deps.nowMs()).toISOString(), record),
+    [bucketQuery.data, record, deps.nowMs],
+  )
+  const activeRecord = range === '30d' ? bucketRecord : record
   const hidden = useStore(deps.prefs, (state) => state.providers[provider]?.hidden)
   const shown = useStore(deps.prefs, (state) => state.providers[provider]?.shown)
 
@@ -106,7 +112,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   // 동기화: 패널이 열려 있고 레코드·스냅샷을 읽은 뒤에 시작한다. 중간 조각마다 부분 데이터를 흘리지 않고 완료 시 한 번에 반영한다.
   const syncQuery = useQuery({
     queryKey: [...historySyncKey(provider), runAt ?? 'none', range],
-    enabled: deps.enabled && open && dataQuery.isSuccess && !snapshot.isPending,
+    enabled: deps.enabled && open && range !== '30d' && dataQuery.isSuccess && !snapshot.isPending,
     staleTime: Infinity,
     gcTime: HISTORY_DATA_GC_MS,
     refetchOnWindowFocus: false,
@@ -157,11 +163,11 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   const eligibility = useMemo<HistoryEligibility | 'pending' | 'unknown'>(() => {
     if (summaryQuery.isPending) return 'pending'
     if (summaryQuery.isError) {
-      const local = record === null ? null : historyEligibility(summaryEntryFromRecord(record))
+      const local = activeRecord === null ? null : historyEligibility(summaryEntryFromRecord(activeRecord))
       return local?.eligible === true ? local : 'unknown'
     }
     return historyEligibility(summaryQuery.data?.find((entry) => entry.provider === provider) ?? null)
-  }, [summaryQuery.isPending, summaryQuery.isError, summaryQuery.data, record, provider])
+  }, [summaryQuery.isPending, summaryQuery.isError, summaryQuery.data, activeRecord, provider])
 
   const toggle = useCallback(() => {
     if (!deps.enabled) return
@@ -233,34 +239,35 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
           setPreloadError(false)
           setPreloadAttempt((n) => n + 1)
         }
-        void syncQuery.refetch()
+        if (range === '30d') void bucketQuery.refetch()
+        else void syncQuery.refetch()
       },
       onResize: (next) => setSize((current) => (current.width === next.width && current.height === next.height ? current : { width: next.width, height: next.height })),
     }),
-    [deps, provider, syncQuery.refetch],
+    [deps, provider, range, bucketQuery.refetch, syncQuery.refetch],
   )
 
   // 스피너는 선택 범위에 그릴 성공 표본이 하나도 없을 때만 표시한다.
   // 이미 그릴 표본이 있으면 범위 확장·백그라운드 sync·탭 재방문 중에도 기존 차트를 유지하고 완료 시 한 번만 교체한다.
-  const waitingForHistory = syncQuery.isPending || syncQuery.isFetching
+  const waitingForHistory = range === '30d' ? bucketQuery.isFetching : syncQuery.isPending || syncQuery.isFetching
   const hasDrawable = hasDrawableSuccess(
-    record,
+    activeRecord,
     range,
     usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso),
   )
-  const isInitialLoading = record === null && (dataQuery.isPending || snapshot.isPending || waitingForHistory)
+  const isInitialLoading = activeRecord === null && ((range === '30d' ? bucketQuery.isPending : dataQuery.isPending) || snapshot.isPending || waitingForHistory)
   const isUncoveredSwitch = !hasDrawable && waitingForHistory
   const isLoading = !preloadReady || isInitialLoading || isUncoveredSwitch
 
   const prevViewRef = useRef<{ view: ChartView; key: string } | null>(null)
   const buildView = resolveViewBuilder(deps)
   const view = useMemo(() => {
-    if (isLoading || preloadError || record === null) {
+    if (isLoading || preloadError || activeRecord === null) {
       prevViewRef.current = null
       return null
     }
-    // 범위는 sync 완료 시 새 데이터로 한 번만 교체한다. hidden/size/builder 변경은 즉시 반영한다.
-    const uiKey = `${(hidden ?? NONE).join(',')}|${(shown ?? NONE).join(',')}|${size.width}x${size.height}|${builderTick}`
+    // 범위·모드는 sync 완료 시 새 데이터로 한 번만 교체한다. hidden/size/builder 변경은 즉시 반영한다.
+    const uiKey = `${range}|${range === '30d' ? 'bucket' : 'raw'}|${(hidden ?? NONE).join(',')}|${(shown ?? NONE).join(',')}|${size.width}x${size.height}|${builderTick}`
     if (waitingForHistory && prevViewRef.current !== null && prevViewRef.current.key === uiKey) {
       return prevViewRef.current.view
     }
@@ -268,7 +275,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     const built = buildView({
       provider,
       providerTitle: meta.title,
-      record,
+      record: activeRecord,
       tailEnd,
       range,
       hidden: hidden ?? NONE,
@@ -280,16 +287,23 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     })
     prevViewRef.current = { view: built, key: uiKey }
     return built
-  }, [waitingForHistory, isLoading, preloadError, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, deps, usageState.report])
+  }, [waitingForHistory, isLoading, preloadError, buildView, builderTick, provider, meta.title, activeRecord, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, deps, usageState.report])
 
   if (!deps.enabled || !open) return { button, panel: null }
+  const partialNote = range === '30d' && bucketQuery.data?.complete === false ? t('chart.note.partial') : null
   const errorMessage = preloadError
     ? t('chart.loadFailed')
-    : syncQuery.error instanceof UsageLoadError
-      ? syncQuery.error.message
-      : syncQuery.isError
-        ? t('chart.loadFailed')
-        : null
+    : range === '30d'
+      ? bucketQuery.error instanceof UsageLoadError
+        ? bucketQuery.error.message
+        : bucketQuery.isError
+          ? t('chart.loadFailed')
+          : null
+      : syncQuery.error instanceof UsageLoadError
+        ? syncQuery.error.message
+        : syncQuery.isError
+          ? t('chart.loadFailed')
+          : null
   const state: ChartPanelState =
     isLoading
       ? { phase: 'loading' }
@@ -299,6 +313,6 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
           ? errorMessage !== null
             ? { phase: 'error', message: errorMessage }
             : { phase: 'loading' }
-          : { phase: 'ready', view, syncing: syncQuery.isFetching, note: errorMessage }
+          : { phase: 'ready', view, syncing: range === '30d' ? bucketQuery.isFetching : syncQuery.isFetching, note: errorMessage ?? partialNote }
   return { button, panel: { panelId, regionLabel: t('chart.regionLabel', { provider: meta.title }), range, state, actions } }
 }

@@ -51,6 +51,17 @@ export class PostgresHistoryStore implements HistoryStore {
       return { ok: false, reason: 'storage_unavailable' };
     }
   }
+  async readRowBefore(provider: UsageProvider, before: string): Promise<HistoryResult<HistoryRow | null>> {
+    if (this.db === null)
+      return { ok: false, reason: 'storage_unavailable' };
+    try {
+      const rows = await this.db.select(fields).from(usageEvent).where(and(eq(usageEvent.provider, provider), lt(usageEvent.runAt, new Date(before)))).orderBy(desc(usageEvent.runAt), desc(usageEvent.id)).limit(1);
+      return { ok: true, value: rows[0] ?? null };
+    }
+    catch {
+      return { ok: false, reason: 'storage_unavailable' };
+    }
+  }
   async readSummary(providers: readonly UsageProvider[]): Promise<HistoryResult<UsageHistorySummaryEntry[]>> {
     if (this.db === null)
       return { ok: false, reason: 'storage_unavailable' };
