@@ -10,6 +10,11 @@ import {
   USAGE_HISTORY_PAGE_LIMIT,
   USAGE_HISTORY_PATH,
   USAGE_HISTORY_SCAN_VERSION,
+  USAGE_BUCKET_MAX_POINTS,
+  USAGE_BUCKET_MAX_SPAN_MS,
+  USAGE_BUCKET_READ_BUDGET_MS,
+  USAGE_BUCKET_SEC,
+  USAGE_BUCKET_SUFFIX,
   type UsageHistoryPage,
   type UsageHistorySample,
   type UsageHistoryValue,
@@ -142,6 +147,11 @@ describe('Given the frozen usage history contract (ADR 0.7 T0)', () => {
     expect(USAGE_HISTORY_MIN_OK_EVENTS).toBe(1)
     expect(USAGE_HISTORY_SCAN_VERSION).toBe(2)
     expect(USAGE_HISTORY_ANCHOR_ON).toBe('1')
+    expect(USAGE_BUCKET_SEC).toBe(900)
+    expect(USAGE_BUCKET_SUFFIX).toBe('buckets')
+    expect(USAGE_BUCKET_MAX_POINTS).toBe(4_000)
+    expect(USAGE_BUCKET_READ_BUDGET_MS).toBe(8_000)
+    expect(USAGE_BUCKET_MAX_SPAN_MS).toBe(30 * 86_400_000)
   })
 
   it('When validating query formats Then the instant, cursor and limit regexes accept and reject the ADR examples', () => {

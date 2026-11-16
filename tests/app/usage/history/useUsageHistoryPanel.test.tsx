@@ -55,7 +55,7 @@ function harness(options: { events?: UsageHistorySample[]; summary?: UsageHistor
   const client = createTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <UsageGatewayProvider deps={{ gateway: usage, clock: createFakeUsageClock(), scheduler: createFakeUsageScheduler() }}>
+      <UsageGatewayProvider deps={{ gateway: usage, clock: createFakeUsageClock(new Date(NOW).toISOString()), scheduler: createFakeUsageScheduler() }}>
         <HistoryDepsProvider deps={deps}>{children}</HistoryDepsProvider>
       </UsageGatewayProvider>
     </QueryClientProvider>
@@ -228,7 +228,7 @@ describe('Given opening the panel', () => {
     expect(h.inputs).toHaveLength(1)
     expect(h.inputs[0]?.record.samples.some((sample) => sample.values !== null)).toBe(true)
   })
-  it('When expanding from 7d to 30d Then the cached chart stays ready during backfill, builds the 30d view once on completion, and revisiting 24h also waits without loading', async () => {
+  it('When expanding from 7d to 30d Then the 30-day tab uses the bucket gateway, not the raw backfill', async () => {
     const events = syntheticEvents(150, new Date(NOW - 149 * 2 * 3_600_000).toISOString(), 2 * 3_600_000)
     const h = harness({ events, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
     h.gateway.onBeforeFetch = () => new Promise((resolve) => setTimeout(resolve, 1))
@@ -236,27 +236,46 @@ describe('Given opening the panel', () => {
     await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
     await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
     expect(h.inputs).toHaveLength(1)
-    const viewBefore = (result.current.panel?.state as { view: unknown }).view
+    const rawCalls = h.gateway.queries.length
+    const rawSampleCount = h.cache.records.get('claude')?.samples.length
+    const bucketSamples = syntheticEvents(4, new Date(NOW - 2 * 3_600_000).toISOString(), 900_000)
+    h.gateway.bucketPages.claude = {
+      provider: 'claude', scanVersion: 2, bucketSec: 900,
+      from: new Date(NOW - 30 * 86_400_000).toISOString(), until: new Date(NOW).toISOString(),
+      samples: bucketSamples, anchor: null, complete: true,
+    }
     act(() => result.current.panel?.actions.onSelectRange('30d'))
-    // 7d 표본은 30d 범위에도 그릴 수 있으므로 스피너가 아니라 기존 차트를 유지한다
-    expect(result.current.panel?.state.phase).toBe('ready')
-    expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(true)
-    expect(h.inputs).toHaveLength(1)
-    expect((result.current.panel?.state as { view: unknown }).view).toBe(viewBefore)
+    await waitFor(() => expect(h.gateway.bucketQueries).toHaveLength(1))
+    expect(h.gateway.bucketQueries[0]).toMatchObject({ bucketSec: 900 })
+    expect(h.gateway.queries.length).toBe(rawCalls)
     await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
-    await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
-    expect(h.inputs).toHaveLength(2)
-    expect(h.inputs[1]?.range).toBe('30d')
-    expect((result.current.panel?.state as { view: unknown }).view).not.toBe(viewBefore)
+    expect(h.inputs.at(-1)?.range).toBe('30d')
+    expect(h.inputs.at(-1)?.record.samples).toHaveLength(bucketSamples.length)
+    expect(h.inputs.at(-1)?.record.samples.map(sample => sample.id)).toEqual(bucketSamples.map(sample => sample.id))
+    // 30일 응답은 IndexedDB 레코드에 합치지 않는다.
+    expect(h.cache.records.get('claude')?.samples).toHaveLength(rawSampleCount!)
 
-    // 이미 커버된 범위(24h)로 재방문할 때도 기존 차트를 유지하고 동기화 완료 시 한 번만 교체한다
-    const beforeRevisit = h.inputs.length
+    // 24h로 돌아가면 다시 원시 경로를 쓴다(버킷 레코드를 재사용하지 않는다).
+    const bucketCalls = h.gateway.bucketQueries.length
     act(() => result.current.panel?.actions.onSelectRange('24h'))
-    expect(result.current.panel?.state.phase).toBe('ready')
-    expect(h.inputs).toHaveLength(beforeRevisit)
-    await waitFor(() => expect((result.current.panel?.state as { syncing?: boolean }).syncing).toBe(false))
-    expect(h.inputs).toHaveLength(beforeRevisit + 1)
-    expect(h.inputs.at(-1)?.range).toBe('24h')
+    await waitFor(() => expect(h.inputs.at(-1)?.range).toBe('24h'))
+    expect(h.gateway.bucketQueries.length).toBe(bucketCalls)
+  })
+})
+
+describe('Given a partial 30-day bucket response', () => {
+  it('When complete is false Then the ready panel shows a partial note', async () => {
+    const h = harness({ session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    h.gateway.bucketPages.claude = {
+      provider: 'claude', scanVersion: 2, bucketSec: 900,
+      from: new Date(NOW - 30 * 86_400_000).toISOString(), until: new Date(NOW).toISOString(),
+      samples: syntheticEvents(2, new Date(NOW - 2 * 3_600_000).toISOString(), 900_000), anchor: null, complete: false,
+    }
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    act(() => result.current.panel?.actions.onSelectRange('30d'))
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    expect((result.current.panel?.state as { note?: string | null }).note).toContain('일부 구간만')
   })
 })
 
@@ -370,6 +389,95 @@ describe('Given the sessionStorage open-panel list (N4: 정규화)', () => {
     expect(readOpenPanels(createMemoryKeyValue({ [CHART_OPEN_KEY]: '{oops' }))).toEqual([])
     expect(readOpenPanels(createMemoryKeyValue({ [CHART_OPEN_KEY]: JSON.stringify({ v: 2, open: ['claude'] }) }))).toEqual([])
     expect(read('claude')).toEqual([])
+  })
+})
+
+describe('Given a shared clock (usage-now-store) for both drawable-check and chart view', () => {
+  it('When deps.nowMs differs from usageState.nowIso Then both hasDrawableSuccess and buildView follow the shared clock at range boundaries', async () => {
+    const DAY = 86_400_000
+    const clockIso = '2026-11-14T12:00:00.000Z'
+    const clockMs = Date.parse(clockIso)
+    // 공유 클록 기준 24h 경계 안쪽(정확히 24h 전) 표본. deps.nowMs()는 10일 뒤를 가리켜 24h 범위 밖이 되도록 의도적으로 어긋나게 둔다.
+    const boundaryIso = new Date(clockMs - DAY).toISOString()
+    const boundarySample: UsageHistorySample = {
+      id: 'b-1',
+      runAt: boundaryIso,
+      status: 'ok',
+      fetchedAt: boundaryIso,
+      intervalSec: 900,
+      values: [{ id: 'five_hour', usedPercent: 33, resetsAt: null, cycleSeconds: null }],
+    }
+    const rec: HistoryCacheRecord = {
+      ...createRecord('claude', clockIso),
+      samples: [boundarySample],
+      seriesOrder: ['five_hour'],
+      labels: { five_hour: '5시간 한도' },
+    }
+
+    const h = harness({ record: rec, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    // 24h 범위 선택 + sync는 대기 상태로 막아 hasDrawableSuccess 판정이 loading 여부를 직접 결정하게 한다.
+    h.prefs.getState().setRange('claude', '24h')
+    h.gateway.onBeforeFetch = () => new Promise(() => {})
+    h.deps.nowMs = () => clockMs + 10 * DAY
+
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    expect(h.inputs.at(-1)?.nowMs).toBe(clockMs)
+  })
+
+  it('When a sample is 1ms outside the shared clock 24h boundary (even if inside deps.nowMs) Then loading spinner stays on during sync', async () => {
+    const DAY = 86_400_000
+    const clockIso = '2026-11-14T12:00:00.000Z'
+    const clockMs = Date.parse(clockIso)
+    const outsideIso = new Date(clockMs - DAY - 1).toISOString()
+    const outsideSample: UsageHistorySample = {
+      id: 'b-out',
+      runAt: outsideIso,
+      status: 'ok',
+      fetchedAt: outsideIso,
+      intervalSec: 900,
+      values: [{ id: 'five_hour', usedPercent: 33, resetsAt: null, cycleSeconds: null }],
+    }
+    const rec: HistoryCacheRecord = {
+      ...createRecord('claude', clockIso),
+      samples: [outsideSample],
+      seriesOrder: ['five_hour'],
+      labels: { five_hour: '5시간 한도' },
+    }
+
+    const h = harness({ record: rec, session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    h.prefs.getState().setRange('claude', '24h')
+    h.gateway.onBeforeFetch = () => new Promise(() => {})
+    // deps.nowMs()가 1시간 전이면 outsideSample이 범위 안에 들어가지만, 공유 클록(clockMs) 기준으로는 범위 밖이다.
+    h.deps.nowMs = () => clockMs - 3_600_000
+
+    const { result } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper: h.wrapper })
+    await waitFor(() => expect(result.current.panel).not.toBeNull())
+    expect(result.current.panel?.state.phase).toBe('loading')
+  })
+
+  it('When usageState.nowIso is null and deps.nowMs() advances across re-renders Then buildView is not re-invoked', async () => {
+    const h = harness({ session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    let tick = 0
+    h.deps.nowMs = () => NOW + (tick += 1000)
+    const usage = createFakeUsageGateway()
+    usage.pushResult({ ok: true, usage: normalRaw, collection: COLLECTION, rawText: null })
+    const client = createTestQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>
+        <UsageGatewayProvider deps={{ gateway: usage, clock: { nowIso: () => null as unknown as string }, scheduler: createFakeUsageScheduler() }}>
+          <HistoryDepsProvider deps={h.deps}>{children}</HistoryDepsProvider>
+        </UsageGatewayProvider>
+      </QueryClientProvider>
+    )
+
+    const { result, rerender } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    const callsBeforeRerender = h.inputs.length
+
+    rerender()
+    rerender()
+    expect(h.inputs.length).toBe(callsBeforeRerender)
   })
 })
 

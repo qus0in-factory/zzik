@@ -1,8 +1,8 @@
 import type { HistoryCacheStore, KeyValueStorage, UsageHistoryGateway, UsageHistoryGatewayFailure } from '@domain/usage/history/ports'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import type { UsageProvider } from '@domain/usage/providers'
-import { USAGE_HISTORY_SCAN_VERSION } from '../../shared/usage-history-contract'
-import type { UsageHistoryPage, UsageHistoryQuery, UsageHistorySample, UsageHistorySummaryEntry } from '../../shared/usage-history-contract'
+import { USAGE_BUCKET_SEC, USAGE_HISTORY_SCAN_VERSION } from '../../shared/usage-history-contract'
+import type { UsageHistoryBucketsPage, UsageHistoryBucketsQuery, UsageHistoryPage, UsageHistoryQuery, UsageHistorySample, UsageHistorySummaryEntry } from '../../shared/usage-history-contract'
 
 const cursorOf = (sample: UsageHistorySample): string => `${sample.runAt}_${sample.id}`
 const compare = (a: string, b: string): number => {
@@ -48,6 +48,8 @@ export interface FakeHistoryGateway extends UsageHistoryGateway {
   /** 다음 응답의 scanVersion을 바꿔 불일치를 흉내 낸다 */
   mismatchAt: Set<number>
   summary: UsageHistorySummaryEntry[]
+  bucketQueries: UsageHistoryBucketsQuery[]
+  bucketPages: Partial<Record<UsageProvider, UsageHistoryBucketsPage>>
 }
 
 export function createFakeHistoryGateway(servers: Partial<Record<UsageProvider, ReturnType<typeof createFakeHistoryServer>>>): FakeHistoryGateway {
@@ -58,9 +60,19 @@ export function createFakeHistoryGateway(servers: Partial<Record<UsageProvider, 
     mismatchAt: new Set(),
     failure: { ok: false, reason: 'network_error', message: null },
     summary: [],
+    bucketQueries: [],
+    bucketPages: {},
     async fetchSummary() {
       gateway.summaryCalls += 1
       return { ok: true, summary: gateway.summary }
+    },
+    async fetchBuckets(provider, query) {
+      gateway.bucketQueries.push(query)
+      const page = gateway.bucketPages[provider]
+      if (page === undefined) {
+        return { ok: true, page: { provider, scanVersion: USAGE_HISTORY_SCAN_VERSION, bucketSec: USAGE_BUCKET_SEC, from: query.from, until: query.until, samples: [], anchor: null, complete: true } }
+      }
+      return { ok: true, page: structuredClone({ ...page, provider, bucketSec: USAGE_BUCKET_SEC, from: query.from, until: query.until }) }
     },
     async fetchSamples(provider, query) {
       gateway.queries.push(query)

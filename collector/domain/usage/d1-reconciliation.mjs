@@ -38,8 +38,8 @@ export function classifyD1Operation(input) {
       pg = compared.value
     }
   }
-  // §11 D: unsent operations drain first; receipted snapshot replacements clear only after PG commit.
-  const clearAfterPgCommit = facts.outboxPresent && (pg === 'matching' || (pg === 'snapshot_replace' && r !== null))
+  // §11 D: unsent operations drain first; receipted snapshot replacements and missing PG rows clear only after PG commit.
+  const clearAfterPgCommit = facts.outboxPresent && (pg === 'matching' || ((pg === 'missing' || pg === 'snapshot_replace') && r !== null))
   return { ok: true, value: { operationId: op.operationId,
     delivery: r === null ? 'unsent' : facts.outboxPresent ? 'response_lost' : 'acknowledged',
     action: clearAfterPgCommit ? 'clear_after_pg_commit' : r === null ? 'replay_same_operation' : facts.outboxPresent ? 'acknowledge_local' : 'none', pg } }
