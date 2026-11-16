@@ -6,7 +6,7 @@
 import type { ChartRange } from '@domain/usage/history/types'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 import type { ChartViewInput } from './chart-view-input'
-import { RANGE_MS, chartTimeDomain, isDrawableSample, pacePoints, paceValueAt, sampleTimeMs } from '@domain/usage/history/chart-time-domain'
+import { RANGE_MS, chartTimeDomain, isSuccessSample, pacePoints, paceValueAt, sampleTimeMs } from '@domain/usage/history/chart-time-domain'
 import { summaryWindowOf } from '@domain/usage/summary-window'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { SummaryPace } from '../summary-pace'
@@ -213,13 +213,13 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const samples = record.samples.filter(inRange)
   const anchorTime = record.anchor === null ? null : sampleTimeMs(record.anchor)
   const { from } = chartTimeDomain(
-    samples.filter(isDrawableSample).map((s) => sampleTimeMs(s)!).filter(Number.isFinite),
+    samples.filter(isSuccessSample).map((s) => sampleTimeMs(s)!).filter(Number.isFinite),
     windowFrom,
     nowMs,
-    isDrawableSample(record.anchor) ? anchorTime : null,
+    isSuccessSample(record.anchor) ? anchorTime : null,
   )
   const anchor: UsageHistorySample | null =
-    record.anchor !== null && isDrawableSample(record.anchor) && anchorTime !== null && anchorTime >= from && anchorTime <= to
+    record.anchor !== null && isSuccessSample(record.anchor) && anchorTime !== null && anchorTime >= from && anchorTime <= to
       ? record.anchor : null
   const tailEnd = Math.max(from, Math.min(to, effectiveTail))
 
@@ -297,7 +297,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
     const t = sampleTimeMs(sample)
     if (t === null || t > to) continue
     if (t > lastSampleT) lastSampleT = t
-    if (isDrawableSample(sample) && t >= from) stopTimes.add(t)
+    if (isSuccessSample(sample) && t >= from) stopTimes.add(t)
   }
   const tailStop = Math.max(from, Math.min(to, tailEnd))
   if (series.length > 0 && tailStop > lastSampleT) stopTimes.add(tailStop)

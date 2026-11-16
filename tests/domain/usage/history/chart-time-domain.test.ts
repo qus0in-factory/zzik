@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chartTimeDomain, hasDrawableSuccess, isDrawableSample, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
+import { chartTimeDomain, hasDrawableSuccess, isDrawableSample, isSuccessSample, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
 import { elapsedPercent } from '@domain/usage/elapsed'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
@@ -104,12 +104,18 @@ describe('Given the unified drawable-sample predicate (values: [] 포함)', () =
     syncedAt: new Date(now).toISOString(),
   })
 
-  it('When values is null or empty [] Then isDrawableSample returns false, and true when non-empty', () => {
+  it('When values is null or empty [] Then isDrawableSample returns false, while isSuccessSample returns true for [] (ADR 0.7 계약 분리)', () => {
     expect(isDrawableSample(null)).toBe(false)
     expect(isDrawableSample(undefined)).toBe(false)
     expect(isDrawableSample(sample('1', live.now, null))).toBe(false)
     expect(isDrawableSample(sample('2', live.now, []))).toBe(false)
     expect(isDrawableSample(sample('3', live.now, [{ id: 'five_hour', usedPercent: 10, resetsAt: null, cycleSeconds: null }]))).toBe(true)
+
+    expect(isSuccessSample(null)).toBe(false)
+    expect(isSuccessSample(undefined)).toBe(false)
+    expect(isSuccessSample(sample('1', live.now, null))).toBe(false)
+    expect(isSuccessSample(sample('2', live.now, []))).toBe(true)
+    expect(isSuccessSample(sample('3', live.now, [{ id: 'five_hour', usedPercent: 10, resetsAt: null, cycleSeconds: null }]))).toBe(true)
   })
 
   it('When only values: [] samples exist in range Then hasDrawableSuccess returns false', () => {

@@ -14,9 +14,14 @@ export function sampleTimeMs(sample: Pick<UsageHistorySample, 'runAt' | 'fetched
   return Number.isFinite(ms) ? ms : null
 }
 
-/** 차트에 실제로 그릴 수 있는 성공 표본(비어 있지 않은 values 배열 보유)인지 판정한다. */
+/** 읽기에 성공한 표본(빈 배열 `[]` 포함)인지 판정한다. x축 도메인·anchor·키보드 stops 계약(ADR 0.7)용. */
+export function isSuccessSample(sample: Pick<UsageHistorySample, 'values'> | null | undefined): boolean {
+  return sample !== null && sample !== undefined && sample.values !== null
+}
+
+/** 차트에 실제로 그릴 수 있는 성공 표본(비어 있지 않은 values 배열 보유)인지 판정한다. 스피너 판정 전용. */
 export function isDrawableSample(sample: Pick<UsageHistorySample, 'values'> | null | undefined): boolean {
-  return sample !== null && sample !== undefined && sample.values !== null && sample.values.length > 0
+  return isSuccessSample(sample) && sample!.values!.length > 0
 }
 
 /** 선택 범위 안에 그릴 수 있는 성공 표본이 있는가. 커버리지(백필 완료)와 스피너 판정은 별개다. */

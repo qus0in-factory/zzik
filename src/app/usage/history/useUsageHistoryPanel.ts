@@ -120,6 +120,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
           nowMs: deps.nowMs,
           budget: deps.budget,
         },
+        // 동기화 범위 계산(wantFromMs)은 표시용 공유 클록(usageState.nowIso)과 분리해 저장/동기화 시계(deps.nowMs)를 쓴다.
         { provider, snapshotRunAt: runAt, wantFromMs: deps.nowMs() - RANGE_MS[range] },
       )
       if (outcome.record !== null) {

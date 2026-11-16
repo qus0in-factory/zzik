@@ -210,8 +210,8 @@ describe('Given persisted color order before spending was removed', () => {
   })
 })
 
-describe('Given ok samples with empty values: [] in range', () => {
-  it('When an early sample or anchor has values: [] Then it does not pull the chart time domain earlier than the first drawable sample', () => {
+describe('Given ok samples with empty values: [] in range (ADR 0.7 계약)', () => {
+  it('When an early sample or anchor has values: [] Then domain and stops include it (values !== null 기준), unlike spinner isDrawableSample', () => {
     const emptyAt = (id: string, iso: string): UsageHistorySample => ({
       id,
       runAt: iso,
@@ -232,13 +232,15 @@ describe('Given ok samples with empty values: [] in range', () => {
     const earlyEmpty = emptyAt('1', '2026-11-13T18:00:00.000Z')
     const laterDrawable = drawableAt('2', '2026-11-14T00:15:00.000Z', 42)
     const view = buildChartView(input({ tailEnd: null }, { anchor, samples: [earlyEmpty, laterDrawable], seriesOrder: ['five_hour'] }))
-    const baseline = buildChartView(input({ tailEnd: null }, { anchor: null, samples: [laterDrawable], seriesOrder: ['five_hour'] }))
-    expect(view.stops.map((s) => s.t)).toEqual(baseline.stops.map((s) => s.t))
-    expect(view.xTicks).toEqual(baseline.xTicks)
+    expect(view.stops.map((s) => s.t)).toEqual([
+      Date.parse('2026-11-13T18:00:00.000Z'),
+      Date.parse('2026-11-14T00:15:00.000Z'),
+      NOW,
+    ])
     expect(view.empty).toBe('none')
   })
 
-  it('When all samples in range have values: [] Then empty is no_points', () => {
+  it('When all samples in range have values: [] Then empty is no_points and stops still include the sample time', () => {
     const emptySample: UsageHistorySample = {
       id: '1',
       runAt: '2026-11-14T00:00:00.000Z',
@@ -249,5 +251,6 @@ describe('Given ok samples with empty values: [] in range', () => {
     }
     const view = buildChartView(input({ tailEnd: null }, { anchor: null, samples: [emptySample], seriesOrder: ['five_hour'] }))
     expect(view.empty).toBe('no_points')
+    expect(view.stops.map((s) => s.t)).toEqual([Date.parse('2026-11-14T00:00:00.000Z')])
   })
 })
