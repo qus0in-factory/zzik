@@ -6,7 +6,7 @@ import type { UsageHistorySummaryEntry } from '../../../../shared/usage-history-
 import { historyEligibility } from '@domain/usage/history/eligibility'
 import type { HistoryEligibility } from '@domain/usage/history/eligibility'
 import type { KeyValueStorage } from '@domain/usage/history/ports'
-import { HISTORY_RECORD_MAX_AGE_MS, HISTORY_RECORD_MAX_SAMPLES, withLabels } from '@domain/usage/history/record'
+import { withLabels } from '@domain/usage/history/record'
 import type { ChartRange, HistoryCacheRecord } from '@domain/usage/history/types'
 import { USAGE_PROVIDERS } from '@domain/usage/providers'
 import type { UsageProvider } from '@domain/usage/providers'
@@ -59,11 +59,21 @@ function hintFor(eligibility: HistoryEligibility): string | null {
   return t('chart.hint.tooShort', { hours: Math.max(1, Math.ceil((eligibility.remainingMs ?? 0) / 3_600_000)) })
 }
 
-function isRangeCovered(record: HistoryCacheRecord | null, range: ChartRange, nowMs: number, backfillComplete: boolean): boolean {
-  if (record === null || record.coveredFrom === null) return false
-  if (backfillComplete || record.samples.length >= HISTORY_RECORD_MAX_SAMPLES) return true
-  const wantFrom = Math.max(nowMs - RANGE_MS[range], nowMs - HISTORY_RECORD_MAX_AGE_MS)
-  return Date.parse(record.coveredFrom) <= wantFrom
+function sampleMs(sample: { runAt: string; fetchedAt: string | null }): number | null {
+  const ms = Date.parse(sample.fetchedAt ?? sample.runAt)
+  return Number.isFinite(ms) ? ms : null
+}
+
+/** 선택 범위 안에 그릴 수 있는 성공 표본(values가 있는 표본)이 있는가. 커버리지(백필 완료)와 스피너 판정은 별개다. */
+function hasDrawableSuccess(record: HistoryCacheRecord | null, range: ChartRange, nowMs: number): boolean {
+  if (record === null) return false
+  const from = nowMs - RANGE_MS[range]
+  const drawable = (sample: { values: readonly unknown[] | null }): boolean => sample.values !== null && sample.values.length > 0
+  const inRange = (sample: { runAt: string; fetchedAt: string | null }): boolean => {
+    const t = sampleMs(sample)
+    return t !== null && t >= from && t <= nowMs
+  }
+  return record.samples.some((sample) => inRange(sample) && drawable(sample)) || (record.anchor !== null && inRange(record.anchor) && drawable(record.anchor))
 }
 
 export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanelBinding {
@@ -78,8 +88,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   const [preloadReady, setPreloadReady] = useState(() => deps.preload === undefined)
   const [preloadError, setPreloadError] = useState(false)
   const [preloadAttempt, setPreloadAttempt] = useState(0)
-  const [switchingRange, setSwitchingRange] = useState<ChartRange | null>(null)
-  const backfillDoneRef = useRef(false)
+  const preloadStartedRef = useRef(false)
   /** 지연 청크의 뷰 빌더가 준비되면 올라가 뷰를 다시 만든다(빌더가 늦게 도착해도 빈 뷰에 머물지 않게). */
   const [builderTick, setBuilderTick] = useState(0)
 
@@ -119,40 +128,35 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     gcTime: HISTORY_DATA_GC_MS,
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<HistoryCacheRecord> => {
-      try {
-        const outcome = await runDedupedSync(
-          deps.inflight,
-          {
-            gateway: deps.gateway,
-            cache: deps.cache,
-            memory: deps.memory,
-            nowMs: deps.nowMs,
-            budget: deps.budget,
-          },
-          { provider, snapshotRunAt: runAt, wantFromMs: deps.nowMs() - RANGE_MS[range] },
-        )
-        if (outcome.ok && outcome.backfillComplete) backfillDoneRef.current = true
-        if (outcome.record !== null) {
-          const labeled = withLabels(outcome.record, latest.current.cardLabels)
-          if (labeled !== outcome.record) {
-            if (deps.memory.has(provider)) deps.memory.set(provider, labeled)
-            else void deps.cache.update(provider, (current) => (current === null ? null : withLabels(current, latest.current.cardLabels)))
-          }
-          const prev = client.getQueryData<HistoryCacheRecord | null>(historyDataKey(provider)) ?? null
-          const sameRecord =
-            prev !== null &&
-            prev.coveredFrom === labeled.coveredFrom &&
-            prev.cursor === labeled.cursor &&
-            prev.samples.length === labeled.samples.length &&
-            prev === withLabels(prev, latest.current.cardLabels)
-          if (!sameRecord) client.setQueryData(historyDataKey(provider), labeled)
+      const outcome = await runDedupedSync(
+        deps.inflight,
+        {
+          gateway: deps.gateway,
+          cache: deps.cache,
+          memory: deps.memory,
+          nowMs: deps.nowMs,
+          budget: deps.budget,
+        },
+        { provider, snapshotRunAt: runAt, wantFromMs: deps.nowMs() - RANGE_MS[range] },
+      )
+      if (outcome.record !== null) {
+        const labeled = withLabels(outcome.record, latest.current.cardLabels)
+        if (labeled !== outcome.record) {
+          if (deps.memory.has(provider)) deps.memory.set(provider, labeled)
+          else void deps.cache.update(provider, (current) => (current === null ? null : withLabels(current, latest.current.cardLabels)))
         }
-        const synced = throwForOutcome(outcome)
-        void client.invalidateQueries({ queryKey: historyWarmKey }) // 레코드가 생겼으니 워밍 대상에 들어간다
-        return synced
-      } finally {
-        setSwitchingRange((current) => (current === range ? null : current))
+        const prev = client.getQueryData<HistoryCacheRecord | null>(historyDataKey(provider)) ?? null
+        const sameRecord =
+          prev !== null &&
+          prev.coveredFrom === labeled.coveredFrom &&
+          prev.cursor === labeled.cursor &&
+          prev.samples.length === labeled.samples.length &&
+          prev === withLabels(prev, latest.current.cardLabels)
+        if (!sameRecord) client.setQueryData(historyDataKey(provider), labeled)
       }
+      const synced = throwForOutcome(outcome)
+      void client.invalidateQueries({ queryKey: historyWarmKey }) // 레코드가 생겼으니 워밍 대상에 들어간다
+      return synced
     },
   })
 
@@ -184,38 +188,17 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
       return next
     })
   }, [deps.enabled, deps.session, provider])
-  const onIntent = useCallback(() => {
-    if (!deps.enabled || deps.preload === undefined) return
-    try {
-      void Promise.resolve(deps.preload()).then(
-        () => {
-          setPreloadError(false)
-          setPreloadReady(true)
-          setBuilderTick((tick) => tick + 1)
-        },
-        () => {
-          // 호버·포커스 예열 실패는 unhandled rejection만 막고, 열 때/재시도에서 다시 처리한다.
-        },
-      )
-    } catch {
-      // 동기 예외도 unhandled로 새지 않게 잡는다.
-    }
-  }, [deps])
-  // 패널이 열리면(호버·포커스 없이 열려도) 뷰 빌더를 받아 둔다. 실패 시 무한 스피너 대신 에러 상태로 전환한다.
-  useEffect(() => {
-    if (!deps.enabled || !open || deps.preload === undefined) return
-    let active = true
+  const startPreload = useCallback(() => {
+    if (deps.preload === undefined || preloadStartedRef.current) return
+    preloadStartedRef.current = true
     setPreloadError(false)
     try {
       void Promise.resolve(deps.preload()).then(
         () => {
-          if (!active) return
-          setPreloadError(false)
           setPreloadReady(true)
           setBuilderTick((tick) => tick + 1)
         },
         () => {
-          if (!active) return
           setPreloadError(true)
           setPreloadReady(true)
         },
@@ -224,10 +207,17 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
       setPreloadError(true)
       setPreloadReady(true)
     }
-    return () => {
-      active = false
-    }
-  }, [deps, open, preloadAttempt])
+  }, [deps])
+
+  const onIntent = useCallback(() => {
+    if (!deps.enabled) return
+    startPreload()
+  }, [deps.enabled, startPreload])
+  // 패널이 열리면(호버·포커스 없이 열려도) 뷰 빌더를 받아 둔다. 실패 시 무한 스피너 대신 에러 상태로 전환한다.
+  useEffect(() => {
+    if (!deps.enabled || !open) return
+    startPreload()
+  }, [deps.enabled, open, preloadAttempt, startPreload])
 
   const button: ChartButtonState = !deps.enabled
     ? { label: (t('chart.open') as ChartButtonState['label']), expanded: false, disabled: true, hint: null, panelId, onToggle: toggle, onIntent }
@@ -244,8 +234,6 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
   const actions = useMemo<ChartPanelActions>(
     () => ({
       onSelectRange: (next) => {
-        if (!isRangeCovered(latest.current.record, next, deps.nowMs(), backfillDoneRef.current)) setSwitchingRange(next)
-        else setSwitchingRange(null)
         deps.prefs.getState().setRange(provider, next)
       },
       onToggleSeries: (seriesId) => {
@@ -256,6 +244,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
       onShowAllSeries: () => deps.prefs.getState().showAll(provider),
       onRetry: () => {
         if (deps.preload !== undefined) {
+          preloadStartedRef.current = false
           setPreloadReady(false)
           setPreloadError(false)
           setPreloadAttempt((n) => n + 1)
@@ -267,14 +256,12 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     [deps, provider, syncQuery.refetch],
   )
 
-  // 스피너는 선택 범위의 그릴 데이터가 아직 없을 때(최초 열기, 캐시 없는 범위로 탭 전환, 지연 청크 로드 전)만 표시한다.
-  // 캐시된 그림이 있으면 백그라운드 sync·runAt 갱신·새로고침·탭 재방문 중에도 기존 차트를 유지하고 완료 시 한 번만 교체한다.
-  const isUncoveredSwitch =
-    switchingRange === range &&
-    !isRangeCovered(record, range, deps.nowMs(), backfillDoneRef.current) &&
-    (syncQuery.isPending || syncQuery.isFetching)
-  const isInitialLoading =
-    record === null && (dataQuery.isPending || snapshot.isPending || syncQuery.isPending || syncQuery.isFetching)
+  // 스피너는 선택 범위에 그릴 성공 표본이 하나도 없을 때만 표시한다.
+  // 이미 그릴 표본이 있으면 범위 확장·백그라운드 sync·탭 재방문 중에도 기존 차트를 유지하고 완료 시 한 번만 교체한다.
+  const waitingForHistory = syncQuery.isPending || syncQuery.isFetching
+  const hasDrawable = hasDrawableSuccess(record, range, deps.nowMs())
+  const isInitialLoading = record === null && (dataQuery.isPending || snapshot.isPending || waitingForHistory)
+  const isUncoveredSwitch = !hasDrawable && waitingForHistory
   const isLoading = !preloadReady || isInitialLoading || isUncoveredSwitch
 
   const prevViewRef = useRef<{ view: ChartView; key: string } | null>(null)
@@ -284,8 +271,9 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
       prevViewRef.current = null
       return null
     }
-    const uiKey = `${range}|${(hidden ?? NONE).join(',')}|${(shown ?? NONE).join(',')}|${size.width}x${size.height}|${builderTick}`
-    if ((syncQuery.isPending || syncQuery.isFetching) && prevViewRef.current !== null && prevViewRef.current.key === uiKey) {
+    // 범위는 sync 완료 시 새 데이터로 한 번만 교체한다. hidden/size/builder 변경은 즉시 반영한다.
+    const uiKey = `${(hidden ?? NONE).join(',')}|${(shown ?? NONE).join(',')}|${size.width}x${size.height}|${builderTick}`
+    if (waitingForHistory && prevViewRef.current !== null && prevViewRef.current.key === uiKey) {
       return prevViewRef.current.view
     }
     const built = buildView({
@@ -303,7 +291,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     })
     prevViewRef.current = { view: built, key: uiKey }
     return built
-  }, [isLoading, preloadError, syncQuery.isPending, syncQuery.isFetching, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, usageState.report, deps])
+  }, [waitingForHistory, isLoading, preloadError, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, usageState.report, deps])
 
   if (!deps.enabled || !open) return { button, panel: null }
   const errorMessage = preloadError
