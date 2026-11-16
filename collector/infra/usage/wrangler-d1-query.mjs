@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url'
 import {execFile} from 'node:child_process'
 import {mkdtempSync,writeFileSync,rmSync,chmodSync} from 'node:fs'
 import {join} from 'node:path'
@@ -31,8 +32,8 @@ export function renderWranglerSql(statement){
  * @param {readonly string[]} args @returns {Promise<{exitCode:number,stdout:string}>} */
 export function executeWrangler(args){
  const env={...process.env,WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',NO_COLOR:'1'}
- for(const key of ['DB_URL','ZZIK_D1_API_TOKEN','ZZIK_D1_ACCOUNT_ID','ZZIK_D1_DATABASE_ID','CLOUDFLARE_API_TOKEN','CF_API_TOKEN','CLOUDFLARE_API_KEY','CF_API_KEY','CLOUDFLARE_EMAIL','CF_EMAIL'])delete /** @type {Record<string,string|undefined>} */(env)[key]
- return new Promise(resolve=>execFile(process.execPath,['node_modules/wrangler/bin/wrangler.js',...args],{encoding:'utf8',timeout:120000,maxBuffer:16*1024*1024,env},(error,stdout)=>resolve({exitCode:error?1:0,stdout:error?'':stdout})))
+ for(const key of ['DB_URL','ZZIK_D1_API_TOKEN','ZZIK_D1_ACCOUNT_ID','ZZIK_D1_DATABASE_ID','CLOUDFLARE_API_TOKEN','CF_API_TOKEN','CLOUDFLARE_API_KEY','CF_API_KEY','CLOUDFLARE_EMAIL','CF_EMAIL','CLOUDFLARE_ACCOUNT_ID','CF_ACCOUNT_ID'])delete /** @type {Record<string,string|undefined>} */(env)[key]
+ return new Promise(resolve=>execFile(process.execPath,[fileURLToPath(new URL('../../../node_modules/wrangler/bin/wrangler.js',import.meta.url)),...args],{cwd:fileURLToPath(new URL('../../../',import.meta.url)),encoding:'utf8',timeout:120000,maxBuffer:16*1024*1024,env},(error,stdout)=>resolve({exitCode:error?1:0,stdout:error?'':stdout})))
 }
 /** Operator-only transport. No automatic retries, remote credentials, or collector runtime wiring.
  * @param {{directory:string,database:string,execute?:(args:readonly string[])=>Promise<{exitCode:number,stdout:string}>,remote?:boolean,persistTo?:string,configPath?:string,wait?:(ms:number)=>Promise<void>,now?:()=>number}} options

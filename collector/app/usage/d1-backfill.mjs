@@ -16,6 +16,7 @@ export async function runBackfill(options){
    const original=prepared.value
    plan={summary:original.summary,async *pages(){for(let offset=0;offset<original.items.length;offset+=25)yield original.items.slice(offset,offset+25)}}
   }
+  if(plan.sourceFacts&&(plan.summary.events!==plan.sourceFacts.events||plan.summary.snapshots!==plan.sourceFacts.snapshots||plan.summary.minId!==plan.sourceFacts.minId||plan.summary.maxId!==plan.sourceFacts.maxId))return {ok:false,reason:'pg_plan_count_mismatch'}
   const total=plan.summary.events+plan.summary.snapshots
   if(!Number.isSafeInteger(total)||total<0)return {ok:false,reason:'invalid_plan'}
   const authorized=authorizeBackfill(options.apply??false,options.confirmation??'',plan.summary.planSha256);if(!authorized.ok)return authorized

@@ -45,8 +45,10 @@ async function createLivePorts({directory,checkpointPath,env,transport='rest',da
      return spool.append(kind,rows)
     })
     if(!read.ok)return read
-    const plan=spool.seal();if(plan.ok)print({sourceEnvelopeBytes:envelopeBytes,maxStatementBytes})
-    return plan
+    const plan=spool.seal();if(!plan.ok)return plan
+    if(plan.value.summary.events!==read.value.events||plan.value.summary.snapshots!==read.value.snapshots||plan.value.summary.minId!==read.value.minId||plan.value.summary.maxId!==read.value.maxId)return {ok:false,reason:'pg_plan_count_mismatch'}
+    print({sourceEnvelopeBytes:envelopeBytes,maxStatementBytes,pgSourceFacts:read.value})
+    return {ok:true,value:{...plan.value,sourceFacts:read.value}}
    })();return prepared}},
    destination:createD1BackfillDestination(query),checkpoint:createBackfillCheckpoint(checkpointPath??join(directory,'d1-backfill-checkpoint.json')),ledgerOutboxCount:locked.value.outboxCount,
    close:async()=>{try{spool.close()}finally{try{await connection.end({timeout:1})}finally{locked.value.close()}}},
@@ -80,7 +82,7 @@ export async function readConfirmation({input=process.stdin,output=process.stder
  const onClose=()=>controller.abort()
  rl.once('close',onClose)
  if(input.readableEnded)controller.abort()
- try{return await rl.question(`Confirm D1 writers are stopped and this source plan is approved; type APPLY ${planSha256}: `,{signal:controller.signal})}finally{rl.off('close',onClose);rl.close()}
+ try{return await rl.question(`Confirm D1 raw writers are stopped and this source plan is approved; type APPLY ${planSha256}: `,{signal:controller.signal})}finally{rl.off('close',onClose);rl.close()}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{await runBackfillCli()}catch{print({ok:false,reason:'backfill_tool_failed'});process.exitCode=1}

@@ -44,7 +44,7 @@ describe('Given the PG reverse-migration SQL tool', () => {
         snapshots: [],
       })
       expect(result).toEqual({ events: 2, snapshots: 0, skipped: 0 })
-      const rows = await db.client.query<{ id: string }>('SELECT CAST(id AS TEXT) AS id FROM usage_event ORDER BY id')
+      const rows = await db.client.query<{ id: string }>('SELECT CAST(id AS TEXT) AS id FROM usage_event ORDER BY usage_event.id')
       expect(rows.rows.map(row => row.id)).toEqual(['9007199254740993', '9007199254740994'])
       const next = await db.client.query<{ id: string }>(
         "INSERT INTO usage_event (provider, run_at, status, envelope) VALUES ('codex', now(), 'ok', '{}'::jsonb) RETURNING CAST(id AS TEXT) AS id",
@@ -80,7 +80,7 @@ describe('Given the PG reverse-migration SQL tool', () => {
         events: [event('2'), event('1', { envelope: envelope({ intervalSec: 180 }) })],
         snapshots: [],
       })).rejects.toThrow(/hash/i)
-      const rows = await db.client.query<{ id: string }>('SELECT CAST(id AS TEXT) AS id FROM usage_event ORDER BY id')
+      const rows = await db.client.query<{ id: string }>('SELECT CAST(id AS TEXT) AS id FROM usage_event ORDER BY usage_event.id')
       expect(rows.rows.map(row => row.id)).toEqual(['1'])
     } finally {
       await db.close()

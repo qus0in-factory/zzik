@@ -1,3 +1,4 @@
+import {spawnSync} from 'node:child_process'
 import {describe,it,expect} from 'vitest'
 import {mkdtempSync,readFileSync,readdirSync,rmSync,statSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -25,5 +26,15 @@ describe('Given a bounded Wrangler OAuth destination with an injected executor',
  it('When the process fails or returns malformed/unsuccessful JSON Then returns only a safe failure and does not retry',async()=>{
   const directory=mkdtempSync(join(tmpdir(),'wrangler-errors-'))
   try{for(const response of [{exitCode:1,stdout:'secret-account-token'},{exitCode:0,stdout:'secret-account-token'},{exitCode:0,stdout:'[{"success":false,"error":"secret-account-token"}]'}]){let calls=0;const q=createWranglerD1Query({directory,database:'zzik-usage',execute:async()=>{calls++;return response}});const r=await q.query([{sql:'SELECT 1',params:[]}]);expect(r.ok).toBe(false);expect(JSON.stringify(r)).not.toContain('secret');expect(calls).toBe(1)}}finally{rmSync(directory,{recursive:true,force:true})}
+ })
+})
+
+describe('Given an invocation outside the repository cwd',()=>{
+ it('When executing Wrangler Then resolves the repository installation absolutely',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'wrangler-cwd-'))
+  try{const url=new URL('../../../../collector/infra/usage/wrangler-d1-query.mjs',import.meta.url).href
+   const result=spawnSync(process.execPath,['--input-type=module','-e',`import {executeWrangler} from ${JSON.stringify(url)};const r=await executeWrangler(['--version']);console.log(JSON.stringify({ok:r.exitCode===0}))`],{cwd:directory,encoding:'utf8',timeout:10000})
+   expect(result.status).toBe(0);expect(JSON.parse(result.stdout).ok).toBe(true)
+  }finally{rmSync(directory,{recursive:true,force:true})}
  })
 })

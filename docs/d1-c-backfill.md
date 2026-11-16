@@ -89,3 +89,11 @@ SELECT는 `--command`, 쓰기는 private SQL 파일의 `--file`로 전송한다.
 Wrangler stdout/stderr 원문과 자체 디스크 로그를 내보내지 않는다. SQL 임시 디렉터리 0700·파일 0600, 종료 후 자기 청크만 삭제한다. D1 검증 행은 메모리에서 기존 migration_row_sha256 함수로 대조하며 보고서에는 개수·id 범위·계획 해시·바이트 수만 남긴다. 응답에서 id는 CAST AS TEXT를 유지한다.
 
 초기 C 복사는 PG 수집을 유지한 채 일관된 과거 스냅샷을 복사할 수 있다. 이 경우 완료는 그 계획과의 일치만 의미하며 복사 이후 새 PG 관측은 포함하지 않는다. D 유지 창에는 수집을 정지한 뒤 새 계획·새 checkpoint로 최종 catch-up을 해야 한다. D1 writer가 있는 상태에서 이 도구를 실행하지 않는다.
+
+## 완전성 게이트와 잘린 초기 복사 복구
+
+PG 페이지 반환 id는 문자열이어도 ORDER BY는 원 정수 열 `usage_event.id`로 한정한다. scan은 같은 REPEATABLE READ 안에서 독립 COUNT(*)·min/max·provider별 COUNT를 읽고, 전체 페이지 결과와 다르면 `pg_source_count_mismatch`로 ROLLBACK한다. CLI도 spool 계획과 그 집계를 비교한 뒤에만 APPLY를 허용한다. 최종 조건은 **계획 events = 그 PG 집계**와 **D1 events = 계획 events** 모두이며 계획의 자기 일치만으로 완료하지 않는다.
+
+기존457행의 불완전 복사는 새 checkpoint·새 계획으로 복구한다. 일치하는 기존 event는 건너뛰고 누락분을 추가하며 새 snapshot은 기존 seq0 규칙으로 갱신한다. PG 수집을 유지하므로 비교는 고정된 계획 시점의 집계이고, 이후 증가분은 D 최종 catch-up 대상이다.
+
+초기 복사 도중 cron이 만든 파생 checkpoint/boundary는 더 낮은 id를 추가해도 재스캔하지 않는다. 이 복구에서는 승인된 유지 작업으로 `usage_bucket_boundary`와 `usage_bucket_checkpoint`만 같은 remote SQL file import에서 비우고 다음 정상15분 cron이 다시 만들게 한다. checkpoint 없음→id0 경로를 사용한다. 원시 usage_event·usage_snapshot·receipt·export log는 삭제하지 않고 Worker 배포·플래그·세대도 바꾸지 않는다. cron 경계를 피하고, 초기화 뒤 raw 건수·min/max·해시 보존과 다음 cron의 provider별 고수위·경계를 전체 raw의 독립 fold와 비교한다. 진행 중이면 미완료로 보고하며 완료로 처리하지 않는다. 일반 캐시 세대 갱신과 구분한다.
