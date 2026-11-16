@@ -9,7 +9,9 @@ export function recompressPng(png) {
   const after = []
   let started = false
   while (offset < png.length) {
+    if (offset + 12 > png.length) throw new Error('Truncated PNG chunk header')
     const length = png.readUInt32BE(offset)
+    if (offset + 12 + length > png.length) throw new Error('Truncated PNG chunk data')
     const type = png.toString('ascii', offset + 4, offset + 8)
     const data = png.subarray(offset + 8, offset + 8 + length)
     const chunk = png.subarray(offset, offset + 12 + length)
@@ -19,6 +21,8 @@ export function recompressPng(png) {
     } else if (started) after.push(chunk)
     else before.push(chunk)
     offset += 12 + length
+    // Bytes after IEND are not part of the image and must not be parsed as another chunk.
+    if (type === 'IEND') break
   }
   const current = Buffer.concat(idat)
   const packed = deflateSync(inflateSync(current), { level: 9 })
