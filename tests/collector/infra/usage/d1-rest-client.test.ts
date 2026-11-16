@@ -73,15 +73,39 @@ describe('Given an OAuth credential port on the unchanged REST writer',()=>{
   expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth',status:401});await c.query([statement]);expect(calls).toBe(2);expect(refreshes).toBe(1);expect(c.authStopped()).toBe(true)
  })
  for(const throws of [false,true])it(`When OAuth retrieval ${throws?'throws':'fails'} Then retries twice and stops only on the third consecutive failure`,async()=>{
-  let calls=0,gets=0;const control=fakeD1Control()
-  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>{gets++;if(throws)throw Error('synthetic-secret');return {ok:false,reason:'oauth_file_unavailable'}},refresh:async()=>{throw Error('unused')}},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;throw Error('unused')}})
-  for(let i=0;i<2;i++){expect(await c.query([statement])).toMatchObject({ok:false,reason:'retry',status:null,retryAfterMs:60000});expect(c.authStopped()).toBe(false)}
-  expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth'});await c.query([statement]);expect(calls).toBe(0);expect(gets).toBe(3);expect(c.authStopped()).toBe(true)
+  let calls=0,gets=0,now=0;const control=fakeD1Control()
+  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>{gets++;if(throws)throw Error('synthetic-secret');return {ok:false,reason:'oauth_file_unavailable'}},refresh:async()=>{throw Error('unused')}},clock:{now:()=>now},wait:async()=>{},fetch:async()=>{calls++;throw Error('unused')}})
+  for(let i=0;i<2;i++){now=i*60000;expect(await c.query([statement])).toMatchObject({ok:false,reason:'retry',status:null,retryAfterMs:60000});expect(c.authStopped()).toBe(false)}
+  now=120000;expect(await c.query([statement])).toMatchObject({ok:false,reason:'auth'});await c.query([statement]);expect(calls).toBe(0);expect(gets).toBe(3);expect(c.authStopped()).toBe(true)
  })
  it('When a credential read succeeds between failures Then resets the consecutive failure streak',async()=>{
-  let gets=0,calls=0;const control=fakeD1Control()
-  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>++gets===3?{ok:true,value:{token:'synthetic'}}:{ok:false,reason:'temporary'},refresh:async()=>({ok:false,reason:'unused'})},clock:{now:()=>0},wait:async()=>{},fetch:async()=>{calls++;return {status:200,headers:{get:()=>null},json:async()=>({success:true,result:[{success:true}]})}}})
-  expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'retry'});expect((await c.query([statement])).ok).toBe(true)
-  expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'retry'});expect(await c.query([statement])).toMatchObject({reason:'auth'});expect(calls).toBe(1)
+  let gets=0,calls=0,now=0;const control=fakeD1Control()
+  const c=createD1RestClient({mode:'d1',dryRun:false,control,accountId:'fake',databaseId:'fake',credentials:{get:async()=>++gets===3?{ok:true,value:{token:'synthetic'}}:{ok:false,reason:'temporary'},refresh:async()=>({ok:false,reason:'unused'})},clock:{now:()=>now},wait:async()=>{},fetch:async()=>{calls++;return {status:200,headers:{get:()=>null},json:async()=>({success:true,result:[{success:true}]})}}})
+  expect(await c.query([statement])).toMatchObject({reason:'retry'});now=60000;expect(await c.query([statement])).toMatchObject({reason:'retry'});now=120000;expect((await c.query([statement])).ok).toBe(true)
+  expect(await c.query([statement])).toMatchObject({reason:'retry'});now=180000;expect(await c.query([statement])).toMatchObject({reason:'retry'});now=240000;expect(await c.query([statement])).toMatchObject({reason:'auth'});expect(calls).toBe(1)
+ })
+})
+
+describe('Given six providers sharing the OAuth credential retry window',()=>{
+ it('When pending providers query every 250ms for 30 seconds Then reads once and never auth-stops',async()=>{
+  let now=0,gets=0,http=0
+  const c=createD1RestClient({mode:'d1',dryRun:false,control:fakeD1Control(),accountId:'fake',databaseId:'fake',credentials:{get:async()=>{gets++;return {ok:false,reason:'temporary'}},refresh:async()=>{throw Error('unused')}},clock:{now:()=>now},wait:async()=>{},fetch:async()=>{http++;throw Error('unused')}})
+  const providers=['claude','codex','antigravity','opencode','grok','ollama']
+  for(now=0;now<=30000;now+=250){
+   const results=await Promise.all(providers.map(provider=>c.query([{sql:'SELECT ?',params:[provider]}])))
+   for(const r of results)expect(r).toMatchObject({ok:false,reason:'retry',retryAfterMs:60000-now})
+   expect(c.authStopped()).toBe(false)
+  }
+  expect(gets).toBe(1);expect(http).toBe(0)
+ })
+ it('When failures remain for three 60-second windows Then stops at 120 seconds with only three reads',async()=>{
+  let now=0,gets=0
+  const c=createD1RestClient({mode:'d1',dryRun:false,control:fakeD1Control(),accountId:'fake',databaseId:'fake',credentials:{get:async()=>{gets++;return {ok:false,reason:'temporary'}},refresh:async()=>{throw Error('unused')}},clock:{now:()=>now},wait:async()=>{},fetch:async()=>{throw Error('unused')}})
+  expect(await c.query([statement])).toMatchObject({reason:'retry',retryAfterMs:60000})
+  now=59999;expect(await c.query([statement])).toMatchObject({reason:'retry',retryAfterMs:1});expect(gets).toBe(1)
+  now=60000;expect(await c.query([statement])).toMatchObject({reason:'retry',retryAfterMs:60000});expect(gets).toBe(2)
+  now=119999;expect(await c.query([statement])).toMatchObject({reason:'retry',retryAfterMs:1});expect(c.authStopped()).toBe(false)
+  now=120000;expect(await c.query([statement])).toMatchObject({reason:'auth'});expect(gets).toBe(3);expect(c.authStopped()).toBe(true)
+  await c.query([statement]);expect(gets).toBe(3)
  })
 })

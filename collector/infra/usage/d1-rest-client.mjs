@@ -5,7 +5,7 @@ import { d1RetryAfterMs } from '../../domain/usage/d1-delivery-policy.mjs'
 /** @typedef {import('../../domain/usage/d1-sender-types.ts').D1QueryResult} Outcome */
 /** @param {{mode:string,dryRun:boolean,canRequest?:()=>boolean,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,accountId:string,databaseId:string,token?:string,credentials?:import('../../domain/usage/d1-sender-types.ts').D1CredentialPort,clock:import('../../domain/usage/d1-sender-types.ts').D1Clock,wait:(ms:number)=>Promise<void>,fetch:import('../../domain/usage/d1-sender-types.ts').D1Fetch}} options @returns {Query} */
 export function createD1RestClient(options) {
-  let tail=Promise.resolve(),lastStart=-Infinity,blockedUntil=0,auth=false,credentialFailures=0
+  let tail=Promise.resolve(),lastStart=-Infinity,blockedUntil=0,auth=false,credentialFailures=0,credentialRetryUntil=0
   let token=options.token??'',credentialKey=options.token?createHash('sha256').update(options.token).digest('hex'):null
   const control=()=>{
     const r=options.control.read();if(!r.ok)return null
@@ -16,16 +16,22 @@ export function createD1RestClient(options) {
   const failure=(reason,status=null,retryAfterMs=0)=>({ok:false,reason,status,retryAfterMs})
   /** @param {number|null} status @returns {Outcome} */
   const stopAuth=status=>{auth=true;const s=control();if(s===null||!options.control.write({...s,authStopped:true}).ok)return failure('local');return failure('auth',status)}
-  const credentialFailure=()=>++credentialFailures>=3?stopAuth(null):failure('retry',null,60000)
+  const credentialFailure=()=>{
+    if(++credentialFailures>=3)return stopAuth(null)
+    credentialRetryUntil=options.clock.now()+60000
+    return failure('retry',null,60000)
+  }
   /** @param {readonly import('../../../shared/d1-contract.ts').D1SqlStatement[]} statements @param {boolean} [canRefresh] @returns {Promise<Outcome>} */
   const perform=async (statements,canRefresh=true)=>{
     if(options.mode!=='d1'||options.dryRun||options.canRequest?.()===false)return failure('disabled')
     if(auth)return failure('auth')
     if(options.credentials){
+      const remaining=credentialRetryUntil-options.clock.now()
+      if(remaining>0)return failure('retry',null,remaining)
       try{
         const read=await options.credentials.get()
         if(!read.ok||!read.value.token.trim())return credentialFailure()
-        credentialFailures=0
+        credentialFailures=0;credentialRetryUntil=0
         token=read.value.token;credentialKey=createHash('sha256').update(token).digest('hex')
       }catch{return credentialFailure()}
     }
