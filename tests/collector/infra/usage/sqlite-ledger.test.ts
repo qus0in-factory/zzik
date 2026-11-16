@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, writeFileSync, statSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, statSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -27,13 +27,15 @@ describe('Given a private SQLite WAL ledger and a process-lifetime lock',()=>{
   expect(statSync(join(d,'collector-ledger.sqlite')).mode&0o777).toBe(0o600)
   expect(statSync(d).mode&0o777).toBe(0o700)
  })
- it('When rolled-back marker exists Then never opens old ledger and imports rollback JSON; absent JSON stops',()=>{
+ it('When rolled-back marker exists Then archives old ledger without deleting it, imports rollback JSON and writes active marker; absent JSON stops',()=>{
   const d=dir(),l=open(d);l.close()
   writeFileSync(join(d,'collector-ledger.marker.json'),JSON.stringify({status:'rolled-back'}))
   writeFileSync(join(d,'collector-ledger.sqlite'),'old damaged ledger')
   expect(openSqliteLedger({directory:d,nowMs:now}).ok).toBe(false)
   const next=open(d,{legacy:{claude:{previous:d1Envelope(),lastEventAt:D1_NOW}},lastPruneAt:D1_NOW})
   expect(successValue(next.read('claude')).state.remoteCommitted).toEqual(d1Envelope())
+  expect(existsSync(join(d,`collector-ledger.sqlite.rolled-back-${now}`))).toBe(true)
+  expect(JSON.parse(readFileSync(join(d,'collector-ledger.marker.json'),'utf8'))).toEqual({status:'active'})
  })
  it('When active marker has missing, empty or corrupt ledger Then fails closed without replacing it',()=>{
   for(const bytes of [null,'','not sqlite']){const d=dir();writeFileSync(join(d,'collector-ledger.marker.json'),JSON.stringify({status:'active'}));if(bytes!==null)writeFileSync(join(d,'collector-ledger.sqlite'),bytes);expect(openSqliteLedger({directory:d,nowMs:now}).ok).toBe(false)}
@@ -70,10 +72,19 @@ describe('Given a private SQLite WAL ledger and a process-lifetime lock',()=>{
   const script=`import {openSqliteLedger} from ${JSON.stringify(modulePath)}; const r=openSqliteLedger({directory:${JSON.stringify(d)},nowMs:${now}});if(r.ok){r.value.close();process.exit(1)}process.exit(r.exitCode===78&&r.reason==='already_running'?0:2)`
   expect(spawnSync(process.execPath,['--input-type=module','-e',script]).status).toBe(0)
  })
- it('When the marker rename was interrupted after SQLite commit Then recovers the committed DB without reimporting JSON',()=>{
+ it('When no marker exists with an existing SQLite file Then treats it as a crash before marker rename and recovers without reimporting JSON',()=>{
   const d=dir(),l=open(d);successValue(add(l));l.close()
   rmSync(join(d,'collector-ledger.marker.json'))
   expect(successValue(open(d,{legacy:{claude:{previous:null}}}).read('claude')).rows).toHaveLength(1)
+  expect(JSON.parse(readFileSync(join(d,'collector-ledger.marker.json'),'utf8'))).toEqual({status:'active'})
+ })
+ it('When first open fails with an invalid legacy envelope Then active marker is not written and re-opening with a valid envelope re-imports',()=>{
+  const d=dir()
+  expect(openSqliteLedger({directory:d,nowMs:now,legacy:{claude:{previous:{provider:'claude'}}}})).toMatchObject({ok:false,reason:'ledger_start_failed',exitCode:78})
+  expect(existsSync(join(d,'collector-ledger.marker.json'))).toBe(false)
+  const next=open(d,{legacy:{claude:{previous:d1Envelope(),lastEventAt:D1_NOW}}})
+  expect(successValue(next.read('claude')).state.previous).toEqual(d1Envelope())
+  expect(JSON.parse(readFileSync(join(d,'collector-ledger.marker.json'),'utf8'))).toEqual({status:'active'})
  })
  it('When the initialized provider rows are empty Then refuses to rebuild a seemingly valid active DB',()=>{
   const d=dir(),l=open(d);l.close()
