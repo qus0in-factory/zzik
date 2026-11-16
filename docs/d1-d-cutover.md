@@ -83,6 +83,7 @@ node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DI
 
 ### 7) 인증된 운영 화면 확인
 - 사용자가 인증된 브라우저에서 6개 제공자 최신값·7일 이력·30일 버킷 차트를 직접 확인한 뒤 전환 완료로 보고한다.
+- **F 진입**: 이 화면 확인에서 큰 문제가 없으면 72시간 대기나 900초 주기 2회 확인 없이 바로 F로 진입한다(4절). 문제가 있으면 2절 롤백을 먼저 검토한다.
 
 ---
 
@@ -108,3 +109,12 @@ node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DI
 - 재전환 기동 전에 `previous`와 `lastEventAt`이 `remoteCommitted`와 같은지 확인한다. 다르면 그 값으로 맞춘 뒤에 켠다.
 
 재시작은 주기 사이에 하고, 운영 승인 시 quiesce 30초보다 긴 PM2 `kill_timeout`(예: 35000ms)을 권고한다(기존 ecosystem 설정은 변경하지 않는다).
+
+---
+
+## 4. 이후 단계 진입 조건 (2026-11-16 사용자 결정 단축)
+
+정본: `docs/adr/0.10-d1-storage.md` 결정표(§2.1), §11 F·G. 개인용 대시보드라 72시간 관측은 과잉이다.
+
+- **F**: D 직후 인증된 운영 화면 확인에서 큰 문제가 없으면 대기 없이 바로 진입한다. 72시간 관측 기간과 900초 주기 2회 확인은 요구하지 않는다. claude는 900으로 두고 codex·antigravity·opencode·grok·ollama 다섯 제공자에 `ZZIK_INTERVAL_SEC_*=180`과 capability 파일을 함께 쓴다. 429 관측과 provider별 900 복귀는 F 이후 운영 중 감시로 유지한다.
+- **G**: F 이후 하루 이상 정상 수집이 이어지고 R2 export가 최소 1회 성공(일자 객체 1개 이상, 이벤트 고수위 단조)하면 G1을 열 수 있다. G1은 postgres.js·`DB_URL` 제거다. `DB_URL` secret 제거와 Neon 프로젝트 삭제(G2)는 비가역이므로 **별도 사용자 승인**이 필요하다.
