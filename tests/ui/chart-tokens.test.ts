@@ -91,5 +91,8 @@ describe('Given accessibility and reduced motion', () => {
     expect(chartCss).not.toMatch(/\.chart-swatch-line\[data-slot=[^\]]+\]\s*\{[^}]*stroke-dasharray/)
     expect(chartCss).not.toMatch(/\.chart-legend-item\.is-hidden\s+\.chart-swatch-line\s*\{[^}]*stroke-dasharray/)
     expect(chartCss).toContain('@media (forced-colors: active)')
+    const forced = chartCss.slice(chartCss.indexOf('@media (forced-colors: active)'))
+    expect(forced).toContain('.chart-swatch-line:not(.chart-pace-swatch)')
+    expect(forced).toMatch(/stroke-dasharray:\s*none/)
   })
 })

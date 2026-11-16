@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chartTimeDomain, pacePoints } from '@domain/usage/history/chart-time-domain'
+import { chartTimeDomain, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
 import { elapsedPercent } from '@domain/usage/elapsed'
 import live from '../../../fixtures/usage-history/codex.xfit-live.json'
 
@@ -37,10 +37,31 @@ describe('Given the existing elapsed-percent policy for the selected summary win
     expect(points.at(-1)!.p).toBe(elapsedPercent(window.resetsAt, window.cycleSeconds, new Date(now)))
     expect(domain.to).toBeLessThan(Date.parse(window.resetsAt!))
   })
-  it('When the window starts and resets inside the domain Then 0/100 breakpoints preserve clamping', () => {
-    const points = pacePoints({resetsAt: '2026-11-16T00:00:00Z', cycleSeconds: 180}, Date.parse('2026-11-15T23:55:00Z'), Date.parse('2026-11-16T00:02:00Z'))!
-    expect(points.map(p => p.p)).toEqual([0, 0, 100, 100])
-    expect(pacePoints({resetsAt: null, cycleSeconds: null}, now - day, now)).toBeNull()
+  it('When the domain starts before the current window start Then times before the window start are null and pacePoints begin at the window start', () => {
+    const w = { resetsAt: '2026-11-16T00:00:00Z', cycleSeconds: 180 }
+    const from = Date.parse('2026-11-15T23:55:00Z')
+    const start = Date.parse('2026-11-15T23:57:00Z')
+    const to = Date.parse('2026-11-16T00:02:00Z')
+    expect(paceValueAt(w, from)).toBeNull()
+    expect(paceValueAt(w, start - 1)).toBeNull()
+    expect(paceValueAt(w, start)).toBe(0)
+    expect(paceValueAt(w, Date.parse('2026-11-15T23:58:30Z'))).toBe(elapsedPercent(w.resetsAt, w.cycleSeconds, new Date('2026-11-15T23:58:30Z')))
+    const points = pacePoints(w, from, to)!
+    expect(points[0]).toEqual({ t: start, p: 0 })
+    expect(points.map((p) => p.p)).toEqual([0, 100, 100])
+    expect(pacePoints({ resetsAt: null, cycleSeconds: null }, now - day, now)).toBeNull()
+  })
+  it('When the domain starts after the current window start Then the pace starts at the domain start and matches elapsedPercent', () => {
+    const w = { resetsAt: '2026-11-16T00:00:00Z', cycleSeconds: 180 }
+    const from = Date.parse('2026-11-15T23:58:00Z')
+    const to = Date.parse('2026-11-15T23:59:00Z')
+    const expected = elapsedPercent(w.resetsAt, w.cycleSeconds, new Date(from))!
+    expect(paceValueAt(w, from)).toBe(expected)
+    expect(pacePoints(w, from, to)).toEqual([
+      { t: from, p: expected },
+      { t: to, p: elapsedPercent(w.resetsAt, w.cycleSeconds, new Date(to))! },
+    ])
+    expect(pacePoints(w, Date.parse('2026-11-15T23:55:00Z'), Date.parse('2026-11-15T23:56:00Z'))).toBeNull()
   })
 })
 

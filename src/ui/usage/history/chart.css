@@ -187,10 +187,36 @@
 .chart-empty { color: var(--chart-muted); }
 .chart-syncing, .chart-progress, .chart-note { color: var(--chart-muted); font-size: 12px; padding: 2px 4px; }
 
-/* 강제 색 모드에서도 실측 계열은 실선을 유지하고, 활성/숨김은 굵기·취소선으로 구분한다. */
+/* 강제 색 모드에서도 실측 계열은 실선을 유지하고, 활성/숨김은 굵기·취소선·테두리로 구분한다. */
 @media (forced-colors: active) {
+  :root {
+    color-scheme: light dark;
+    --chart-surface: Canvas;
+    --chart-text: CanvasText;
+    --chart-muted: GrayText;
+    --chart-grid: GrayText;
+    --chart-axis: CanvasText;
+    --chart-tooltip-bg: Canvas;
+    --chart-tooltip-border: CanvasText;
+  }
   .usage-history-chart .chart-swatch-line:not(.chart-pace-swatch) { stroke-dasharray: none; }
-  .usage-history-chart .chart-legend-item[aria-pressed='true'] { font-weight: 600; }
+  .usage-history-chart .chart-legend-item[aria-pressed='true'] { font-weight: 600; outline: 1px solid ButtonText; }
+}
+@media (forced-colors: active) and (prefers-color-scheme: dark) {
+  :root {
+    --chart-1: #79b0f2;
+    --chart-2: #f0894f;
+    --chart-3: #3cc79a;
+    --chart-4: #e0a52e;
+    --chart-5: #ef85ab;
+    --chart-6: #4bb44b;
+    --chart-7: #9a8cf0;
+    --chart-8: #f07b7a;
+    --chart-overflow: #cccccc;
+    --chart-grid: #666666;
+    --chart-axis: #cccccc;
+    --chart-text: #ffffff;
+  }
 }
 
 /* reduced-motion: 패널 등장과 계열 토글 전환을 모두 끈다. uPlot 자체는 애니메이션이 없다. */

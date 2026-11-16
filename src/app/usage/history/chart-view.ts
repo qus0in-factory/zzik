@@ -6,8 +6,7 @@
 import type { ChartRange } from '@domain/usage/history/types'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 import type { ChartViewInput } from './chart-view-input'
-import { chartTimeDomain, pacePoints } from '@domain/usage/history/chart-time-domain'
-import { elapsedPercent } from '@domain/usage/elapsed'
+import { chartTimeDomain, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
 import { summaryWindowOf } from '@domain/usage/summary-window'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { SummaryPace } from '../summary-pace'
@@ -290,7 +289,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   })
   const timesMs = [...timeSet].sort((a, b) => a - b)
   const columns = visible.map((s, column) => timesMs.map((t) => (forcedNulls[column].has(t) ? null : valueAt(byId.get(s.id)!.segments, t))))
-  if (pace !== null && paceWindow !== null) columns.push(timesMs.map(t => elapsedPercent(paceWindow.resetsAt, paceWindow.cycleSeconds ?? null, new Date(t))))
+  if (pace !== null && paceWindow !== null) columns.push(timesMs.map(t => paceValueAt(paceWindow, t)))
   const dots = visible.map((s) =>
     byId.get(s.id)!.segments
       .filter((segment) => segment.points.length === 1)
@@ -325,7 +324,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
         return b.percent - a.percent || ordinal(a.seriesId) - ordinal(b.seriesId)
       })
     if (pace !== null && paceWindow !== null) {
-      const percent = elapsedPercent(paceWindow.resetsAt, paceWindow.cycleSeconds ?? null, new Date(t))
+      const percent = paceValueAt(paceWindow, t)
       values.push({seriesId: pace.id, percent, text: percent === null ? CHART_MESSAGES.gapText : percentText(percent), y: percent === null ? null : yForPercent(percent, plot)})
     }
     const named = values.filter((v) => v.percent !== null).map((v) => `${v.seriesId === pace?.id ? pace.label : series[ordinal(v.seriesId)].label} ${v.text}`).join(', ')

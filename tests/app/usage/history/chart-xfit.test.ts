@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { UsageHistoryPage } from '../../../../shared/usage-history-contract'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import { buildCodexUsageView } from '@domain/usage/codex-view'
+import { elapsedPercent } from '@domain/usage/elapsed'
 import { summaryPaceOf } from '@app/usage/summary-pace'
 import { buildChartView, chartAlignedData, chartCursorAtTime } from '@app/usage/history/chart-view'
 import anchorLive from '../../../fixtures/usage-history/codex.anchor-live.json'
@@ -133,6 +134,17 @@ describe('Given a Grok 24h window where a token_expired sample precedes the firs
     syncedThroughRunAt: latestOk.runAt,
     syncedAt: '2026-11-16T04:27:00.000Z',
   }
+  const paceWindows = [{
+    id: 'credits',
+    label: '주간 크레딧',
+    usedPercent: 77,
+    elapsedPercent: elapsedPercent(resetsAt, 604800, new Date(grokNow)),
+    resetsAt,
+    cycleSeconds: 604800,
+    expired: false,
+    status: 'normal' as const,
+    resetText: '',
+  }]
   const grokInput = {
     provider: 'grok' as const,
     providerTitle: 'Grok',
@@ -161,5 +173,59 @@ describe('Given a Grok 24h window where a token_expired sample precedes the firs
     expect(view.empty).toBe('no_points')
     expect(view.series).toEqual([])
     expect(view.stops).toEqual([])
+  })
+
+  it('When the 7-day domain starts before the current weekly window start Then pace values before window start are null and after window start match elapsedPercent up to the summary value', () => {
+    // grokNow = 2026-11-16T04:27:00Z, resetsAt = 2026-11-19T07:44:56.981Z, cycleSeconds = 604800
+    // 현재 주간 창 시작 시각 = 2026-11-12T07:44:56.981Z
+    const windowStartMs = Date.parse(resetsAt) - 604800 * 1000
+    const beforeWindowSample = {
+      id: '700',
+      runAt: '2026-11-10T06:00:00.000Z',
+      status: 'ok' as const,
+      fetchedAt: '2026-11-10T06:00:00.000Z',
+      intervalSec: 900,
+      values: [{ id: 'credits', usedPercent: 45, resetsAt: '2026-11-12T07:44:56.981Z', cycleSeconds: 604800 }],
+    }
+    const windows = paceWindows
+    const view = buildChartView({
+      ...grokInput,
+      range: '7d',
+      windows,
+      record: { ...grokRecord, anchor: null, samples: [beforeWindowSample, firstOk, latestOk] },
+    })
+    const aligned = chartAlignedData(view)!
+    const paceCol = aligned.columns.at(-1)!
+    // 창 시작 이전 시점(2026-11-10T06:00:00Z)의 점선 값은 0%가 아니라 null(선 끊김)이다
+    const beforeIdx = aligned.times.indexOf(Date.parse(beforeWindowSample.fetchedAt) / 1000)
+    expect(beforeIdx).toBe(0)
+    expect(paceCol[beforeIdx]).toBeNull()
+    expect(chartCursorAtTime(view, Date.parse(beforeWindowSample.fetchedAt))?.values.find((v) => v.seriesId === '__time_pace__')?.percent).toBeNull()
+
+    // 창 시작 시각부터는 0%에서 시작해 elapsedPercent와 일치하고, 현재 시각 값은 요약 경과율과 일치한다
+    const startIdx = aligned.times.indexOf(windowStartMs / 1000)
+    expect(startIdx).toBeGreaterThan(0)
+    expect(paceCol[startIdx]).toBe(0)
+    const firstOkIdx = aligned.times.indexOf(Date.parse(firstOk.fetchedAt) / 1000)
+    expect(paceCol[firstOkIdx]).toBe(elapsedPercent(resetsAt, 604800, new Date(firstOk.fetchedAt)))
+    expect(paceCol.at(-1)).toBe(view.summary?.pace.elapsedPercent)
+    expect(view.pace?.points[0]).toEqual({ t: windowStartMs, p: 0 })
+    expect(view.pace?.points.at(-1)?.p).toBe(view.summary?.pace.elapsedPercent)
+  })
+
+  it('When the domain starts after the current window start Then pace begins at the first domain sample with elapsedPercent', () => {
+    const view = buildChartView({
+      ...grokInput,
+      range: '7d',
+      windows: paceWindows,
+      record: { ...grokRecord, anchor: null, samples: [firstOk, latestOk] },
+    })
+    const aligned = chartAlignedData(view)!
+    const from = Date.parse(firstOk.fetchedAt)
+    const expected = elapsedPercent(resetsAt, 604800, new Date(from))!
+    expect(aligned.times[0]).toBe(from / 1000)
+    expect(aligned.columns.at(-1)![0]).toBe(expected)
+    expect(view.pace?.points[0]).toEqual({ t: from, p: expected })
+    expect(view.pace?.points.at(-1)?.p).toBe(view.summary?.pace.elapsedPercent)
   })
 })
