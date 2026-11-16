@@ -13,9 +13,6 @@ export function createD1Maintenance(options) {
       if(!control.ok){await notify('sender_control_failed');return {ok:false,reason:control.reason}}
       if(control.value.lastHealthCheckAtMs!==null)lastHealth=Math.max(lastHealth,control.value.lastHealthCheckAtMs)
       if(healthBusy||options.clock.now()-lastHealth<86400000)return {ok:false,reason:'not_due'}
-      lastHealth=options.clock.now()
-      const saved=options.control.write({...control.value,lastHealthCheckAtMs:lastHealth})
-      if(!saved.ok){await notify('sender_control_failed');return {ok:false,reason:saved.reason}}
       healthBusy=true
       try {
         const r=await options.query.query([
@@ -26,8 +23,12 @@ export function createD1Maintenance(options) {
         const latest=/** @type {{ran_at_ms?:unknown}[]|undefined} */(r.value[0]?.results)
         const stalls=/** @type {{stalled_at_ms?:unknown}[]|undefined} */(r.value[1]?.results)
         if(!Array.isArray(latest)||!Array.isArray(stalls)){await notify('d1_export_read_failed');return {ok:false,reason:'invalid_health_result'}}
+        const checkedAt=options.clock.now()
+        const saved=options.control.write({...control.value,lastHealthCheckAtMs:checkedAt})
+        if(!saved.ok){await notify('sender_control_failed');return {ok:false,reason:saved.reason}}
+        lastHealth=checkedAt
         const at=latest[0]?.ran_at_ms
-        if(typeof at!=='number'||!Number.isSafeInteger(at)||options.clock.now()-at>36*3600000)await notify('d1_export_stale')
+        if(typeof at!=='number'||!Number.isSafeInteger(at)||checkedAt-at>36*3600000)await notify('d1_export_stale')
         if(stalls.some(s=>s.stalled_at_ms!==null&&s.stalled_at_ms!==undefined))await notify('d1_checkpoint_stalled')
         return {ok:true}
       }finally{healthBusy=false}
@@ -45,7 +46,9 @@ export function createD1Maintenance(options) {
       try {
         for(const provider of USAGE_PROVIDERS){
           for(const [table,key,time,days] of /** @type {[string,string,string,number][]} */([
-            ['usage_event','id','run_at',retentionDays],['usage_write_receipt','operation_id','created_at_ms',35],
+            ['usage_event','id','run_at',retentionDays],
+            ['usage_bucket_boundary','rowid','run_at_ms',retentionDays],
+            ['usage_write_receipt','operation_id','created_at_ms',35],
           ])){
             let finished=false
             for(let batch=0;batch<100;batch++){

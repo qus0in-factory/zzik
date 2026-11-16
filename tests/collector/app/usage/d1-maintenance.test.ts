@@ -20,11 +20,37 @@ describe('Given a D1-only maintenance module on the shared request lane',()=>{
   const restarted=createD1Maintenance({mode:'d1',dryRun:false,control:h.control,query:h.query,clock:h.clock,notice:h.notice})
   await restarted.checkHealth();expect(h.calls).toHaveLength(1)
  })
- it('When pruning Then uses separate provider-specific 500-row event and receipt batches and advances only after all succeed',async()=>{
-  const h=setup();for(let i=0;i<12;i++)h.responses.push({ok:true,value:[{meta:{changes:0}}]})
+ it('When health read fails Then does not advance checkpoint and retries on the next cycle',async()=>{
+  const h=setup()
+  h.responses.push({ok:false,reason:'retry',status:503,retryAfterMs:0})
+  expect(await h.maintenance.checkHealth()).toMatchObject({ok:false,reason:'retry'})
+  expect(h.control.read()).toMatchObject({ok:true,value:{lastHealthCheckAtMs:null}})
+  expect(h.notices).toHaveLength(1)
+
+  h.responses.push({ok:true,value:[{results:[{ran_at_ms:Date.parse(D1_NOW)}]},{results:[]}]})
+  expect(await h.maintenance.checkHealth()).toMatchObject({ok:true})
+  expect(h.calls).toHaveLength(2)
+  expect(h.control.read()).toMatchObject({ok:true,value:{lastHealthCheckAtMs:Date.parse(D1_NOW)}})
+ })
+ it('When pruning Then uses separate provider-specific 500-row event, boundary and receipt batches without touching checkpoints',async()=>{
+  const h=setup();for(let i=0;i<18;i++)h.responses.push({ok:true,value:[{meta:{changes:0}}]})
   expect(await h.maintenance.prune('2026-11-14T00:00:00Z',30)).toMatchObject({ok:true,lastPruneAt:D1_NOW})
-  expect(h.calls).toHaveLength(12)
-  for(const call of h.calls){const statements=call as {sql:string}[];expect(statements).toHaveLength(1);expect(statements[0].sql).toContain('LIMIT 500');expect(statements[0].sql).not.toContain('INSERT')}
+  expect(h.calls).toHaveLength(18)
+  const sqls=h.calls.flatMap(call=>(call as {sql:string}[]).map(s=>s.sql))
+  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_event'))).toHaveLength(6)
+  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_bucket_boundary'))).toHaveLength(6)
+  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_write_receipt'))).toHaveLength(6)
+  for(const call of h.calls){
+   const statements=call as {sql:string;params?:unknown[]}[]
+   expect(statements).toHaveLength(1)
+   expect(statements[0].sql).toContain('LIMIT 500')
+   expect(statements[0].sql).not.toContain('INSERT')
+   expect(statements[0].sql).not.toContain('usage_bucket_checkpoint')
+  }
+  const eventCall=(h.calls[0] as {sql:string;params:unknown[]}[])[0]
+  const boundaryCall=(h.calls[1] as {sql:string;params:unknown[]}[])[0]
+  expect(boundaryCall.sql).toContain('WHERE rowid IN (SELECT rowid FROM usage_bucket_boundary WHERE provider=? AND run_at_ms<? LIMIT 500)')
+  expect(boundaryCall.params).toEqual(eventCall.params)
   const fail=setup();fail.responses.push({ok:false,reason:'retry',status:500,retryAfterMs:0});expect(await fail.maintenance.prune('2026-11-14T00:00:00Z',30)).toMatchObject({ok:false,lastPruneAt:'2026-11-14T00:00:00Z'})
  })
  it('When lastPruneAt is unknown Then reports and skips immediate deletion',async()=>{
