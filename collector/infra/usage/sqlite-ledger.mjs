@@ -119,8 +119,15 @@ export function openSqliteLedger(options) {
         try{
           conn.exec('BEGIN IMMEDIATE')
           const raw=conn.prepare("SELECT value FROM ledger_meta WHERE key='maintenance_notices'").get()
-          const times=raw===undefined?{}:JSON.parse(String(raw.value))
-          if(times===null||typeof times!=='object'||Array.isArray(times)||!Object.values(times).every(at=>typeof at==='number'&&Number.isSafeInteger(at)&&at>=0))throw new Error('invalid_notice_meta')
+          let times
+          try{
+            times=raw===undefined?{}:JSON.parse(String(raw.value))
+            if(times===null||typeof times!=='object'||Array.isArray(times)||!Object.values(times).every(at=>typeof at==='number'&&Number.isSafeInteger(at)&&at>=0))throw new Error('invalid_notice_meta')
+          }catch{
+            // Notice metadata is optional: skip the notice, preserve collection.
+            // A rollback/storage failure still reaches the fatal outer catch.
+            conn.exec('ROLLBACK');return {ok:false,reason:'invalid_notice_meta'}
+          }
           const previous=times[reason]
           if(typeof previous==='number'&&atMs-previous<86400000){conn.exec('ROLLBACK');return {ok:true,value:false}}
           conn.prepare("INSERT INTO ledger_meta(key,value) VALUES('maintenance_notices',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(JSON.stringify({...times,[reason]:atMs}))
