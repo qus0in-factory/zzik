@@ -18,6 +18,7 @@
  * 수집기 연결은 유휴 5초 후 닫혀 Neon의 suspend를 방해하지 않는다.
  */
 
+import {resumeQuarantinedProvider} from './app/usage/resume-quarantine.mjs'
 import {randomUUID} from 'node:crypto'
 import {openSqliteLedger} from './infra/usage/sqlite-ledger.mjs'
 import {createD1ControlFile} from './infra/usage/d1-control-file.mjs'
@@ -96,23 +97,28 @@ if (enabledProviders.length === 0) {
   process.exit(78)
 }
 
-const USAGE_TEXT = '사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity|opencode|grok|ollama] [--credentials-file <path>]'
+const USAGE_TEXT = '격리 재개: ZZIK_STORE=d1 node collector/main.mjs --resume-without-quarantine <provider> (기동 전 운영자 명령)\n사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity|opencode|grok|ollama] [--credentials-file <path>]'
 
 /** @typedef {import('./domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
-/** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean }} ParsedFlags */
+/** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean, resumeWithoutQuarantine:string|null }} ParsedFlags */
 
 /**
  * @param {string[]} argv
  * @returns {{ error: string|null, flags: ParsedFlags | null }}
  */
 function parseArgs(argv) {
-  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean }} */
-  const flags = { dryRun: false, once: false, credentialsPath: null, provider: null, codexAccountHeader: false }
+  /** @type {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean, resumeWithoutQuarantine:string|null }} */
+  const flags = { dryRun: false, once: false, credentialsPath: null, provider: null, codexAccountHeader: false, resumeWithoutQuarantine:null }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--dry-run') flags.dryRun = true
     else if (arg === '--codex-account-header') flags.codexAccountHeader = true
     else if (arg === '--once') flags.once = true
+    else if(arg==='--resume-without-quarantine'){
+      const value=argv[++index]
+      if(!PROVIDER_IDS.includes(value))return {error:'InvalidResumeProvider',flags:null}
+      flags.resumeWithoutQuarantine=value
+    }
     else if (arg === '--provider') {
       const value = /** @type {string|null} */ (argv[index + 1] ?? null)
       if (value === null || !PROVIDER_IDS.includes(value)) return { error: `알 수 없는 제공자: ${value ?? '(없음)'}`, flags: null }
@@ -123,6 +129,7 @@ function parseArgs(argv) {
       index += 1
     } else return { error: `알 수 없는 인자: ${arg}`, flags: null }
   }
+  if(flags.resumeWithoutQuarantine!==null&&(flags.dryRun||flags.once||flags.provider!==null||flags.credentialsPath!==null))return {error:'ResumeCommandMustBeStandalone',flags:null}
   if (flags.credentialsPath !== null && (flags.dryRun !== true || flags.provider === null)) {
     return { error: '--credentials-file은 --provider와 --dry-run이 함께 있을 때만 쓴다(시험 자격 증명으로 다른 제공자의 저장소에 쓰는 일을 막는다)', flags: null }
   }
@@ -239,7 +246,7 @@ function startResident() {
   const runner=createResidentCollector({
     periodMs:storageConfig.intervalSec*1000,timer:createCollectorTimer(),
     run:async shouldStop=>{
-      const {results}=await runCycle({maintenance,alerts},buildProviders({credentialsPath:null,provider:null,dryRun:false,once:false,codexAccountHeader:false}),{collectorVersion:VERSION,intervalSec:storageConfig.intervalSec,shouldStop})
+      const {results}=await runCycle({maintenance,alerts},buildProviders({credentialsPath:null,provider:null,dryRun:false,once:false,codexAccountHeader:false,resumeWithoutQuarantine:null}),{collectorVersion:VERSION,intervalSec:storageConfig.intervalSec,shouldStop})
       const failures=results.filter(result=>result.exitCode!==0)
       if(failures.length>0)process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map(result=>`${result.id}=exit${result.exitCode}`).join(', ')}\n`)
     },
@@ -275,6 +282,11 @@ async function startD1(flags){
   if(gate.stopping())return
   if(!reconciled.ok){ledger.close();process.stderr.write('D1 reconciliation error: '+reconciled.reason+'\n');process.exit(78);return}
   const active=/** @type {ReturnType<typeof createD1Resident>} */(gate.activate())
+  if(flags.resumeWithoutQuarantine!==null){
+    const result=await resumeQuarantinedProvider({mode:'d1',provider:/** @type {import('../shared/usage-contract.ts').UsageProvider} */(flags.resumeWithoutQuarantine),ledger,query,resume:(provider,facts)=>active.resumeWithoutQuarantine(provider,facts)})
+    process.stdout.write(JSON.stringify({ok:result.ok,...(!result.ok?{reason:result.reason}:{})})+'\n')
+    await active.shutdown();process.exit(result.ok?0:3);return
+  }
   active.start()
   if(flags.once){while(!active.onceDone())await new Promise(resolve=>setTimeout(resolve,100));const code=active.exitCode();await active.shutdown();process.exit(code)}
 }
@@ -292,6 +304,7 @@ async function main() {
     process.exit(78)
     return
   }
+  if(parsed.flags.resumeWithoutQuarantine!==null&&configured.mode!=='d1'){process.stderr.write('ResumeCommandRequiresD1\n');process.exit(78);return}
   storageConfig = configured
   if(configured.mode==='d1'&&!parsed.flags.dryRun){await startD1(parsed.flags);return}
   // Dry-run never creates a DB connection or a retention task.

@@ -22,3 +22,36 @@ describe('Given a synthetic PG repeatable-read migration snapshot',()=>{
   }finally{await db.close()}
  })
 })
+
+describe('Given a paged source consumer instead of an in-memory source array',()=>{
+ it('When the consumer is delayed Then never reads ahead and does not apply the legacy byte cap',async()=>{
+  const rows=['1','2','3'].map(id=>({id,provider:'claude',status:'ok',runAt:'2026-11-16T03:00:00.123Z',rawSha256:null,envelopeJson:JSON.stringify(d1Envelope())}))
+  let eventQueries=0,release!:()=>void,entered!:()=>void;const enteredPromise=new Promise<void>(r=>{entered=r})
+  const source=createPgBackfillSource({pageSize:2,maxBytes:1,query:async(sql:string,params?:unknown[])=>{
+   if(sql.includes('jsonb_typeof'))return {rows:[{bad:'0'}]}
+   if(sql.includes('WHERE id>')){eventQueries++;return {rows:rows.filter(r=>BigInt(r.id)>BigInt(String(params?.[0]))).slice(0,2)}}
+   return {rows:[]}
+  }})
+  const seen:string[]=[]
+  const done=source.scan(async(kind,page)=>{if(kind==='event'){seen.push(...page.map(r=>String(r.id)));if(seen.length===2){entered();await new Promise<void>(r=>{release=r})}}return {ok:true,value:undefined}})
+  await enteredPromise;expect(eventQueries).toBe(1);release();expect((await done).ok).toBe(true);expect(eventQueries).toBe(2);expect(seen).toEqual(['1','2','3'])
+ })
+})
+
+import {mkdtempSync,rmSync} from 'node:fs'
+import {join} from 'node:path'
+import {tmpdir} from 'node:os'
+import {createBackfillSpool} from '../../../../collector/infra/usage/backfill-spool.mjs'
+import {D1_NOW} from '../../../fakes/d1-contract'
+describe('Given actual synthetic PG event and snapshot rows',()=>{
+ it('When scanned one row at a time Then preserves the legacy full-source digest and snapshot metadata',async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'zzik-pg-plan-')),db=await createTestDb(),spool=successValue(createBackfillSpool({directory,pageSize:1}))
+  try{
+   for(const id of ['9007199254740993','9'])await db.client.query("INSERT INTO usage_event(id,provider,status,run_at,envelope) OVERRIDING SYSTEM VALUE VALUES($1,'claude','ok',$2,$3::jsonb)",[id,D1_NOW,JSON.stringify(d1Envelope())])
+   for(const provider of ['codex','claude'] as const)await db.client.query("INSERT INTO usage_snapshot(provider,status,run_at,fetched_at,envelope,collector_version,updated_at) VALUES($1,'ok',$2,$2,$3::jsonb,'0.6.20',$2)",[provider,D1_NOW,JSON.stringify(d1Envelope({provider}))])
+   const query=(sql:string,params?:unknown[])=>db.client.query<Record<string,unknown>>(sql,params),old=successValue(planBackfill(successValue(await createPgBackfillSource({query}).read())))
+   let max=0;successValue(await createPgBackfillSource({query,pageSize:1}).scan((kind,rows)=>{max=Math.max(max,rows.length);return spool.append(kind,rows)}))
+   expect(max).toBe(1);expect(successValue(spool.seal()).summary).toEqual(old.summary)
+  }finally{spool.close();await db.close();rmSync(directory,{recursive:true,force:true})}
+ })
+})

@@ -3,7 +3,7 @@ import {describe,it,expect} from 'vitest'
 import {createD1Maintenance} from '../../../../collector/app/usage/d1-maintenance.mjs'
 import {senderFixture} from '../../../fakes/d1-sender'
 import {D1_NOW} from '../../../fakes/d1-contract'
-function setup(extra:Record<string,unknown>={}){const h=senderFixture({initialLedgerState,acceptObservation});return {...h,maintenance:createD1Maintenance({mode:'d1',dryRun:false,control:h.control,query:h.query,clock:h.clock,notice:h.notice,...extra})}}
+function setup(extra:Record<string,unknown>={}){const h=senderFixture({initialLedgerState,acceptObservation});return {...h,maintenance:createD1Maintenance({noticeState:h.noticeState,mode:'d1',dryRun:false,control:h.control,query:h.query,clock:h.clock,notice:h.notice,...extra})}}
 describe('Given a D1-only maintenance module on the shared request lane',()=>{
  it('When postgres or dry-run is active Then never reads export state or prunes',async()=>{
   for(const x of [{mode:'postgres'},{dryRun:true}]){const h=setup(x);await h.maintenance.checkHealth();await h.maintenance.prune(D1_NOW,30);expect(h.calls).toHaveLength(0);expect(h.notices).toHaveLength(0)}
@@ -17,7 +17,7 @@ describe('Given a D1-only maintenance module on the shared request lane',()=>{
  })
  it('When maintenance restarts Then preserves the daily health-read checkpoint',async()=>{
   const h=setup();h.responses.push({ok:true,value:[{results:[{ran_at_ms:Date.parse(D1_NOW)}]},{results:[]}]});await h.maintenance.checkHealth()
-  const restarted=createD1Maintenance({mode:'d1',dryRun:false,control:h.control,query:h.query,clock:h.clock,notice:h.notice})
+  const restarted=createD1Maintenance({noticeState:h.noticeState,mode:'d1',dryRun:false,control:h.control,query:h.query,clock:h.clock,notice:h.notice})
   await restarted.checkHealth();expect(h.calls).toHaveLength(1)
  })
 it('When quiesce cancels a queued health read Then sends no outage alert and preserves the previous health checkpoint',async()=>{
@@ -34,7 +34,7 @@ it('When quiesce cancels a queued health read Then sends no outage alert and pre
    h.control.write({...current.value,nextRequestAtMs:advanced})
    return result
   }}
-  const maintenance=createD1Maintenance({mode:'d1',dryRun:false,control:h.control,query:racingQuery,clock:h.clock,notice:h.notice})
+  const maintenance=createD1Maintenance({noticeState:h.noticeState,mode:'d1',dryRun:false,control:h.control,query:racingQuery,clock:h.clock,notice:h.notice})
   h.responses.push({ok:true,value:[{results:[{ran_at_ms:Date.parse(D1_NOW)}]},{results:[]}]})
   expect((await maintenance.checkHealth()).ok).toBe(true)
   expect(h.control.read()).toMatchObject({ok:true,value:{lastHealthCheckAtMs:Date.parse(D1_NOW),nextRequestAtMs:advanced}})
@@ -82,7 +82,7 @@ it('When quiesce cancels a queued health read Then sends no outage alert and pre
    read:()=>{reads+=1;return reads===1?h.control.read():{ok:false as const,reason:'control_corrupt'}},
    write:(next:Parameters<typeof h.control.write>[0])=>{writes+=1;return h.control.write(next)},
   }
-  const maintenance=createD1Maintenance({mode:'d1',dryRun:false,control,query:h.query,clock:h.clock,notice:h.notice})
+  const maintenance=createD1Maintenance({noticeState:h.noticeState,mode:'d1',dryRun:false,control,query:h.query,clock:h.clock,notice:h.notice})
   h.responses.push({ok:true,value:[{results:[{ran_at_ms:Date.parse(D1_NOW)}]},{results:[]}]})
   expect(await maintenance.checkHealth()).toMatchObject({ok:false,reason:'control_corrupt'})
   expect(writes).toBe(0)
@@ -91,7 +91,7 @@ it('When quiesce cancels a queued health read Then sends no outage alert and pre
  it('When control stays broken across repeated calls Then throttles the same notice reason to once per 24 hours',async()=>{
   const h=setup()
   const control={read:()=>({ok:false as const,reason:'control_corrupt'}),write:h.control.write}
-  const maintenance=createD1Maintenance({mode:'d1',dryRun:false,control,query:h.query,clock:h.clock,notice:h.notice})
+  const maintenance=createD1Maintenance({noticeState:h.noticeState,mode:'d1',dryRun:false,control,query:h.query,clock:h.clock,notice:h.notice})
   await maintenance.checkHealth()
   await maintenance.checkHealth()
   expect(h.notices).toEqual([{reason:'sender_control_failed'}])

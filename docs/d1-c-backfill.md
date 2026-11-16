@@ -23,7 +23,9 @@ CLI는 dry-run 기본이다. 명시적인 state directory와 private env-file이
 5. 기본 batch는 최대 20행·512KiB다. 성공한 batch 뒤에만 private checkpoint를 atomic rename/fsync한다. checkpoint에는 planSha256/completed만 있다. 재실행은 checkpoint를 맹신하지 않고 실제 D1 행의 전체 해시를 다시 확인해 커밋된 행을 건너뛴다. 마지막 D1 commit 뒤 checkpoint 실패도 동일하게 재개한다.
 6. 마지막으로 모든 envelope 해시·개수·max id와 sqlite_sequence≥max id를 다시 읽어 검증한다. 이미 sequence가 max id보다 작으면 dry-run에서도 거부한다. sqlite_sequence를 내려 쓰지 않는다.
 
-PG source는 250행씩 읽으며 메모리 상한을 기본 128MiB(134,217,728 bytes)로 둔다. 누적 `JSON.stringify(row)` 바이트가 상한을 넘으면 **`source_limit`** safe reason으로 D1 쓰기 전에 중단하며, 일반 `pg_source_failed`와 구분한다. CLI에는 상한 override 플래그가 없다. 3KB 행 기준 약 43,690행, 0.5KB 기준 약 26만 행 부근이 상한이고, 64KiB 원문처럼 큰 봉투는 더 일찍 중단한다. 더 큰 원본은 승인된 별도 streaming 확장이 필요하며 이 patch는 무제한 메모리 처리를 주장하지 않는다. D1 조회·쓰기 모두 B2의 공유 1요청/초 query lane을 사용한다.
+PG source는 repeatable-read/read-only transaction 안에서 최대 250행씩 읽으며 consumer가 페이지를 끝낸 뒤에만 다음 페이지를 요청한다. CLI는 전체 봉투 배열이나 기본 128MiB 상한 대신 private SQLite 임시 spool(디렉터리 0700/DB 0600)에 페이지를 기록한다. source 정렬과 마이크로초 검사 후 기존 행 해시 튜플의 JSON 배열 framing을 그대로 누적하므로 기존 planSha256과 숫자 id/provider 순서가 같다. D1 사전 대조·쓰기·최종 검증도 spool을 25행 이하씩 재생하며 전체 pending/target map을 만들지 않는다. 정상 종료에는 자기 spool만 삭제하고, 비정상 종료의 private orphan은 재사용하지 않는다. 데이터가 큰 경우 필요한 자원은 전체 JS heap 대신 로컬 디스크이며 디스크 실패는 안전 중단한다.
+
+기존 배열 `read()`/`planBackfill()` API는 호환용으로 유지한다. 명시적 `maxBytes`의 `source_limit`도 배열 API에서만 유지되며 운영 CLI는 이 메서드를 쓰지 않는다. 128MiB를 넘는 합성 2,050행을 실제 disk spool로 처리·재생하는 회귀와, pre-change golden hash·timezone/epoch 이전 시각·재기동 후 batch 재개 동등성을 검증한다. D1 조회·쓰기 모두 B2의 공유 1요청/초 query lane을 사용한다.
 
 계획이 달라지면 기존 checkpoint로 재개하지 않는다. 최종 catch-up용 PG 관측 정지 뒤에는 새 dry-run과 새 **명시적 checkpoint 경로**로 검토한다. 대상의 기존 prefix 해시가 모두 같아야 하며 예상 밖 행은 거부한다. 도구가 checkpoint를 자동 초기화하거나 대상의 추가 행을 삭제하지 않는다.
 

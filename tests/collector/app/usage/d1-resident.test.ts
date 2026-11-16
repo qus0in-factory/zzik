@@ -16,6 +16,13 @@ describe('Given D1 runtime ports without operational credentials',()=>{
   runtime.pump();for(let i=0;i<20;i++)await Promise.resolve()
   expect(h.notices).toContainEqual({reason:'queue_quarantined'})
  })
+ it('When an explicit pre-start resume command discards quarantine Then exposes the sender transition without starting collection',()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation});h.queue();h.data.get('claude')!.rows[0].quarantined=true
+  const runtime=createD1Resident({ledger:h.ledger,control:h.control,query:h.query,clock:h.clock,timer:{schedule:()=>()=>{}},random:()=>0,operationId:()=>D1_OPERATION_ID,notice:h.notice,notifyAlerts:h.notifyAlerts,providers:[],intervals:{},retentionDays:30,collectorVersion:'test'})
+  const op=h.data.get('claude')!.rows[0].operation
+  expect(runtime.resumeWithoutQuarantine('claude',{[op.operationId]:null}).ok).toBe(true)
+  expect(h.data.get('claude')!.rows).toHaveLength(0);expect(h.calls).toHaveLength(0)
+ })
  it('When shutdown arrives during upstream and HTTP Then accepts the finished observation before closing and starts no new HTTP',async()=>{
   const directory=mkdtempSync(join(tmpdir(),'zzik-b3-runtime-')),now=Date.parse(D1_NOW)
   const ledger=successValue(openSqliteLedger({directory,nowMs:now}))

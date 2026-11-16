@@ -100,3 +100,5 @@ node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <ZZIK_STATE_DI
 - 2항의 D1 접근 불가 경로가 아닌 재전환에서 D1에 이전 세대가 남아 있으면 전량 백필을 다시 하지 않는다. PG에만 있는 id만 해시 대조 후 넣고, 그 행의 `operation_id`는 NULL로 둔다. 다음 `write_seq`는 ADR §5.1 식이다.
 - 2항의 D1 접근 불가 경로로 돌아간 뒤의 재전환은 D1 표를 비우고 `data_generation`을 올린 뒤 첫 전환과 같은 전량 백필을 한다(그 D1 잔여 관측은 이미 허용 손실로 선언됨).
 - 재전환 기동 전에 `previous`와 `lastEventAt`이 `remoteCommitted`와 같은지 확인한다. 다르면 그 값으로 맞춘 뒤에 켠다.
+
+재시작은 주기 사이에 하고, 운영 승인 시 quiesce 30초보다 긴 PM2 `kill_timeout`(예: 35000ms)을 권고한다(기존 ecosystem 설정은 변경하지 않는다).

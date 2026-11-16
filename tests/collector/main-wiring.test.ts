@@ -68,3 +68,10 @@ describe('Given an explicit local interval capability and synthetic expired cred
   }finally{rmSync(dir,{recursive:true,force:true})}
  })
 })
+
+describe('Given an explicit quarantine resume operator flag',()=>{
+ it('When the default store is postgres Then refuses before opening a DB',()=>{
+  const result=spawnSync(process.execPath,['collector/main.mjs','--resume-without-quarantine','claude'],{encoding:'utf8',timeout:10000,env:{...process.env,ZZIK_STORE:'postgres',DB_URL:'postgres://synthetic-unused',ZZIK_INTERVAL_SEC:'900'}})
+  expect(result.status).toBe(78);expect(result.stderr).toContain('ResumeCommandRequiresD1');expect(result.stderr).not.toContain('synthetic-unused')
+ })
+})
