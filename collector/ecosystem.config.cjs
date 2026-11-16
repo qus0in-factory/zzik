@@ -31,6 +31,11 @@ module.exports = {
         ZZIK_STORE: 'd1',
         ZZIK_D1_AUTH: 'wrangler-oauth',
         ZZIK_D1_OAUTH_PROFILE: 'zzik-collector',
+        ZZIK_INTERVAL_SEC_CODEX: '180',
+        ZZIK_INTERVAL_SEC_ANTIGRAVITY: '180',
+        ZZIK_INTERVAL_SEC_OPENCODE: '180',
+        ZZIK_INTERVAL_SEC_GROK: '180',
+        ZZIK_INTERVAL_SEC_OLLAMA: '180',
       },
       env_postgres: {
         ZZIK_STORE: 'postgres',
