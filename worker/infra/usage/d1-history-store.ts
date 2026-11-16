@@ -53,7 +53,7 @@ async function all<T>(db: D1DatabaseLike, query: string, params: readonly unknow
   return result.results
 }
 
-const EVENT_COLUMNS = 'CAST(id AS TEXT) AS id, run_at AS run_at_ms, status, envelope'
+const EVENT_COLUMNS = 'CAST(e.id AS TEXT) AS id, e.run_at AS run_at_ms, e.status, e.envelope'
 
 /** Read-only D1 history adapter. The flag is intentionally not wired to the Worker in A. */
 export class D1HistoryStore implements HistoryStore {
@@ -63,23 +63,23 @@ export class D1HistoryStore implements HistoryStore {
     if (this.db === null) return { ok: false, reason: 'storage_unavailable' }
     try {
       const params: unknown[] = [provider]
-      let where = 'provider = ?'
+      let where = 'e.provider = ?'
       if (query.from !== undefined) {
-        where += ' AND run_at >= ?'
+        where += ' AND e.run_at >= ?'
         params.push(Date.parse(query.from))
       }
       if (query.until !== undefined) {
-        where += ' AND run_at < ?'
+        where += ' AND e.run_at < ?'
         params.push(Date.parse(query.until))
       }
       const cursor = query.after === undefined ? null : parseCursor(query.after)
       if (cursor !== null) {
-        where += ' AND (run_at > ? OR (run_at = ? AND id > CAST(? AS INTEGER)))'
+        where += ' AND (e.run_at > ? OR (e.run_at = ? AND e.id > CAST(? AS INTEGER)))'
         const runAtMs = Date.parse(cursor.runAt)
         params.push(runAtMs, runAtMs, cursor.id)
       }
       params.push(query.limit)
-      const rows = await all<D1EventRow>(this.db, `SELECT ${EVENT_COLUMNS} FROM usage_event WHERE ${where} ORDER BY run_at ASC, id ASC LIMIT ?`, params)
+      const rows = await all<D1EventRow>(this.db, `SELECT ${EVENT_COLUMNS} FROM usage_event AS e WHERE ${where} ORDER BY e.run_at ASC, e.id ASC LIMIT ?`, params)
       return { ok: true, value: rows.map(eventRow) }
     } catch {
       return { ok: false, reason: 'storage_unavailable' }
@@ -91,7 +91,7 @@ export class D1HistoryStore implements HistoryStore {
     try {
       const rows = await all<D1EventRow>(
         this.db,
-        `SELECT ${EVENT_COLUMNS} FROM usage_event WHERE provider = ? AND status = 'ok' AND run_at < ? ORDER BY run_at DESC, id DESC LIMIT 1`,
+        `SELECT ${EVENT_COLUMNS} FROM usage_event AS e WHERE e.provider = ? AND e.status = 'ok' AND e.run_at < ? ORDER BY e.run_at DESC, e.id DESC LIMIT 1`,
         [provider, Date.parse(from)],
       )
       return { ok: true, value: rows[0] === undefined ? null : eventRow(rows[0]) }

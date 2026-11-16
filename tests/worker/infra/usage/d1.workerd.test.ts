@@ -73,6 +73,26 @@ describe('Given the D1 schema inside actual workerd', () => {
     expect(page.value.map(row => row.id)).toEqual(['9223372036854775807'])
   })
 
+  it('When same-run_at ids have different digit lengths Then pagination and anchor follow numeric id, not the text alias', async () => {
+    for (const id of ['9', '10', '100']) {
+      await db.prepare('INSERT INTO usage_event (id, provider, run_at, status, envelope) VALUES (CAST(? AS INTEGER), ?, ?, ?, ?)')
+        .bind(id, 'claude', 2000, 'ok', envelope()).run()
+    }
+    const store = new D1HistoryStore(db)
+    const first = await store.readRows('claude', { limit: 2 })
+    expect(first).toMatchObject({ ok: true })
+    if (!first.ok) throw new Error('unreachable')
+    expect(first.value.map(row => row.id)).toEqual(['9', '10'])
+    const next = await store.readRows('claude', { limit: 2, after: '1970-01-01T00:00:02.000Z_10' })
+    expect(next).toMatchObject({ ok: true })
+    if (!next.ok) throw new Error('unreachable')
+    expect(next.value.map(row => row.id)).toEqual(['100'])
+    const anchor = await store.readAnchorRow('claude', '1970-01-01T00:00:02.001Z')
+    expect(anchor).toMatchObject({ ok: true })
+    if (!anchor.ok) throw new Error('unreachable')
+    expect(anchor.value?.id).toBe('100')
+  })
+
   it('When the snapshot store reads Then the envelope text comes back unchanged', async () => {
     await db.prepare('INSERT INTO usage_snapshot (provider, envelope, status, run_at, fetched_at, raw_sha256, collector_version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .bind('codex', envelope({ provider: 'codex' }), 'ok', 1000, 1000, 'sha', '0.6.20', 1000).run()

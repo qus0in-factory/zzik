@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { canonicalEnvelope, migrationRowTuple } from '../../../shared/d1-canonical.ts'
 
 export interface PgQueryResult<T> { rows: T[] }
 export interface PgQueryable {
@@ -36,26 +37,25 @@ export interface ReverseMigrationResult {
   skipped: number
 }
 
-/** Canonical JSON: object keys sorted recursively, arrays in input order. */
+/** Canonical JSON is defined once in shared/d1-canonical.ts (UTF-16 key sort, arrays preserved). */
 export function canonicalMigrationJson(value: unknown): string {
-  const canonical = (item: unknown): unknown => {
-    if (Array.isArray(item)) return item.map(canonical)
-    if (item !== null && typeof item === 'object') {
-      return Object.fromEntries(Object.keys(item).sort().map(key => [key, canonical((item as Record<string, unknown>)[key])]))
-    }
-    return item
-  }
-  return JSON.stringify(canonical(value))
-}
-
-function rowHash(key: string, provider: string, runAtMs: number, status: string, rawSha256: string | null, envelope: string): string {
-  const canonicalEnvelope = canonicalMigrationJson(JSON.parse(envelope))
-  return createHash('sha256').update([key, provider, String(runAtMs), status, rawSha256 ?? '', canonicalEnvelope].join('|'), 'utf8').digest('hex')
+  const json = typeof value === 'string' ? value : JSON.stringify(value)
+  const result = canonicalEnvelope(json)
+  if (!result.ok) throw new Error(`invalid canonical envelope: ${result.reason}`)
+  return result.value
 }
 
 export function migrationRowSha256(row: MigrationEvent | MigrationSnapshot): string {
-  const key = 'id' in row ? row.id : row.provider
-  return rowHash(key, row.provider, row.runAtMs, row.status, row.rawSha256, row.envelope)
+  const tuple = migrationRowTuple({
+    id: 'id' in row ? row.id : null,
+    provider: row.provider,
+    runAt: new Date(row.runAtMs).toISOString(),
+    status: row.status,
+    rawSha256: row.rawSha256,
+    envelopeJson: row.envelope,
+  })
+  if (!tuple.ok) throw new Error(`invalid migration row: ${tuple.reason}`)
+  return createHash('sha256').update(tuple.value, 'utf8').digest('hex')
 }
 
 interface ExistingEvent {
@@ -78,7 +78,7 @@ interface ExistingSnapshot {
 async function existingEvent(db: PgQueryable, id: string): Promise<ExistingEvent | null> {
   const result = await db.query<ExistingEvent>(
     `SELECT CAST(id AS TEXT) AS id, provider,
-            (extract(epoch FROM run_at) * 1000)::bigint::text AS run_at_ms,
+            floor(extract(epoch FROM run_at) * 1000)::bigint::text AS run_at_ms,
             status, raw_sha256, envelope::text AS envelope
        FROM usage_event WHERE id = CAST($1 AS BIGINT)`,
     [id],
@@ -89,7 +89,7 @@ async function existingEvent(db: PgQueryable, id: string): Promise<ExistingEvent
 async function existingSnapshot(db: PgQueryable, provider: string): Promise<ExistingSnapshot | null> {
   const result = await db.query<ExistingSnapshot>(
     `SELECT provider,
-            (extract(epoch FROM run_at) * 1000)::bigint::text AS run_at_ms,
+            floor(extract(epoch FROM run_at) * 1000)::bigint::text AS run_at_ms,
             status, raw_sha256, envelope::text AS envelope
        FROM usage_snapshot WHERE provider = $1`,
     [provider],
@@ -98,10 +98,10 @@ async function existingSnapshot(db: PgQueryable, provider: string): Promise<Exis
 }
 
 function eventHash(row: ExistingEvent): string {
-  return rowHash(row.id, row.provider, Number(row.run_at_ms), row.status, row.raw_sha256, row.envelope)
+  return migrationRowSha256({ id: row.id, provider: row.provider, runAtMs: Number(row.run_at_ms), status: row.status, rawSha256: row.raw_sha256, envelope: row.envelope })
 }
 function snapshotHash(row: ExistingSnapshot): string {
-  return rowHash(row.provider, row.provider, Number(row.run_at_ms), row.status, row.raw_sha256, row.envelope)
+  return migrationRowSha256({ provider: row.provider, runAtMs: Number(row.run_at_ms), fetchedAtMs: null, status: row.status, rawSha256: row.raw_sha256, envelope: row.envelope, collectorVersion: '', updatedAtMs: 0 })
 }
 
 async function syncSequence(db: PgQueryable): Promise<void> {
@@ -131,22 +131,23 @@ export async function reverseMigrateToPostgres(db: PgQueryable, input: ReverseMi
     // Check every existing key before writing, so a mismatch aborts before any insert.
     const eventsToInsert: MigrationEvent[] = []
     for (const row of input.events) {
+      const incomingHash = migrationRowSha256(row)
       const existing = await existingEvent(db, row.id)
       if (existing === null) {
         eventsToInsert.push(row)
-      } else if (eventHash(existing) !== migrationRowSha256(row)) {
+      } else if (eventHash(existing) !== incomingHash) {
         throw new Error(`migration hash mismatch for usage_event ${row.id}`)
       } else {
         skipped += 1
       }
     }
-    const snapshotsToInsert: MigrationSnapshot[] = []
+    const snapshotsToWrite: MigrationSnapshot[] = []
     for (const row of input.snapshots) {
+      const incomingHash = migrationRowSha256(row)
       const existing = await existingSnapshot(db, row.provider)
-      if (existing === null) {
-        snapshotsToInsert.push(row)
-      } else if (snapshotHash(existing) !== migrationRowSha256(row)) {
-        throw new Error(`migration hash mismatch for usage_snapshot ${row.provider}`)
+      if (existing === null || snapshotHash(existing) !== incomingHash) {
+        // D1's snapshot is the latest committed observation; an older PG snapshot is replaced.
+        snapshotsToWrite.push(row)
       } else {
         skipped += 1
       }
@@ -161,10 +162,18 @@ export async function reverseMigrateToPostgres(db: PgQueryable, input: ReverseMi
       )
       insertedEvents += 1
     }
-    for (const row of snapshotsToInsert) {
+    for (const row of snapshotsToWrite) {
       await db.query(
         `INSERT INTO usage_snapshot (provider, envelope, status, run_at, fetched_at, raw_sha256, collector_version, updated_at)
-         VALUES ($1, CAST($2 AS JSONB), $3, $4, $5, $6, $7, $8)`,
+         VALUES ($1, CAST($2 AS JSONB), $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (provider) DO UPDATE SET
+           envelope = EXCLUDED.envelope,
+           status = EXCLUDED.status,
+           run_at = EXCLUDED.run_at,
+           fetched_at = EXCLUDED.fetched_at,
+           raw_sha256 = EXCLUDED.raw_sha256,
+           collector_version = EXCLUDED.collector_version,
+           updated_at = EXCLUDED.updated_at`,
         [row.provider, row.envelope, row.status, new Date(row.runAtMs), row.fetchedAtMs === null ? null : new Date(row.fetchedAtMs), row.rawSha256, row.collectorVersion, new Date(row.updatedAtMs)],
       )
       insertedSnapshots += 1
