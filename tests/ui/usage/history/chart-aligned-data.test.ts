@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { UsageHistoryPage } from '../../../../shared/usage-history-contract'
 import type { HistoryCacheRecord } from '@domain/usage/history/types'
 import type { ChartViewInput } from '@app/usage/history/chart-view-input'
@@ -7,6 +7,9 @@ import { buildChartView, chartAlignedData } from '@app/usage/history/chart-view'
 import { FALLBACK_PALETTE, toUplotData, toUplotOptions, toUplotSeries } from '@ui/usage/history/chart-uplot-options'
 import claudePage from '../../../fixtures/usage-history/claude.samples.json'
 
+const originalZone = process.env.TZ
+beforeAll(() => { process.env.TZ = 'Asia/Seoul' })
+afterAll(() => { if (originalZone === undefined) delete process.env.TZ; else process.env.TZ = originalZone })
 const page = claudePage as unknown as UsageHistoryPage
 const NOW = Date.parse('2026-11-14T00:30:00.000Z')
 const DAY = 86_400_000
