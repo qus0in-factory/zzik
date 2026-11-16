@@ -47,6 +47,12 @@ export function openSqliteLedger(options) {
     if(active && (!existsSync(path)||statSync(path).size===0))throw new Error('ledger_missing')
     // No marker + an existing DB is a crash between the SQLite commit and marker rename.
     const existing=existsSync(path) && statSync(path).size>0
+    if(!existing && !active) {
+      for(const provider of PROVIDERS) {
+        const previous=legacy?.[provider]?.previous??null
+        if(previous!==null){const parsed=parseD1Envelope(JSON.stringify(previous));if(!parsed.ok || parsed.value.provider!==provider)throw new Error('invalid_legacy')}
+      }
+    }
     if(!existsSync(path))closeSync(openSync(path,'wx',0o600))
     db=(options.databaseFactory??(p=>new DatabaseSync(p)))(path)
     chmodSync(path,0o600)
@@ -66,7 +72,6 @@ export function openSqliteLedger(options) {
         const data=initialLedgerState(), imported=legacy?.[provider]
         if(imported) {
           const previous=imported.previous??null, lastEventAt=validTime(imported.lastEventAt)?/** @type {string} */(imported.lastEventAt):null
-          if(previous!==null && (typeof previous!=='object' || /** @type {{provider?:unknown}} */(previous).provider!==provider))throw new Error('invalid_legacy')
           Object.assign(data.state,{previous,remoteCommitted:previous,lastEventAt,remoteCommittedLastEventAt:lastEventAt,gate:imported.gate??data.state.gate,alerts:imported.alerts??null,lastRun:imported.lastRun??data.state.lastRun})
         }
         db.prepare('INSERT INTO provider_state VALUES(?,?,?,?,?,?,?)').run(provider,JSON.stringify(data.state),0,1,0,null,null)
@@ -75,9 +80,6 @@ export function openSqliteLedger(options) {
       db.prepare('INSERT INTO ledger_meta VALUES(?,?)').run('initialized','1')
       db.exec('COMMIT')
     }
-    for(const suffix of ['-wal','-shm'])if(existsSync(path+suffix))chmodSync(path+suffix,0o600)
-    atomicJson(marker,{status:'active'})
-    const dirFd=openSync(directory,'r');try{fsyncSync(dirFd)}finally{closeSync(dirFd)}
     const conn=db
     /** @param {Provider} provider @returns {Data} */
     const load=provider=>{
@@ -101,6 +103,9 @@ export function openSqliteLedger(options) {
       return {count:Number(r?.n),bytes:Number(r?.bytes),oldestMs:r?.oldest===null?null:Number(r?.oldest)}
     }
     for(const provider of PROVIDERS)load(provider)
+    for(const suffix of ['-wal','-shm'])if(existsSync(path+suffix))chmodSync(path+suffix,0o600)
+    atomicJson(marker,{status:'active'})
+    const dirFd=openSync(directory,'r');try{fsyncSync(dirFd)}finally{closeSync(dirFd)}
     /** @template T @param {()=>T} fn @returns {Result<T>} */
     const read=fn=>{try{if(closed)throw new Error('closed');return {ok:true,value:fn()}}catch{return {ok:false,reason:'ledger_read_failed'}}}
     /** @type {Ledger} */
