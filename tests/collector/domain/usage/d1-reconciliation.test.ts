@@ -17,6 +17,19 @@ describe('Given quiesced receipt, local outbox and optional PG migration facts',
     expect(successValue(classifyD1Operation({ operation: op, receipt, outboxPresent: true }))).toMatchObject({ delivery: 'response_lost', action: 'acknowledge_local', operationId: op.operationId })
     expect(successValue(classifyD1Operation({ operation: op, receipt: null, outboxPresent: true }))).toMatchObject({ delivery: 'unsent', action: 'replay_same_operation', operationId: op.operationId })
   })
+  it('When rollback replaces a snapshot Then clears a receipted outbox only after PG commit and drains an unsent operation first', () => {
+    const { op, receipt, expected } = facts()
+    const snapshot = { ...expected, id: null }
+    const older = '2026-11-16T02:45:00.000Z'
+    const actual = { ...snapshot, runAt: older, envelopeJson: JSON.stringify(d1Envelope({ runAt: older, fetchedAt: older })) }
+    const pgRow = { expected: snapshot, actual }
+    expect(successValue(classifyD1Operation({ operation: op, receipt, outboxPresent: true, pgRow })))
+      .toMatchObject({ pg: 'snapshot_replace', delivery: 'response_lost', action: 'clear_after_pg_commit' })
+    expect(successValue(classifyD1Operation({ operation: op, receipt: null, outboxPresent: true, pgRow })))
+      .toMatchObject({ pg: 'snapshot_replace', delivery: 'unsent', action: 'replay_same_operation' })
+    expect(successValue(classifyD1Operation({ operation: op, receipt, outboxPresent: false, pgRow })))
+      .toMatchObject({ pg: 'snapshot_replace', delivery: 'acknowledged', action: 'none' })
+  })
   it('When receipt identity or seq is inconsistent Then stops instead of renumbering; unavailable is not absent', () => {
     const { op, receipt } = facts()
     for (const patch of [{ writeSeq: 8 }, { operationId: '22222222-2222-4222-8222-222222222222' }, { payloadSha256: 'f'.repeat(64) }]) {
