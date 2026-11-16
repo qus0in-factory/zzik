@@ -22,6 +22,14 @@ export function ChartLegend({ view, onToggle, onShowAll }: { view: ChartView; on
           <span>{series.label}</span>
         </button>
       ))}
+      {view.pace != null && (
+        <span className="chart-legend-item chart-pace-legend">
+          <svg className="chart-swatch" width="20" height="8" aria-hidden="true">
+            <line className="chart-swatch-line chart-pace-swatch" data-slot="0" x1="0" y1="4" x2="20" y2="4" strokeDasharray="6 4" />
+          </svg>
+          <span>{view.pace.label}</span>
+        </span>
+      )}
       {hiddenCount > 0 && view.empty !== 'all_hidden' && (
         <button type="button" className="chart-show-all" onClick={onShowAll}>{CHART_MESSAGES.showAll}</button>
       )}

@@ -5,7 +5,7 @@ import { CHART_MESSAGES } from '@app/usage/history/chart-messages'
 
 /** 캔버스 옆의 접근성용 데이터 표(시각적으로는 숨긴다). 시점마다 보이는 계열의 값을 싣는다. */
 export function ChartA11yTable({ view }: { view: ChartView }): ReactNode {
-  const visible = view.series.filter((series) => !series.hidden)
+  const visible = [...view.series.filter((series) => !series.hidden), ...(view.pace == null ? [] : [view.pace])]
   return (
     <table className="chart-a11y-table">
       <caption>{view.title}</caption>

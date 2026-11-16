@@ -60,6 +60,7 @@ export const ko = {
   'chart.axis.time': '{hour}:{minute}',
   'chart.axis.date': '{month}/{day}',
   'chart.axis.dayBoundary': '{date} {time}',
+  'chart.pace': '시간 대비 예상',
   'chart.cursor.time': '시각',
   'chart.desc.span': '{from}부터 {to}까지. 계열 {total}개 중 {visible}개 표시.',
   'chart.desc.series': '{label} 현재 {current}, 최고 {peak}.',

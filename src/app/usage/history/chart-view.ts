@@ -1,11 +1,18 @@
 /**
- * ui ↔ app 경계 타입(ADR 0.7 11절). T0에서는 타입만 동결한다 — 구현은 T3에서 한다.
+ * ui ↔ app 경계 타입(ADR 0.7 11절). T0의 계약에 #90의 요약·시간 대비 예상 데이터를 확장한다.
  * ui는 이 타입의 값만 받아 그리고, 판정·문구·좌표는 app이 만든다.
  * 좌표는 전부 SVG 사용자 단위(px)이고 원점은 SVG 왼쪽 위다.
  */
 import type { ChartRange } from '@domain/usage/history/types'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 import type { ChartViewInput } from './chart-view-input'
+import { chartTimeDomain, pacePoints } from '@domain/usage/history/chart-time-domain'
+import { elapsedPercent } from '@domain/usage/elapsed'
+import { summaryWindowOf } from '@domain/usage/summary-window'
+import type { UsageProvider } from '@domain/usage/providers'
+import type { SummaryPace } from '../summary-pace'
+import { summaryPaceOf } from '../summary-pace'
+import { t } from '@shared/messages'
 import { buildSeries } from '@domain/usage/history/series'
 import {
   CHART_Y_TICKS,
@@ -63,7 +70,7 @@ export interface ChartStopValue {
   y: number | null
 }
 
-/** 십자선이 붙을 수 있는 시점 하나. 툴팁과 range 입력이 이것만으로 그려진다. */
+/** 한 시각의 값. stops는 키보드 선택용이며 포인터는 시간 좌표에서 같은 구조를 만든다. */
 export interface ChartStop {
   /** epoch ms. 표본의 fetchedAt, 또는 마지막 원소에 한해 꼬리 끝 시각. */
   t: number
@@ -77,7 +84,15 @@ export interface ChartStop {
   valueText: string
 }
 
+export interface ChartPaceView {
+  id: string
+  label: string
+  points: { t: number; p: number }[]
+}
+
 export interface ChartView {
+  summary?: { provider: UsageProvider; pace: SummaryPace } | null
+  pace?: ChartPaceView | null
   range: ChartRange
   /** SVG 전체 크기(viewBox `0 0 width height`). */
   width: number
@@ -135,7 +150,7 @@ export interface UsageHistoryPanelBinding {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * 이하 T3 구현. 위의 타입은 T0에서 동결된 것이므로 건드리지 않는다.
+ * 이하 T3 구현 및 #90 제공자별 축·시간 대비 예상.
  * T2의 ChartViewInput(HistoryDeps.buildView가 주입) 시그니처를 그대로 쓴다.
  * 리셋·결측으로 끊긴 구간은 T2의 buildSeries(5.3절)가 이미 나눠 준 것을 받아 path로 옮긴다.
  * ───────────────────────────────────────────────────────────────────────────── */
@@ -176,7 +191,7 @@ function allPoints(segments: Segments): { t: number; p: number }[] {
  * uPlot에 넘기는 정렬 데이터(ADR 5.3절 구간 기반). ChartView 계약(T0 동결)을 바꾸지 않도록
  * 뷰와 함께 WeakMap으로 넘긴다. stops는 슬라이더·표·툴팁용 시점 목록으로 그대로 둔다.
  * - times: 초 단위 오름차순. 구간 점 + 구간 사이 null 슬롯 + from/to 경계.
- * - columns: 보이는 계열별 값. 구간 밖·끊김은 null.
+ * - columns: 보이는 실측 계열별 값 + 시간 대비 예상 열(있을 때). 실측 구간 밖·끊김은 null.
  * - dots: 단일점 구간의 열별 times 인덱스(반지름 2px 점으로 그린다).
  */
 export interface ChartAlignedData {
@@ -186,6 +201,7 @@ export interface ChartAlignedData {
   from: number
   to: number
 }
+const cursorByView = new WeakMap<ChartView, (t: number) => ChartStop | null>()
 const alignedByView = new WeakMap<ChartView, ChartAlignedData>()
 export function chartAlignedData(view: ChartView): ChartAlignedData | null {
   return alignedByView.get(view) ?? null
@@ -194,27 +210,24 @@ export function chartAlignedData(view: ChartView): ChartAlignedData | null {
 /** 레코드 + 카드 라벨 + 설정 + 크기 → ChartView. T2가 HistoryDeps.buildView로 주입한다. */
 export function buildChartView(input: ChartViewInput): ChartView {
   const { providerTitle, range, record, hidden, shown, cardLabels, size, nowMs } = input
-  const from = nowMs - RANGE_MS[range]
+  const windowFrom = nowMs - RANGE_MS[range]
   const to = nowMs
   const effectiveTail = input.tailEnd ?? nowMs
   const plot = chartPlot(size.width, size.height)
   const hiddenSet = new Set(hidden)
   const shownSet = new Set(shown)
 
-  // B2: 선택 범위 [from, to] 안의 표본만 쓴다. anchor는 from 직전 경계를 채우도록 from으로 옮겨 포함한다.
+  // 선택 기간은 조회 필터이고 축은 실제 수집 시작에 맞춘다. anchor도 선택 기간 안의 실제 시각만 인정하며 오래된 값을 새 경계로 옮기지 않는다.
   const inRange = (sample: UsageHistorySample): boolean => {
     const t = sampleTime(sample)
-    return t !== null && t >= from && t <= to
+    return t !== null && t >= windowFrom && t <= to
   }
   const samples = record.samples.filter(inRange)
   const anchorTime = record.anchor === null ? null : sampleTime(record.anchor)
-  const boundaryIso = new Date(from).toISOString()
+  const { from } = chartTimeDomain(samples.map(s => sampleTime(s)!).filter(Number.isFinite), windowFrom, nowMs, record.anchor?.values == null ? null : anchorTime)
   const anchor: UsageHistorySample | null =
-    record.anchor !== null && record.anchor.values !== null && anchorTime !== null
-      ? anchorTime < from
-        ? { ...record.anchor, runAt: boundaryIso, fetchedAt: boundaryIso }
-        : anchorTime <= to ? record.anchor : null
-      : null
+    record.anchor !== null && record.anchor.values !== null && anchorTime !== null && anchorTime >= from && anchorTime <= to
+      ? record.anchor : null
   const tailEnd = Math.max(from, Math.min(to, effectiveTail))
 
   // 스냅샷 시각을 못 받으면 now까지 마지막 값을 유지한 수평선(꼬리)을 이어 그린다.
@@ -248,10 +261,16 @@ export function buildChartView(input: ChartViewInput): ChartView {
   }
 
   const visible = series.filter((s) => !s.hidden)
+  const summaryPace = summaryPaceOf(input.windows ?? [], input.provider)
+  const summary = summaryPace === null ? null : { provider: input.provider, pace: summaryPace }
+  const paceWindow = summaryWindowOf(input.windows ?? [], input.provider)
+  const paceLine = summary !== null && paceWindow !== null && visible.some(s => s.id === paceWindow.id)
+    ? pacePoints(paceWindow, from, to) : null
+  const pace: ChartPaceView | null = paceLine === null ? null : { id: '__time_pace__', label: t('chart.pace'), points: paceLine }
 
   // B1: 정렬 데이터는 buildSeries 구간 점들로 만들고, 인접한 구간 사이에 null 슬롯을 넣어
   // C1 만료 리셋·C2 조기 리셋·C3 계열 소멸·C4 실패 끊김을 uPlot의 틈으로 그린다.
-  const timeSet = new Set<number>([from, to])
+  const timeSet = new Set<number>([from, to, ...(pace?.points.map(p => p.t) ?? [])])
   const forcedNulls = visible.map(() => new Set<number>())
   visible.forEach((s, column) => {
     const segments = byId.get(s.id)!.segments
@@ -271,6 +290,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   })
   const timesMs = [...timeSet].sort((a, b) => a - b)
   const columns = visible.map((s, column) => timesMs.map((t) => (forcedNulls[column].has(t) ? null : valueAt(byId.get(s.id)!.segments, t))))
+  if (pace !== null && paceWindow !== null) columns.push(timesMs.map(t => elapsedPercent(paceWindow.resetsAt, paceWindow.cycleSeconds ?? null, new Date(t))))
   const dots = visible.map((s) =>
     byId.get(s.id)!.segments
       .filter((segment) => segment.points.length === 1)
@@ -291,7 +311,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const times = [...stopTimes].sort((a, b) => a - b)
 
   const ordinal = (id: string): number => series.findIndex((s) => s.id === id)
-  const stops: ChartStop[] = times.map((t) => {
+  const makeStop = (t: number): ChartStop => {
     const label = formatTime(t)
     const values: ChartStopValue[] = visible
       .map((s) => {
@@ -304,9 +324,14 @@ export function buildChartView(input: ChartViewInput): ChartView {
         if (b.percent === null) return -1
         return b.percent - a.percent || ordinal(a.seriesId) - ordinal(b.seriesId)
       })
-    const named = values.filter((v) => v.percent !== null).map((v) => `${series[ordinal(v.seriesId)].label} ${v.text}`).join(', ')
+    if (pace !== null && paceWindow !== null) {
+      const percent = elapsedPercent(paceWindow.resetsAt, paceWindow.cycleSeconds ?? null, new Date(t))
+      values.push({seriesId: pace.id, percent, text: percent === null ? CHART_MESSAGES.gapText : percentText(percent), y: percent === null ? null : yForPercent(percent, plot)})
+    }
+    const named = values.filter((v) => v.percent !== null).map((v) => `${v.seriesId === pace?.id ? pace.label : series[ordinal(v.seriesId)].label} ${v.text}`).join(', ')
     return { t, x: xForTime(t, from, to, plot), label, values, valueText: named.length > 0 ? CHART_MESSAGES.stopValues(label, named) : CHART_MESSAGES.stopNoValues(label) }
-  })
+  }
+  const stops = times.map(makeStop)
 
   const table = series.map((s) => {
     const segments = byId.get(s.id)!.segments
@@ -335,6 +360,8 @@ export function buildChartView(input: ChartViewInput): ChartView {
   if (empty === 'all_hidden') description += CHART_MESSAGES.allHiddenSuffix
 
   const view: ChartView = {
+    summary,
+    pace,
     range,
     width: size.width,
     height: size.height,
@@ -348,6 +375,7 @@ export function buildChartView(input: ChartViewInput): ChartView {
     table,
     empty,
   }
+  cursorByView.set(view, t => !Number.isFinite(t) || t < from || t > to || visible.length === 0 ? null : makeStop(t))
   alignedByView.set(view, { times: timesMs.map((t) => t / 1000), columns, dots, from: from / 1000, to: to / 1000 })
   return view
 }
@@ -355,4 +383,12 @@ export function buildChartView(input: ChartViewInput): ChartView {
 /** 포인터 x에 가장 가까운 시점 인덱스. 비면 -1, 거리가 같으면 뒤쪽. ui는 이 함수만 부른다. */
 export function nearestStopIndex(view: ChartView, x: number): number {
   return nearestIndex(view.stops.map((stop) => stop.x), x)
+}
+
+/** uPlot 배열 인덱스가 아닌 커서의 시간 좌표로 같은 시각의 값을 읽는다. */
+export function chartCursorAtTime(view: ChartView, t: number): ChartStop | null {
+  const cursor = cursorByView.get(view)
+  if (cursor !== undefined) return cursor(t)
+  const index = nearestIndex(view.stops.map(stop => stop.t), t)
+  return index < 0 ? null : view.stops[index]
 }

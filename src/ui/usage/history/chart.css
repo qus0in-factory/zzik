@@ -62,7 +62,9 @@
 .usage-history-chart [data-slot='8'] { --chart-color: var(--chart-8); }
 .usage-history-chart [data-slot='0'] { --chart-color: var(--chart-overflow); }
 
-.chart-toolbar { display: flex; justify-content: flex-end; }
+.chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; }
+.chart-toolbar > :first-child:not(.chart-range-tabs) { margin-right: auto; }
+.chart-pace-legend { cursor: default; }
 .chart-range-tabs { display: inline-flex; gap: 4px; }
 .chart-range-tab {
   padding: 3px 10px;

@@ -198,8 +198,8 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
 
   const buildView = resolveViewBuilder(deps)
   const view = useMemo(
-    () => (record === null ? null : buildView({ provider, providerTitle: meta.title, record, tailEnd, range, hidden: hidden ?? NONE, shown: shown ?? NONE, cardLabels, size, nowMs: deps.nowMs() })),
-    [buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size],
+    () => (record === null ? null : buildView({ provider, providerTitle: meta.title, record, tailEnd, range, hidden: hidden ?? NONE, shown: shown ?? NONE, cardLabels, size, nowMs: usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso), windows: usageState.report?.windows })),
+    [buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, usageState.report],
   )
 
   if (!deps.enabled || !open) return { button, panel: null }

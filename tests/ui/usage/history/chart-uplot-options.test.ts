@@ -104,13 +104,15 @@ describe('Given the ChartView → uPlot adapter', () => {
     expect(hourIncrs.every((incr) => incr < 86_400)).toBe(true)
   })
 
-  it('Then setCursor hook reports the nearest data index to our tooltip', () => {
-    const seen: (number | null)[] = []
-    const options = toUplotOptions(view, FALLBACK_PALETTE, (idx) => seen.push(idx))
+  it('When cursor.idx belongs to another aligned array Then the hook reads the cursor x time for our tooltip', () => {
+    const seen: unknown[] = []
+    const options = toUplotOptions(view, FALLBACK_PALETTE, (point) => seen.push(point))
     const hook = options.hooks?.setCursor
     const fn = Array.isArray(hook) ? hook[0] : hook
-    fn?.({ cursor: { idx: 1 } } as unknown as uPlot)
-    expect(seen).toEqual([1])
+    fn?.({ cursor: { idx: 999, left: 200, top: 80 }, posToVal: () => view.stops[1].t / 1000 } as unknown as uPlot)
+    expect(seen).toEqual([view.stops[1]])
+    fn?.({ cursor: { idx: 0, left: -10, top: -10 } } as unknown as uPlot)
+    expect(seen.at(-1)).toBeNull()
   })
 })
 
