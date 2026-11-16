@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 import type uPlot from 'uplot'
-import type { ChartView } from '@app/usage/history/chart-view'
+import type { ChartStop, ChartView } from '@app/usage/history/chart-view'
 import { CHART_MESSAGES } from '@app/usage/history/chart-messages'
 import { ChartA11yTable } from './ChartA11yTable'
 import { FALLBACK_PALETTE, toUplotData, toUplotOptions } from './chart-uplot-options'
@@ -35,22 +35,17 @@ export function HistoryChart({ view }: { view: ChartView }): ReactNode {
   const stop = index >= 0 ? stops[index] : null
 
   // uPlot 기본 범례 대신 setCursor 훅과 range 입력이 이 툴팁 하나를 갱신한다('시각' + 값).
-  const updateTooltip = (idx: number | null): void => {
+  const updateTooltip = (point: ChartStop | null): void => {
     const tooltip = tooltipRef.current
     if (tooltip === null) return
-    if (idx === null) {
-      tooltip.hidden = true
-      return
-    }
-    const point = view.stops[idx]
-    if (point === undefined) {
+    if (point === null) {
       tooltip.hidden = true
       return
     }
     const rows = point.values
       .filter((value) => value.percent !== null)
       .map((value) => {
-        const label = view.series.find((series) => series.id === value.seriesId)?.label ?? value.seriesId
+        const label = view.series.find((series) => series.id === value.seriesId)?.label ?? (value.seriesId === view.pace?.id ? view.pace.label : value.seriesId)
         return `${label} ${value.text}`
       })
     tooltip.textContent = `${CHART_MESSAGES.cursorTime} ${point.label}${rows.length > 0 ? ` · ${rows.join(', ')}` : ` · ${CHART_MESSAGES.valueNone}`}`
@@ -90,7 +85,7 @@ export function HistoryChart({ view }: { view: ChartView }): ReactNode {
   const onRangeChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const next = Number(event.target.value)
     setSelected(next)
-    updateTooltip(next)
+    updateTooltip(view.stops[next] ?? null)
     const plot = plotRef.current
     const t = view.stops[next]?.t
     if (plot !== null && t !== undefined) plot.setCursor({ left: plot.valToPos(t / 1000, 'x'), top: 0 }, true)

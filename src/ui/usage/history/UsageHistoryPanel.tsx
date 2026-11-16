@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { UsageHistoryPanelProps } from '@app/usage/history/chart-view'
 import { CHART_MESSAGES } from '@app/usage/history/chart-messages'
+import { PaceSummary } from '../PaceSummary'
 import { ChartLegend } from './ChartLegend'
 import { ChartRangeTabs } from './ChartRangeTabs'
 import { ChartSummaryTable } from './ChartSummaryTable'
@@ -40,6 +41,7 @@ export function UsageHistoryPanel({ panelId, regionLabel, range, state, actions 
   return (
     <section id={panelId} role="region" aria-label={regionLabel} className="usage-history-chart usage-history-panel fade-in">
       <div className="chart-toolbar" ref={frameRef}>
+        {state.phase === 'ready' && state.view.summary != null && <PaceSummary {...state.view.summary} />}
         <ChartRangeTabs range={range} onSelect={actions.onSelectRange} />
       </div>
 

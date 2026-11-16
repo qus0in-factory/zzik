@@ -8,7 +8,7 @@ import { useProviderOrder } from '@app/usage/ProviderOrderContext'
 import { nearestIndex, shiftDirection, stepIndex } from '@app/usage/reorder-session'
 import { summaryPaceOf } from '@app/usage/summary-pace'
 import { Skeleton } from '@ui/components/ui/skeleton'
-import { ProviderIcon } from './ProviderIcon'
+import { PaceSummary } from './PaceSummary'
 import { ViewModeToggle } from './ViewModeToggle'
 import { useUsage } from '@app/usage/useUsage'
 
@@ -76,16 +76,9 @@ function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragP
         onBlur={drag.onBlur}
         onContextMenu={drag.onContextMenu}
         onFocus={(event) => event.currentTarget.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })}
-        className={
-          'fade-in inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border bg-card px-1 py-1 text-[11px] font-medium hover:bg-accent lg:gap-1.5 lg:px-2.5 lg:text-sm ' +
-          (pace.overPace ? 'border-[var(--usage-caution)] text-[var(--usage-caution)] ' : 'border-border ') +
-          (drag.grabbed ? 'shadow-md ring-2 ring-ring' : '')
-        }
+        className={'fade-in inline-flex max-w-full rounded-full hover:bg-accent ' + (drag.grabbed ? 'shadow-md ring-2 ring-ring' : '')}
       >
-        <ProviderIcon provider={provider} label={meta.title} className="size-3 lg:size-4" />
-        <span className="tabular-nums">
-          {t(pace.unit === 'month' ? 'chips.unit.month' : 'chips.unit.week')} {used}% / {expected}%
-        </span>
+        <PaceSummary provider={provider} pace={pace} />
       </a>
     </li>
   )
