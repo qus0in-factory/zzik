@@ -209,3 +209,45 @@ describe('Given persisted color order before spending was removed', () => {
     expect(view.series.map(s => [s.id,s.slot])).toEqual([['five_hour',2],['seven_day',3]])
   })
 })
+
+describe('Given ok samples with empty values: [] in range', () => {
+  it('When an early sample or anchor has values: [] Then it does not pull the chart time domain earlier than the first drawable sample', () => {
+    const emptyAt = (id: string, iso: string): UsageHistorySample => ({
+      id,
+      runAt: iso,
+      status: 'ok',
+      fetchedAt: iso,
+      intervalSec: 900,
+      values: [],
+    })
+    const drawableAt = (id: string, iso: string, usedPercent: number): UsageHistorySample => ({
+      id,
+      runAt: iso,
+      status: 'ok',
+      fetchedAt: iso,
+      intervalSec: 900,
+      values: [{ id: 'five_hour', usedPercent, resetsAt: null, cycleSeconds: null }],
+    })
+    const anchor = emptyAt('a', '2026-11-13T12:00:00.000Z')
+    const earlyEmpty = emptyAt('1', '2026-11-13T18:00:00.000Z')
+    const laterDrawable = drawableAt('2', '2026-11-14T00:15:00.000Z', 42)
+    const view = buildChartView(input({ tailEnd: null }, { anchor, samples: [earlyEmpty, laterDrawable], seriesOrder: ['five_hour'] }))
+    const baseline = buildChartView(input({ tailEnd: null }, { anchor: null, samples: [laterDrawable], seriesOrder: ['five_hour'] }))
+    expect(view.stops.map((s) => s.t)).toEqual(baseline.stops.map((s) => s.t))
+    expect(view.xTicks).toEqual(baseline.xTicks)
+    expect(view.empty).toBe('none')
+  })
+
+  it('When all samples in range have values: [] Then empty is no_points', () => {
+    const emptySample: UsageHistorySample = {
+      id: '1',
+      runAt: '2026-11-14T00:00:00.000Z',
+      status: 'ok',
+      fetchedAt: '2026-11-14T00:00:00.000Z',
+      intervalSec: 900,
+      values: [],
+    }
+    const view = buildChartView(input({ tailEnd: null }, { anchor: null, samples: [emptySample], seriesOrder: ['five_hour'] }))
+    expect(view.empty).toBe('no_points')
+  })
+})

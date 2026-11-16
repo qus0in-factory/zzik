@@ -48,7 +48,7 @@ function setup(overrides: Partial<UsageHistoryPanelProps> = {}): { calls: string
     onRetry: () => calls.push('retry'),
     onResize: () => calls.push('resize'),
   }
-  const state: ChartPanelState = { phase: 'ready', view: makeView(), syncing: false, progress: null, note: null }
+  const state: ChartPanelState = { phase: 'ready', view: makeView(), syncing: false, note: null }
   const props: UsageHistoryPanelProps = {
     panelId: 'chart-claude',
     regionLabel: 'Claude 사용률 추이',
@@ -96,7 +96,6 @@ describe('Given the uPlot history chart panel', () => {
         phase: 'ready',
         view: makeView({ pace: { id: '__time_pace__', label: '시간 대비 예상', points: [{ t: 0, p: 50 }] } }),
         syncing: false,
-        progress: null,
         note: null,
       },
     })
@@ -137,7 +136,7 @@ describe('Given the uPlot history chart panel', () => {
   it('Then a hidden series has aria-pressed=false, leaves the a11y table, and 모두 표시 works', () => {
     const view = makeView()
     view.series[0] = { ...view.series[0], hidden: true }
-    const { calls, container } = setup({ state: { phase: 'ready', view, syncing: false, progress: null, note: null } })
+    const { calls, container } = setup({ state: { phase: 'ready', view, syncing: false, note: null } })
     expect(screen.getAllByRole('button', { name: /한도|사용량|번째/ })[0].getAttribute('aria-pressed')).toBe('false')
     expect(container.querySelector('.chart-a11y-table')?.textContent).not.toContain('5시간 한도')
     fireEvent.click(screen.getByRole('button', { name: '모두 표시' }))
@@ -147,18 +146,18 @@ describe('Given the uPlot history chart panel', () => {
   it('Then the visible summary table includes hidden series too', () => {
     const view = makeView()
     view.series[1] = { ...view.series[1], hidden: true }
-    setup({ state: { phase: 'ready', view, syncing: false, progress: null, note: null } })
+    setup({ state: { phase: 'ready', view, syncing: false, note: null } })
     expect(screen.getByText('표로 보기')).toBeTruthy()
     expect(screen.getByRole('rowheader', { name: '주간 한도' })).toBeTruthy()
   })
 
   it('Then the two empty states show their own message', () => {
-    setup({ state: { phase: 'ready', view: makeView({ empty: 'no_points' }), syncing: false, progress: null, note: null } })
+    setup({ state: { phase: 'ready', view: makeView({ empty: 'no_points' }), syncing: false, note: null } })
     expect(screen.getByText('표시할 이력이 없습니다')).toBeTruthy()
     cleanup()
     const hiddenView = makeView({ empty: 'all_hidden', series: SERIES.map((s) => ({ ...s, hidden: true })) })
     const calls: string[] = []
-    render(<UsageHistoryPanel panelId="chart-claude" regionLabel="Claude 사용률 추이" range="7d" state={{ phase: 'ready', view: hiddenView, syncing: false, progress: null, note: null }} actions={{ onSelectRange: () => {}, onToggleSeries: () => {}, onShowAllSeries: () => calls.push('showAll'), onRetry: () => {}, onResize: () => {} }} />)
+    render(<UsageHistoryPanel panelId="chart-claude" regionLabel="Claude 사용률 추이" range="7d" state={{ phase: 'ready', view: hiddenView, syncing: false, note: null }} actions={{ onSelectRange: () => {}, onToggleSeries: () => {}, onShowAllSeries: () => calls.push('showAll'), onRetry: () => {}, onResize: () => {} }} />)
     expect(screen.getByText(/모든 계열이 숨겨져 있습니다/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '모두 표시' }))
     expect(calls).toContain('showAll')

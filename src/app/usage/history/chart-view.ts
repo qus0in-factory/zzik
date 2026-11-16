@@ -6,7 +6,7 @@
 import type { ChartRange } from '@domain/usage/history/types'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
 import type { ChartViewInput } from './chart-view-input'
-import { chartTimeDomain, pacePoints, paceValueAt } from '@domain/usage/history/chart-time-domain'
+import { RANGE_MS, chartTimeDomain, isDrawableSample, pacePoints, paceValueAt, sampleTimeMs } from '@domain/usage/history/chart-time-domain'
 import { summaryWindowOf } from '@domain/usage/summary-window'
 import type { UsageProvider } from '@domain/usage/providers'
 import type { SummaryPace } from '../summary-pace'
@@ -115,7 +115,7 @@ export interface ChartView {
 export type ChartPanelState =
   | { phase: 'loading' }
   | { phase: 'error'; message: string }
-  | { phase: 'ready'; view: ChartView; syncing: boolean; progress: string | null; note: string | null }
+  | { phase: 'ready'; view: ChartView; syncing: boolean; note: string | null }
 
 /** 패널의 조작. 뷰(ChartView)와 상태(ChartPanelState)에 넣지 않는다 — 데이터가 바뀌어도 참조가 유지돼야 한다. */
 export interface ChartPanelActions {
@@ -154,18 +154,7 @@ export interface UsageHistoryPanelBinding {
  * 리셋·결측으로 끊긴 구간은 T2의 buildSeries(5.3절)가 이미 나눠 준 것을 받아 path로 옮긴다.
  * ───────────────────────────────────────────────────────────────────────────── */
 
-const RANGE_MS: Record<ChartRange, number> = {
-  '24h': 24 * 3_600_000,
-  '7d': 7 * 24 * 3_600_000,
-  '30d': 30 * 24 * 3_600_000,
-}
-
 type Segments = ReturnType<typeof buildSeries>[number]['segments']
-
-function sampleTime(sample: UsageHistorySample): number | null {
-  const ms = Date.parse(sample.fetchedAt ?? sample.runAt)
-  return Number.isFinite(ms) ? ms : null
-}
 
 /** 시점 t를 덮는 구간의 "그 시각 이하 마지막 실점" 값. 보간하지 않고, 틈이면 null. */
 function valueAt(segments: Segments, t: number): number | null {
@@ -218,14 +207,19 @@ export function buildChartView(input: ChartViewInput): ChartView {
 
   // 선택 기간은 조회 필터이고 축은 실제 수집 시작에 맞춘다. anchor도 선택 기간 안의 실제 시각만 인정하며 오래된 값을 새 경계로 옮기지 않는다.
   const inRange = (sample: UsageHistorySample): boolean => {
-    const t = sampleTime(sample)
+    const t = sampleTimeMs(sample)
     return t !== null && t >= windowFrom && t <= to
   }
   const samples = record.samples.filter(inRange)
-  const anchorTime = record.anchor === null ? null : sampleTime(record.anchor)
-  const { from } = chartTimeDomain(samples.filter(s => s.values !== null).map(s => sampleTime(s)!).filter(Number.isFinite), windowFrom, nowMs, record.anchor?.values == null ? null : anchorTime)
+  const anchorTime = record.anchor === null ? null : sampleTimeMs(record.anchor)
+  const { from } = chartTimeDomain(
+    samples.filter(isDrawableSample).map((s) => sampleTimeMs(s)!).filter(Number.isFinite),
+    windowFrom,
+    nowMs,
+    isDrawableSample(record.anchor) ? anchorTime : null,
+  )
   const anchor: UsageHistorySample | null =
-    record.anchor !== null && record.anchor.values !== null && anchorTime !== null && anchorTime >= from && anchorTime <= to
+    record.anchor !== null && isDrawableSample(record.anchor) && anchorTime !== null && anchorTime >= from && anchorTime <= to
       ? record.anchor : null
   const tailEnd = Math.max(from, Math.min(to, effectiveTail))
 
@@ -300,10 +294,10 @@ export function buildChartView(input: ChartViewInput): ChartView {
   const stopTimes = new Set<number>()
   let lastSampleT = from
   for (const sample of samples) {
-    const t = sampleTime(sample)
+    const t = sampleTimeMs(sample)
     if (t === null || t > to) continue
     if (t > lastSampleT) lastSampleT = t
-    if (sample.values !== null && t >= from) stopTimes.add(t)
+    if (isDrawableSample(sample) && t >= from) stopTimes.add(t)
   }
   const tailStop = Math.max(from, Math.min(to, tailEnd))
   if (series.length > 0 && tailStop > lastSampleT) stopTimes.add(tailStop)
