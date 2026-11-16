@@ -53,6 +53,18 @@ describe('Given local actual D1 and an explicit confirmed plan',()=>{
   expect((await runBackfill({source:src,destination:racing,checkpoint:checkpoint(),ledgerOutboxCount:0,apply:true,confirmation})).ok).toBe(false)
   expect(successValue(await destination.inspect())).toMatchObject({events:0,dirtySnapshots:1})
  })
+ it('When the destination has an extra row outside the plan Then rejects destination_has_unexpected_rows before writing',async()=>{
+  await reset();const destination=createD1BackfillDestination(query),src=source()
+  await db.prepare('INSERT INTO usage_event(id,provider,status,run_at,envelope) VALUES(999,?,?,?,?)').bind('claude','ok',Date.parse(D1_NOW),JSON.stringify(d1Envelope())).run()
+  expect(await runBackfill({source:src,destination,checkpoint:checkpoint(),ledgerOutboxCount:0})).toMatchObject({ok:false,reason:'destination_has_unexpected_rows'})
+  expect(successValue(await destination.inspect()).events).toBe(1)
+ })
+ it('When only a dirty snapshot exists without a receipt Then rejects destination_not_backfill_only',async()=>{
+  await reset();const destination=createD1BackfillDestination(query),src=source()
+  await db.prepare('INSERT INTO usage_snapshot(provider,envelope,status,run_at,collector_version,write_seq) VALUES(?,?,?,?,?,1)').bind('claude',JSON.stringify(d1Envelope()),'ok',Date.parse(D1_NOW),'0.6.20').run()
+  expect(await runBackfill({source:src,destination,checkpoint:checkpoint(),ledgerOutboxCount:0})).toMatchObject({ok:false,reason:'destination_not_backfill_only'})
+  expect(successValue(await destination.inspect())).toMatchObject({receipts:0,dirtySnapshots:1,events:0})
+ })
  it('When explicit large ids are backfilled Then the next default id exceeds the copied max',async()=>{
   await reset();const src=source(),destination=createD1BackfillDestination(query)
   expect((await runBackfill({source:src,destination,checkpoint:checkpoint(),ledgerOutboxCount:0,apply:true,confirmation:'APPLY '+successValue(planBackfill(src)).summary.planSha256})).ok).toBe(true)

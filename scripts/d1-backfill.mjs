@@ -3,13 +3,14 @@
 import postgres from 'postgres'
 import {createInterface} from 'node:readline/promises'
 import {join,resolve} from 'node:path'
+import {pathToFileURL} from 'node:url'
 import {createPgBackfillSource} from '../collector/infra/usage/pg-backfill-source.mjs'
 import {createD1BackfillDestination} from '../collector/infra/usage/d1-backfill-destination.mjs'
 import {createD1RestClient} from '../collector/infra/usage/d1-rest-client.mjs'
 import {createD1ControlFile} from '../collector/infra/usage/d1-control-file.mjs'
 import {lockBackfillLedger,createBackfillCheckpoint} from '../collector/infra/usage/backfill-local-state.mjs'
 import {runBackfill} from '../collector/app/usage/d1-backfill.mjs'
-const print=value=>process.stdout.write(JSON.stringify(value)+'\n')
+const print=/** @param {unknown} value */value=>process.stdout.write(JSON.stringify(value)+'\n')
 async function main(){
  const args=process.argv.slice(2)
  if(args.length===1&&args[0]==='--help'){process.stdout.write('node --env-file=<private-env> scripts/d1-backfill.mjs --state-dir <directory> [--checkpoint <path>] [--apply]\nDefault: read-only dry-run; --apply also requires typed APPLY <planSha256> confirmation.\n');return}
@@ -18,22 +19,29 @@ async function main(){
  if(directory===null){print({ok:false,reason:'state_directory_required'});process.exitCode=64;return}
  const env=process.env
  if(![env.DB_URL,env.ZZIK_D1_API_TOKEN,env.ZZIK_D1_ACCOUNT_ID,env.ZZIK_D1_DATABASE_ID].every(value=>typeof value==='string'&&value.trim())){print({ok:false,reason:'missing_configuration'});process.exitCode=78;return}
+ const dbUrl=/** @type {string} */(env.DB_URL),accountId=/** @type {string} */(env.ZZIK_D1_ACCOUNT_ID),databaseId=/** @type {string} */(env.ZZIK_D1_DATABASE_ID),token=/** @type {string} */(env.ZZIK_D1_API_TOKEN)
  const locked=lockBackfillLedger(directory);if(!locked.ok){print(locked);process.exitCode=78;return}
- const client=postgres(env.DB_URL,{max:1,idle_timeout:5,connect_timeout:10,prepare:false,onnotice:()=>{}})
+ const client=postgres(dbUrl,{max:1,idle_timeout:5,connect_timeout:10,prepare:false,onnotice:()=>{}})
  try{
   if(locked.value.outboxCount!==0){print({ok:false,reason:'ledger_outbox_not_empty'});process.exitCode=78;return}
-  const source=await createPgBackfillSource({query:async(sql,params)=>({rows:await client.unsafe(sql,params)})}).read()
+  const source=await createPgBackfillSource({query:async(sql,params)=>({rows:await client.unsafe(sql,/** @type {any} */(params??[]))})}).read()
   if(!source.ok){print(source);process.exitCode=1;return}
-  const query=createD1RestClient({mode:'d1',dryRun:false,control:createD1ControlFile({path:join(directory,'backfill-rest-control.json')}),accountId:env.ZZIK_D1_ACCOUNT_ID,databaseId:env.ZZIK_D1_DATABASE_ID,token:env.ZZIK_D1_API_TOKEN,clock:{now:()=>Date.now()},wait:ms=>new Promise(r=>setTimeout(r,ms)),fetch:globalThis.fetch})
+  const query=createD1RestClient({mode:'d1',dryRun:false,control:createD1ControlFile({path:join(directory,'backfill-rest-control.json')}),accountId,databaseId,token,clock:{now:()=>Date.now()},wait:ms=>new Promise(r=>setTimeout(r,ms)),fetch:globalThis.fetch})
   const destination=createD1BackfillDestination(query),checkpoint=createBackfillCheckpoint(checkpointPath??join(directory,'d1-backfill-checkpoint.json'))
   const options={source:source.value,destination,checkpoint,ledgerOutboxCount:locked.value.outboxCount}
   const preview=await runBackfill(options);print(preview)
   if(!preview.ok){process.exitCode=1;return}
   if(!apply)return
-  const rl=createInterface({input:process.stdin,output:process.stderr})
-  let confirmation
-  try{confirmation=await rl.question(`Confirm collector is quiesced; type APPLY ${preview.value.planSha256}: `)}finally{rl.close()}
+  const previewValue=/** @type {{planSha256:string}} */(preview.value)
+  const confirmation=await readConfirmation({planSha256:previewValue.planSha256})
   const result=await runBackfill({...options,apply:true,confirmation});print(result);if(!result.ok)process.exitCode=1
  }finally{await client.end({timeout:1});locked.value.close()}
 }
-try{await main()}catch{print({ok:false,reason:'backfill_tool_failed'});process.exitCode=1}
+/** @param {{input?:import('node:stream').Readable,output?:import('node:stream').Writable,planSha256:string}} options */
+export async function readConfirmation({input=process.stdin,output=process.stderr,planSha256}){
+ const rl=createInterface({input,output})
+ try{return await rl.question(`Confirm collector is quiesced; type APPLY ${planSha256}: `)}finally{rl.close()}
+}
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+ try{await main()}catch{print({ok:false,reason:'backfill_tool_failed'});process.exitCode=1}
+}

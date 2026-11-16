@@ -27,6 +27,9 @@ export function createPgBackfillSource(options){
    }
    await options.query('COMMIT');transaction=false
    return {ok:true,value:{events,snapshots:snapshots.rows}}
-  }catch{if(transaction)try{await options.query('ROLLBACK')}catch{}return {ok:false,reason:'pg_source_failed'}}
- }}
+  }catch(error){
+   if(transaction)try{await options.query('ROLLBACK')}catch{}
+   return {ok:false,reason:error instanceof Error&&error.message==='source_limit'?'source_limit':'pg_source_failed'}
+  }}
+ }
 }

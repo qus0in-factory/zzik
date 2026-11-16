@@ -23,7 +23,7 @@ CLI는 dry-run 기본이다. 명시적인 state directory와 private env-file이
 5. 기본 batch는 최대 20행·512KiB다. 성공한 batch 뒤에만 private checkpoint를 atomic rename/fsync한다. checkpoint에는 planSha256/completed만 있다. 재실행은 checkpoint를 맹신하지 않고 실제 D1 행의 전체 해시를 다시 확인해 커밋된 행을 건너뛴다. 마지막 D1 commit 뒤 checkpoint 실패도 동일하게 재개한다.
 6. 마지막으로 모든 envelope 해시·개수·max id와 sqlite_sequence≥max id를 다시 읽어 검증한다. 이미 sequence가 max id보다 작으면 dry-run에서도 거부한다. sqlite_sequence를 내려 쓰지 않는다.
 
-PG source는 250행씩 읽으며 메모리 상한을 기본 128MiB로 둔다. 이 상한을 넘으면 일반 safe failure로 중단한다. 더 큰 원본은 승인된 별도 streaming 확장이 필요하며 이 patch는 무제한 메모리 처리를 주장하지 않는다. D1 조회·쓰기 모두 B2의 공유 1요청/초 query lane을 사용한다.
+PG source는 250행씩 읽으며 메모리 상한을 기본 128MiB(134,217,728 bytes)로 둔다. 누적 `JSON.stringify(row)` 바이트가 상한을 넘으면 **`source_limit`** safe reason으로 D1 쓰기 전에 중단하며, 일반 `pg_source_failed`와 구분한다. CLI에는 상한 override 플래그가 없다. 3KB 행 기준 약 43,690행, 0.5KB 기준 약 26만 행 부근이 상한이고, 64KiB 원문처럼 큰 봉투는 더 일찍 중단한다. 더 큰 원본은 승인된 별도 streaming 확장이 필요하며 이 patch는 무제한 메모리 처리를 주장하지 않는다. D1 조회·쓰기 모두 B2의 공유 1요청/초 query lane을 사용한다.
 
 계획이 달라지면 기존 checkpoint로 재개하지 않는다. 최종 catch-up용 PG 관측 정지 뒤에는 새 dry-run과 새 **명시적 checkpoint 경로**로 검토한다. 대상의 기존 prefix 해시가 모두 같아야 하며 예상 밖 행은 거부한다. 도구가 checkpoint를 자동 초기화하거나 대상의 추가 행을 삭제하지 않는다.
 

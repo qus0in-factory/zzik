@@ -1,9 +1,10 @@
 import {describe,it,expect} from 'vitest'
-import {mkdtempSync,readFileSync,rmSync,mkdirSync} from 'node:fs'
+import {mkdtempSync,readFileSync,rmSync,mkdirSync,writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {DatabaseSync} from 'node:sqlite'
 import {finalizeLedgerRollback} from '../../../../collector/infra/usage/ledger-rollback.mjs'
+import {lockBackfillLedger} from '../../../../collector/infra/usage/backfill-local-state.mjs'
 import {openSqliteLedger} from '../../../../collector/infra/usage/sqlite-ledger.mjs'
 import {acceptObservation} from '../../../../collector/domain/usage/d1-ledger.mjs'
 import {toPgRollbackEvent,toPgRollbackSnapshot} from '../../../../collector/domain/usage/d1-migration.mjs'
@@ -11,6 +12,13 @@ import {reverseMigrateToPostgres} from '../../../../worker/infra/usage/pg-rollba
 import {createTestDb} from '../../../fakes/pglite-db'
 import {D1_OPERATION_ID,D1_NOW,d1Envelope,successValue} from '../../../fakes/d1-contract'
 describe('Given a synthetic committed PG reverse migration and a quiesced ledger',()=>{
+ it('When only a marker exists without a ledger Then the backfill lock fails closed',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'zzik-c-marker-only-'))
+  try{
+   for(const status of ['active','rolled-back'])writeFileSync(join(directory,'collector-ledger.marker.json'),JSON.stringify({status}))
+   expect(lockBackfillLedger(directory)).toEqual({ok:false,reason:'ledger_preflight_failed'})
+  }finally{rmSync(directory,{recursive:true,force:true})}
+ })
  it('When local cleanup commits Then outbox deletion and rolled-back marker are atomic, JSON is current and a restart imports it',async()=>{
   const directory=mkdtempSync(join(tmpdir(),'zzik-c-rollback-')),pg=await createTestDb(),now=Date.parse(D1_NOW)
   const ledger=successValue(openSqliteLedger({directory,nowMs:now}));const accepted=successValue(ledger.update('claude',data=>acceptObservation(data,{operationId:D1_OPERATION_ID,envelope:d1Envelope(),nowMs:now,lastStartedAtMs:now,nextDueMs:now+900000,alerts:[]})));ledger.close()
