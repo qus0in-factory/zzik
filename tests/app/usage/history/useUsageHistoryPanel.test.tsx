@@ -436,5 +436,29 @@ describe('Given a shared clock (usage-now-store) for both drawable-check and cha
     await waitFor(() => expect(result.current.panel).not.toBeNull())
     expect(result.current.panel?.state.phase).toBe('loading')
   })
+
+  it('When usageState.nowIso is null and deps.nowMs() advances across re-renders Then buildView is not re-invoked', async () => {
+    const h = harness({ session: { [CHART_OPEN_KEY]: JSON.stringify({ v: 1, open: ['claude'] }) } })
+    let tick = 0
+    h.deps.nowMs = () => NOW + (tick += 1000)
+    const usage = createFakeUsageGateway()
+    usage.pushResult({ ok: true, usage: normalRaw, collection: COLLECTION, rawText: null })
+    const client = createTestQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>
+        <UsageGatewayProvider deps={{ gateway: usage, clock: { nowIso: () => null as unknown as string }, scheduler: createFakeUsageScheduler() }}>
+          <HistoryDepsProvider deps={h.deps}>{children}</HistoryDepsProvider>
+        </UsageGatewayProvider>
+      </QueryClientProvider>
+    )
+
+    const { result, rerender } = renderHook(() => useUsageHistoryPanel('claude'), { wrapper })
+    await waitFor(() => expect(result.current.panel?.state.phase).toBe('ready'))
+    const callsBeforeRerender = h.inputs.length
+
+    rerender()
+    rerender()
+    expect(h.inputs.length).toBe(callsBeforeRerender)
+  })
 })
 

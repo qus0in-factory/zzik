@@ -242,9 +242,12 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
 
   // 스피너는 선택 범위에 그릴 성공 표본이 하나도 없을 때만 표시한다.
   // 이미 그릴 표본이 있으면 범위 확장·백그라운드 sync·탭 재방문 중에도 기존 차트를 유지하고 완료 시 한 번만 교체한다.
-  const nowMs = usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso)
   const waitingForHistory = syncQuery.isPending || syncQuery.isFetching
-  const hasDrawable = hasDrawableSuccess(record, range, nowMs)
+  const hasDrawable = hasDrawableSuccess(
+    record,
+    range,
+    usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso),
+  )
   const isInitialLoading = record === null && (dataQuery.isPending || snapshot.isPending || waitingForHistory)
   const isUncoveredSwitch = !hasDrawable && waitingForHistory
   const isLoading = !preloadReady || isInitialLoading || isUncoveredSwitch
@@ -261,6 +264,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     if (waitingForHistory && prevViewRef.current !== null && prevViewRef.current.key === uiKey) {
       return prevViewRef.current.view
     }
+    const nowMs = usageState.nowIso === null ? deps.nowMs() : Date.parse(usageState.nowIso)
     const built = buildView({
       provider,
       providerTitle: meta.title,
@@ -276,7 +280,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     })
     prevViewRef.current = { view: built, key: uiKey }
     return built
-  }, [waitingForHistory, isLoading, preloadError, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, nowMs, usageState.report])
+  }, [waitingForHistory, isLoading, preloadError, buildView, builderTick, provider, meta.title, record, tailEnd, range, hidden, shown, cardLabels, size, usageState.nowIso, deps, usageState.report])
 
   if (!deps.enabled || !open) return { button, panel: null }
   const errorMessage = preloadError
