@@ -125,4 +125,43 @@ describe('Given the D1 schema inside actual workerd', () => {
     await db.prepare("INSERT INTO usage_write_receipt (operation_id, provider, write_seq, payload_sha256, created_at_ms) VALUES ('op', 'codex', 1, 'hash', 1)").run()
     await expect(db.prepare("INSERT INTO usage_write_receipt (operation_id, provider, write_seq, payload_sha256, created_at_ms) VALUES ('op2', 'codex', 1, 'hash', 1)").run()).rejects.toThrow()
   })
+
+  it('When non-object JSON or malformed JSON is inserted into any envelope-bearing table Then D1 rejects it and only JSON objects succeed', async () => {
+    const invalidEnvelopes = [
+      ['array', '[]'],
+      ['number scalar', '42'],
+      ['boolean scalar', 'true'],
+      ['null literal', 'null'],
+      ['string JSON', '"x"'],
+      ['double-encoded object', JSON.stringify('{"a":1}')],
+      ['malformed JSON', '{bad'],
+    ] as const
+    const targets = [
+      {
+        table: 'usage_snapshot',
+        insert: (value: string) =>
+          db.prepare('INSERT INTO usage_snapshot (provider, envelope, status, run_at, fetched_at, raw_sha256, collector_version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .bind('grok', value, 'ok', 1000, 1000, 'sha', '0.6.20', 1000).run(),
+      },
+      {
+        table: 'usage_event',
+        insert: (value: string) =>
+          db.prepare('INSERT INTO usage_event (id, provider, run_at, status, envelope) VALUES (CAST(? AS INTEGER), ?, ?, ?, ?)')
+            .bind('1000', 'grok', 3000, 'ok', value).run(),
+      },
+      {
+        table: 'usage_bucket_boundary',
+        insert: (value: string) =>
+          db.prepare("INSERT INTO usage_bucket_boundary (provider, scan_version, data_generation, row_kind, bucket_start_ms, source_event_id, run_at_ms, status, envelope) VALUES ('grok', 2, 0, 'flat', 900, NULL, 1000, 'ok', ?)")
+            .bind(value).run(),
+      },
+    ] as const
+
+    for (const target of targets) {
+      for (const [, invalid] of invalidEnvelopes) {
+        await expect(target.insert(invalid), `${target.table} should reject ${invalid}`).rejects.toThrow()
+      }
+      await expect(target.insert(envelope({ provider: 'grok' })), `${target.table} should accept JSON object`).resolves.toBeDefined()
+    }
+  })
 })
