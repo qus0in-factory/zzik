@@ -115,7 +115,7 @@ export function openSqliteLedger(options) {
       pruneState:()=>read(()=>JSON.parse(String(conn.prepare("SELECT value FROM ledger_meta WHERE key='prune'").get()?.value))),
       claimMaintenanceNotice(reason,atMs){
         if(failed||closed)return {ok:false,reason:'local_commit_failed'}
-        if(!/^[a-z_]{1,80}$/.test(reason)||!Number.isSafeInteger(atMs)||atMs<0)return {ok:false,reason:'invalid_notice_checkpoint'}
+        if(!/^[a-z][a-z0-9_]{0,79}$/.test(reason)||!Number.isSafeInteger(atMs)||atMs<0)return {ok:false,reason:'invalid_notice_checkpoint'}
         try{
           conn.exec('BEGIN IMMEDIATE')
           const raw=conn.prepare("SELECT value FROM ledger_meta WHERE key='maintenance_notices'").get()

@@ -25,4 +25,12 @@ describe('Given maintenance notices persisted independently of runtime objects',
   }expect(calls).toBe(1)}finally{rmSync(directory,{recursive:true,force:true})}
  })
 
+ it('When a d1-prefixed read failure repeats across restarts Then preserves that reason and throttles it',async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'zzik-d1-notice-')),now=Date.parse(D1_NOW);let calls=0
+  try{for(let i=0;i<2;i++){
+   const ledger=successValue(openSqliteLedger({directory,nowMs:now}))
+   try{const maintenance=createD1Maintenance({mode:'d1',dryRun:false,control:fakeD1Control(),noticeState:{claim:(reason,at)=>ledger.claimMaintenanceNotice(reason,at)},clock:{now:()=>now},query:{authStopped:()=>false,query:async()=>({ok:false,reason:'retry',status:503,retryAfterMs:0})},notice:{notify:async event=>{expect(event.reason).toBe('d1_export_read_failed');calls++}}});await maintenance.checkHealth();expect(calls).toBe(1)}finally{ledger.close()}
+  }}finally{rmSync(directory,{recursive:true,force:true})}
+ })
+
 })
