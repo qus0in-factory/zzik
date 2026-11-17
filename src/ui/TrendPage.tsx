@@ -22,6 +22,7 @@ export function TrendPage(): ReactNode {
   const location = useLocation()
   const navRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
+  const hashIntent = useRef(true)
   const [visibleSections, setVisibleSections] = useState<string[]>(['links'])
   const [current, setCurrent] = useState('metrics')
   const [navHeight, setNavHeight] = useState(0)
@@ -57,11 +58,37 @@ export function TrendPage(): ReactNode {
   }, [])
   const hashAvailable = visibleSections.includes(location.hash.slice(1))
   useEffect(() => {
-    const id = location.hash.slice(1)
-    if (hashAvailable) {
-      document.getElementById(id)?.scrollIntoView?.()
+    hashIntent.current = true
+  }, [location.hash])
+  useEffect(() => {
+    const cancel = () => { hashIntent.current = false }
+    window.addEventListener('wheel', cancel, { passive: true })
+    window.addEventListener('touchstart', cancel, { passive: true })
+    window.addEventListener('keydown', cancel)
+    window.addEventListener('pointerdown', cancel)
+    return () => {
+      window.removeEventListener('wheel', cancel)
+      window.removeEventListener('touchstart', cancel)
+      window.removeEventListener('keydown', cancel)
+      window.removeEventListener('pointerdown', cancel)
     }
-  }, [location.hash, hashAvailable])
+  }, [])
+  useEffect(() => {
+    const id = location.hash.slice(1)
+    const restore = () => {
+      if (hashIntent.current && hashAvailable) document.getElementById(id)?.scrollIntoView?.()
+    }
+    restore()
+    if (!id || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(restore)
+    const targetIndex = SECTIONS.findIndex((section) => section.id === id)
+    if (targetIndex < 0) return
+    for (const section of SECTIONS.slice(0, targetIndex + 1)) {
+      const element = document.getElementById(section.id)
+      if (element) observer.observe(element)
+    }
+    return () => observer.disconnect()
+  }, [location.hash, hashAvailable, headerHeight, navHeight])
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return
     const visible = new Set<string>()
@@ -70,14 +97,20 @@ export function TrendPage(): ReactNode {
         if (entry.isIntersecting) visible.add(entry.target.id)
         else visible.delete(entry.target.id)
       }
+      const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1
       const first = SECTIONS.find((section) => visible.has(section.id))
-      if (first) setCurrent(first.id)
+      if (atBottom) setCurrent(visibleSections[visibleSections.length - 1]!)
+      else if (first) setCurrent(first.id)
     }, { rootMargin: `-${headerHeight + navHeight}px 0px -60% 0px` })
     for (const section of SECTIONS) {
       const element = document.getElementById(section.id)
       if (element && visibleSections.includes(section.id)) observer.observe(element)
     }
-    return () => observer.disconnect()
+    const onScroll = () => {
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1) setCurrent(visibleSections[visibleSections.length - 1]!)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { observer.disconnect(); window.removeEventListener('scroll', onScroll) }
   }, [visibleSections, navHeight, headerHeight])
   const offset = `calc(var(--site-header-height, 0px) + ${navHeight}px + 8px)`
 
@@ -88,7 +121,7 @@ export function TrendPage(): ReactNode {
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 sm:px-6 lg:px-8">
           {SECTIONS.filter((section) => visibleSections.includes(section.id)).map((section) => (
             <Link key={section.id} to={{ pathname: '/trend', search: location.search, hash: `#${section.id}` }} aria-current={current === section.id ? 'location' : undefined}
-              onClick={() => { if (location.hash === `#${section.id}`) document.getElementById(section.id)?.scrollIntoView?.() }}
+              onClick={() => { hashIntent.current = true; if (location.hash === `#${section.id}`) document.getElementById(section.id)?.scrollIntoView?.() }}
               className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium no-underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${current === section.id ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}>
               {t(section.label)}
             </Link>

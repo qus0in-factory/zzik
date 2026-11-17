@@ -15,11 +15,19 @@ class TestObserver {
   disconnect() {}
   unobserve() {}
 }
+const resizeObservers: { callback: ResizeObserverCallback; targets: Element[] }[] = []
+class TestResizeObserver {
+  entry: { callback: ResizeObserverCallback; targets: Element[] }
+  constructor(callback: ResizeObserverCallback) { this.entry = { callback, targets: [] }; resizeObservers.push(this.entry) }
+  observe(target: Element) { this.entry.targets.push(target) }
+  disconnect() {}
+  unobserve() {}
+}
 function Navigate() {
   const navigate = useNavigate()
   return <button onClick={() => navigate('/trend#new-models')}>이동</button>
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); resizeObservers.length = 0; vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('Given trend section navigation', () => {
   it('When the free section is hidden Then only visible section links appear and back-to-top follows scrolling', () => {
@@ -38,7 +46,32 @@ describe('Given trend section navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: '이동' }))
     expect(scroll).toHaveBeenCalledTimes(2)
   })
+  it('When an earlier section changes height Then the hash target is restored until the user scrolls', () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    render(<QueryClientProvider client={createTestQueryClient()}><TrendGatewayProvider deps={{ enabled: true, gateway: createFixtureTrendGateway() }}><MemoryRouter initialEntries={['/trend#new-models']}><TrendPage /></MemoryRouter></TrendGatewayProvider></QueryClientProvider>)
+    const metrics = document.getElementById('metrics')!
+    const observer = [...resizeObservers].reverse().find((item) => item.targets.includes(metrics))!
+    expect(observer).toBeTruthy()
+    const before = scroll.mock.calls.length
+    act(() => observer.callback([], {} as ResizeObserver))
+    expect(scroll).toHaveBeenCalledTimes(before + 1)
+    fireEvent.wheel(window)
+    act(() => observer.callback([], {} as ResizeObserver))
+    expect(scroll).toHaveBeenCalledTimes(before + 1)
+  })
+  it('When the page reaches the bottom Then the last visible section is current', () => {
+    vi.stubGlobal('IntersectionObserver', TestObserver)
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 500 })
+    Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 1300 })
+    render(<QueryClientProvider client={createTestQueryClient()}><TrendGatewayProvider deps={{ enabled: true, gateway: createFixtureTrendGateway() }}><MemoryRouter><TrendPage /></MemoryRouter></TrendGatewayProvider></QueryClientProvider>)
+    act(() => observerCallback(['free-models', 'links'].map((id) => ({ target: document.getElementById(id)!, isIntersecting: true }) as unknown as IntersectionObserverEntry), {} as IntersectionObserver))
+    expect(screen.getByRole('link', { name: '참고 링크' }).getAttribute('aria-current')).toBe('location')
+  })
   it('When an observed section becomes visible Then its link is current', () => {
+    Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 5000 })
     vi.stubGlobal('IntersectionObserver', TestObserver)
     render(<QueryClientProvider client={createTestQueryClient()}><TrendGatewayProvider deps={{ enabled: true, gateway: createFixtureTrendGateway() }}><MemoryRouter><TrendPage /></MemoryRouter></TrendGatewayProvider></QueryClientProvider>)
     const section = document.getElementById('new-models')!
