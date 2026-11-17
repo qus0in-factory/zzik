@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
-import {
-  TREND_FREE_MODELS_RULE,
-  TREND_SOURCE_OLLAMA_BLOG,
-  TREND_SOURCE_OPENCODE_GO,
-} from '../../../../shared/trend-contract'
+import { TREND_FREE_MODELS_RULE, TREND_SOURCE_OPENCODE_GO } from '../../../../shared/trend-contract'
 import { buildFreeModels } from '../../../../worker/domain/trend/sections/free-models'
-import { decodeGoModels, decodeOllamaBlogRss } from '../../../../worker/domain/trend/sources'
+import { decodeGoModels } from '../../../../worker/domain/trend/sources'
 import type { TrendModelRecord } from '../../../../worker/domain/trend/sources'
 
 const NOW = Date.UTC(2026, 10, 17, 5, 0, 0)
@@ -34,42 +30,18 @@ function goRecord(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
   }
 }
 
-function ollamaRecord(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
-  return {
-    canonicalId: 'ollama-blog:reflection-beam',
-    provider: 'ollama-cloud',
-    modelId: 'reflection-beam',
-    name: "Reflection's Beam",
-    creator: 'ollama',
-    releaseDate: '2026-10-16',
-    releasePrecision: 'day',
-    releaseMs: NOW - 32 * DAY,
-    price: { input: 0, output: 0 },
-    free: true,
-    openWeights: true,
-    status: null,
-    expiresAtMs: null,
-    limitedTime: true,
-    link: 'https://ollama.com/blog/reflection-beam',
-    ...overrides,
-  }
-}
-
 const okSources: TrendSourceState[] = [
   { id: TREND_SOURCE_OPENCODE_GO, fetchedAt: new Date(NOW).toISOString(), status: 'ok' },
-  { id: TREND_SOURCE_OLLAMA_BLOG, fetchedAt: new Date(NOW).toISOString(), status: 'ok' },
 ]
 
 function build(input: {
   goModels?: TrendModelRecord[] | null
-  ollamaBlog?: TrendModelRecord[] | null
   catalog?: TrendModelRecord[] | null
   previous?: TrendSectionPayload | null
   sources?: TrendSourceState[]
 }) {
   return buildFreeModels({
     goModels: input.goModels === undefined ? [] : input.goModels,
-    ollamaBlog: input.ollamaBlog === undefined ? [] : input.ollamaBlog,
     catalog: input.catalog ?? null,
     previous: input.previous ?? null,
     sources: input.sources ?? okSources,
@@ -77,7 +49,7 @@ function build(input: {
   })
 }
 
-describe('Given OpenCode Go and Ollama Blog decoders', () => {
+describe('Given OpenCode Go decoder', () => {
   it('When decoding Go API JSON Then extracts price-0 free models with limited_regions and limitedTime', () => {
     const decoded = decodeGoModels({
       object: 'list',
@@ -112,39 +84,10 @@ describe('Given OpenCode Go and Ollama Blog decoders', () => {
       }),
     ])
   })
-
-  it('When decoding Ollama Blog RSS Then extracts limited-time free announcements with date and link', () => {
-    const rss = `<?xml version="1.0" encoding="UTF-8"?>
-      <rss version="2.0"><channel>
-        <item>
-          <title>Reflection&#39;s Beam is freely available on Ollama for a limited time</title>
-          <link>https://ollama.com/blog/reflection-beam</link>
-          <pubDate>Fri, 16 Oct 2026 00:00:00 +0000</pubDate>
-          <description>Reflection's first open-weight model is now available on Ollama, and free for a limited time only.</description>
-        </item>
-        <item>
-          <title>Clef is available on Ollama's cloud</title>
-          <link>https://ollama.com/blog/clef</link>
-          <pubDate>Mon, 19 Oct 2026 00:00:00 +0000</pubDate>
-          <description>Clef, a 27B multimodal decision model from Cloudflare, is now available on Ollama.</description>
-        </item>
-      </channel></rss>`
-    const decoded = decodeOllamaBlogRss(rss)
-    expect(decoded.ok).toBe(true)
-    if (!decoded.ok) return
-    expect(decoded.value).toHaveLength(1)
-    expect(decoded.value[0]).toMatchObject({
-      name: "Reflection's Beam is freely available on Ollama for a limited time",
-      releaseDate: '2026-10-16',
-      free: true,
-      limitedTime: true,
-      link: 'https://ollama.com/blog/reflection-beam',
-    })
-  })
 })
 
-describe('Given the OpenCode Go & Ollama Cloud free-models builder', () => {
-  it('When Go free models and Ollama limited-time blog posts exist Then emits both groups with badges and links', () => {
+describe('Given the OpenCode Go free-models builder', () => {
+  it('When Go free models exist Then emits opencode-go items with badges and pricing link', () => {
     const payload = build({
       goModels: [
         goRecord(),
@@ -158,13 +101,9 @@ describe('Given the OpenCode Go & Ollama Cloud free-models builder', () => {
         }),
         goRecord({ canonicalId: 'paid', modelId: 'paid', free: false, price: { input: 1, output: 2 } }),
       ],
-      ollamaBlog: [
-        ollamaRecord(),
-        ollamaRecord({ canonicalId: 'old-promo', releaseDate: '2026-01-01', releaseMs: NOW - 200 * DAY }),
-      ],
     })
     expect(payload.rule).toBe(TREND_FREE_MODELS_RULE)
-    expect(payload.items).toHaveLength(3)
+    expect(payload.items).toHaveLength(2)
     expect(payload.items[0]).toMatchObject({
       id: 'tencent/hy4-flash',
       freeKind: 'opencode-go',
@@ -180,17 +119,11 @@ describe('Given the OpenCode Go & Ollama Cloud free-models builder', () => {
       limitedRegions: true,
       recentlyAdded: false,
     })
-    expect(payload.items[2]).toMatchObject({
-      id: 'ollama-blog:reflection-beam',
-      freeKind: 'ollama-cloud',
-      limitedTime: true,
-      links: { ollama: 'https://ollama.com/blog/reflection-beam' },
-    })
   })
 
-  it('When one source fails (null) Then preserves that group from previous while refreshing the other', () => {
-    const previous = build({ goModels: [goRecord()], ollamaBlog: [ollamaRecord()] })
-    const payload = build({ goModels: null, ollamaBlog: [ollamaRecord()] , previous })
-    expect(payload.items.map((i) => i.freeKind)).toEqual(['opencode-go', 'ollama-cloud'])
+  it('When Go source fails or returns 304 (goModels=null) Then preserves previous items', () => {
+    const previous = build({ goModels: [goRecord()] })
+    const payload = build({ goModels: null, previous })
+    expect(payload.items.map((i) => i.id)).toEqual(['tencent/hy4-flash'])
   })
 })

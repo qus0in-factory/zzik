@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   TREND_SOURCE_MODELS_DEV,
-  TREND_SOURCE_OLLAMA_BLOG,
   TREND_SOURCE_OPENCODE_GO,
   TREND_SOURCE_OPENCODE_ZEN,
   TREND_SOURCE_OPENROUTER,
@@ -92,7 +91,7 @@ function seedObservations(store: FakeStore): void {
 }
 
 describe('Given the multi-source trend refresh', () => {
-  it('When OpenRouter, Go and Ollama blog are present Then writes both new-models and free-models', async () => {
+  it('When OpenRouter and Go are present Then writes both new-models and free-models', async () => {
     const store = new FakeStore()
     seedObservations(store)
     const result = await refreshTrendSections({
@@ -102,16 +101,15 @@ describe('Given the multi-source trend refresh', () => {
         scripted(TREND_SOURCE_MODELS_DEV, [ok([model()], '"md"')]),
         scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([])]),
         scripted(TREND_SOURCE_OPENCODE_GO, [ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', price: { input: 0, output: 0 }, free: true, limitedTime: true })])]),
-        scripted(TREND_SOURCE_OLLAMA_BLOG, [ok([model({ canonicalId: 'ollama-blog:reflection-beam', provider: 'ollama-cloud', modelId: 'reflection-beam', name: "Reflection's Beam", price: { input: 0, output: 0 }, free: true, limitedTime: true, link: 'https://ollama.com/blog/reflection-beam' })])]),
         scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')])]),
       ],
     })
     expect(result.newModels).toMatchObject({ ok: true, written: true, count: 1 })
-    expect(result.freeModels).toMatchObject({ ok: true, written: true, count: 2, stale: false })
+    expect(result.freeModels).toMatchObject({ ok: true, written: true, count: 1, stale: false })
     expect(section(store, 'new-models').items.map((item) => item.id)).toEqual(['inclusionai/ling-3.2-flash'])
     expect(section(store, 'new-models').items.every((item) => Array.isArray(item.registeredIn))).toBe(true)
-    expect(section(store, 'free-models').items.map((item) => item.freeKind)).toEqual(['opencode-go', 'ollama-cloud'])
-    expect(section(store, 'free-models').sources.map((source) => source.id)).toEqual(['go-models', 'ollama-blog'])
+    expect(section(store, 'free-models').items.map((item) => item.freeKind)).toEqual(['opencode-go'])
+    expect(section(store, 'free-models').sources.map((source) => source.id)).toEqual(['go-models'])
   })
 
   it('When OpenRouter fails after a good run Then keeps previous OpenRouter items and still refreshes free-models', async () => {
@@ -122,10 +120,9 @@ describe('Given the multi-source trend refresh', () => {
       ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', price: { input: 0, output: 0 }, free: true })]),
       ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', price: { input: 0, output: 0 }, free: true })]),
     ])
-    const ollamaBlog = scripted(TREND_SOURCE_OLLAMA_BLOG, [ok([]), ok([])])
     const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')]), failed])
-    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, ollamaBlog, router] })
-    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, go, ollamaBlog, router] })
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, router] })
+    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, go, router] })
     expect(result.sources.openrouter).toBe('stale')
     const newModels = section(store, 'new-models')
     expect(newModels.items.map((item) => item.id)).toEqual(['inclusionai/ling-3.2-flash'])
@@ -142,10 +139,9 @@ describe('Given the multi-source trend refresh', () => {
       ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', price: { input: 0, output: 0 }, free: true })]),
       ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', price: { input: 0, output: 0 }, free: true })]),
     ])
-    const ollamaBlog = scripted(TREND_SOURCE_OLLAMA_BLOG, [ok([]), ok([])])
     const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')]), ok([orModel('baidu/ernie-5.5-flash-preview')])])
-    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, ollamaBlog, router] })
-    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, go, ollamaBlog, router] })
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, router] })
+    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, go, router] })
     expect(result.newModels).toMatchObject({ ok: true, written: true })
     const newModels = section(store, 'new-models')
     expect(newModels.items.map((item) => item.id)).toEqual(['baidu/ernie-5.5-flash-preview'])
@@ -162,13 +158,12 @@ describe('Given the multi-source trend refresh', () => {
       ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', price: { input: 0, output: 0 }, free: true })], '"go"'),
       notModified('"go"'),
     ])
-    const ollamaBlog = scripted(TREND_SOURCE_OLLAMA_BLOG, [ok([], '"ob"'), notModified('"ob"')])
     const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')], '"o"'), notModified('"o"')])
-    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, ollamaBlog, router] })
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, router] })
     const newBefore = section(store, 'new-models').items
     const freeBefore = section(store, 'free-models').items
     store.writes = []
-    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, go, ollamaBlog, router] })
+    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, go, router] })
     expect(result.newModels).toMatchObject({ written: false, count: 1 })
     expect(result.freeModels).toMatchObject({ written: false, count: 1 })
     expect(store.writes).toEqual([])

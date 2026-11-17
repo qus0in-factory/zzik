@@ -1,13 +1,11 @@
 /**
  * `free-models` 섹션:
- * 1) OpenCode Go 무료: `/inference/go/v1/models`에서 입력·출력 가격 0인 행(고정 `go#pricing` 링크, 기간/지역 한정 표시).
- * 2) Ollama Cloud 무료: Ollama 블로그 RSS(`/blog/rss.xml`)의 최근 90일 기간 한정 무료 공지.
+ * OpenCode Go(`/inference/go/v1/models`)에서 입력·출력 가격 0인 무료 항목(고정 `go#pricing` 링크, 기간/지역 한정 표시).
  */
 import {
   TREND_FREE_MODELS_RULE,
   TREND_FREE_MODELS_WINDOW_MS,
   TREND_SCHEMA_VERSION,
-  TREND_SOURCE_OLLAMA_BLOG,
   TREND_SOURCE_OPENCODE_GO,
 } from '../../../../shared/trend-contract'
 import type { TrendItem, TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
@@ -15,11 +13,9 @@ import type { TrendModelRecord } from '../sources'
 import { normalizePlanName } from '../plan/build'
 
 const MAX_ITEMS = 50
-const OLLAMA_PROMO_WINDOW_MS = 90 * 86_400_000
 
 export interface FreeModelsInput {
   goModels: readonly TrendModelRecord[] | null
-  ollamaBlog: readonly TrendModelRecord[] | null
   catalog: readonly TrendModelRecord[] | null
   previous: TrendSectionPayload | null
   sources: readonly TrendSourceState[]
@@ -80,25 +76,6 @@ function itemFromGo(record: TrendModelRecord, index: CatalogIndex, nowMs: number
   }
 }
 
-function itemFromOllamaBlog(record: TrendModelRecord, nowMs: number): TrendItem {
-  const recentlyAdded = record.releaseMs !== null && record.releaseMs >= nowMs - TREND_FREE_MODELS_WINDOW_MS
-  return {
-    id: record.canonicalId,
-    name: record.name,
-    creator: record.creator,
-    releaseDate: record.releaseDate,
-    precision: record.releasePrecision,
-    price: { input: 0, output: 0 },
-    free: true,
-    openWeights: record.openWeights,
-    providers: [TREND_SOURCE_OLLAMA_BLOG],
-    links: record.link ? { ollama: record.link } : {},
-    freeKind: 'ollama-cloud',
-    recentlyAdded,
-    limitedTime: true,
-  }
-}
-
 function dedupeSorted(items: readonly TrendItem[]): TrendItem[] {
   const map = new Map<string, TrendItem>()
   for (const item of items) {
@@ -110,26 +87,15 @@ function dedupeSorted(items: readonly TrendItem[]): TrendItem[] {
   })
 }
 
-/** OpenCode Go 무료 행과 Ollama 블로그 기간 한정 무료 공지를 반환한다. 실패한 그룹은 직전 값을 유지한다. */
+/** OpenCode Go 무료 행을 반환한다. 출처가 실패/304면 직전 값을 유지한다. */
 export function buildFreeModels(input: FreeModelsInput): TrendSectionPayload {
   const index = buildCatalogIndex(input.catalog)
-  const previousGo = input.previous?.items.filter((item) => item.freeKind === 'opencode-go') ?? []
-  const previousOllama = input.previous?.items.filter((item) => item.freeKind === 'ollama-cloud') ?? []
-
-  const goItems = input.goModels === null
-    ? previousGo
+  const items = input.goModels === null
+    ? [...(input.previous?.items ?? [])]
     : dedupeSorted(
         input.goModels
           .filter((record) => record.free && record.status !== 'deprecated')
           .map((record) => itemFromGo(record, index, input.nowMs)),
-      )
-
-  const ollamaItems = input.ollamaBlog === null
-    ? previousOllama
-    : dedupeSorted(
-        input.ollamaBlog
-          .filter((record) => record.releaseMs === null || record.releaseMs >= input.nowMs - OLLAMA_PROMO_WINDOW_MS)
-          .map((record) => itemFromOllamaBlog(record, input.nowMs)),
       )
 
   return {
@@ -138,6 +104,6 @@ export function buildFreeModels(input: FreeModelsInput): TrendSectionPayload {
     generatedAt: new Date(input.nowMs).toISOString(),
     rule: TREND_FREE_MODELS_RULE,
     sources: [...input.sources],
-    items: [...goItems, ...ollamaItems].slice(0, MAX_ITEMS),
+    items: items.slice(0, MAX_ITEMS),
   }
 }

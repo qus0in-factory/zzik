@@ -8,7 +8,7 @@ export const TREND_NEW_MODELS_WINDOW_MS = 7 * 86_400_000
 export const TREND_NEW_MODELS_RELEASE_MAX_MS = 30 * 86_400_000
 export const TREND_NEW_MODELS_RULE = 'openrouter-registered-7d'
 export const TREND_FREE_MODELS_WINDOW_MS = 30 * 86_400_000
-export const TREND_FREE_MODELS_RULE = 'opencode-go-free-ollama-blog-promo'
+export const TREND_FREE_MODELS_RULE = 'opencode-go-free'
 export const TREND_PLAN_WINDOW_MS = 14 * 86_400_000
 export const TREND_PLAN_MODELS_RULE = 'plan-observation-14d'
 export const TREND_SOURCE_MODELS_DEV = 'models.dev'
@@ -16,7 +16,6 @@ export const TREND_SOURCE_OPENCODE_ZEN = 'opencode-zen'
 export const TREND_SOURCE_OPENROUTER = 'openrouter'
 export const TREND_SOURCE_OPENCODE_GO = 'go-models'
 export const TREND_SOURCE_OLLAMA_TAGS = 'ollama-tags'
-export const TREND_SOURCE_OLLAMA_BLOG = 'ollama-blog'
 export const TREND_SOURCE_ARTIFICIAL_ANALYSIS = 'artificial-analysis'
 export const TREND_SOURCE_OPENROUTER_RANKINGS = 'openrouter-rankings'
 export const TREND_MODELS_DEV_URL = 'https://models.dev/api.json'
@@ -24,7 +23,6 @@ export const TREND_ZEN_MODELS_URL = 'https://opencode.ai/zen/v1/models'
 export const TREND_OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
 export const TREND_GO_MODELS_URL = 'https://opencode.ai/inference/go/v1/models'
 export const TREND_OLLAMA_TAGS_URL = 'https://ollama.com/api/tags'
-export const TREND_OLLAMA_BLOG_RSS_URL = 'https://ollama.com/blog/rss.xml'
 export const TREND_AA_URL = 'https://artificialanalysis.ai/api/v2/language/models/free'
 export const TREND_OR_RANKINGS_URL = 'https://openrouter.ai/api/v1/datasets/rankings-daily'
 export const TREND_METRICS_RULE = 'openrouter-usage-v1'
@@ -41,7 +39,7 @@ export const TREND_OR_LICENSE_NAME = 'CC BY 4.0'
 export const TREND_OR_LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/'
 
 export type TrendPrecision = 'day' | 'month' | 'unknown'
-export type TrendFreeKind = 'opencode-go' | 'ollama-cloud'
+export type TrendFreeKind = 'opencode-go'
 
 export interface TrendPrice {
   input: number
@@ -59,7 +57,7 @@ export interface TrendItem {
   free: boolean
   openWeights: boolean
   providers: string[]
-  links: { modelsDev?: string; openrouter?: string; opencode?: string; ollama?: string }
+  links: { modelsDev?: string; openrouter?: string; opencode?: string }
   /** free-models 전용: 무료 제공 출처 그룹 및 한정·신규 표시 */
   freeKind?: TrendFreeKind
   recentlyAdded?: boolean

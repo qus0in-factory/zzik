@@ -35,32 +35,23 @@ const bySection: TrendGateway['fetchSection'] = async (section: TrendSection) =>
 })
 
 describe('Given the free-models section on /trend', () => {
-  it('When both groups have items Then shows OpenCode Go 무료 and Ollama Cloud 무료 groups with badges and links', async () => {
+  it('When data loads Then shows OpenCode Go 무료 group with badges and pricing link', async () => {
     renderPage(bySection)
     expect(await screen.findByRole('heading', { name: '무료 모델' })).toBeTruthy()
     const section = within(screen.getByTestId('trend-free-models'))
     expect(await section.findByText('Hy4 flash Free')).toBeTruthy()
     expect(section.getByRole('heading', { name: 'OpenCode Go 무료' })).toBeTruthy()
-    expect(section.getByRole('heading', { name: 'Ollama Cloud 무료' })).toBeTruthy()
+    expect(section.queryByRole('heading', { name: 'Ollama Cloud 무료' })).toBeNull()
     expect(section.getByText('Beam Free')).toBeTruthy()
-    expect(section.getByText("Reflection's Beam is freely available on Ollama for a limited time")).toBeTruthy()
-    expect(section.getAllByText('무료')).toHaveLength(3)
-    expect(section.getAllByText('기간 한정')).toHaveLength(3)
+    expect(section.getAllByText('무료')).toHaveLength(2)
+    expect(section.getAllByText('기간 한정')).toHaveLength(2)
     expect(section.getAllByText('지역 한정')).toHaveLength(1)
     expect(section.getAllByText('최근 추가')).toHaveLength(1)
-    expect(section.getByRole('link', { name: /공지 보기/ }).getAttribute('href')).toBe('https://ollama.com/blog/reflection-beam')
-    expect(section.getByText(/출처 OpenCode Go · Ollama 블로그 · 갱신/)).toBeTruthy()
+    expect(section.getAllByRole('link', { name: /가격표/ })[0]?.getAttribute('href')).toBe('https://opencode.ai/console/go#pricing')
+    expect(section.getByText(/출처 OpenCode Go · 갱신/)).toBeTruthy()
   })
 
-  it('When only one group has items Then hides the empty group heading', async () => {
-    const goOnly: TrendSectionPayload = { ...free, items: free.items.filter((i) => i.freeKind === 'opencode-go') }
-    renderPage(async (section) => ({ ok: true, value: section === 'free-models' ? goOnly : latest }))
-    const section = within(await screen.findByTestId('trend-free-models'))
-    expect(await section.findByRole('heading', { name: 'OpenCode Go 무료' })).toBeTruthy()
-    expect(section.queryByRole('heading', { name: 'Ollama Cloud 무료' })).toBeNull()
-  })
-
-  it('When both groups are empty or not_ready Then hides the entire free-models section without empty-state text', async () => {
+  it('When items are empty or not_ready Then hides the entire free-models section without empty-state text', async () => {
     renderPage(async (section) => ({ ok: true, value: section === 'free-models' ? { ...free, items: [] } : latest }))
     await screen.findByTestId('trend-new-models')
     await waitFor(() => expect(screen.queryByTestId('trend-free-models')).toBeNull())

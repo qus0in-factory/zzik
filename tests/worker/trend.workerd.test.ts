@@ -98,7 +98,6 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
             }
             if (url.includes('opencode.ai/inference/go/v1/models')) return json({ object: 'list', data: [{ id: 'deepseek-v4.1-flash', canonical_id: 'deepseek/deepseek-v4.1-flash-1017', name: 'DeepSeek V4.1 Flash 1017' }, ...zen.data] });
             if (url.includes('ollama.com/api/tags')) return json({ models: [{ name: 'glm-5.3', size: 0 }] });
-            if (url.includes('ollama.com/blog/rss.xml')) return new Response('<rss version="2.0"><channel></channel></rss>', { status: 200, headers: { 'content-type': 'application/xml' } });
             if (url.includes('opencode.ai')) return json(zen);
             if (url.includes('openrouter.ai')) return json(openrouter);
             return new Response('not found', { status: 404 });
@@ -162,7 +161,6 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(states.results).toEqual([
       { source: 'go-models', etag: null, ok: 1, status: 200 },
       { source: 'models.dev', etag: '"v1"', ok: 1, status: 200 },
-      { source: 'ollama-blog', etag: null, ok: 1, status: 200 },
       { source: 'opencode-zen', etag: null, ok: 1, status: 200 },
       { source: 'openrouter', etag: null, ok: 1, status: 200 },
     ])
@@ -188,7 +186,7 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(freeBody.items).toEqual([
       expect.objectContaining({ id: 'tencent/hy4-flash', freeKind: 'opencode-go', price: { input: 0, output: 0 }, recentlyAdded: true }),
     ])
-    expect(freeBody.sources.map((source) => source.id)).toEqual(['go-models', 'ollama-blog'])
+    expect(freeBody.sources.map((source) => source.id)).toEqual(['go-models'])
 
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
     expect(index.status).toBe(200)

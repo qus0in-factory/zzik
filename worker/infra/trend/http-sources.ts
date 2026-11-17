@@ -1,16 +1,14 @@
 import {
   TREND_GO_MODELS_URL,
   TREND_MODELS_DEV_URL,
-  TREND_OLLAMA_BLOG_RSS_URL,
   TREND_OPENROUTER_MODELS_URL,
   TREND_SOURCE_MODELS_DEV,
-  TREND_SOURCE_OLLAMA_BLOG,
   TREND_SOURCE_OPENCODE_GO,
   TREND_SOURCE_OPENCODE_ZEN,
   TREND_SOURCE_OPENROUTER,
   TREND_ZEN_MODELS_URL,
 } from '../../../shared/trend-contract'
-import { decodeGoModels, decodeModelsDev, decodeOllamaBlogRss, decodeOpenRouterModels, decodeZenModels } from '../../domain/trend/sources'
+import { decodeGoModels, decodeModelsDev, decodeOpenRouterModels, decodeZenModels } from '../../domain/trend/sources'
 import type { DecodeModelsDevResult, TrendSource, TrendSourceFailure } from '../../domain/trend/sources'
 
 /** §3.1 메모리 게이트: 6.7MB 원문 + 파싱 트리를 20MB 이하 응답으로 제한한다. 로컬 측정은 결과 문서 참조. */
@@ -185,33 +183,4 @@ export function createGoModelsSource(options: HttpSourceOptions = {}): TrendSour
     maxBytes: options.maxBytes ?? ZEN_MAX_BYTES,
     timeoutMs: options.timeoutMs ?? MODELS_DEV_TIMEOUT_MS,
   })
-}
-
-export function createOllamaBlogSource(options: HttpSourceOptions = {}): TrendSource {
-  const fetchImpl = options.fetchImpl ?? globalThis.fetch
-  const maxBytes = options.maxBytes ?? ZEN_MAX_BYTES
-  const timeoutMs = options.timeoutMs ?? MODELS_DEV_TIMEOUT_MS
-  return {
-    id: TREND_SOURCE_OLLAMA_BLOG,
-    async fetch(ifNoneMatch: string | null) {
-      const headers: Record<string, string> = { 'User-Agent': 'zzik-trend/1.0 (+https://zzik.qus0in.dev)' }
-      if (ifNoneMatch !== null) headers['If-None-Match'] = ifNoneMatch
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), timeoutMs)
-      try {
-        const response = await fetchImpl(TREND_OLLAMA_BLOG_RSS_URL, { headers, signal: controller.signal })
-        if (response.status === 304) return { ok: true, notModified: true, etag: response.headers.get('etag') ?? ifNoneMatch, bytes: 0 }
-        if (response.status !== 200) return { ok: false, httpStatus: response.status, reason: 'http' } satisfies TrendSourceFailure
-        const body = await readCappedBody(response, maxBytes)
-        if (!body.ok) return { ok: false, httpStatus: null, reason: body.reason } satisfies TrendSourceFailure
-        const decoded = decodeOllamaBlogRss(body.text)
-        if (!decoded.ok) return { ok: false, httpStatus: null, reason: 'invalid' } satisfies TrendSourceFailure
-        return { ok: true, notModified: false, etag: response.headers.get('etag'), models: decoded.value, bytes: body.bytes }
-      } catch {
-        return { ok: false, httpStatus: null, reason: 'network' } satisfies TrendSourceFailure
-      } finally {
-        clearTimeout(timer)
-      }
-    },
-  }
 }

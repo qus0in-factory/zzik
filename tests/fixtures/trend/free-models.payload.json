@@ -2,15 +2,10 @@
   "section": "free-models",
   "schemaVersion": 1,
   "generatedAt": "2026-11-17T04:07:00.000Z",
-  "rule": "opencode-go-free-ollama-blog-promo",
+  "rule": "opencode-go-free",
   "sources": [
     {
       "id": "go-models",
-      "fetchedAt": "2026-11-17T04:07:00.000Z",
-      "status": "ok"
-    },
-    {
-      "id": "ollama-blog",
       "fetchedAt": "2026-11-17T04:07:00.000Z",
       "status": "ok"
     }
@@ -61,28 +56,6 @@
       "recentlyAdded": false,
       "limitedTime": true,
       "limitedRegions": true
-    },
-    {
-      "id": "ollama-blog:reflection-beam",
-      "name": "Reflection's Beam is freely available on Ollama for a limited time",
-      "creator": "ollama",
-      "releaseDate": "2026-10-16",
-      "precision": "day",
-      "price": {
-        "input": 0,
-        "output": 0
-      },
-      "free": true,
-      "openWeights": true,
-      "providers": [
-        "ollama-blog"
-      ],
-      "links": {
-        "ollama": "https://ollama.com/blog/reflection-beam"
-      },
-      "freeKind": "ollama-cloud",
-      "recentlyAdded": false,
-      "limitedTime": true
     }
   ]
 }

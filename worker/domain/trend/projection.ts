@@ -11,7 +11,7 @@ import type {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const isPrecision = (value: unknown): value is TrendItem['precision'] => value === 'day' || value === 'month' || value === 'unknown'
 const isStatus = (value: unknown): value is TrendSourceState['status'] => value === 'ok' || value === 'stale'
-const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'opencode-go' || value === 'ollama-cloud'
+const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'opencode-go'
 const isRegisteredIn = (value: unknown): value is 'aa' | 'openrouter' => value === 'aa' || value === 'openrouter'
 const isBlockStatus = (value: unknown): value is TrendMetricsBlock['status'] => value === 'ok' || value === 'stale' || value === 'not_configured' || value === 'under_review'
 const isMetricsKind = (value: unknown): value is TrendMetricsEntry['kind'] => value === 'new-top' || value === 'moved' || value === 'steady'
@@ -37,7 +37,6 @@ function projectLinks(value: unknown): TrendItem['links'] | null {
   if (typeof value.modelsDev === 'string') links.modelsDev = value.modelsDev
   if (typeof value.openrouter === 'string') links.openrouter = value.openrouter
   if (typeof value.opencode === 'string') links.opencode = value.opencode
-  if (typeof value.ollama === 'string') links.ollama = value.ollama
   return links
 }
 
