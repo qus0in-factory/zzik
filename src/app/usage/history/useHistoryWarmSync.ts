@@ -21,47 +21,46 @@ export function useHistoryWarmSync(): void {
   const snapshots = useQueries({ queries: USAGE_PROVIDERS.map((provider) => ({ ...usageQueryOptions(usageDeps.gateway, provider), enabled: deps.enabled })) })
   const runAtKey = snapshots.map((query) => query.data?.collection?.runAt ?? '-').join(',')
   const providersKey = (warm.data ?? []).join(',')
-  const running = useRef(false)
-  const again = useRef(false)
+  const chain = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     if (!deps.enabled) return // 플래그가 꺼져 있으면 아무 것도 하지 않는다(리스너도 달지 않는다)
+    const controller = new AbortController()
     let cancelled = false
+    const hidden = (): boolean => document.visibilityState === 'hidden'
     const drain = async (): Promise<void> => {
-      if (running.current) {
-        again.current = true
-        return
-      }
-      running.current = true
-      try {
-        do {
-          again.current = false
-          for (const provider of USAGE_PROVIDERS as readonly UsageProvider[]) {
-            if (cancelled || document.visibilityState === 'hidden') return
-            if (!(warm.data ?? []).includes(provider)) continue
-            const runAt = client.getQueryData<UsageGatewaySuccess>(usageQueryKey(provider))?.collection?.runAt ?? null
-            if (runAt === null) continue
-            const record = deps.memory.get(provider) ?? (await deps.cache.read(provider))
-            if (record === null || record.syncedThroughRunAt === runAt) continue
-            const outcome = await runDedupedSync(
-              deps.inflight,
-              { gateway: deps.gateway, cache: deps.cache, memory: deps.memory, nowMs: deps.nowMs, budget: deps.budget },
-              { provider, snapshotRunAt: runAt, wantFromMs: null },
-            )
-            if (outcome.ok) client.setQueryData(historyDataKey(provider), outcome.record)
-          }
-        } while (again.current && !cancelled)
-      } finally {
-        running.current = false
+      if (cancelled) return
+      for (const provider of USAGE_PROVIDERS as readonly UsageProvider[]) {
+        if (cancelled || hidden()) return
+        if (!(warm.data ?? []).includes(provider)) continue
+        const runAt = client.getQueryData<UsageGatewaySuccess>(usageQueryKey(provider))?.collection?.runAt ?? null
+        if (runAt === null) continue
+        const record = deps.memory.get(provider) ?? (await deps.cache.read(provider))
+        // cache.read 대기 중 라우트가 바뀌었으면 여기서 멈춘다(새 요청을 시작하지 않는다).
+        if (cancelled || hidden()) return
+        if (record === null || record.syncedThroughRunAt === runAt) continue
+        const outcome = await runDedupedSync(
+          deps.inflight,
+          { gateway: deps.gateway, cache: deps.cache, memory: deps.memory, nowMs: deps.nowMs, budget: deps.budget },
+          { provider, snapshotRunAt: runAt, wantFromMs: null },
+          controller.signal,
+        )
+        if (cancelled) return
+        if (outcome.ok) client.setQueryData(historyDataKey(provider), outcome.record)
       }
     }
-    void drain()
+    // 소비자(이펙트)가 바뀌어도 동기화는 직렬로 이어 간다. 이전 이펙트는 취소되고 새 이펙트가 뒤에서 시작한다.
+    const enqueue = (): void => {
+      chain.current = chain.current.catch(() => {}).then(drain).catch(() => {})
+    }
+    enqueue()
     const onVisible = (): void => {
-      if (document.visibilityState === 'visible') void drain()
+      if (document.visibilityState === 'visible') enqueue()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       cancelled = true
+      controller.abort()
       document.removeEventListener('visibilitychange', onVisible)
     }
     // 스냅샷 runAt 또는 레코드가 있는 제공자 목록이 바뀔 때 다시 돈다.

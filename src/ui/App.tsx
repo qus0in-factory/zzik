@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { t } from '@shared/messages'
 import { useHistoryWarmSync } from '@app/usage/history/useHistoryWarmSync'
 import { useProviderOrder } from '@app/usage/ProviderOrderContext'
 import { BackToTop } from '@ui/components/BackToTop'
-import { HomeLink } from '@ui/components/HomeLink'
+import { SiteHeader } from '@ui/SiteHeader'
 import { Footer } from '@ui/components/Footer'
 import { PaceChips } from '@ui/usage/PaceChips'
 import { UsageSection } from '@ui/usage/UsageSection'
@@ -61,16 +60,7 @@ export default function App() {
   useHistoryWarmSync() // 이력이 있는 제공자를 백그라운드에서 따라잡는다(플래그가 꺼지면 아무 것도 하지 않는다)
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="border-b bg-card">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <h1 className="text-xl font-semibold tracking-tight">
-            <HomeLink>
-              <img src="/favicon.svg" alt="" width={32} height={32} className="size-8 rounded-lg" />
-              <span>{t('app.title')}</span>
-            </HomeLink>
-          </h1>
-        </div>
-      </header>
+      <SiteHeader />
       <main ref={mainRef} className="mx-auto w-full flex-1 max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <PaceChips onBeforeMove={captureTops} />
         {order.map((provider) => (

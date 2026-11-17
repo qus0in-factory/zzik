@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import App from '@ui/App'
 import agyRaw from '../fixtures/antigravity-usage.normal.json'
 import grokRaw from '../fixtures/grok-usage.normal.json'
@@ -31,7 +32,9 @@ function renderApp(client = createTestQueryClient()) {
   )
   const utils = render(
     <providers.wrapper>
-      <App />
+      <MemoryRouter initialEntries={['/usage']}>
+        <App />
+      </MemoryRouter>
     </providers.wrapper>,
   )
   return { utils, gateway }
@@ -116,7 +119,9 @@ describe('Given the dashboard with six providers', () => {
     const providers = makeUsageProviders({ gateway, clock: createFakeUsageClock(), scheduler: createFakeUsageScheduler() })
     render(
       <providers.wrapper>
-        <App />
+        <MemoryRouter initialEntries={['/usage']}>
+          <App />
+        </MemoryRouter>
       </providers.wrapper>,
     )
     await screen.findByText('37%')
