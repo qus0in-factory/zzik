@@ -165,6 +165,8 @@ function projectMetricsBlocks(value: unknown): TrendMetricsBlock[] | null {
   if (!Array.isArray(value)) return null
   const blocks: TrendMetricsBlock[] = []
   for (const block of value) {
+    // AA 원본 블록(점수·순위·모델 id)은 공개하지 않는다. 인용문은 aaCitation 한 줄로만 나간다.
+    if (isRecord(block) && block.id === 'aa-intelligence') continue
     const projected = projectMetricsBlock(block)
     if (projected === null) return null
     blocks.push(projected)
@@ -229,6 +231,11 @@ export function projectSectionPayload(value: unknown, expected: TrendSection): T
   if (projectedBlocks === null) return null
   const projectedPlans = plans === undefined ? undefined : projectPlanGroups(plans)
   if (projectedPlans === null) return null
+  let aaCitation: string | undefined
+  if (value.aaCitation !== undefined) {
+    if (typeof value.aaCitation !== 'string' || value.aaCitation.trim() === '' || value.aaCitation.length > 500) return null
+    aaCitation = value.aaCitation
+  }
   return {
     section: section as TrendSection,
     schemaVersion,
@@ -238,5 +245,6 @@ export function projectSectionPayload(value: unknown, expected: TrendSection): T
     items: projectedItems,
     ...(projectedBlocks === undefined ? {} : { blocks: projectedBlocks }),
     ...(projectedPlans === undefined ? {} : { plans: projectedPlans }),
+    ...(aaCitation === undefined ? {} : { aaCitation }),
   }
 }

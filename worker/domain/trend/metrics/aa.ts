@@ -28,6 +28,20 @@ export function aaAttribution(version: string, asOf: string): string {
 }
 
 /**
+ * 공개용 AA brief citation: 지표당 1위 한 건만 담은 완성 문장 하나.
+ * 무료 API가 실제 제공하는 지표는 Intelligence 하나뿐이다(Time per Task·Cost per Task 필드 없음).
+ * 점수·모델 id·순위는 별도 필드로 만들지 않고 문장 안에만 둔다(§2.3(c), §2.4(b)).
+ */
+export function buildAaCitation(snapshot: AaSnapshot, day: string): string | null {
+  const top = rankAa(snapshot.entries)[0]
+  if (top === undefined) return null
+  const score = Number.isInteger(top.entry.intelligenceIndex)
+    ? String(top.entry.intelligenceIndex)
+    : top.entry.intelligenceIndex.toFixed(1)
+  return `Artificial Analysis Intelligence Index 1위는 ${top.entry.name} (${score})입니다. (${day} 기준)`
+}
+
+/**
  * AA Intelligence Index 순위와 7일 전 대비 변동.
  * - 상위 15위는 항상 노출하고, 7일 전에 없던 모델은 `new-top`.
  * - 16~30위는 ±3위 이상 움직인 경우만 `moved`로 추가한다.

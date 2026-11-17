@@ -11,9 +11,11 @@ import type {
   TrendSourceState,
   TrendSectionPayload,
 } from '../../../shared/trend-contract'
+import { buildAaCitation, rankAa, toAaRows } from '../../domain/trend/metrics/aa'
 import { buildOrBlock, orAttribution } from '../../domain/trend/metrics/or'
 import { addDays, utcDay } from '../../domain/trend/metrics/types'
 import type {
+  AaSource,
   MetricsSourceFailureReason,
   MetricsStore,
   OrRankingSource,
@@ -32,6 +34,7 @@ export interface MetricsRefreshResult {
   notConfigured: boolean
   blocks: { or: TrendMetricsBlockStatus }
   reasons: { or: MetricsSourceFailureReason | null }
+  aa: { status: 'ok' | 'stale' | 'not_configured'; reason: MetricsSourceFailureReason | null }
 }
 
 function parsePayload(text: string): MetricsPayload | null {
@@ -49,6 +52,7 @@ function parsePayload(text: string): MetricsPayload | null {
 function sameContent(previous: MetricsPayload, next: MetricsPayload): boolean {
   return previous.schemaVersion === next.schemaVersion &&
     previous.rule === next.rule &&
+    previous.aaCitation === next.aaCitation &&
     JSON.stringify(previous.blocks) === JSON.stringify(next.blocks) &&
     JSON.stringify(previous.sources.map((source) => [source.id, source.status])) === JSON.stringify(next.sources.map((source) => [source.id, source.status]))
 }
@@ -66,19 +70,43 @@ function staleBlock(previous: TrendMetricsBlock | undefined, fallback: TrendMetr
 }
 
 /**
- * 일 1회 metrics 갱신. Artificial Analysis 데이터는 공개 재배포가 불가하므로 수집·공개하지 않고
- * OpenRouter 사용량 블록만 만든다. OR 실패는 직전 블록을 stale로 유지한다.
+ * 일 1회 metrics 갱신. AA는 무료 API를 Internal Use로 호출해 상위 2개만 내부 저장하고,
+ * 공개 payload에는 지표당 1위 한 건을 담은 brief citation 문장 하나만 둔다(구조화 필드 없음).
+ * 키 없음·실패 시 문장을 숨긴다. OR 실패는 직전 블록을 stale로 유지한다.
  */
 export async function refreshMetrics(input: {
   store: MetricsStore
   orSource: OrRankingSource | null
+  aaSource?: AaSource | null
   nowMs: number
 }): Promise<MetricsRefreshResult> {
-  const { store, orSource, nowMs } = input
+  const { store, orSource, aaSource, nowMs } = input
   const day = utcDay(nowMs)
   const nowIso = new Date(nowMs).toISOString()
   const row = await store.readSection('metrics')
   const previous = row === null ? null : parsePayload(row.payload)
+
+  let aaCitation: string | undefined
+  let aaStatus: 'ok' | 'stale' | 'not_configured' = 'not_configured'
+  let aaReason: MetricsSourceFailureReason | null = 'not_configured'
+  if (aaSource !== undefined && aaSource !== null) {
+    const aa = await aaSource.fetch(nowMs)
+    if (aa.ok) {
+      try {
+        const top = rankAa(aa.snapshot.entries).slice(0, 2).map(({ entry }) => entry)
+        await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
+        aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }, day) ?? undefined
+        aaStatus = 'ok'
+        aaReason = null
+      } catch {
+        aaStatus = 'stale'
+        aaReason = 'storage'
+      }
+    } else {
+      aaStatus = 'stale'
+      aaReason = aa.reason
+    }
+  }
 
   const or = orSource === null ? null : await orSource.fetch(nowMs)
 
@@ -134,18 +162,20 @@ export async function refreshMetrics(input: {
     sources,
     items: [],
     blocks: [orBlock],
+    ...(aaCitation === undefined ? {} : { aaCitation }),
   }
 
   const anyOk = orStatus === 'ok'
   const allNotConfigured = orStatus === 'not_configured'
+  const aa = { status: aaStatus, reason: aaReason }
   if (!anyOk && previous === null && !allNotConfigured) {
-    return { ok: false, written: false, notConfigured: false, blocks: { or: orStatus }, reasons: { or: orReason } }
+    return { ok: false, written: false, notConfigured: false, blocks: { or: orStatus }, reasons: { or: orReason }, aa }
   }
   if (allNotConfigured && previous === null) {
-    return { ok: false, written: false, notConfigured: true, blocks: { or: orStatus }, reasons: { or: orReason } }
+    return { ok: false, written: false, notConfigured: true, blocks: { or: orStatus }, reasons: { or: orReason }, aa }
   }
 
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
-  return { ok: anyOk, written: !unchanged, notConfigured: allNotConfigured, blocks: { or: orStatus }, reasons: { or: orReason } }
+  return { ok: anyOk, written: !unchanged, notConfigured: allNotConfigured, blocks: { or: orStatus }, reasons: { or: orReason }, aa }
 }

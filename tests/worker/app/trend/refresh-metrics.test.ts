@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { TrendSection, TrendSectionPayload } from '../../../../shared/trend-contract'
-import { TREND_SOURCE_OPENROUTER_RANKINGS } from '../../../../shared/trend-contract'
+import { TREND_SOURCE_ARTIFICIAL_ANALYSIS, TREND_SOURCE_OPENROUTER_RANKINGS } from '../../../../shared/trend-contract'
 import { refreshMetrics } from '../../../../worker/app/trend/refresh-metrics'
 import type {
+  AaFetchResult,
+  AaSnapshotRow,
+  AaSource,
   MetricsStore,
   OrFetchResult,
   OrRankingRow,
@@ -17,6 +20,7 @@ const day = (offset: number) => new Date(NOW + offset * DAY).toISOString().slice
 class FakeMetricsStore implements MetricsStore {
   sections = new Map<TrendSection, TrendSectionRow>()
   or: OrRankingRow[] = []
+  aa: AaSnapshotRow[] = []
   writes: TrendSection[] = []
   pruned: [string, string] | null = null
   failOrWrite = false
@@ -27,8 +31,8 @@ class FakeMetricsStore implements MetricsStore {
     this.sections.set(payload.section, { section: payload.section, payload: JSON.stringify(payload), payloadSha256: 'a'.repeat(64), generatedAt: Date.parse(payload.generatedAt) })
     return 'a'.repeat(64)
   }
-  async readAaSnapshot() { return [] }
-  async writeAaSnapshot() {}
+  async readAaSnapshot() { return this.aa }
+  async writeAaSnapshot(_day: string, rows: readonly AaSnapshotRow[]) { this.aa = [...rows] }
   async readOrRanking(fromDay: string, toDay: string) { return this.or.filter((row) => row.day >= fromDay && row.day <= toDay) }
   async writeOrRanking(rows: readonly OrRankingRow[]) { if (this.failOrWrite) throw new Error('or storage failed'); this.or = [...rows] }
   async prune(beforeAaDay: string, beforeOrDay: string) { if (this.failPrune) throw new Error('prune failed'); this.pruned = [beforeAaDay, beforeOrDay] }
@@ -37,6 +41,14 @@ class FakeMetricsStore implements MetricsStore {
 const orOk = (rows: OrRankingRow[], asOf = '2026-11-17T04:00:00Z'): OrFetchResult => ({ ok: true, snapshot: { asOf, asOfKind: 'source', meta: {}, rows } })
 const orFail = (reason: 'unauthorized' | 'rate_limited'): OrFetchResult => ({ ok: false, reason, httpStatus: reason === 'unauthorized' ? 401 : 429 })
 function orSource(result: OrFetchResult): OrRankingSource { return { id: TREND_SOURCE_OPENROUTER_RANKINGS, async fetch() { return result } } }
+const aaEntry = (slug: string, name: string, index: number) => ({
+  slug, name, creator: '', releaseDate: null, intelligenceIndex: index, priceIn: null, priceOut: null, domains: {},
+})
+const aaOk: AaFetchResult = {
+  ok: true,
+  snapshot: { version: '5', entries: [aaEntry('b', 'Model B', 80), aaEntry('a', 'Model A', 90), aaEntry('c', 'Model C', 70)] },
+}
+function aaSource(result: AaFetchResult): AaSource { return { id: TREND_SOURCE_ARTIFICIAL_ANALYSIS, async fetch() { return result } } }
 const rows = (offset: number, permaslug: string, tokens: string): OrRankingRow => ({ day: day(offset), permaslug, totalTokens: tokens })
 
 function metricsPayload(store: FakeMetricsStore) {
@@ -45,6 +57,7 @@ function metricsPayload(store: FakeMetricsStore) {
     items: unknown[]
     sources: Array<{ id: string; status: string }>
     blocks: Array<{ id: string; status: string; note?: string; entries: Array<Record<string, unknown>>; attribution: string; version?: string }>
+    aaCitation?: string
   }
 }
 
@@ -137,5 +150,35 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
     const result = await refreshMetrics({ store, nowMs: NOW + 3_600_000, orSource: or })
     expect(result).toMatchObject({ ok: true, written: false })
     expect(store.writes).toEqual([])
+  })
+
+  it('When AA succeeds Then stores only its top two internally and exposes only one citation sentence', async () => {
+    const store = new FakeMetricsStore()
+    const result = await refreshMetrics({
+      store, nowMs: NOW,
+      orSource: orSource(orOk([rows(0, 'a/x', '100')])),
+      aaSource: aaSource(aaOk),
+    })
+    expect(result.aa).toMatchObject({ status: 'ok' })
+    expect(store.aa.map((row) => row.slug)).toEqual(['a', 'b'])
+    const payload = metricsPayload(store)
+    expect(payload.aaCitation).toBe('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')
+    expect(payload.blocks.map((block) => block.id)).toEqual(['or-usage'])
+    expect(JSON.stringify(payload)).not.toContain('"index"')
+  })
+
+  it('When AA has no key or fails Then the citation is hidden', async () => {
+    const store = new FakeMetricsStore()
+    const withoutKey = await refreshMetrics({ store, nowMs: NOW, orSource: orSource(orOk([rows(0, 'a/x', '100')])), aaSource: null })
+    expect(withoutKey.aa).toMatchObject({ status: 'not_configured' })
+    expect(metricsPayload(store).aaCitation).toBeUndefined()
+
+    const failed = await refreshMetrics({
+      store, nowMs: NOW + DAY,
+      orSource: orSource(orOk([rows(0, 'a/x', '100')])),
+      aaSource: aaSource({ ok: false, reason: 'unauthorized', httpStatus: 401 }),
+    })
+    expect(failed.aa).toMatchObject({ status: 'stale' })
+    expect(metricsPayload(store).aaCitation).toBeUndefined()
   })
 })
