@@ -102,15 +102,15 @@ describe('Given the multi-source trend refresh', () => {
         scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')])]),
       ],
     })
-    expect(result.newModels).toMatchObject({ ok: true, written: true, count: 2 })
+    expect(result.newModels).toMatchObject({ ok: true, written: true, count: 1 })
     expect(result.freeModels).toMatchObject({ ok: true, written: true, count: 2, stale: false })
-    expect(section(store, 'new-models').items.map((item) => item.id).sort()).toEqual(['anthropic/claude-x', 'inclusionai/ling-3.2-flash'])
+    expect(section(store, 'new-models').items.map((item) => item.id)).toEqual(['inclusionai/ling-3.2-flash'])
     expect(section(store, 'new-models').items.every((item) => Array.isArray(item.registeredIn))).toBe(true)
     expect(section(store, 'free-models').items.map((item) => item.freeKind).sort()).toEqual(['ollama-cloud', 'opencode-go'])
     expect(section(store, 'free-models').sources.map((source) => source.id)).toEqual(['go-models', 'ollama-tags'])
   })
 
-  it('When OpenRouter fails after a good run Then keeps previous OpenRouter items and still refreshes AA/free', async () => {
+  it('When OpenRouter fails after a good run Then keeps previous OpenRouter items and still refreshes free-models', async () => {
     const store = new FakeStore()
     seedObservations(store)
     const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model()]), ok([model({ canonicalId: 'anthropic/claude-y', name: 'Claude Y' })])])
@@ -120,7 +120,7 @@ describe('Given the multi-source trend refresh', () => {
     const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, zen, router] })
     expect(result.sources.openrouter).toBe('stale')
     const newModels = section(store, 'new-models')
-    expect(newModels.items.map((item) => item.id).sort()).toEqual(['anthropic/claude-y', 'inclusionai/ling-3.2-flash'])
+    expect(newModels.items.map((item) => item.id)).toEqual(['inclusionai/ling-3.2-flash'])
     expect(newModels.items.find((item) => item.id === 'inclusionai/ling-3.2-flash')?.registeredIn).toEqual(['openrouter'])
     expect(newModels.sources.find((source) => source.id === 'openrouter')?.status).toBe('stale')
     expect(section(store, 'free-models').items).toHaveLength(2)
@@ -136,7 +136,7 @@ describe('Given the multi-source trend refresh', () => {
     const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, zen, router] })
     expect(result.newModels).toMatchObject({ ok: true, written: true })
     const newModels = section(store, 'new-models')
-    expect(newModels.items.map((item) => item.id).sort()).toEqual(['anthropic/claude-x', 'baidu/ernie-5.5-flash-preview'])
+    expect(newModels.items.map((item) => item.id)).toEqual(['baidu/ernie-5.5-flash-preview'])
     expect(newModels.sources.find((source) => source.id === 'models.dev')?.status).toBe('stale')
     expect(section(store, 'free-models').items.map((item) => item.id).sort()).toEqual([
       'deepseek/deepseek-v4.1-flash-1017', 'glm-5.3',
@@ -155,7 +155,7 @@ describe('Given the multi-source trend refresh', () => {
     const freeBefore = section(store, 'free-models').items
     store.writes = []
     const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, zen, router] })
-    expect(result.newModels).toMatchObject({ written: false, count: 2 })
+    expect(result.newModels).toMatchObject({ written: false, count: 1 })
     expect(result.freeModels).toMatchObject({ written: false, count: 2 })
     expect(store.writes).toEqual([])
     expect(section(store, 'new-models').items).toEqual(newBefore)

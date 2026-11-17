@@ -171,9 +171,9 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     const body = await response.json() as { section: string; items: Array<{ id: string; providers: string[] }> }
     expect(body.section).toBe('new-models')
     expect(body.items).toEqual([
-      expect.objectContaining({ id: 'anthropic/claude-x', registeredIn: ['aa'] }),
       expect.objectContaining({ id: 'inclusionai/ling-3.2-flash', registeredIn: ['openrouter'] }),
     ])
+    expect(JSON.stringify(body)).not.toContain('"aa"')
 
     const free = await mf.dispatchFetch('http://localhost/pub/trend/free-models')
     expect(free.status).toBe(200)
@@ -192,7 +192,7 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(index.status).toBe(200)
     const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
     expect(indexBody.sections).toEqual(expect.arrayContaining([
-      { id: 'new-models', count: 2, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
+      { id: 'new-models', count: 1, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
       { id: 'free-models', count: 2, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
     ]))
 

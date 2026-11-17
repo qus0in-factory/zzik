@@ -56,7 +56,7 @@ function Group({ title, items }: { title: string; items: readonly TrendItem[] })
   )
 }
 
-/** `/pub/trend/free-models`의 무료 모델 섹션. 호스팅 무료와 로컬 실행 가능을 나눠 보여 준다. */
+/** `/pub/trend/free-models`의 무료 모델 섹션. OpenCode Go와 Ollama Cloud 두 그룹을 보여 준다. */
 export function FreeModelsSection(): ReactNode {
   const deps = useTrendDeps()
   if (!deps.enabled) return null

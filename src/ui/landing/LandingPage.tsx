@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { t } from '@shared/messages'
 import { SiteHeader } from '../SiteHeader'
+import { Footer } from '../components/Footer'
 import desktopSvg from './architecture-desktop.svg?raw'
 import mobileSvg from './architecture-mobile.svg?raw'
 
@@ -65,6 +66,7 @@ export function LandingPage(): ReactNode {
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   )
 }

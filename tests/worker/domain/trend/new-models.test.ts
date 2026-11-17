@@ -14,9 +14,9 @@ function record(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
     modelId: 'claude-fable-5',
     name: 'Claude Fable 5',
     creator: 'anthropic',
-    releaseDate: '2026-11-16',
+    releaseDate: '2026-11-09',
     releasePrecision: 'day',
-    releaseMs: NOW - DAY,
+    releaseMs: Date.UTC(2026, 10, 9),
     price: { input: 3, output: 15 },
     free: false,
     openWeights: false,
@@ -29,7 +29,8 @@ function record(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
 function openrouter(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
   return record({
     provider: 'openrouter',
-    modelId: 'claude-fable-5',
+    releaseDate: '2026-11-15',
+    releaseMs: NOW - 2 * DAY,
     ...overrides,
   })
 }
@@ -54,88 +55,60 @@ function build(input: {
   })
 }
 
-describe('Given the AA/OpenRouter registration-based new-models builder', () => {
-  it('When an AA release is within 7 days Then includes it with an AA badge and models.dev metadata', () => {
-    const payload = build({ modelsDev: [record()] })
+describe('Given the OpenRouter registration-based new-models builder', () => {
+  it('When an OpenRouter created time is within 7 days Then includes it with an OpenRouter badge', () => {
+    const payload = build({ openrouter: [openrouter()] })
     expect(payload.rule).toBe(TREND_NEW_MODELS_RULE)
     expect(payload.sources).toEqual(sources)
     expect(payload.items).toHaveLength(1)
     expect(payload.items[0]).toMatchObject({
       id: 'anthropic/claude-fable-5', name: 'Claude Fable 5', creator: 'anthropic',
-      releaseDate: '2026-11-16', precision: 'day', registeredIn: ['aa'],
+      registeredIn: ['openrouter'],
     })
   })
 
-  it('When an OpenRouter created time is within 7 days Then includes it with an OpenRouter badge', () => {
-    const payload = build({
-      openrouter: [openrouter({ canonicalId: 'openrouter/only-model', modelId: 'only-model', name: 'Only Model', creator: 'openrouter', releaseDate: '2026-11-15', releaseMs: NOW - 2 * DAY, price: null })],
-    })
-    expect(payload.items).toHaveLength(1)
-    expect(payload.items[0]).toMatchObject({ id: 'openrouter/only-model', name: 'Only Model', registeredIn: ['openrouter'] })
+  it('When a model is only newly released in models.dev but absent from OpenRouter Then excludes it', () => {
+    const payload = build({ modelsDev: [record({ releaseDate: '2026-11-16', releaseMs: NOW - DAY })], openrouter: [] })
+    expect(payload.items).toEqual([])
   })
 
-  it('When OpenRouter and AA both register the same canonical model Then merges into one item with both badges', () => {
-    const payload = build({
-      modelsDev: [record()],
-      openrouter: [openrouter({ name: 'Claude Fable 5 (OpenRouter)' })],
-    })
+  it('When OpenRouter and models.dev share a canonical id Then enriches metadata but keeps only the OpenRouter badge', () => {
+    const payload = build({ modelsDev: [record()], openrouter: [openrouter({ name: 'Claude Fable 5 (OpenRouter)' })] })
     expect(payload.items).toHaveLength(1)
     expect(payload.items[0]).toMatchObject({
       id: 'anthropic/claude-fable-5', name: 'Claude Fable 5', creator: 'anthropic',
-      registeredIn: ['aa', 'openrouter'],
+      releaseDate: '2026-11-09', registeredIn: ['openrouter'],
     })
   })
 
   it('When an OpenRouter-only model matches models.dev by name Then enriches its metadata', () => {
     const payload = build({
-      modelsDev: [record({ releaseDate: '2026-09-01', releaseMs: Date.UTC(2026, 8, 1) })],
+      modelsDev: [record()],
       openrouter: [openrouter({
         canonicalId: 'reseller/claude-fable-5', modelId: 'reseller-claude', name: 'Claude Fable 5',
-        releaseDate: '2026-11-16', releaseMs: NOW - DAY,
       })],
     })
     expect(payload.items).toHaveLength(1)
     expect(payload.items[0]).toMatchObject({
-      id: 'anthropic/claude-fable-5', name: 'Claude Fable 5', creator: 'anthropic',
-      releaseDate: '2026-09-01', registeredIn: ['openrouter'],
+      id: 'anthropic/claude-fable-5', name: 'Claude Fable 5', creator: 'anthropic', registeredIn: ['openrouter'],
     })
   })
 
-  it('When registration is older than 7 days or deprecated Then excludes it', () => {
-    const payload = build({
-      modelsDev: [record({ releaseDate: '2026-11-09', releaseMs: NOW - 8 * DAY })],
-      openrouter: [openrouter({ canonicalId: 'old/x', modelId: 'old', releaseDate: '2026-11-08', releaseMs: NOW - 9 * DAY })],
-    })
+  it('When the OpenRouter registration is older than 7 days Then excludes it', () => {
+    const payload = build({ openrouter: [openrouter({ releaseDate: '2026-11-09', releaseMs: NOW - 8 * DAY })] })
     expect(payload.items).toEqual([])
   })
 
-  it('When models.dev is unavailable on a later run Then carries previous AA items and filters the window', () => {
-    const previous = build({ modelsDev: [record()] })
-    const payload = build({ modelsDev: null, previous })
-    expect(payload.items).toHaveLength(1)
-    expect(payload.items[0]).toMatchObject({ id: 'anthropic/claude-fable-5', registeredIn: ['aa'] })
-  })
-
-  it('When previous AA items are older than 7 days Then drops them on a 304/failure run', () => {
-    const previous = build({ modelsDev: [record()] })
-    const later = buildNewModels({
-      modelsDev: null,
-      openrouter: null,
-      previous,
-      sources,
-      nowMs: NOW + 8 * DAY,
-    })
-    expect(later.items).toEqual([])
-  })
-
-  it('When OpenRouter fails Then keeps previous OpenRouter badges while AA still refreshes', () => {
+  it('When OpenRouter is unavailable on a later run Then carries previous OpenRouter items and filters the window', () => {
     const previous = build({ openrouter: [openrouter()] })
     const payload = build({ modelsDev: [record()], openrouter: null, previous })
-    expect(payload.items[0]).toMatchObject({ registeredIn: ['aa', 'openrouter'] })
+    expect(payload.items).toHaveLength(1)
+    expect(payload.items[0]).toMatchObject({ id: 'anthropic/claude-fable-5', registeredIn: ['openrouter'] })
   })
 
-  it('When deprecated models arrive Then excludes them', () => {
-    const payload = build({ modelsDev: [record({ status: 'deprecated' })] })
-    expect(payload.items).toEqual([])
+  it('When previous items are older than 7 days Then drops them on a 304/failure run', () => {
+    const previous = build({ openrouter: [openrouter()] })
+    const later = buildNewModels({ modelsDev: null, openrouter: null, previous, sources, nowMs: NOW + 8 * DAY })
+    expect(later.items).toEqual([])
   })
 })

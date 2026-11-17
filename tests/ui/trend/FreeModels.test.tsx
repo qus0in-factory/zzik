@@ -35,7 +35,7 @@ const bySection: TrendGateway['fetchSection'] = async (section: TrendSection) =>
 })
 
 describe('Given the free-models section on /trend', () => {
-  it('When data loads Then shows hosted and local groups, badges, providers and source state', async () => {
+  it('When data loads Then shows OpenCode Go and Ollama Cloud groups, badges and source state', async () => {
     renderPage(bySection)
     expect(await screen.findByRole('heading', { name: '무료 모델' })).toBeTruthy()
     const section = within(screen.getByTestId('trend-free-models'))

@@ -62,9 +62,7 @@ function NewModelsSectionContent(): ReactNode {
                   {item.creator !== '' && <p className="mt-0.5 text-xs text-muted-foreground">{item.creator}</p>}
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {(item.registeredIn ?? []).map((source) => (
-                    badge(source === 'aa' ? t('trend.newModels.source.aa') : t('trend.newModels.source.openrouter'))
-                  ))}
+                  {(item.registeredIn ?? []).includes('openrouter') && badge(t('trend.newModels.source.openrouter'))}
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">

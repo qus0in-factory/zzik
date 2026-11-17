@@ -2,7 +2,7 @@
   "section": "new-models",
   "schemaVersion": 1,
   "generatedAt": "2026-11-17T00:00:00.000Z",
-  "rule": "aa-or-openrouter-registered-7d",
+  "rule": "openrouter-registered-7d",
   "sources": [
     {
       "id": "models.dev",
@@ -34,7 +34,7 @@
       ],
       "links": {},
       "registeredIn": [
-        "aa"
+        "openrouter"
       ]
     },
     {
@@ -55,7 +55,6 @@
       ],
       "links": {},
       "registeredIn": [
-        "aa",
         "openrouter"
       ]
     },

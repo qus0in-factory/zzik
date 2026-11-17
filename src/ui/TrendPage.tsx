@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { t } from '@shared/messages'
 import { SiteHeader } from './SiteHeader'
+import { Footer } from './components/Footer'
 import { TREND_LINKS } from './trend-links'
 import { FreeModelsSection } from './trend/FreeModelsSection'
 import { MetricsSection } from './trend/MetricsSection'
@@ -39,6 +40,7 @@ export function TrendPage(): ReactNode {
           </ul>
         </section>
       </main>
+      <Footer />
     </div>
   )
 }

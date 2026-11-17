@@ -1,7 +1,7 @@
 /**
- * `new-models` 섹션: 최근 7일 안에 Artificial Analysis 또는 OpenRouter에 새로 등록된 모델.
- * AA는 models.dev release_date(일 단위)를, OpenRouter는 `/models`의 created를 등록 시각으로 쓴다.
- * models.dev는 이름·제작사·가격 등 메타 보강에만 쓴다.
+ * `new-models` 섹션: 최근 7일 안에 OpenRouter에 새로 등록된 모델.
+ * OpenRouter `/models`의 `created`를 등록 시각으로 쓰고, models.dev는 이름·제작사·가격 등
+ * 메타 보강에만 쓴다. Artificial Analysis 데이터는 공개 재배포가 불가해 사용하지 않는다.
  */
 import {
   TREND_NEW_MODELS_RULE,
@@ -11,23 +11,17 @@ import {
 import type { TrendItem, TrendPrice, TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
 import type { TrendModelRecord } from '../sources'
 
-type RegisteredSource = 'aa' | 'openrouter'
-
 const MAX_ITEMS = 50
 const DEPRECATED = new Set(['deprecated', 'retired'])
 
 export interface NewModelsInput {
-  /** models.dev 200 응답. 304·실패면 null이고 이전 AA 항목을 재사용한다. */
+  /** models.dev 200 응답. 메타 보강용이며 304·실패면 null이다. */
   modelsDev: readonly TrendModelRecord[] | null
   /** OpenRouter 200 응답. 304·실패면 null이고 이전 OpenRouter 항목을 재사용한다. */
   openrouter: readonly TrendModelRecord[] | null
   previous: TrendSectionPayload | null
   sources: readonly TrendSourceState[]
   nowMs: number
-}
-
-function unionBadges(existing: TrendItem['registeredIn'], add: RegisteredSource): RegisteredSource[] {
-  return [...new Set<RegisteredSource>([...(existing ?? []), add])]
 }
 
 function normalizeName(value: string): string {
@@ -85,8 +79,6 @@ function matchCanonical(record: TrendModelRecord, groups: Map<string, TrendModel
 
 function makeItem(input: {
   metadata: readonly TrendModelRecord[]
-  badges: ('aa' | 'openrouter')[]
-  aaMs: number
   orMs: number
 }): TrendItem & { sortMs: number } {
   const chosen = representative(input.metadata)
@@ -104,76 +96,47 @@ function makeItem(input: {
     openWeights: input.metadata.some((record) => record.openWeights),
     providers,
     links: {},
-    registeredIn: input.badges,
-    extra: { aaMs: input.aaMs, orMs: input.orMs },
-    sortMs: Math.max(input.aaMs, input.orMs),
+    registeredIn: ['openrouter'],
+    extra: { orMs: input.orMs },
+    sortMs: input.orMs,
   }
 }
 
-function carriedItems(previous: TrendSectionPayload | null, source: 'aa' | 'openrouter', nowMs: number): Array<TrendItem & { sortMs: number }> {
+function carriedItems(previous: TrendSectionPayload | null, nowMs: number): Array<TrendItem & { sortMs: number }> {
   if (previous === null) return []
   const items: Array<TrendItem & { sortMs: number }> = []
   for (const item of previous.items) {
-    if (!Array.isArray(item.registeredIn) || !item.registeredIn.includes(source)) continue
-    const aaMs = typeof item.extra?.aaMs === 'number' ? item.extra.aaMs : 0
+    if (!Array.isArray(item.registeredIn) || !item.registeredIn.includes('openrouter')) continue
     const orMs = typeof item.extra?.orMs === 'number' ? item.extra.orMs : 0
-    if (!inWindow(aaMs, nowMs) && !inWindow(orMs, nowMs)) continue
-    const badges = (['aa', 'openrouter'] as const).filter((badge) => (badge === 'aa' ? inWindow(aaMs, nowMs) : inWindow(orMs, nowMs)))
-    items.push({ ...item, registeredIn: [...badges], extra: { ...item.extra, aaMs, orMs }, sortMs: Math.max(aaMs, orMs) })
+    if (!inWindow(orMs, nowMs)) continue
+    items.push({ ...item, registeredIn: ['openrouter'], extra: { ...item.extra, orMs }, sortMs: orMs })
   }
   return items
 }
 
-/** AA/OpenRouter 등록 후보를 canonical id로 합치고 모델 메타를 models.dev에서 보강한다. */
+/** OpenRouter 등록 후보만 canonical id로 합치고 models.dev 메타로 보강한다. */
 export function buildNewModels(input: NewModelsInput): TrendSectionPayload {
   const { nowMs } = input
   const devGroups = groupByCanonical(input.modelsDev ?? [])
   const index = catalogIndex(devGroups)
   const orGroups = groupByCanonical(input.openrouter ?? [])
 
-  const aaIds = new Set<string>()
-  for (const [id, group] of devGroups) {
-    const releaseMs = group.reduce((max, record) => Math.max(max, record.releasePrecision === 'day' ? record.releaseMs ?? 0 : 0), 0)
-    if (inWindow(releaseMs, nowMs)) aaIds.add(id)
-  }
-  const orIds = new Set<string>()
-  for (const [id, group] of orGroups) {
-    const createdMs = group.reduce((max, record) => Math.max(max, record.releaseMs ?? 0), 0)
-    if (inWindow(createdMs, nowMs)) orIds.add(id)
-  }
-
-  const allIds = new Set<string>([...aaIds, ...orIds])
   const fresh = new Map<string, TrendItem & { sortMs: number }>()
-  for (const id of allIds) {
-    const aaGroup = aaIds.has(id) ? devGroups.get(id) : undefined
-    const orGroup = orIds.has(id) ? orGroups.get(id) : undefined
-    let metadata = aaGroup ?? orGroup
-    if (metadata === undefined) continue
-    if (aaGroup === undefined && orGroup !== undefined) {
-      const matched = matchCanonical(orGroup[0]!, devGroups, index)
-      if (matched !== null) metadata = devGroups.get(matched) ?? orGroup
+  if (input.openrouter !== null) {
+    for (const [orId, group] of orGroups) {
+      const createdMs = group.reduce((max, record) => Math.max(max, record.releaseMs ?? 0), 0)
+      if (!inWindow(createdMs, nowMs)) continue
+      const matched = matchCanonical(group[0]!, devGroups, index)
+      const metadata = matched === null ? group : devGroups.get(matched) ?? group
+      const item = makeItem({ metadata, orMs: createdMs })
+      fresh.set(item.id === '' ? orId : item.id, item)
     }
-    const badges: ('aa' | 'openrouter')[] = []
-    if (aaIds.has(id)) badges.push('aa')
-    if (orIds.has(id)) badges.push('openrouter')
-    const aaMs = aaGroup?.reduce((max, record) => Math.max(max, record.releasePrecision === 'day' ? record.releaseMs ?? 0 : 0), 0) ?? 0
-    const orMs = orGroup?.reduce((max, record) => Math.max(max, record.releaseMs ?? 0), 0) ?? 0
-    fresh.set(id, makeItem({ metadata, badges, aaMs, orMs }))
   }
 
   const merged = new Map<string, TrendItem & { sortMs?: number }>(fresh)
-  if (input.modelsDev === null) {
-    for (const item of carriedItems(input.previous, 'aa', nowMs)) {
-      const existing = merged.get(item.id)
-      if (existing === undefined) merged.set(item.id, item)
-      else merged.set(item.id, { ...existing, registeredIn: unionBadges(existing.registeredIn, 'aa') })
-    }
-  }
   if (input.openrouter === null) {
-    for (const item of carriedItems(input.previous, 'openrouter', nowMs)) {
-      const existing = merged.get(item.id)
-      if (existing === undefined) merged.set(item.id, item)
-      else merged.set(item.id, { ...existing, registeredIn: unionBadges(existing.registeredIn, 'openrouter') })
+    for (const item of carriedItems(input.previous, nowMs)) {
+      if (!merged.has(item.id)) merged.set(item.id, item)
     }
   }
 

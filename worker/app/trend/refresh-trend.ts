@@ -1,6 +1,4 @@
 import {
-  TREND_FREE_MODELS_RULE,
-  TREND_NEW_MODELS_RULE,
   TREND_SOURCE_MODELS_DEV,
   TREND_SOURCE_OPENCODE_ZEN,
   TREND_SOURCE_OPENROUTER,
@@ -151,12 +149,6 @@ async function applyFreeModels(
   return { ok: !stale, written: !unchanged, count: payload.items.length, stale }
 }
 
-/** models.dev 한 출처로 new-models만 갱신한다(기존 단일 섹션 경로). */
-export async function refreshTrend(input: { store: TrendStore; source: TrendSource; nowMs: number }): Promise<TrendRefreshResult> {
-  const fetched = await fetchSource(input.store, input.source, input.nowMs)
-  return applyNewModels(input.store, fetched, undefined, input.nowMs)
-}
-
 /** cron 경로: 출처별로 격리해 new-models와 free-models를 함께 갱신한다. */
 export async function refreshTrendSections(input: {
   store: TrendStore
@@ -173,5 +165,3 @@ export async function refreshTrendSections(input: {
   const catalog = modelsDev !== undefined && isFresh(modelsDev.fetched) ? modelsDev.fetched.models ?? [] : null
   return { newModels, freeModels, sources, catalog }
 }
-
-export { TREND_FREE_MODELS_RULE, TREND_NEW_MODELS_RULE }
