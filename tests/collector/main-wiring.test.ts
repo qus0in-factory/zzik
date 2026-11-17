@@ -15,7 +15,7 @@ describe('Given a Grok Build credentials override', () => {
       }))
       const result = spawnSync(process.execPath, ['collector/main.mjs', '--once', '--dry-run', '--provider', 'grok', '--credentials-file', credentials], {
         encoding: 'utf8', timeout: 10_000,
-        env: { ...process.env, ZZIK_STORE: 'd1', ZZIK_STATE_DIR: dir, ZZIK_LOG_PATH: join(dir, 'log'), ZZIK_PROVIDERS: 'grok' },
+        env: { ...process.env, ZZIK_STORE: 'd1', ZZIK_STATE_DIR: dir, ZZIK_LOG_PATH: join(dir, 'log'), ZZIK_PROVIDERS: 'grok', ZZIK_OFFPEAK_NOTIFY: '1', ZZIK_ALERT_WEBHOOK_URL: 'https://discord.invalid/synthetic', ZZIK_ALERTS: '1' },
       })
       expect(result.stdout).toContain('status=token_expired')
       expect(result.stdout).toContain('called=0')

@@ -157,9 +157,9 @@ describe('Given gateway failure texts (이슈 #17: 원시 코드 노출 금지)'
   })
 })
 
-describe('Given Neon Free scale-to-zero budgeting', () => {
-  it('When polling usage Then waits fifteen minutes rather than waking the database every minute', () => {
-    expect(USAGE_POLL_INTERVAL_MS).toBe(900_000)
+describe('Given D1 reads and 180-second collection', () => {
+  it('When polling usage Then refetches on the shortest collection interval', () => {
+    expect(USAGE_POLL_INTERVAL_MS).toBe(180_000)
   })
 })
 

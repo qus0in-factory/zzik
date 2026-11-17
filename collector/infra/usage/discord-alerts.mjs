@@ -11,22 +11,27 @@ export function createDiscordAlerts({ webhookUrl, enabled = true, fetchImpl = gl
     try { log(`alerts=${status} count=${count} message=${status === 'dry_run' ? formatAlertPreview(events) : '[가림]'}`) } catch { /* logging must not affect collection */ }
     return {status,count}
   }
+  /** @param {string} content @param {number} count */
+  const sendMessage = async (content,count) => {
+    if (count === 0) return {status:'empty',count:0}
+    if (!enabled || !webhookUrl?.trim()) return record('disabled',count)
+    try {
+      const response = await fetchImpl(webhookUrl, {
+        method:'POST',redirect:'manual',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({content,allowed_mentions:{parse:[]}}),
+        signal:AbortSignal.timeout(DISCORD_ALERT_TIMEOUT_MS),
+      })
+      return record(response.ok ? 'sent' : 'failed',count)
+    } catch { return record('failed',count) }
+  }
   return {
     timeoutMs:DISCORD_ALERT_TIMEOUT_MS,
+    sendMessage,
     /** @param {AlertEvent[]} events @param {{dryRun?:boolean}} [options] */
     async send(events, options = {}) {
       if (options.dryRun) return record('dry_run',events.length,events)
-      if (events.length === 0) return {status:'empty',count:0}
-      if (!enabled || !webhookUrl?.trim()) return record('disabled',events.length)
-      try {
-        const response = await fetchImpl(webhookUrl, {
-          method:'POST',redirect:'manual',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({content:formatAlertMessage(events),allowed_mentions:{parse:[]}}),
-          signal:AbortSignal.timeout(DISCORD_ALERT_TIMEOUT_MS),
-        })
-        return record(response.ok ? 'sent' : 'failed',events.length)
-      } catch { return record('failed',events.length) }
+      return sendMessage(formatAlertMessage(events),events.length)
     },
   }
 }

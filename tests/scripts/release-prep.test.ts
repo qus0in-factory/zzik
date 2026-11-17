@@ -131,6 +131,7 @@ describe('Given the release preparation script', () => {
         'add',
         'package.json',
         'docs/screenshots/desktop.png',
+        'public/screenshots',
       ])
       expect(calls.find((call) => call.command === 'git' && call.args[0] === 'commit')?.args).toEqual(['commit', '-m', 'chore: release 1.2.4'])
       expect(calls.find((call) => call.command === 'git' && call.args[0] === 'push')?.args).toEqual(['push', 'origin', 'dev'])
