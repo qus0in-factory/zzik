@@ -152,7 +152,7 @@ describe('Given the 30 second now tick', () => {
 })
 
 describe('Given Query polling and window focus (가짜 타이머는 Query 주기 테스트에만)', () => {
-  it('When the interval elapses while visible then it refetches every 900 seconds', async () => {
+  it('When the interval elapses while visible then it refetches every 180 seconds', async () => {
     vi.useFakeTimers()
     try {
       const harness = makeHarness()
@@ -166,12 +166,12 @@ describe('Given Query polling and window focus (가짜 타이머는 Query 주기
       expect(result.current.state.status).toBe('ready')
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(900_000)
+        await vi.advanceTimersByTimeAsync(180_000)
       })
       expect(harness.gateway.calls).toBe(2)
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(900_000)
+        await vi.advanceTimersByTimeAsync(180_000)
       })
       expect(harness.gateway.calls).toBe(3)
     } finally {
