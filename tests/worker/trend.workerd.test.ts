@@ -167,7 +167,7 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
 
     const response = await mf.dispatchFetch('http://localhost/pub/trend/new-models')
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('public, max-age=300, stale-while-revalidate=3600')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=60, stale-while-revalidate=300')
     expect(response.headers.get('ETag')).toMatch(/^"[0-9a-f]{64}"$/)
     const body = await response.json() as { section: string; items: Array<{ id: string; providers: string[] }> }
     expect(body.section).toBe('new-models')

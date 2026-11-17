@@ -69,7 +69,7 @@ describe('Given public trend routes with a ready D1 store', () => {
     const s = setup()
     const res = await s.app.request('/pub/trend')
     expect(res.status).toBe(200)
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=300, stale-while-revalidate=3600')
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=60, stale-while-revalidate=300')
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(res.headers.get('ETag')).toMatch(/^".+"$/)
     expect((await res.json() as { sections: unknown[] }).sections).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'new-models', count: 1, checkedAt: payload.generatedAt, status: 'ok' })]))
@@ -98,7 +98,7 @@ describe('Given public trend routes with a ready D1 store', () => {
     const s = setup()
     const first = await s.app.request('/pub/trend/new-models')
     expect(first.status).toBe(200)
-    expect(first.headers.get('Cache-Control')).toBe('public, max-age=300, stale-while-revalidate=3600')
+    expect(first.headers.get('Cache-Control')).toBe('public, max-age=60, stale-while-revalidate=300')
     const etag = first.headers.get('ETag')!
     expect(etag).toMatch(/^"[0-9a-f]{64}"$/)
     expect(await first.json()).toMatchObject({ section: 'new-models', items: [{ id: 'anthropic/claude-x' }] })
