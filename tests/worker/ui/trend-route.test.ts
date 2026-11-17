@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
+import { TREND_METRICS_RULE } from '../../../shared/trend-contract'
 import type { TrendSectionRow, TrendSeenRow, TrendSourceStateRow, TrendStore } from '../../../worker/domain/trend/store'
 import { createRouter } from '../../../worker/ui/router'
 import { FakeStore, FakeVerifier } from '../../fakes/worker-ports'
@@ -13,18 +14,44 @@ const payload: TrendSectionPayload = {
   sources: [{ id: 'models.dev', fetchedAt: '2026-11-17T00:00:00.000Z', status: 'ok' }],
   items: [{ id: 'anthropic/claude-x', name: 'Claude X', creator: 'anthropic', releaseDate: '2026-11-16', precision: 'day', price: { input: 3, output: 15 }, free: false, openWeights: false, providers: ['anthropic'], links: {} }],
 }
+const metricsPayload: TrendSectionPayload = {
+  section: 'metrics',
+  schemaVersion: 1,
+  generatedAt: '2026-11-17T05:00:00.000Z',
+  rule: TREND_METRICS_RULE,
+  sources: [{ id: 'artificial-analysis', fetchedAt: '2026-11-17T05:00:00.000Z', status: 'ok' }],
+  items: [],
+  blocks: [
+    {
+      id: 'aa-intelligence', status: 'ok', asOf: '2026-11-17', version: '3.0',
+      entries: [{ id: 'a/x', name: 'A X', creator: 'A', rank: 1, rankDelta: null, kind: 'steady', index: 90 }],
+      attribution: 'Artificial Analysis — artificialanalysis.ai (Intelligence Index v3.0, 2026-11-17)',
+    },
+    {
+      id: 'or-usage', status: 'ok', asOf: '2026-11-17T04:00:00Z', asOfKind: 'source',
+      entries: [], attribution: 'Source: OpenRouter (openrouter.ai/rankings), as of 2026-11-17T04:00:00Z. Licensed under CC BY 4.0.',
+      license: { name: 'CC BY 4.0', url: 'https://creativecommons.org/licenses/by/4.0/' }, processed: true,
+    },
+  ],
+}
 const sha = 'a'.repeat(64)
 
 class FakeTrendStore implements TrendStore {
   reads = 0
   stored = JSON.stringify(payload)
+  metricsStored = JSON.stringify(metricsPayload)
   async readSection(section: TrendSection): Promise<TrendSectionRow | null> {
     this.reads += 1
-    return section === 'new-models' ? { section, payload: this.stored, payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) } : null
+    if (section === 'new-models') return { section, payload: this.stored, payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) }
+    if (section === 'metrics') return { section, payload: this.metricsStored, payloadSha256: sha, generatedAt: Date.parse(metricsPayload.generatedAt) }
+    return null
   }
   async readSections(): Promise<TrendSectionRow[]> {
     this.reads += 1
-    return [{ section: 'new-models', payload: this.stored, payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) }]
+    return [
+      { section: 'new-models', payload: this.stored, payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) },
+      { section: 'metrics', payload: this.metricsStored, payloadSha256: sha, generatedAt: Date.parse(metricsPayload.generatedAt) },
+    ]
   }
   async writeSection(_payload: TrendSectionPayload): Promise<string> { return sha }
   async readSourceState(_source: string): Promise<TrendSourceStateRow | null> { return null }
@@ -33,10 +60,10 @@ class FakeTrendStore implements TrendStore {
   async upsertSeen(_rows: readonly TrendSeenRow[]): Promise<void> {}
 }
 
-function setup() {
+function setup(options: { trendAaPublic?: boolean } = {}) {
   const verifier = new FakeVerifier(), store = new FakeStore(), assets = { calls: 0, async fetch() { this.calls++; return new Response('SPA') } }
   const trend = new FakeTrendStore()
-  return { verifier, store, assets, trend, app: createRouter({ config, verifier, store, trend, assets }) }
+  return { verifier, store, assets, trend, app: createRouter({ config, verifier, store, trend, assets, trendAaPublic: options.trendAaPublic }) }
 }
 
 describe('Given public trend routes with a ready D1 store', () => {
@@ -47,7 +74,7 @@ describe('Given public trend routes with a ready D1 store', () => {
     expect(res.headers.get('Cache-Control')).toBe('public, max-age=300, stale-while-revalidate=3600')
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(res.headers.get('ETag')).toMatch(/^".+"$/)
-    expect(await res.json()).toMatchObject({ sections: [{ id: 'new-models', count: 1, status: 'ok' }] })
+    expect((await res.json() as { sections: unknown[] }).sections).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'new-models', count: 1, status: 'ok' })]))
     expect(s.verifier.tokens).toEqual([])
     expect(s.store.reads).toBe(0)
     expect(s.assets.calls).toBe(0)
@@ -91,6 +118,28 @@ describe('Given public trend routes with a ready D1 store', () => {
     expect(res.status).toBe(500)
     expect(res.headers.get('Cache-Control')).toBe('no-store')
     expect(await res.json()).toEqual({ error: 'internal_error' })
+  })
+
+  it('When AA public is enabled Then /pub/trend/metrics exposes AA scores', async () => {
+    const s = setup({ trendAaPublic: true })
+    const res = await s.app.request('/pub/trend/metrics')
+    expect(res.status).toBe(200)
+    const body = await res.json() as { blocks: Array<{ id: string; status: string; entries: unknown[] }> }
+    const aa = body.blocks.find((block) => block.id === 'aa-intelligence')!
+    expect(aa.status).toBe('ok')
+    expect(aa.entries).toHaveLength(1)
+  })
+
+  it('When AA public is not enabled Then the AA block is hidden as under_review with no scores', async () => {
+    const s = setup()
+    const res = await s.app.request('/pub/trend/metrics')
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).not.toContain('\"index\":90')
+    const body = JSON.parse(text) as { blocks: Array<{ id: string; status: string; note?: string; entries: unknown[] }> }
+    const aa = body.blocks.find((block) => block.id === 'aa-intelligence')!
+    expect(aa).toMatchObject({ status: 'under_review', note: 'terms_review', entries: [] })
+    expect(body.blocks.find((block) => block.id === 'or-usage')).toMatchObject({ status: 'ok' })
   })
 
   it('When a valid section has no row Then 503 no-store; unknown section 404; POST 405; deep path 404', async () => {

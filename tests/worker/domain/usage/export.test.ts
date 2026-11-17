@@ -3,6 +3,7 @@ import {
   BUCKET_CRON,
   EXPORT_CRON,
   TREND_CRON,
+  METRICS_CRON,
   EXPORT_PART_MAX_BYTES,
   buildExportDocument,
   chunkRowsByEncodedBytes,
@@ -62,6 +63,7 @@ describe('Given a scheduled cron string', () => {
     [EXPORT_CRON, 'export'],
     [BUCKET_CRON, 'bucket'],
     [TREND_CRON, 'trend'],
+    [METRICS_CRON, 'metrics'],
     ['0 * * * *', 'unknown'],
     [undefined, 'unknown'],
   ] as const)('When cron is %s Then it is classified as %s', (cron, kind) => {

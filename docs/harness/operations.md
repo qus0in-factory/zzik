@@ -60,9 +60,9 @@
 | `shared/` | 실행 | 실행 | `done` (`src/` 동반 시 `verify`) |
 | 그 외 (`docs/` 등) | 생략 | 생략 | `done` |
 
-## 공개 트렌드 (#116 2~3단계)
+## 공개 트렌드 (#116 2~5단계)
 
-- 공개 경로: `/pub/trend`, `/pub/trend/new-models`, `/pub/trend/free-models`. Access 앱에 넣지 않는다.
+- 공개 경로: `/pub/trend`, `/pub/trend/new-models`, `/pub/trend/free-models`, `/pub/trend/metrics`. Access 앱에 넣지 않는다.
 - 수집 cron: `7 */2 * * *` (`TREND_CRON`). 한 번에 세 출처를 조건부 GET한다: models.dev `api.json`, OpenCode Zen `/zen/v1/models`, OpenRouter `/api/v1/models`. 출처별 실패는 격리한다(한 출처 실패가 다른 출처·섹션을 지우지 않고 해당 source만 `stale`).
 - `new-models`: models.dev 304면 저장된 `firstSeenAt`·`releaseMs`로 7일 창을 재평가하고 출처 상태를 `ok`로 회복한다.
 - `free-models`: 호스팅 무료(Zen `price 0` ∪ OpenRouter `:free`/가격 0)와 로컬 실행 가능(models.dev `ollama-cloud` + `open_weights`)을 최근 30일 창으로 고른다. deprecated·`expiration_date` 만료는 제외하고 canonical id로 중복 제거한다. 출처별 마지막 items를 저장 payload의 `sourceItems`에 보관해 실패/304 시 재사용하며, 공개 응답에서는 projection이 제거한다. 로컬 섹션은 호스팅 무료와 겹치는 모델을 호스팅 쪽 provider로 합친다.
@@ -70,6 +70,15 @@
 - 저장: D1 `trend_section`(섹션당 1행), `trend_source_state`(ETag·상태), `trend_model_seen`(canonical id·first_seen). 마이그레이션 `0002_trend.sql`. 200 응답에 ETag가 없으면 이전 값을 재사용하지 않고 `null`을 저장한다(현재 Zen·OpenRouter는 ETag를 보내지 않는다).
 - 공개 응답은 `worker/domain/trend/projection.ts`로 계약 필드만 투영한다(`extra` 등 제거). ETag는 저장 해시가 아니라 투영된 응답 본문의 SHA-256이다.
 - 메모리 게이트: 본문을 스트림으로 읽어 누적 20MiB 초과 시 중단하고, 20초 타이머는 본문 읽기 완료까지 유지한다. 로컬 Node 측정(2026-11-17)은 `api.json` 6,687,479 bytes → 문자열 12.75MiB + 파싱 11.83MiB = 약 24.6MiB heap으로 128MiB 한도 안이다. workerd 통합 테스트는 작은 고정 응답으로 경로를 검증하며, 실제 6.7MiB 원문의 workerd 피크를 측정한 것은 아니다.
-- 3단계에서 `new-models`·`free-models`가 실데이터다. `frontier`와 UI의 `요금제 추가`·`성능 지표`는 아직 준비 중 자리만 둔다.
+- 5단계 `metrics`는 일 1회 `37 4 * * *` (`METRICS_CRON`)에 갱신한다. Artificial Analysis `GET /api/v2/language/models/free?page=N`(헤더 `x-api-key`)와 OpenRouter Data API `GET /api/v1/datasets/rankings-daily?start_date=…&end_date=…`(`Authorization: Bearer …`)를 읽는다.
+  - 인증 요청은 `redirect:'manual'`로 보내고 3xx는 고정 실패로 처리한다. 다른 호스트로 키가 전달되지 않는다.
+  - Worker secret `AA_API_KEY`·`OR_API_KEY`는 `env`에서만 읽는다. 둘 다 없어도 기존 metrics payload가 있으면 외부 요청 없이 두 블록을 `not_configured`로 갱신한다. 한쪽만 없으면 해당 블록만 `not_configured`이고 다른 블록은 갱신된다.
+  - AA: `intelligence_index_version`이 같을 때만 7일 전 스냅샷과 순위를 비교한다(상위 15 + 16~30위 ±3위 변동). 버전이 바뀌면 변동을 리셋하고 `version_changed`를 표시한다. 7일 스냅샷이 없으면 `baseline`으로 현재 순위만 보여 준다.
+  - OpenRouter: 최근 7일 vs 직전 7일 점유율(`other` 포함 분모)과 순위를 비교한다. 토큰 절대값은 공개하지 않고 점유율·변동만 낸다. 응답은 14일 범위·날짜별 51행·중복 키·총 714행 예산을 검증하고, 위반 시 이전 스냅샷을 보존한다. `meta.version/start_date/end_date`를 보존하고 `meta.as_of`가 없으면 `asOfKind:'fetched'`로 조회 시각임을 구분한다. `CC BY 4.0` 라이선스 링크와 집계·가공 고지를 블록/UI에 포함한다.
+  - 실패 블록은 직전 공개 payload의 같은 블록을 `stale`로 유지한다. AA는 429/401을 구분해 로그에 `aa=429|unauthorized` 수준만 남기고 키·본문은 남기지 않는다.
+  - 저장: `trend_aa_snapshot`(일·slug, 90일 보존), `trend_or_ranking`(일·permaslug, 60일 보존, meta 컬럼 포함). 스냅샷 교체는 D1 `batch`로 원자화하고, 저장소 예외는 해당 출처만 stale로 낮춰 다른 출처 갱신을 막지 않는다. 마이그레이션 `0004_metrics.sql`(0003은 plan-models용으로 비워 둔다).
+  - AA 공개는 기본 비활성이다. `TREND_AA_PUBLIC='0'`(기본)이면 AA 수집·스냅샷 저장은 계속하되 공개 projection/UI에서 AA 블록을 `under_review`('출처 약관 확인 중')로 숨긴다. `='1'`일 때만 Intelligence Index 점수를 공개한다.
+  - AA 약관상 재배포 조건(Terms PDF) 확인 전에는 `TREND_AA_PUBLIC`을 켜지 않는다.
+- UI는 `요금제 추가`(준비 중) → 최신 → free → 성능 지표 → 참고 링크 순서다. `frontier`는 아직 준비 중이다.
 - section/seen/source-state 갱신은 개별 D1 쓰기라 원자적이지 않다. 중간 실패 시 다음 실행에서 다시 계산한다.
-- 원격 반영 순서(opus): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다.
+- 원격 반영 순서(opus): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다. `AA_API_KEY`·`OR_API_KEY`는 이미 운영 secret에 등록되어 있다고 가정한다.
