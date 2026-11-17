@@ -3,9 +3,9 @@ import { spawnSync, execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 // @ts-expect-error scripts/check-hangul-spacing.mjs is plain ESM checked by vitest
-import { findLongHangulRuns, changedMarkdownFiles } from '../../scripts/check-hangul-spacing.mjs'
+import { findLongHangulRuns } from '../../scripts/check-hangul-spacing.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/check-hangul-spacing.mjs', import.meta.url))
 const run = (args: string[]) => spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' })
@@ -74,11 +74,36 @@ describe('Given the Korean spacing checker', () => {
   })
 
   it('When no base is given Then changedMarkdownFiles compares against origin/main', () => {
-    const files = changedMarkdownFiles()
-    const expected = execFileSync('git', ['diff', '--name-only', '--diff-filter=d', 'origin/main...HEAD'], { encoding: 'utf8' })
-      .split(/\r?\n/)
-      .filter((file) => file !== '' && file.endsWith('.md'))
-    expect(files).toEqual(expected)
+    const directory = mkdtempSync(join(tmpdir(), 'zzik-spacing-git-'))
+    const git = (...args: string[]) => execFileSync('git', ['-c', `core.hooksPath=${join(directory, 'no-hooks')}`, ...args], { cwd: directory, stdio: 'pipe' })
+    try {
+      git('init')
+      writeFileSync(join(directory, 'deleted.md'), 'before\n')
+      writeFileSync(join(directory, 'changed.md'), 'before\n')
+      writeFileSync(join(directory, 'base-only.md'), 'before\n')
+      git('add', '.')
+      git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '-m', 'base')
+      writeFileSync(join(directory, 'base-only.md'), 'base branch\n')
+      git('add', '.')
+      git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '-m', 'base branch')
+      git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+      git('reset', '--hard', 'HEAD^')
+      rmSync(join(directory, 'deleted.md'))
+      writeFileSync(join(directory, 'changed.md'), 'after\n')
+      writeFileSync(join(directory, 'added.md'), 'added\n')
+      writeFileSync(join(directory, 'other.txt'), 'ignored\n')
+      git('add', '-A')
+      git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '-m', 'changes')
+
+      const output = execFileSync(process.execPath, [
+        '--input-type=module', '-e',
+        'const { changedMarkdownFiles } = await import(process.argv[1]); console.log(JSON.stringify(changedMarkdownFiles()))',
+        pathToFileURL(SCRIPT).href,
+      ], { cwd: directory, encoding: 'utf8' })
+      expect(JSON.parse(output)).toEqual(['added.md', 'changed.md'])
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   it('When --help is requested Then prints usage and exits 0', () => {
