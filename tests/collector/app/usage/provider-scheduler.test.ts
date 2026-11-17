@@ -146,3 +146,11 @@ describe('Given persisted provider state at scheduler restart',()=>{
   expect(h.notices).toEqual([])
  })
 })
+describe('Given Antigravity post-processing',()=>{
+ it('When models never finish Then quota starts remain at least 180 seconds apart and due is committed first',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation});const spawns:number[]=[];let post=0
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[{id:'antigravity',intervalSec:180,run:async({markStarted})=>{if(markStarted())spawns.push(h.clock.now());return {reason:'queued'}},afterRun:()=>{post++;expect(successValue(h.ledger.read('antigravity')).state.nextDueMs).toBe(h.clock.now()+180000);return new Promise<void>(()=>{})}}]})
+  scheduler.pump();await flush();expect(post).toBe(1);expect(scheduler.pending()).toHaveLength(0)
+  h.advance(179999);scheduler.pump();expect(spawns).toHaveLength(1);h.advance(1);scheduler.pump();await flush();expect(spawns[1]-spawns[0]).toBeGreaterThanOrEqual(180000)
+ })
+})

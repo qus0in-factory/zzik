@@ -13,8 +13,7 @@ export const MAX_AGY_CLI_OUTPUT_BYTES = 1_048_576
  * @param {{
  *   path?: string,
  *   args?: string[],
- *   signal?: AbortSignal,
- *   waitForCloseOnKill?: boolean,
+ *   onClose?: () => void,
  *   timeoutMs?: number,
  *   graceMs?: number,
  *   maxOutputBytes?: number,
@@ -26,8 +25,7 @@ export const MAX_AGY_CLI_OUTPUT_BYTES = 1_048_576
 export function runAgyQuotaCli({
   path = 'agy',
   args = ['-p', '/quota'],
-  signal,
-  waitForCloseOnKill = false,
+  onClose,
   timeoutMs = DEFAULT_AGY_CLI_TIMEOUT_MS,
   graceMs = DEFAULT_AGY_CLI_KILL_GRACE_MS,
   maxOutputBytes = MAX_AGY_CLI_OUTPUT_BYTES,
@@ -40,7 +38,6 @@ export function runAgyQuotaCli({
     let child = null
     let settled = false
     let timedOut = false
-    let aborted = false
     /** @type {NodeJS.Timeout|undefined} */
     let timer
     /** @type {NodeJS.Timeout|undefined} */
@@ -50,7 +47,6 @@ export function runAgyQuotaCli({
     const finish = (value) => {
       if (settled) return
       settled = true
-      signal?.removeEventListener('abort', abort)
       if (timer !== undefined) clearTimeout(timer)
       if (killTimer !== undefined) clearTimeout(killTimer)
       resolve(value)
@@ -66,14 +62,6 @@ export function runAgyQuotaCli({
       }
     }
 
-    const abort = () => {
-      aborted = true
-      if (timer !== undefined) clearTimeout(timer)
-      killGroup('SIGKILL')
-      // Keep the shared lane occupied until close confirms process termination.
-    }
-    if (signal?.aborted) { finish(null); return }
-    signal?.addEventListener('abort', abort, {once:true})
     try {
       child = spawnImpl(path, args, { detached: true, stdio: ['ignore', 'pipe', 'ignore'] })
     } catch {
@@ -90,20 +78,19 @@ export function runAgyQuotaCli({
       bytes += chunk.length
       if (bytes > maxOutputBytes) {
         killGroup('SIGKILL')
-        if (waitForCloseOnKill) { aborted = true; if (timer !== undefined) clearTimeout(timer) }
-        else finish(null)
+        finish(null)
         return
       }
       chunks.push(chunk)
     })
     proc.on('error', () => {
       killGroup('SIGKILL')
-      if (waitForCloseOnKill) { aborted = true; if (timer !== undefined) clearTimeout(timer) }
-      else finish(null)
+      finish(null)
     })
     proc.on('close', (code) => {
-      if (timedOut && !waitForCloseOnKill) return // 기존 quota timeout 동작 유지.
-      finish(!aborted && !timedOut && code === 0 ? Buffer.concat(chunks).toString('utf8') : null)
+      onClose?.()
+      if (timedOut) return // 독립 타이머가 grace 뒤에 resolve한다.
+      finish(code === 0 ? Buffer.concat(chunks).toString('utf8') : null)
     })
 
     timer = setTimeout(() => {
@@ -111,7 +98,7 @@ export function runAgyQuotaCli({
       killGroup('SIGTERM')
       killTimer = setTimeout(() => {
         killGroup('SIGKILL')
-        if (!waitForCloseOnKill) finish(null)
+        finish(null)
       }, graceMs)
     }, timeoutMs)
   })

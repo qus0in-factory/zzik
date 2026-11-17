@@ -1,6 +1,6 @@
 import {parseAgyModels,parseClaudeModels,parseGrokModels,planStatement} from '../../domain/trend/plan-models.mjs'
 const PERIOD=6*60*60*1000
-/** @param {{clock:{now():number},timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,state:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},retryState?:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},runAgy:()=>Promise<string|null>,readClaude:()=>string|null,readGrok?:()=>Promise<string|null>,query:{query(statements:import('../../../shared/d1-contract.ts').D1SqlStatement[]):Promise<{ok:boolean}>},providers?:string[],cancelAgy?:()=>void,claimNotice:(provider:string,at:number)=>boolean,notice:(provider:string)=>Promise<void>}} ports */
+/** @param {{clock:{now():number},timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,state:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},retryState?:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},runAgy:()=>Promise<string|null>,readClaude:()=>string|null,readGrok?:()=>Promise<string|null>,query:{query(statements:import('../../../shared/d1-contract.ts').D1SqlStatement[]):Promise<{ok:boolean}>},providers?:string[],cancelAgy?:()=>void,quotaTriggered?:boolean,claimNotice:(provider:string,at:number)=>boolean,notice:(provider:string)=>Promise<void>}} ports */
 export function createPlanModelsProbe(ports){
  const providers=(ports.providers??['antigravity','claude']).filter(p=>p==='antigravity'||p==='claude'||p==='grok')
  const retryState=ports.retryState??{read:async()=>null,write:async()=>{}}
@@ -13,7 +13,7 @@ export function createPlanModelsProbe(ports){
  const fail=async(/** @type {string} */provider)=>{try{if(ports.claimNotice(provider,ports.clock.now()))await ports.notice(provider)}catch{}}
  /** @param {unknown} state */
  const valid=state=>state===null||(typeof state==='object'&&!Array.isArray(state)&&Object.values(state).every(v=>Number.isSafeInteger(v)&&v>=0))
- const run=async()=>{
+ const run=async(/** @type {boolean} */agyOnly=false, /** @type {boolean} */skipAgy=false)=>{
   if(!loaded){
    try{
     const successes=await ports.state.read(),retries=await retryState.read()
@@ -25,6 +25,7 @@ export function createPlanModelsProbe(ports){
   }
   for(const provider of providers){
    if(stopped)return
+   if(ports.quotaTriggered && (agyOnly ? provider!=='antigravity' : provider==='antigravity'))continue
    const now=ports.clock.now()
    if((due[provider]??0)>now)continue
    due[provider]=now+PERIOD
@@ -32,6 +33,7 @@ export function createPlanModelsProbe(ports){
     // Persist the attempt before any external call, including across restarts.
     attempts={...attempts,[provider]:now};await retryState.write(attempts)
     if(stopped)return
+    if(provider==='antigravity' && skipAgy)continue
     const parsed=provider==='antigravity'?parseAgyModels(await ports.runAgy()):provider==='claude'?parseClaudeModels(ports.readClaude()):parseGrokModels(await ports.readGrok?.()??null)
     if(stopped)return
     if(!parsed.ok){await fail(provider);continue}
@@ -41,9 +43,10 @@ export function createPlanModelsProbe(ports){
    }catch{if(!stopped)await fail(provider)}
   }
  }
- const arm=()=>{if(!stopped&&Object.keys(due).length)cancel=ports.timer.schedule(Math.max(0,Math.min(...Object.values(due))-ports.clock.now()),()=>{if(stopped)return;active=run().finally(()=>{active=null;arm()})})}
+ const arm=()=>{const timed=Object.entries(due).filter(([p])=>!ports.quotaTriggered||p!=='antigravity').map(([,at])=>at);if(!stopped&&timed.length)cancel=ports.timer.schedule(Math.max(0,Math.min(...timed)-ports.clock.now()),()=>{if(stopped)return;if(active){void active.finally(arm);return}active=run().finally(()=>{active=null;arm()})})}
  return {
   start(){active=run().finally(()=>{active=null;arm()});return active},
+  async afterAgyQuota(/** @type {boolean} */closed=true){if(stopped||!ports.quotaTriggered)return;if(active)return;active=run(true,!closed).finally(()=>{active=null});return active},
   async shutdown(){stopped=true;cancel();ports.cancelAgy?.();if(active)await active},
  }
 }

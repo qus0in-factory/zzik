@@ -45,3 +45,24 @@ describe('Given Grok Build observations',()=>{
   const second=createPlanModelsProbe(options);await second.start();await second.shutdown();expect(calls).toBe(1)
  })
 })
+describe('Given quota-triggered Antigravity observation',()=>{
+ it('When quota ends Then models run only after the trigger and retry six hours after failure',async()=>{
+  let now=1000,calls=0
+  const probe=createPlanModelsProbe({quotaTriggered:true,providers:['antigravity'],clock:{now:()=>now},timer:{schedule:()=>()=>{}},state:{read:async()=>null,write:async()=>{}},retryState:{read:async()=>null,write:async()=>{}},runAgy:async()=>{calls++;return null},readClaude:()=>null,query:{query:async()=>({ok:true})},claimNotice:()=>false,notice:async()=>{}})
+  await probe.start();expect(calls).toBe(0);await probe.afterAgyQuota();expect(calls).toBe(1);now+=6*3600000-1;await probe.afterAgyQuota();expect(calls).toBe(1);now++;await probe.afterAgyQuota();expect(calls).toBe(2);await probe.shutdown()
+ })
+})
+describe('Given quota termination was not confirmed',()=>{
+ it('When a quota finishes without close Then models are skipped and a six hour retry is recorded',async()=>{
+  let now=1000,calls=0;let attempts:Record<string,number>={}
+  const probe=createPlanModelsProbe({quotaTriggered:true,providers:['antigravity'],clock:{now:()=>now},timer:{schedule:()=>()=>{}},state:{read:async()=>null,write:async()=>{}},retryState:{read:async()=>attempts,write:async(v:Record<string,number>)=>{attempts=v}},runAgy:async()=>{calls++;return null},readClaude:()=>null,query:{query:async()=>({ok:true})},claimNotice:()=>false,notice:async()=>{}})
+  await probe.start();await probe.afterAgyQuota(false);expect(attempts.antigravity).toBe(now);await probe.afterAgyQuota();expect(calls).toBe(0);now+=6*3600000;await probe.afterAgyQuota();expect(calls).toBe(1);await probe.shutdown()
+ })
+})
+describe('Given a timer fires during quota-triggered models',()=>{
+ it('When shutdown starts Then it waits for the active probe and prevents late writes or another timer run',async()=>{
+  let now=1000,scheduled:()=>void=()=>{},release!:(v:string|null)=>void,reads=0,writes=0
+  const probe=createPlanModelsProbe({quotaTriggered:true,providers:['antigravity','claude'],clock:{now:()=>now},timer:{schedule:(_ms:number,fn:()=>void)=>{scheduled=fn;return ()=>{}}},state:{read:async()=>null,write:async()=>{}},retryState:{read:async()=>null,write:async()=>{}},runAgy:()=>new Promise<string|null>(r=>{release=r}),readClaude:()=>{reads++;return null},query:{query:async()=>{writes++;return {ok:true}}},claimNotice:()=>false,notice:async()=>{}})
+  await probe.start();expect(reads).toBe(1);const model=probe.afterAgyQuota();for(let i=0;i<5;i++)await Promise.resolve();now+=6*3600000;scheduled();const shutdown=probe.shutdown();release('model\tModel');await Promise.all([model,shutdown]);await Promise.resolve();expect(reads).toBe(1);expect(writes).toBe(0)
+ })
+})
