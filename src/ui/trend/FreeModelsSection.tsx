@@ -5,8 +5,7 @@ import { useTrendDeps } from '@app/trend/TrendGatewayContext'
 import { TrendLoadError, useTrendSection } from '@app/trend/useTrendSection'
 
 const SOURCE_LABELS: Record<string, string> = {
-  'go-models': 'OpenCode Go',
-  'ollama-tags': 'Ollama Cloud',
+  'opencode-zen': 'OpenCode Zen',
 }
 
 function formatTime(iso: string): string {
@@ -34,7 +33,8 @@ function ItemCard({ item }: { item: TrendItem }): ReactNode {
           <p className="mt-0.5 text-xs text-muted-foreground">{item.creator}</p>
         </div>
         <div className="flex flex-wrap gap-1">
-          {item.free && badge(t('trend.freeModels.included'))}
+          {item.free && badge(t('trend.freeModels.badge.free'))}
+          {item.recentlyAdded && badge(t('trend.freeModels.badge.recent'), 'accent')}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -56,7 +56,7 @@ function Group({ title, items }: { title: string; items: readonly TrendItem[] })
   )
 }
 
-/** `/pub/trend/free-models`의 무료 모델 섹션. OpenCode Go와 Ollama Cloud 두 그룹을 보여 준다. */
+/** `/pub/trend/free-models`의 무료 모델 섹션. OpenCode Zen 무료 모델을 보여 준다. */
 export function FreeModelsSection(): ReactNode {
   const deps = useTrendDeps()
   if (!deps.enabled) return null
@@ -67,8 +67,7 @@ function FreeModelsSectionContent(): ReactNode {
   const query = useTrendSection('free-models')
   const { data, error, isError, isPending, refetch } = query
   const notReady = error instanceof TrendLoadError && error.reason === 'not_ready'
-  const opencodeGo = data?.items.filter((item) => item.freeKind === 'opencode-go') ?? []
-  const ollamaCloud = data?.items.filter((item) => item.freeKind === 'ollama-cloud') ?? []
+  const opencodeZen = data?.items.filter((item) => item.freeKind === 'opencode-zen') ?? []
   const stale = data?.sources.some((source) => source.status === 'stale') ?? false
 
   return (
@@ -91,10 +90,7 @@ function FreeModelsSectionContent(): ReactNode {
         <p className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{t('trend.freeModels.empty')}</p>
       )}
       {data !== undefined && data.items.length > 0 && (
-        <>
-          <Group title={t('trend.freeModels.group.opencodeGo')} items={opencodeGo} />
-          <Group title={t('trend.freeModels.group.ollamaCloud')} items={ollamaCloud} />
-        </>
+        <Group title={t('trend.freeModels.group.opencodeZen')} items={opencodeZen} />
       )}
       {data !== undefined && (
         <p className="mt-3 text-xs text-muted-foreground">

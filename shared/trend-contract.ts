@@ -7,8 +7,8 @@ export const TREND_SECTION_MAX_BYTES = 100_000
 export const TREND_NEW_MODELS_WINDOW_MS = 7 * 86_400_000
 export const TREND_NEW_MODELS_RELEASE_MAX_MS = 30 * 86_400_000
 export const TREND_NEW_MODELS_RULE = 'openrouter-registered-7d'
-export const TREND_FREE_MODELS_WINDOW_MS = 7 * 86_400_000
-export const TREND_FREE_MODELS_RULE = 'plan-included-opencode-go-ollama-cloud'
+export const TREND_FREE_MODELS_WINDOW_MS = 30 * 86_400_000
+export const TREND_FREE_MODELS_RULE = 'opencode-zen-free'
 export const TREND_PLAN_WINDOW_MS = 14 * 86_400_000
 export const TREND_PLAN_MODELS_RULE = 'plan-observation-14d'
 export const TREND_SOURCE_MODELS_DEV = 'models.dev'
@@ -39,7 +39,7 @@ export const TREND_OR_LICENSE_NAME = 'CC BY 4.0'
 export const TREND_OR_LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/'
 
 export type TrendPrecision = 'day' | 'month' | 'unknown'
-export type TrendFreeKind = 'opencode-go' | 'ollama-cloud'
+export type TrendFreeKind = 'opencode-zen'
 
 export interface TrendPrice {
   input: number
@@ -58,8 +58,9 @@ export interface TrendItem {
   openWeights: boolean
   providers: string[]
   links: { modelsDev?: string; openrouter?: string; opencode?: string }
-  /** free-models 전용: OpenCode Go 또는 Ollama Cloud 요금제 포함 그룹 */
+  /** free-models 전용: 무료 제공 출처 그룹 및 최근 30일 신규 추가 여부 */
   freeKind?: TrendFreeKind
+  recentlyAdded?: boolean
   /** new-models 전용: AA 또는 OpenRouter에 새로 등록된 출처 */
   registeredIn?: ('aa' | 'openrouter')[]
   extra?: Record<string, string | number | boolean>
