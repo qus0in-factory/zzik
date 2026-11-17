@@ -24,33 +24,33 @@ function AaModelTable({
   mode: AaTab
 }): ReactNode {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="w-full overflow-x-auto rounded-lg border border-border">
       <table className="w-full border-collapse text-left text-xs">
         <caption className="sr-only">{caption}</caption>
         <thead className="border-b border-border bg-muted/40 text-muted-foreground">
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">{t('usage.trend.col.rank')}</th>
-            <th scope="col" className="px-3 py-2 font-medium">{t('usage.trend.col.model')}</th>
-            <th scope="col" className="px-3 py-2 font-medium">{t('usage.trend.col.creator')}</th>
+            <th scope="col" className="whitespace-nowrap px-2.5 py-2 font-medium sm:px-3">{t('usage.trend.col.rank')}</th>
+            <th scope="col" className="whitespace-nowrap px-2.5 py-2 font-medium sm:px-3">{t('usage.trend.col.model')}</th>
+            <th scope="col" className="hidden whitespace-nowrap px-3 py-2 font-medium sm:table-cell">{t('usage.trend.col.creator')}</th>
             {mode === 'intelligence' && (
               <>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.intelligence')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.priceIn')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.priceOut')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.intelligence')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceIn')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceOut')}</th>
               </>
             )}
             {mode === 'price' && (
               <>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.priceIn')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.priceOut')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.intelligence')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceIn')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceOut')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.intelligence')}</th>
               </>
             )}
             {mode === 'speed' && (
               <>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.speed')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.ttft')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('usage.trend.col.intelligence')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.speed')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.ttft')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.intelligence')}</th>
               </>
             )}
           </tr>
@@ -58,28 +58,33 @@ function AaModelTable({
         <tbody className="divide-y divide-border">
           {rows.map((item, idx) => (
             <tr key={item.slug} className="hover:bg-muted/20">
-              <td className="px-3 py-2 tabular-nums text-muted-foreground">{idx + 1}</td>
-              <td className="px-3 py-2 font-medium text-foreground">{item.name}</td>
-              <td className="px-3 py-2 text-muted-foreground">{item.creator || '—'}</td>
+              <td className="whitespace-nowrap px-2.5 py-2 tabular-nums text-muted-foreground sm:px-3">{idx + 1}</td>
+              <td className="break-keep [overflow-wrap:anywhere] px-2.5 py-2 font-medium text-foreground sm:px-3">
+                <div>{item.name}</div>
+                {item.creator !== '' && (
+                  <div className="mt-0.5 text-[11px] font-normal text-muted-foreground sm:hidden">{item.creator}</div>
+                )}
+              </td>
+              <td className="hidden break-keep [overflow-wrap:anywhere] px-3 py-2 text-muted-foreground sm:table-cell">{item.creator || '—'}</td>
               {mode === 'intelligence' && (
                 <>
-                  <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatNum(item.intelligenceIndex, 1)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatNum(item.priceIn)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatNum(item.priceOut)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right font-semibold tabular-nums sm:px-3">{formatNum(item.intelligenceIndex, 1)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right tabular-nums text-muted-foreground sm:px-3">{formatNum(item.priceIn)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right tabular-nums text-muted-foreground sm:px-3">{formatNum(item.priceOut)}</td>
                 </>
               )}
               {mode === 'price' && (
                 <>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">{formatNum(item.priceIn)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">{formatNum(item.priceOut)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatNum(item.intelligenceIndex, 1)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right font-medium tabular-nums sm:px-3">{formatNum(item.priceIn)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right font-medium tabular-nums sm:px-3">{formatNum(item.priceOut)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right tabular-nums text-muted-foreground sm:px-3">{formatNum(item.intelligenceIndex, 1)}</td>
                 </>
               )}
               {mode === 'speed' && (
                 <>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">{formatNum(item.outputTokensPerSecond, 1)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">{formatNum(item.timeToFirstTokenSeconds, 2)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatNum(item.intelligenceIndex, 1)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right font-medium tabular-nums sm:px-3">{formatNum(item.outputTokensPerSecond, 1)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right font-medium tabular-nums sm:px-3">{formatNum(item.timeToFirstTokenSeconds, 2)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right tabular-nums text-muted-foreground sm:px-3">{formatNum(item.intelligenceIndex, 1)}</td>
                 </>
               )}
             </tr>
@@ -100,7 +105,7 @@ export function AaTrendPanel(): ReactNode {
   const notReady = error instanceof AaTrendLoadError && error.reason === 'not_ready'
 
   return (
-    <section aria-labelledby="usage-aa-trend-heading" className="mt-10 rounded-xl border border-border bg-card p-4 sm:p-5" data-testid="usage-aa-trend">
+    <section aria-labelledby="usage-aa-trend-heading" className="mt-10 w-full min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5" data-testid="usage-aa-trend">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 id="usage-aa-trend-heading" className="text-base font-semibold tracking-tight">{t('usage.trend.title')}</h2>
