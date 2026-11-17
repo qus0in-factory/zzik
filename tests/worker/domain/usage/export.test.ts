@@ -59,11 +59,15 @@ const manifest = (eventHighWaterId: string, overrides: Partial<ExportDocument['m
 })
 
 describe('Given a scheduled cron string', () => {
+  it('When the metrics schedule is configured Then it runs at 09:17 KST', () => {
+    expect(METRICS_CRON).toBe('17 0 * * *')
+  })
   it.each([
     [EXPORT_CRON, 'export'],
     [BUCKET_CRON, 'bucket'],
     [TREND_CRON, 'trend'],
-    [METRICS_CRON, 'metrics'],
+    ['17 0 * * *', 'metrics'],
+    ['37 4 * * *', 'unknown'],
     ['0 * * * *', 'unknown'],
     [undefined, 'unknown'],
   ] as const)('When cron is %s Then it is classified as %s', (cron, kind) => {

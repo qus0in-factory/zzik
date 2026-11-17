@@ -51,6 +51,7 @@ export function createWorker(deps: {
   exportSource?: (env: Env) => ExportSource | null
   exportSink?: (env: Env) => ExportSink | null
   trendFetch?: typeof fetch
+  logTrend?: (message: string) => void
   now?: () => number
 } = {}) {
   const exportSource = deps.exportSource ?? ((env: Env) => env.DB === undefined ? null : new D1ExportSource(env.DB))
@@ -77,7 +78,12 @@ export function createWorker(deps: {
       const nowMs = controller.scheduledTime ?? deps.now?.() ?? Date.now()
       const kind = classifyScheduledCron(controller.cron)
       if (kind === 'trend') {
-        if (env.DB === undefined) return
+        const logTrend = deps.logTrend ?? ((message: string) => console.log(message))
+        logTrend('trend_refresh:start')
+        if (env.DB === undefined) {
+          logTrend('trend_refresh_failed:missing_db')
+          return
+        }
         try {
           const fetchImpl = deps.trendFetch ?? globalThis.fetch
           const result = await refreshTrendSections({
@@ -108,6 +114,7 @@ export function createWorker(deps: {
           } catch {
             console.error('trend_plan_failed:unexpected')
           }
+          logTrend('trend_refresh:complete')
         } catch {
           console.error('trend_refresh_failed:unexpected')
         }

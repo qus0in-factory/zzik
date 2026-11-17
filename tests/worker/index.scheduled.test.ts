@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createWorker } from '../../worker/index'
 import type { Env } from '../../worker/infra/env'
-import { EXPORT_CRON } from '../../worker/domain/usage/export'
+import { EXPORT_CRON, TREND_CRON } from '../../worker/domain/usage/export'
 import type { ExportEventRow } from '../../worker/domain/usage/export'
 import { FakeExportSink, FakeExportSource } from '../fakes/export-ports'
 
@@ -24,6 +24,13 @@ const event: ExportEventRow = {
 }
 
 describe('Given the Worker scheduled entrypoint', () => {
+  it('When the trend binding is absent Then the scheduled attempt records the reason', async () => {
+    const entries: string[] = []
+    const worker = createWorker({ logTrend: (message) => entries.push(message) })
+    await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW }, env)
+    expect(entries).toEqual(['trend_refresh:start', 'trend_refresh_failed:missing_db'])
+  })
+
   it('When the export cron runs with injected bindings Then it writes and logs without touching fetch', async () => {
     const source = new FakeExportSource()
     source.events = [event]

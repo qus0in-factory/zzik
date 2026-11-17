@@ -11,7 +11,7 @@ export const BUCKET_CRON = '*/15 * * * *'
 /** Public trend refresh: every two hours, off the other cron boundaries. */
 export const TREND_CRON = '7 */2 * * *'
 /** Public metrics refresh: daily, after the trend collection cron. */
-export const METRICS_CRON = '37 4 * * *'
+export const METRICS_CRON = '17 0 * * *'
 
 /** ADR cap: a page never exceeds 1,000 rows. */
 export const EXPORT_EVENT_PAGE_MAX_ROWS = 1_000
