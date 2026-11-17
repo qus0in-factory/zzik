@@ -47,7 +47,7 @@ export interface UsageEnvelope {
   retryAt: string | null
   /** Claude 자격 증명의 expiresAt, 모르면 null */
   tokenExpiresAt: string | null
-  /** 이전 봉투와의 호환 필드. Postgres 단독 수집에서는 null */
+  /** 이전 봉투와의 호환 필드. 현재 수집에서는 null */
   kvTokenExpiresAt: string | null
   /** 수집 주기(초) */
   intervalSec: number

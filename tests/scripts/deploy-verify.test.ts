@@ -59,7 +59,7 @@ function makeExecutor(handler: Handler) {
 function makeRelease(version = '0.6.25') {
   const directory = mkdtempSync(join(tmpdir(), 'zzik-deploy-'))
   writeFileSync(join(directory, 'package.json'), `${JSON.stringify({ name: 'zzik', version }, null, 2)}\n`)
-  writeFileSync(join(directory, '.env'), 'DB_URL=placeholder\n')
+  writeFileSync(join(directory, '.env'), 'ZZIK_D1_AUTH=wrangler-oauth\n')
   return directory
 }
 
@@ -179,17 +179,7 @@ describe('Given the deploy verification script', () => {
       rmSync(release, { recursive: true, force: true })
     }
 
-    const noEnv = makeRelease()
-    rmSync(join(noEnv, '.env'))
-    const noEnvExec = makeExecutor(successHandler())
-    try {
-      const result = (await runDeployVerify({ releaseDir: noEnv, execute: noEnvExec.execute, deploy: true })) as DeployResult
-      expect(result.ok).toBe(false)
-      expect(result.steps.find((step) => step.name === 'db_workerd')).toMatchObject({ status: 'FAIL', reason: 'env_missing' })
-      expect(result.steps.find((step) => step.name === 'deploy')).toMatchObject({ status: 'SKIP', reason: 'preflight_failed' })
-    } finally {
-      rmSync(noEnv, { recursive: true, force: true })
-    }
+
   })
 
   it('When a 302 path, verify-zzik or live shape fails Then reports the specific step FAIL without raw output', async () => {

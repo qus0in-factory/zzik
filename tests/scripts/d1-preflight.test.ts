@@ -22,7 +22,7 @@ interface PreflightResult {
 function makePorts(overrides: Record<string, unknown> = {}) {
   return {
     pm2: {
-      readProcess: async () => ({ ok: true as const, value: { status: 'stopped', zzikStore: 'postgres' } }),
+      readProcess: async () => ({ ok: true as const, value: { status: 'stopped', zzikStore: 'd1' } }),
     },
     ledger: {
       inspect: async () => ({ ok: true as const, value: { exists: true, marker: 'active' as const, outboxCount: 0 } }),
@@ -30,7 +30,7 @@ function makePorts(overrides: Record<string, unknown> = {}) {
     worker: {
       readDeployment: async () => ({
         ok: true as const,
-        value: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'postgres' },
+        value: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'd1' },
       }),
     },
     ...overrides,
@@ -42,8 +42,8 @@ describe('Given the dry-run D1 cutover preflight script', () => {
     const result = (await runD1Preflight(makePorts(), {
       stateDir: '/var/lib/zzik-fake',
       expectedPm2Status: 'stopped',
-      expectedZzikStore: 'postgres',
-      expectedReadStore: 'postgres',
+      expectedZzikStore: 'd1',
+      expectedReadStore: 'd1',
     })) as PreflightResult
 
     expect(result.ok).toBe(true)
@@ -63,7 +63,7 @@ describe('Given the dry-run D1 cutover preflight script', () => {
       makePorts({
         pm2: { readProcess: async () => ({ ok: true as const, value: { status: 'online', zzikStore: 'kv' } }) },
       }),
-      { stateDir: '/var/lib/zzik-fake', expectedPm2Status: 'stopped', expectedZzikStore: 'postgres' },
+      { stateDir: '/var/lib/zzik-fake', expectedPm2Status: 'stopped', expectedZzikStore: 'd1' },
     )) as PreflightResult
 
     expect(result.ok).toBe(false)
@@ -98,11 +98,11 @@ describe('Given the dry-run D1 cutover preflight script', () => {
         worker: {
           readDeployment: async () => ({
             ok: true as const,
-            value: { exportDeployed: true, bucketDeployed: false, usageReadStore: 'd1' },
+            value: { exportDeployed: true, bucketDeployed: false, usageReadStore: 'postgres' },
           }),
         },
       }),
-      { stateDir: '/var/lib/zzik-fake', expectedReadStore: 'postgres' },
+      { stateDir: '/var/lib/zzik-fake', expectedReadStore: 'd1' },
     )) as PreflightResult
 
     expect(result.ok).toBe(false)
@@ -164,22 +164,11 @@ describe('Given the preflight CLI branches', () => {
   const tmp = () => mkdtempSync(join(tmpdir(), 'zzik-preflight-'))
   const run = (args: string[]) => spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' })
 
-  it('When online PG has never created a D1 ledger Then default pre-cutover checks pass without creating one',()=>{
-    const dir=tmp()
-    try{
-      const evidence=join(dir,'evidence.json');writeFileSync(evidence,JSON.stringify({pm2:{status:'online',zzikStore:'postgres'},worker:{exportDeployed:true,bucketDeployed:true,usageReadStore:'postgres'}}))
-      const result=run(['--state-dir',dir,'--evidence',evidence]);expect(result.status).toBe(0)
-      const body=JSON.parse(result.stdout) as PreflightResult;expect(body.ok).toBe(true);expect(body.checks.every(c=>c.status==='PASS')).toBe(true)
-      expect(body.checks.find(c=>c.name==='ledger_exists')).toMatchObject({reason:'initial_postgres_no_ledger'})
-      expect(readdirSync(dir)).toEqual(['evidence.json'])
-    }finally{rmSync(dir,{recursive:true,force:true})}
-  })
-
   it('When a marker exists or a ledger file is empty/corrupt Then never treats it as initial PG absence',()=>{
     for(const state of ['marker','empty','corrupt']){
       const dir=tmp()
       try{
-        const evidence=join(dir,'evidence.json');writeFileSync(evidence,JSON.stringify({pm2:{status:'online',zzikStore:'postgres'},worker:{exportDeployed:true,bucketDeployed:true,usageReadStore:'postgres'}}))
+        const evidence=join(dir,'evidence.json');writeFileSync(evidence,JSON.stringify({pm2:{status:'online',zzikStore:'d1'},worker:{exportDeployed:true,bucketDeployed:true,usageReadStore:'d1'}}))
         if(state==='marker')writeFileSync(join(dir,'collector-ledger.marker.json'),'{"status":"active"}')
         else writeFileSync(join(dir,'collector-ledger.sqlite'),state==='empty'?'':'not sqlite')
         const result=run(['--state-dir',dir,'--evidence',evidence]);expect(result.status).toBe(1)
@@ -216,13 +205,13 @@ describe('Given the preflight CLI branches', () => {
     }
   })
 
-  it('When the evidence already says d1 and the CLI defaults are pre-cutover Then store checks FAIL', () => {
+  it('When stale PG evidence is supplied Then D1-only defaults reject it', () => {
     const dir = tmp()
     try {
       const evidence = join(dir, 'evidence.json')
       writeFileSync(evidence, JSON.stringify({
-        pm2: { status: 'online', zzikStore: 'd1' },
-        worker: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'd1' },
+        pm2: { status: 'online', zzikStore: 'postgres' },
+        worker: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'postgres' },
       }))
       const result = run(['--state-dir', dir, '--evidence', evidence])
       expect(result.status).toBe(1)
@@ -241,8 +230,8 @@ describe('Given the preflight CLI branches', () => {
     try {
       const evidence = join(dir, 'evidence.json')
       writeFileSync(evidence, JSON.stringify({
-        pm2: { status: 'online', zzikStore: 'postgres' },
-        worker: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'postgres' },
+        pm2: { status: 'online', zzikStore: 'd1' },
+        worker: { exportDeployed: true, bucketDeployed: true, usageReadStore: 'd1' },
       }))
       const result = run(['--state-dir', dir, '--evidence', evidence, '--expected-pm2-status', 'stopped'])
       const body = JSON.parse(result.stdout) as PreflightResult

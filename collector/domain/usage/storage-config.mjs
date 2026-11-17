@@ -1,12 +1,11 @@
 import {DEFAULT_COLLECTOR_OAUTH_PROFILE,isCollectorOAuthProfile} from './d1-oauth-profile.mjs'
 import {readIntervalPolicy} from './interval-policy.mjs'
 /** @param {Record<string,string|undefined>} env @param {{dryRun?:boolean,capability?:unknown}} options
- * @returns {{ok:true,mode:'postgres'|'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}|{ok:false,reason:string}}
+ * @returns {{ok:true,mode:'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}|{ok:false,reason:string}}
  */
 export function readStorageConfig(env, options = {}) {
-  const mode = env.ZZIK_STORE ?? 'postgres'
-  if (mode !== 'postgres' && mode !== 'd1') return {ok:false,reason:'InvalidStoreMode'}
-  if (!options.dryRun && mode==='postgres' && !env.DB_URL?.trim()) return {ok:false,reason:'MissingDatabaseConfiguration'}
+  const mode = env.ZZIK_STORE ?? 'd1'
+  if (mode !== 'd1') return {ok:false,reason:'InvalidStoreMode'}
   const auth=env.ZZIK_D1_AUTH??'api-token'
   if(mode==='d1'&&!['api-token','wrangler-oauth'].includes(auth))return {ok:false,reason:'InvalidD1AuthMode'}
   if(!options.dryRun && mode==='d1' && (auth==='api-token'&&!env.ZZIK_D1_API_TOKEN?.trim()||!env.ZZIK_D1_ACCOUNT_ID?.trim()||!env.ZZIK_D1_DATABASE_ID?.trim()))return {ok:false,reason:'MissingD1Configuration'}

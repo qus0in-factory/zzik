@@ -71,10 +71,7 @@ export interface LayerViolation {
  * assembly: 조립 루트 파일(src/main.tsx, worker/index.ts)에서의 허용.
  */
 const PACKAGE_ALLOWED: Record<string, readonly { root: string; layer?: Layer; assembly?: boolean }[]> = {
-  postgres: [
-    { root: 'collector', assembly: true },
-    { root: 'worker', assembly: true },
-  ],
+  postgres: [],
   'drizzle-orm': [
     { root: 'worker', layer: 'infra' },
     { root: 'worker', assembly: true },
@@ -547,7 +544,7 @@ describe('Given database isolation from the frontend', () => {
   })
   it('When postgres imports appear Then only the two composition roots are allowed', () => {
     expect(findViolations([probe('collector/infra/usage/bad.mjs', "import postgres from 'postgres'")])).not.toEqual([])
-    expect(findViolations([probe('collector/main.mjs', "import postgres from 'postgres'")])).toEqual([])
+    expect(findViolations([probe('collector/main.mjs', "import postgres from 'postgres'")])).not.toEqual([])
     expect(findViolations([probe('worker/infra/bad.ts', "import postgres from 'postgres'")])).not.toEqual([])
   })
 })

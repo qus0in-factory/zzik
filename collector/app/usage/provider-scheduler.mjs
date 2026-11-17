@@ -1,9 +1,9 @@
 /** Persistent due/start times; caller pumps current eligibility, never historical ticks. */
-/** @param {{mode:'postgres'|'d1',providers:import('../../domain/usage/scheduler-types.ts').ScheduledProvider[],ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,clock:{now():number},canCollect:(provider:import('../../../shared/usage-contract.ts').UsageProvider)=>boolean,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort}} options */
+/** @param {{mode:'d1',providers:import('../../domain/usage/scheduler-types.ts').ScheduledProvider[],ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,clock:{now():number},canCollect:(provider:import('../../../shared/usage-contract.ts').UsageProvider)=>boolean,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort}} options */
 export function createProviderScheduler(options){
  let stopping=false,failed=false
  /** @type {Map<string,Promise<unknown>>} */const active=new Map()
- const limit=options.mode==='d1'?2:1
+ const limit=2
  const notify=async(reason='',provider='')=>{try{await options.notice.notify({reason,provider})}catch{}}
  return {
   stop(){stopping=true},

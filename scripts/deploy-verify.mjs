@@ -29,7 +29,7 @@ export const UNAUTH_PATHS = Object.freeze([
 export const PROVIDERS = Object.freeze(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
 
 const APP_BODY_MARKER = 'Hello Young-In'
-const DB_WORKERD_TEST = 'tests/worker/infra/usage/db.workerd.test.ts'
+const DB_WORKERD_TEST = 'tests/worker/read-wiring.workerd.test.ts'
 
 /** @param {readonly string[]} files @returns {Scope} */
 export function classifyScope(files) {
@@ -185,25 +185,19 @@ export async function runDeployVerify(options = {}) {
   }
 
   let preflightOk = true
-  if (!existsSync(resolve(releaseDir, '.env'))) {
+  const db = await execute('node', ['node_modules/vitest/vitest.mjs', 'run', DB_WORKERD_TEST], { cwd: releaseDir, timeoutMs: 900_000 })
+  if (db.exitCode !== 0) {
     preflightOk = false
-    steps.push({ name: 'db_workerd', status: 'FAIL', reason: 'env_missing' })
+    steps.push({ name: 'db_workerd', status: 'FAIL', reason: 'db_workerd_failed' })
   } else {
-    const db = await execute('node', ['--env-file=.env', 'node_modules/vitest/vitest.mjs', 'run', DB_WORKERD_TEST], { cwd: releaseDir, timeoutMs: 900_000 })
-    if (db.exitCode !== 0) {
+    const classified = classifyVitest(db.stdout)
+    if (!classified.ok) {
       preflightOk = false
-      steps.push({ name: 'db_workerd', status: 'FAIL', reason: 'db_workerd_failed' })
+      steps.push({ name: 'db_workerd', status: 'FAIL', reason: classified.reason })
     } else {
-      const classified = classifyVitest(db.stdout)
-      if (!classified.ok) {
-        preflightOk = false
-        steps.push({ name: 'db_workerd', status: 'FAIL', reason: classified.reason })
-      } else {
-        steps.push({ name: 'db_workerd', status: 'PASS' })
-      }
+      steps.push({ name: 'db_workerd', status: 'PASS' })
     }
   }
-
   let deployed = false
   if (!deployRequested) {
     steps.push({ name: 'deploy', status: 'SKIP', reason: 'flag_not_set' })
@@ -302,7 +296,7 @@ export async function runDeployVerify(options = {}) {
 function usage() {
   process.stdout.write(
     'node scripts/deploy-verify.mjs [--dry-run] [--deploy] [--release <dir>] [--origin <url>] [--workers-subdomain <sub>] [--base <rev>]\n' +
-      'Default: read-only release/clean/version/scope, db.workerd, cookie-less 302 paths, verify-zzik and usage-live-shape checks. No deploy.\n' +
+      'Default: read-only release/clean/version/scope, D1 workerd, cookie-less 302 paths, verify-zzik and usage-live-shape checks. No deploy.\n' +
       '--deploy: run pnpm run deploy only after the preflight checks pass. --dry-run: print the plan and run nothing.\n' +
       'Output is step-level PASS/FAIL JSON; command output, Location headers and credentials are never printed.\n',
   )

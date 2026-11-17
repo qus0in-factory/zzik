@@ -1,3 +1,5 @@
+> G1 현재 상태: D1 단독 런타임이다. 아래 단계별 구현 기록 중 PG/꺼진 경로/PG복귀 설명은 당시 이력이며 현재 운영 명령은 docs/d1-d-cutover.md를 따른다. 기본 PM2 env가 D1이며 PostgreSQL 드라이버/백필 도구는 제거됐다.
+
 # D1 REST writer의 전용 Wrangler OAuth 자격
 
 `ZZIK_D1_AUTH=wrangler-oauth`는 자격 공급만 바꾸며 기존 REST query/batch sender를 유지한다. 기본 `api-token`과 `ZZIK_STORE=postgres` 경로는 바꾸지 않는다. PG에서는 OAuth 파일 읽기·명령 실행이 없다. 이번 patch는 운영 env/PM2/플래그를 변경하지 않는다.
