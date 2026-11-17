@@ -141,6 +141,8 @@ describe('Given scripts/ship.mjs --apply execution and scope branching', () => {
     expect(result.kind).toBe('verify')
     const ran = fake.calls.map((c) => [c.command, ...c.args].join(' '))
     expect(ran.some((c) => c.includes('deploy-verify.mjs --deploy'))).toBe(true)
+    // deploy-verify refuses to run without an explicit release checkout.
+    expect(ran.some((c) => /deploy-verify\.mjs --deploy --release \S+/.test(c))).toBe(true)
     expect(ran.some((c) => c.includes('collector-apply.mjs --apply'))).toBe(true)
   })
 })
