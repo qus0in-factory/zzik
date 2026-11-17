@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import type { TrendGateway } from '@domain/trend/gateway'
 import type { TrendSection, TrendSectionPayload } from '@shared/trend-contract'
 import { TrendGatewayProvider } from '@app/trend/TrendGatewayContext'
 import { TrendPage } from '@ui/TrendPage'
+import { METRICS_VIEW_STORAGE_KEY } from '@ui/trend/MetricsSection'
 import { createDeferred } from '../../fakes/usage-ports'
 import { createTestQueryClient } from '../../helpers/query'
 import metricsFixture from '../../fixtures/trend/metrics.payload.json'
@@ -17,7 +18,10 @@ const metrics = metricsFixture as TrendSectionPayload
 const free = freeFixture as TrendSectionPayload
 const latest = newFixture as TrendSectionPayload
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  window.localStorage.clear()
+})
 
 function renderPage(fetchSection: TrendGateway['fetchSection']) {
   render(
@@ -51,7 +55,83 @@ describe('Given the metrics section on /trend', () => {
     expect(section.getByText('OpenRouter 일별 순위를 최근·직전 7일로 집계·가공한 요약입니다.')).toBeTruthy()
     const license = section.getByRole('link', { name: 'CC BY 4.0' })
     expect(license.getAttribute('href')).toBe('https://creativecommons.org/licenses/by/4.0/')
+    expect(await section.findByTestId('trend-metrics-treemap')).toBeTruthy()
+    expect(section.getAllByTestId('trend-treemap-cell')).toHaveLength(2)
+    expect(section.getByText('▲ 2.0pt')).toBeTruthy()
+    expect(section.getByText('▼ 1.0pt')).toBeTruthy()
+    expect(section.getByTestId('trend-metrics-view-treemap').getAttribute('aria-pressed')).toBe('true')
+    expect(section.getByTestId('trend-metrics-view-table').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('When the table toggle is clicked Then switches to the table, persists, and switches back', async () => {
+    renderPage(bySection)
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByTestId('trend-metrics-treemap')).toBeTruthy()
+    fireEvent.click(section.getByTestId('trend-metrics-view-table'))
+    expect(section.getByTestId('trend-metrics-table')).toBeTruthy()
     expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
+    expect(section.getByTestId('trend-metrics-view-table').getAttribute('aria-pressed')).toBe('true')
+    expect(window.localStorage.getItem(METRICS_VIEW_STORAGE_KEY)).toContain('"table"')
+    fireEvent.click(section.getByTestId('trend-metrics-view-treemap'))
+    expect(section.getByTestId('trend-metrics-treemap')).toBeTruthy()
+    expect(section.queryByTestId('trend-metrics-table')).toBeNull()
+    expect(window.localStorage.getItem(METRICS_VIEW_STORAGE_KEY)).toContain('"treemap"')
+  })
+
+  it('When table view was saved Then opens in table view', async () => {
+    window.localStorage.setItem(METRICS_VIEW_STORAGE_KEY, JSON.stringify({ version: 1, mode: 'table' }))
+    renderPage(bySection)
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByTestId('trend-metrics-table')).toBeTruthy()
+    expect(section.getByTestId('trend-metrics-view-table').getAttribute('aria-pressed')).toBe('true')
+    expect(section.queryByTestId('trend-metrics-treemap')).toBeNull()
+  })
+
+  it('When a cell is too small Then omits its visible label but keeps title and the sr-only list', async () => {
+    const block = metrics.blocks![0]!
+    const payload = {
+      ...metrics,
+      blocks: [{
+        ...block,
+        entries: [...block.entries, { id: 'tiny', name: 'Tiny Model', creator: 'tiny', rank: 3, rankDelta: null, kind: 'steady' as const, share7d: 0.001 }],
+      }],
+    }
+    renderPage(async () => ({ ok: true, value: payload }))
+    await screen.findByTestId('trend-metrics-treemap')
+    const cells = screen.getAllByTestId('trend-treemap-cell')
+    expect(cells).toHaveLength(3)
+    const tiny = cells.find((cell) => cell.getAttribute('data-entry-id') === 'tiny')!
+    expect(tiny.getAttribute('data-label-visible')).toBe('false')
+    expect(tiny.getAttribute('title')).toContain('Tiny Model')
+    expect(tiny.getAttribute('title')).toContain('점유율 0.1%')
+    expect(screen.getByTestId('trend-treemap-sr-list').textContent).toContain('Tiny Model')
+    expect(screen.getByTestId('trend-treemap-sr-list').querySelectorAll('li')).toHaveLength(3)
+  })
+
+  it('When an entry is other Then paints it with the muted token and keeps the label accessible', async () => {
+    const block = metrics.blocks![0]!
+    const payload = {
+      ...metrics,
+      blocks: [{
+        ...block,
+        entries: [...block.entries, { id: 'other', name: 'other', creator: null, rank: 3, rankDelta: null, kind: 'steady' as const, share7d: 0.05 }],
+      }],
+    }
+    renderPage(async () => ({ ok: true, value: payload }))
+    await screen.findByTestId('trend-metrics-treemap')
+    const other = screen.getAllByTestId('trend-treemap-cell').find((cell) => cell.getAttribute('data-entry-id') === 'other')!
+    expect(other.className).toContain('bg-muted')
+    expect(other.getAttribute('title')).toContain('기타')
+  })
+
+  it('When the treemap renders Then each cell is focusable and a screen-reader list mirrors it', async () => {
+    renderPage(bySection)
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByTestId('trend-metrics-treemap')).toBeTruthy()
+    expect(section.getByRole('group', { name: '성능 지표 보기 방식' })).toBeTruthy()
+    const cells = section.getAllByTestId('trend-treemap-cell')
+    expect(cells.every((cell) => cell.getAttribute('tabindex') === '0')).toBe(true)
+    expect(section.getByTestId('trend-treemap-sr-list').getAttribute('aria-label')).toBe('성능 지표 목록')
   })
 
   it('When an AA citation sentence is present Then shows one line and the source link without a table', async () => {
@@ -68,7 +148,7 @@ describe('Given the metrics section on /trend', () => {
     const source = section.getByRole('link', { name: 'Source: Artificial Analysis (artificialanalysis.ai)' })
     expect(source.getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
     expect(section.queryByRole('table')).toBeNull()
-    expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
+    expect(section.getAllByTestId('trend-treemap-cell')).toHaveLength(2)
   })
 
   it('When no AA citation is present Then hides the AA line and source link', async () => {
@@ -98,7 +178,7 @@ describe('Given the metrics section on /trend', () => {
     expect(await section.findByText('deepseek/deepseek-v4')).toBeTruthy()
     expect(section.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
     expect(section.queryByText('지수 90')).toBeNull()
-    expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
+    expect(section.getAllByTestId('trend-treemap-cell')).toHaveLength(2)
   })
 
   it('When the OR block is not configured Then explains it instead of rendering entries', async () => {
@@ -112,7 +192,8 @@ describe('Given the metrics section on /trend', () => {
     }))
     const section = within(screen.getByTestId('trend-metrics'))
     expect(await section.findByText('이 출처는 아직 설정되지 않았습니다.')).toBeTruthy()
-    expect(section.queryByTestId('trend-metrics-entry')).toBeNull()
+    expect(section.queryByTestId('trend-metrics-treemap')).toBeNull()
+    expect(section.queryByTestId('trend-metrics-table')).toBeNull()
   })
 
   it('When OpenRouter meta.as_of is missing Then labels the time as fetched time', async () => {

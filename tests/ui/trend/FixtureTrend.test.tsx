@@ -30,7 +30,7 @@ describe('Given /trend?fixture=normal', () => {
     expect(screen.getByRole('heading', { name: '무료 모델' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: '참고 링크' })).toBeTruthy()
 
-    expect(await screen.findAllByTestId('trend-metrics-entry')).toHaveLength(3)
+    expect(await screen.findAllByTestId('trend-treemap-cell')).toHaveLength(3)
     const metrics = within(screen.getByTestId('trend-metrics'))
     expect(metrics.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
     expect(metrics.getByTestId('trend-metrics-aa-citation').textContent).toContain('Artificial Analysis Intelligence Index 1위는 Claude Fable 5.2')

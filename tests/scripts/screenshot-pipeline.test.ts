@@ -7,5 +7,6 @@ describe('Given the README screenshot pipeline', () => {
     expect(source).toContain('/trend?fixture=normal')
     expect(source).toContain('waitForTrend(page)')
     expect(source).toContain("data-testid=\"' + id + '\"")
+    expect(source).toContain("has('trend-treemap-cell')")
   })
 })
