@@ -60,10 +60,12 @@
 | `shared/` | 실행 | 실행 | `done` (`src/` 동반 시 `verify`) |
 | 그 외 (`docs/` 등) | 생략 | 생략 | `done` |
 
-## 공개 트렌드 (#116 2~5단계)
+## 공개 트렌드 (#116 2~5·4a단계)
 
-- 공개 경로: `/pub/trend`, `/pub/trend/new-models`, `/pub/trend/free-models`, `/pub/trend/metrics`. Access 앱에 넣지 않는다.
-- 수집 cron: `7 */2 * * *` (`TREND_CRON`). 한 번에 세 출처를 조건부 GET한다: models.dev `api.json`, OpenCode Zen `/zen/v1/models`, OpenRouter `/api/v1/models`. 출처별 실패는 격리한다(한 출처 실패가 다른 출처·섹션을 지우지 않고 해당 source만 `stale`).
+- 공개 경로: `/pub/trend`, `/pub/trend/plan-models`, `/pub/trend/new-models`, `/pub/trend/free-models`, `/pub/trend/metrics`. Access 앱에 넣지 않는다.
+- 수집 cron: `7 */2 * * *` (`TREND_CRON`). 한 번에 세 출처를 조건부 GET한다: models.dev `api.json`, OpenCode Zen `/zen/v1/models`, OpenRouter `/api/v1/models`. 이어서 `plan-models` 공개 출처 OpenCode Go `/inference/go/v1/models`와 Ollama `/api/tags`를 읽는다. 출처별 실패는 격리한다(한 출처 실패가 다른 출처·섹션을 지우지 않고 해당 source만 `stale`).
+- `plan-models`: 수집기(0003)가 쓰는 `trend_plan_observation`에 Worker 공개 출처도 관측을 추가한다. `plan`별 첫 관측은 `baseline=1`로 저장해 첫 배포의 대량 신규를 막고, 이후 새 모델만 `first_seen_at` 최근 14일·baseline 아님 조건으로 노출한다. `opencode-go`·`ollama-cloud`는 catalog, Antigravity/Claude/Grok은 수집기의 account/partial 관측을 쓴다. `claude-display:<정규화 표시명>` 키는 models.dev 이름 매칭으로 표시명·제작사·출시일을 보강하고, 매칭 실패 시 표시명만 보여 준다. partial 항목 또는 출처 실패 그룹은 `partial`(부분 판정), Codex(4c 미구현)·Grok 미관측은 `unavailable`(판정 불가)로 표시한다.
+- `plan-models` 저장은 0003 테이블을 그대로 쓰며 새 마이그레이션이 없다. 관측 upsert는 plan별 baseline CTE 1문을 D1 batch로 실행하고, 섹션은 `trend_section`에 저장한다.
 - `new-models`: models.dev 304면 저장된 `firstSeenAt`·`releaseMs`로 7일 창을 재평가하고 출처 상태를 `ok`로 회복한다.
 - `free-models`: 호스팅 무료(Zen `price 0` ∪ OpenRouter `:free`/가격 0)와 로컬 실행 가능(models.dev `ollama-cloud` + `open_weights`)을 최근 30일 창으로 고른다. deprecated·`expiration_date` 만료는 제외하고 canonical id로 중복 제거한다. 출처별 마지막 items를 저장 payload의 `sourceItems`에 보관해 실패/304 시 재사용하며, 공개 응답에서는 projection이 제거한다. 로컬 섹션은 호스팅 무료와 겹치는 모델을 호스팅 쪽 provider로 합친다.
 - 구조 검증: `{}`, `{error}`, 데이터 배열/컨테이너가 없는 응답은 수집 실패로 분류해 기존 섹션 items를 보존하고 source를 `stale`로 표시한다. 구조는 정상이고 필터 결과만 0개인 경우는 정상 빈 목록으로 저장한다.
