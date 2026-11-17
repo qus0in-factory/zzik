@@ -14,4 +14,8 @@ export interface Env {
   USAGE_DATA_GENERATION?: string
   /** Optional compatibility selector; only d1 is accepted. */
   USAGE_READ_STORE?: string
+  /** Artificial Analysis free API key. Absent means the metrics AA block is not configured. */
+  AA_API_KEY?: string
+  /** OpenRouter Data API key. Absent means the metrics OpenRouter block is not configured. */
+  OR_API_KEY?: string
 }
