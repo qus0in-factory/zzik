@@ -67,6 +67,11 @@ describe('Given a durable accepted chain and a separate remote committed baselin
   })
 })
 describe('Given rate limit history in provider state',()=>{
+ it('When accepting a rate limit after its run starts Then records the acceptance time',()=>{
+  const envelope=d1Envelope({runAt:new Date(now).toISOString(),status:'rate_limited',called:true,httpStatus:429,rawText:null})
+  const result=successValue(acceptObservation(initialLedgerState(),{envelope,operationId:id(1),nowMs:now+100,lastStartedAtMs:now,nextDueMs:now+900000,alerts:[]}))
+  expect(result.state.rateLimitedAtMs).toEqual([now+100])
+ })
  it('When a called rate limit is accepted Then keeps the latest ten in seven days and old states remain readable',()=>{
   let data=initialLedgerState()
   for(let n=1;n<=12;n++){

@@ -97,3 +97,23 @@ describe('Given a changing rate limit before an upstream call',()=>{
   expect(successValue(h.ledger.read('claude')).state.lastStartedAtMs).toBe(now-300000)
  })
 })
+describe('Given a Claude base interval above the degraded interval',()=>{
+ it('When a rate limit is accepted Then preserves the longer interval and sends no degradation notice',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation})
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[{id:'claude',intervalSec:1200,degrade:{intervalSec:900},run:async({markStarted})=>{
+   markStarted();h.ledger.update('claude',data=>({ok:true,value:{...data,state:{...data.state,rateLimitedAtMs:[h.clock.now()]}}}))
+  }}]})
+  scheduler.pump();await flush()
+  expect(successValue(h.ledger.read('claude')).state.nextDueMs).toBe(h.clock.now()+1200000)
+  expect(h.notices).toEqual([])
+ })
+})
+describe('Given a gate-only tick near the end of degradation',()=>{
+ it('When the hold expires Then the gate tick due also returns to the base interval',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation}),now=h.clock.now();let calls=0
+  h.ledger.update('claude',data=>({ok:true,value:{...data,state:{...data.state,rateLimitedAtMs:[now-86400000+100000]}}}))
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[{id:'claude',intervalSec:300,degrade:{intervalSec:900},run:async()=>{calls++}}]})
+  scheduler.pump();await flush();expect(calls).toBe(1)
+  h.advance(300000);scheduler.pump();await flush();expect(calls).toBe(2)
+ })
+})
