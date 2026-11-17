@@ -33,7 +33,6 @@ import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 // - 프로덕션: 실 게이트웨이(HttpUsageGateway → /api/usage, ky 인스턴스 주입).
 // - 개발(dev 빌드에서 ?fixture= 지정): 목 게이트웨이 + Zustand 픽스처 선택 상태.
 const queryClient = createAppQueryClient()
-const trendGateway = createHttpTrendGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 }), '/pub/trend')
 const devFixtureRequested = import.meta.env.DEV && new URLSearchParams(window.location.search).has('fixture')
 
 // 제공자 순서는 zustand 스토어(app)가 들고, 브라우저별 localStorage 저장은 infra 어댑터를 여기서 주입한다.
@@ -44,6 +43,15 @@ const viewModeStore = createViewModeStore(createLocalStorageViewModeStore(browse
 // 오래 열어 둔 탭이 예전 값을 들고 있다가 덮어쓰지 않도록, 다른 탭의 변경(clear 포함)을 스토어에 다시 읽어 온다.
 subscribeStorageKey(PROVIDER_ORDER_STORAGE_KEY, () => orderStore.getState().rehydrate())
 subscribeStorageKey(VIEW_MODE_STORAGE_KEY, () => viewModeStore.getState().rehydrate())
+
+// 트렌드도 사용량과 같은 DEV fixture 분기를 쓴다. 동적 import라 운영 번들에는 fixture 모듈이 들어가지 않는다.
+async function createTrendGateway() {
+  if (devFixtureRequested) {
+    const fixture = await import('@infra/trend/fixture-trend-gateway')
+    return fixture.createFixtureTrendGateway()
+  }
+  return createHttpTrendGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 }), '/pub/trend')
+}
 
 async function createUsageDeps(): Promise<UsageDeps> {
   const gateway = devFixtureRequested
@@ -107,7 +115,7 @@ if (devFixtureRequested) {
 }
 
 async function start(): Promise<void> {
-  const [historyDeps, usageDeps] = await Promise.all([loadHistoryDeps(), createUsageDeps()])
+  const [historyDeps, usageDeps, trendGateway] = await Promise.all([loadHistoryDeps(), createUsageDeps(), createTrendGateway()])
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
