@@ -35,6 +35,7 @@ Access는 ADR 0.1, 사용량 계약은 ADR 0.2/0.3/0.4/0.6, 저장소 전환은 
 ## 3. 배포 후 검증
 
 - **배포 전 게이트**: release에서 실제 DB_URL을 .env로 주입해 `node --env-file=.env node_modules/vitest/vitest.mjs run tests/worker/infra/usage/db.workerd.test.ts`를 opt-in 실행한다. 실제 workerd→DB 경로의 6개 제공자 200·디코딩 성공을 확인한다. skip은 통과가 아니며 비밀값·원문은 출력하지 않는다. `--reporter=json` 등 임의 리포터로 변형하지 말고 스킬 기본 명령 그대로 판독한다.
+- 확인 요청 본문은 `scripts/verify-request.mjs`로 만들고 `scripts/notify-discord.sh`에 파이프한다. 스크립트는 전송하지 않는다.
 - **완료·삭제 게이트**: 운영 화면은 사용자가 직접 확인한다. 워커 기술 검증 후 opus가 Discord로 운영 링크·확인 항목·스크린샷의 실데이터/fixture 여부·fixture의 검증 한계를 담은 **확인 요청**을 보내며, 확인 요청은 완료 알림과 구분한다. 사용자에게 인증된 브라우저의 API 응답과 6개 제공자 화면 확인 결과를 받기 전에는 배포 완료를 보고하지 않는다. 302/404나 로컬 workerd 통과로 대신하지 않는다. 미검증 항목이 있으면 삭제 등 비가역 작업은 금지한다.
 - 쿠키 없는 요청 /, /api/usage, /api/usage/claude, /api/usage/codex, /api/usage/antigravity, /api/usage/opencode, /api/usage/grok, /api/usage/ollama 모두 302, Location에 cdn-cgi/access/login 포함, 본문 앱 데이터 없음 확인. 헤더·본문 전문은 출력하지 않는다.
 - scripts/verify-zzik.sh qus0in으로 workers.dev 404(또는 DNS 미해석·Access 302) 확인. 기본 스크립트 stdout에 Location 전문이 있으므로 안전한 PASS/FAIL/status만 추려 출력한다.
