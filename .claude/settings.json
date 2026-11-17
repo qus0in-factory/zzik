@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm test:*)",
+      "Bash(pnpm exec vitest:*)",
+      "Bash(pnpm vitest:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm typecheck:collector:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm screenshot:readme:*)",
+      "Bash(node --check:*)",
+      "Bash(bash -n:*)",
+      "Bash(node scripts/ui-overflow-check.mjs:*)",
+      "Bash(node scripts/measure-layout.mjs:*)",
+      "Bash(node scripts/check-hangul-spacing.mjs:*)",
+      "Bash(node scripts/d1-status.mjs:*)",
+      "Bash(node scripts/deploy-verify.mjs --dry-run:*)",
+      "Bash(node --disable-warning=ExperimentalWarning scripts/trend-refresh-once.mjs)",
+      "Bash(bash scripts/verify-zzik.sh:*)",
+      "Bash(bash scripts/usage-live-shape.sh:*)",
+      "Bash(curl -sS https://zzik.qus0in.dev/:*)",
+      "Bash(curl -sS -D - https://zzik.qus0in.dev/:*)",
+      "Bash(curl -sS -o /dev/null -w:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  }
+}
