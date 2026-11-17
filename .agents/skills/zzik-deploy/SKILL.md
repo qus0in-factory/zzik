@@ -16,4 +16,4 @@ ADR 0.1 Access, ADR 0.10 G1 및 docs/d1-d-cutover.md가 정본이다. G1은 PG �
 
 실데이터 화면을 위한 인증 우회는 작업/release 파일에 넣지 않는다. 필요하면 별도 /tmp 워크트리에서만 사용하고 삭제한다. 원격 리소스/secret 삭제와 Neon 삭제는 별도 승인이다. D1 장애는 수집 정지·forward-fix/R2 scratch 복구로 대응하며 PG 폴백은 없다.
 
-- 확인 요청 본문은 `scripts/verify-request.mjs`로 만들고 `scripts/notify-discord.sh`에 파이프한다. 스크립트는 전송하지 않는다.
+- 릴리스 준비는 `scripts/release-prep.mjs`(로컬은 screenshot·KST test·한글 띄어쓰기 검사, UTC test·typecheck·typecheck:collector·build는 CI), 문서 검사는 `scripts/check-hangul-spacing.mjs`, 확인/완료 본문은 `scripts/verify-request.mjs`(`--done`)로 만든다.

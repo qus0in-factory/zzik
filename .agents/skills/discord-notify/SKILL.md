@@ -24,7 +24,7 @@ scripts/notify-discord.sh "<제목>" "<본문>" --image /tmp/usage.png --image /
 - 보낸이 이름은 웹훅 기본 이름을 쓴다(payload에 `username`을 넣지 않는다).
 - 배포 알림·확인 요청에는 워커가 촬영하고 opus가 직접 판정한 로컬 렌더 스크린샷을 첨부하고 실데이터/fixture 여부와 한계를 본문에 적는다. 실데이터가 불가하면 `?fixture=normal`을 쓰며, fixture는 실제 계정·인증/API/DB·운영 화면 검증을 대신하지 않는다. 인증 우회가 필요하면 `zzik-deploy` 2절의 `/tmp` 임시 워크트리만 사용한다.
 - 본문은 4000자에서 잘린다.
-- 확인 요청 본문(바뀐 것·검증·확인 부탁·다음)은 `scripts/verify-request.mjs`가 stdout만 만든다. 전송은 그 출력을 `scripts/notify-discord.sh`에 파이프한다.
+- 확인 요청 본문(바뀐 것·검증·확인 부탁·다음)과 완료 본문(바뀐 것·검증·다음, `--done`)은 `scripts/verify-request.mjs`가 stdout만 만든다. 전송은 그 출력을 `scripts/notify-discord.sh`에 파이프한다.
 
 ## 보고 형식
 - 완료 제목: `[zzik <마일스톤>] <한 줄 결과>`

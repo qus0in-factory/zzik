@@ -11,7 +11,7 @@ import { executeCommand } from './lib/exec-command.mjs'
 
 /** @typedef {import('./lib/exec-command.mjs').Executor} Executor */
 /** @typedef {{name:string,command:readonly string[],env?:Record<string,string>,timeoutMs?:number}} PlannedStep */
-/** @typedef {{name:string,status:'PLAN'|'PASS'|'FAIL',command?:readonly string[],env?:Record<string,string>,reason?:string}} ReportedStep */
+/** @typedef {{name:string,status:'PLAN'|'PASS'|'FAIL',command?:readonly string[],env?:Record<string,string>,reason?:string,details?:Record<string,unknown>}} ReportedStep */
 
 /** @param {string} version @returns {{ok:true,value:string}|{ok:false,reason:'invalid_version'}} */
 export function nextPatchVersion(version) {
@@ -27,14 +27,12 @@ export function releasePlan(version) {
   const message = `chore: release ${version}`
   return [
     { name: 'screenshot_readme', command: ['pnpm', 'screenshot:readme'], timeoutMs: 300_000 },
-    { name: 'test_kst', command: ['pnpm', 'test'], timeoutMs: 900_000 },
-    { name: 'test_utc', command: ['pnpm', 'test'], env: { TZ: 'UTC' }, timeoutMs: 900_000 },
-    { name: 'typecheck', command: ['pnpm', 'typecheck'], timeoutMs: 900_000 },
-    { name: 'typecheck_collector', command: ['pnpm', 'typecheck:collector'], timeoutMs: 900_000 },
-    { name: 'build', command: ['pnpm', 'build'], timeoutMs: 900_000 },
+    { name: 'test_kst', command: ['pnpm', 'test'], env: { TZ: 'Asia/Seoul' }, timeoutMs: 900_000 },
+    { name: 'check_hangul_spacing', command: ['node', 'scripts/check-hangul-spacing.mjs'], timeoutMs: 120_000 },
     { name: 'stage', command: ['git', 'add', 'package.json', 'docs/screenshots/desktop.png'], timeoutMs: 120_000 },
     { name: 'commit', command: ['git', 'commit', '-m', message], timeoutMs: 120_000 },
     { name: 'push_dev', command: ['git', 'push', 'origin', 'dev'], timeoutMs: 300_000 },
+    { name: 'pull_request_check', command: ['gh', 'pr', 'list', '--head', 'dev', '--base', 'main', '--state', 'open', '--limit', '1', '--json', 'number'], timeoutMs: 120_000 },
     {
       name: 'pull_request',
       command: ['gh', 'pr', 'create', '-B', 'main', '-H', 'dev', '--title', message, '--body', `Release ${version}`],
@@ -103,7 +101,12 @@ export async function runReleasePrep(options = {}) {
   }
   steps.push({ name: 'version_patch', status: 'PASS' })
 
+  let skipPullRequest = false
   for (const step of releasePlan(next.value)) {
+    if (step.name === 'pull_request' && skipPullRequest) {
+      steps.push({ name: step.name, status: 'PASS', reason: 'existing_pr_reused', ...(step.env === undefined ? {} : { env: step.env }) })
+      continue
+    }
     const result = await execute(step.command[0], step.command.slice(1), {
       cwd,
       ...(step.env === undefined ? {} : { env: step.env }),
@@ -112,6 +115,28 @@ export async function runReleasePrep(options = {}) {
     if (result.exitCode !== 0) {
       steps.push({ name: step.name, status: 'FAIL', command: step.command, ...(step.env === undefined ? {} : { env: step.env }), reason: 'command_failed' })
       return { ok: false, dryRun, version: next.value, reason: 'command_failed', failedStep: step.name, steps }
+    }
+    if (step.name === 'pull_request_check') {
+      let prs
+      try {
+        prs = JSON.parse(result.stdout)
+      } catch {
+        steps.push({ name: step.name, status: 'FAIL', command: step.command, reason: 'command_failed' })
+        return { ok: false, dryRun, version: next.value, reason: 'command_failed', failedStep: step.name, steps }
+      }
+      if (!Array.isArray(prs)) {
+        steps.push({ name: step.name, status: 'FAIL', command: step.command, reason: 'command_failed' })
+        return { ok: false, dryRun, version: next.value, reason: 'command_failed', failedStep: step.name, steps }
+      }
+      const first = prs[0]
+      const number = first !== null && typeof first === 'object' && Number.isSafeInteger(/** @type {{number?:unknown}} */(first).number) ? /** @type {{number:number}} */(first).number : null
+      skipPullRequest = prs.length > 0
+      if (skipPullRequest && number === null) {
+        steps.push({ name: step.name, status: 'FAIL', command: step.command, reason: 'command_failed' })
+        return { ok: false, dryRun, version: next.value, reason: 'command_failed', failedStep: step.name, steps }
+      }
+      steps.push({ name: step.name, status: 'PASS', command: step.command, details: skipPullRequest ? { existing: true, number } : { existing: false } })
+      continue
     }
     steps.push({ name: step.name, status: 'PASS', command: step.command, ...(step.env === undefined ? {} : { env: step.env }) })
   }
@@ -122,8 +147,8 @@ export async function runReleasePrep(options = {}) {
 function usage() {
   process.stdout.write(
     'node scripts/release-prep.mjs [--dry-run|--apply] [--cwd <directory>]\n' +
-      'Default: dry-run. Prints the version bump, screenshot/test/typecheck/build, commit, dev push, dev->main PR and CI wait without running them.\n' +
-      '--apply: runs the same steps in order; stops on the first failure. Never prints command output or credentials.\n',
+      'Default: dry-run. Prints the version bump, screenshot/KST test/spacing check, commit, dev push, dev->main PR reuse/create and CI wait without running them.\n' +
+      '--apply: runs the same local steps in order and stops on the first failure; CI remains the UTC test/typecheck/build gate. Never prints command output or credentials.\n',
   )
 }
 
