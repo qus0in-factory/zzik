@@ -16,17 +16,27 @@ APP_TEXT="Hello Young-In"
 pass() { printf 'PASS  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 
-if [ "$#" -gt 1 ]; then
-  printf '사용법: %s [workers.dev 서브도메인|URL]\n' "$0" >&2
-  exit 2
-fi
+CHECK_PUBLIC=false
+WORKER_ARG=""
+for arg in "$@"; do
+  case "$arg" in
+    --check-public) CHECK_PUBLIC=true ;;
+    -*) printf '사용법: %s [--check-public] [workers.dev 서브도메인|URL]\n' "$0" >&2; exit 2 ;;
+    *)
+      if [ -n "$WORKER_ARG" ]; then
+        printf '사용법: %s [--check-public] [workers.dev 서브도메인|URL]\n' "$0" >&2
+        exit 2
+      fi
+      WORKER_ARG="$arg" ;;
+  esac
+done
 
 WORKER_URL=""
-if [ "$#" -eq 1 ]; then
-  case "$1" in
-    https://* | http://*) WORKER_URL="$1" ;;
-    *.workers.dev)        WORKER_URL="https://$1" ;;
-    *)                    WORKER_URL="https://zzik.$1.workers.dev" ;;
+if [ -n "$WORKER_ARG" ]; then
+  case "$WORKER_ARG" in
+    https://* | http://*) WORKER_URL="$WORKER_ARG" ;;
+    *.workers.dev)        WORKER_URL="https://$WORKER_ARG" ;;
+    *)                    WORKER_URL="https://zzik.$WORKER_ARG.workers.dev" ;;
   esac
 fi
 
@@ -78,6 +88,18 @@ if [ -n "$WORKER_URL" ]; then
   pass "$WORKER_URL 은 앱을 서빙하지 않는다(상태 $status)"
 else
   echo "== Verification 3: 서브도메인 인자가 없어 workers.dev 확인은 건너뛴다"
+fi
+
+if [ "$CHECK_PUBLIC" = "true" ]; then
+  echo "== Verification 4: 공개 경로 확인 ($APP_URL/pub/trend)"
+  pub_status=$(fetch "$APP_URL/pub/trend")
+  if [ "$pub_status" != "200" ] && [ "$pub_status" != "503" ]; then
+    fail "공개 경로 /pub/trend 상태가 200/503이 아니다(실제: ${pub_status:-알 수 없음})"
+  fi
+  if grep -qF "$APP_TEXT" "$body_file"; then
+    fail "공개 경로 응답 본문에 '$APP_TEXT' 가 보인다"
+  fi
+  pass "공개 경로 /pub/trend가 302 없이 응답한다(상태 $pub_status)"
 fi
 
 echo "통과: ADR 0.1 Verification 2·3 완료"

@@ -48,6 +48,7 @@ export function createWorker(deps: {
         history: new D1HistoryStore(available),
         store: new D1SnapshotStore(available),
         buckets: available === null || generation === null ? null : new D1BucketStore(available, {dataGeneration:generation}),
+        trend: null,
         assets: env.ASSETS,
       }).fetch(request)
     },

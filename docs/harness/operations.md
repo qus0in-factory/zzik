@@ -8,6 +8,7 @@
 - G1은 PG 코드 제거이며 `DB_URL`/Neon 삭제가 아니다. `.env`/secret의 `DB_URL`과 Neon은 미사용으로 보존하고 삭제하지 않는다.
 - D1 장애 대응: PG 폴백은 없다. 수집 정지 후 forward-fix 또는 R2→scratch D1 복구·id 펜스·outbox 재생으로 대응한다.
 - Access 검증 대상: `qus0in` (`verify-zzik.sh qus0in`).
+- 공개 API 경로: `/pub/*` (인증 미적용; Access 변경 전까지는 Worker destination으로 302 반환, 변경 후 `--check-public`으로 확인).
 - 로컬 통합 검증: `deploy-verify`의 D1 workerd.
 
 ## 수집기 현재 설정
