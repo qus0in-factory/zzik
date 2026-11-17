@@ -20,19 +20,17 @@ export function parseClaudeModels(raw){
   const parsed=JSON.parse(raw)
   if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))return {ok:false,reason:'invalid_usage'}
   /** @type {Map<string,Model>} */const models=new Map()
-  /** @param {string} family @param {string} name */
-  const add=(family,name)=>{const id=`claude-${family.toLowerCase()}`;models.set(id,{id,name})}
+  /** @param {unknown} scope */
+  const add=scope=>{
+   const model=/** @type {any} */(scope)?.model
+   if(typeof model?.id!=='string'||!/^claude-[a-z0-9][a-z0-9.-]*$/i.test(model.id)||typeof model.display_name!=='string'||!model.display_name.trim())return
+   models.set(model.id,{id:model.id,name:model.display_name.trim()})
+  }
   for(const [key,value] of Object.entries(parsed)){
-   const match=/^seven_day_(fable|opus|sonnet|haiku)$/.exec(key)
-   if(!match||!value||typeof value!=='object')continue
-   const display=/** @type {any} */(value).scope?.model?.display_name
-   if(typeof display==='string'&&display.trim())add(match[1],display.trim())
+   if(/^seven_day_[a-z0-9_]+$/.test(key)&&value&&typeof value==='object')add(/** @type {any} */(value).scope)
   }
   if(Array.isArray(parsed.limits))for(const limit of parsed.limits){
-   const display=limit?.kind==='weekly_scoped'?limit.scope?.model?.display_name:null
-   if(typeof display!=='string')continue
-   const match=/^(fable|opus|sonnet|haiku)$/i.exec(display.trim())
-   if(match)add(match[1],display.trim())
+   if(limit?.kind==='weekly_scoped')add(limit.scope)
   }
   const result=[...models.values()]
   return result.length?{ok:true,value:result}:{ok:false,reason:'empty_models'}

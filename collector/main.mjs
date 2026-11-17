@@ -18,6 +18,7 @@
  * 원격 쓰기는 공용 D1 REST query lane에서 직렬 전송한다.
  */
 
+import {createAgyLane} from './app/trend/agy-lane.mjs'
 import {createPlanModelsProbe} from './app/trend/plan-models-probe.mjs'
 import {createPlanProbeState} from './infra/trend/plan-probe-state.mjs'
 import {OFFPEAK_SCHEDULE} from '../shared/offpeak-schedule.ts'
@@ -66,6 +67,7 @@ import { join } from 'node:path'
 const alertConfig = readAlertConfig(process.env)
 const alerts = createDiscordAlerts({ ...alertConfig, fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
+const agyLane=createAgyLane(kind=>runAgyQuotaCli({path:process.env.ZZIK_AGY_CLI_PATH??'agy',enabled:process.env.ZZIK_AGY_CLI_ENABLED!=='0',args:kind==='quota'?['-p','/quota']:['models']}))
 /** @type {{mode:'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}} */
 let storageConfig = {mode:'d1',intervalSec:900,retentionDays:30}
 const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')
@@ -158,7 +160,7 @@ function buildProviderPorts(provider, { credentialsPath, dryRun }) {
       : provider === 'ollama'
       ? createOllamaUsageClient({ fetchImpl: globalThis.fetch, host: OLLAMA_HOST })
       : provider === 'antigravity'
-      ? createAntigravityCliUsageClient({ runQuota: () => runAgyQuotaCli({ path: process.env.ZZIK_AGY_CLI_PATH ?? 'agy', enabled: process.env.ZZIK_AGY_CLI_ENABLED !== '0' }) })
+      ? createAntigravityCliUsageClient({ runQuota: () => agyLane.quota() })
       : provider === 'codex'
       ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
       : createClaudeUsageClient({ fetchImpl: globalThis.fetch })
@@ -280,8 +282,8 @@ async function startD1(flags){
   }
   active.start()
   if(!flags.once){
-    planProbe=createPlanModelsProbe({providers:providers.map(provider=>provider.id),clock,timer:createCollectorTimer(),state:createPlanProbeState({path:join(STATE_DIR,'plan-probe.json')}),
-      runAgy:()=>runAgyQuotaCli({path:process.env.ZZIK_AGY_CLI_PATH??'agy',enabled:process.env.ZZIK_AGY_CLI_ENABLED!=='0',args:['models']}),
+    planProbe=createPlanModelsProbe({providers:providers.map(provider=>provider.id),clock,timer:createCollectorTimer(),state:createPlanProbeState({path:join(STATE_DIR,'plan-probe.json')}),retryState:createPlanProbeState({path:join(STATE_DIR,'plan-probe-retry.json')}),
+      runAgy:()=>agyLane.models(),cancelAgy:()=>agyLane.cancelModels(),
       readClaude:()=>{const result=ledger.read('claude');return result.ok?result.value.state.previous?.rawText??null:null},query,
       claimNotice:(provider,at)=>{const result=ledger.claimMaintenanceNotice('plan_probe_failed_'+provider,at);return result.ok&&result.value},
       notice:provider=>notice.notify({reason:'plan_probe_failed',provider:/** @type {'claude'|'antigravity'} */(provider)})})

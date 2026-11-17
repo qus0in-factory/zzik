@@ -7,13 +7,16 @@ describe('Given authenticated model lists', () => {
   expect(parseAgyModels('')).toEqual({ok:false,reason:'empty_models'})
  })
  it('When a Claude window has model scope Then only model identity is extracted', () => {
-  expect(parseClaudeModels(JSON.stringify({seven_day_fable:{utilization:99,scope:{model:{display_name:'Fable'}}},seven_day:{utilization:20}}))).toEqual({ok:true,value:[{id:'claude-fable',name:'Fable'}]})
+  expect(parseClaudeModels(JSON.stringify({seven_day_fable:{utilization:99,scope:{model:{id:'claude-fable-1',display_name:'Fable'}}},seven_day:{utilization:20}}))).toEqual({ok:true,value:[{id:'claude-fable-1',name:'Fable'}]})
  })
  it('When legacy windows lack a model scope Then names are not inferred',()=>{
   expect(parseClaudeModels(JSON.stringify({seven_day_fable:{utilization:12},seven_day_oauth_apps:{utilization:10}}))).toEqual({ok:false,reason:'empty_models'})
  })
+ it('When a model has only a display name Then no catalog ID is invented',()=>{
+  expect(parseClaudeModels(JSON.stringify({limits:[{kind:'weekly_scoped',scope:{model:{display_name:'Fable'}}}]}))).toEqual({ok:false,reason:'empty_models'})
+ })
  it('When scoped limits contain a model and a surface Then only the model is observed',()=>{
-  expect(parseClaudeModels(JSON.stringify({limits:[{kind:'weekly_scoped',scope:{model:{display_name:'Fable'}}},{kind:'weekly_scoped',scope:{surface:'Cowork'}}]}))).toEqual({ok:true,value:[{id:'claude-fable',name:'Fable'}]})
+  expect(parseClaudeModels(JSON.stringify({limits:[{kind:'weekly_scoped',scope:{model:{id:'claude-fable-1',display_name:'Fable'}}},{kind:'weekly_scoped',scope:{surface:'Cowork'}}]}))).toEqual({ok:true,value:[{id:'claude-fable-1',name:'Fable'}]})
  })
  it('When constructing a batch Then baseline and first observation are preserved on duplicate', () => {
   const s=planStatement('antigravity','agy-cli',[{id:'one',name:'One'},{id:'two',name:'Two'}],Date.parse('2026-11-17T15:00:00Z'))
