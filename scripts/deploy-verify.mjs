@@ -26,6 +26,8 @@ export const UNAUTH_PATHS = Object.freeze([
   '/api/usage/ollama',
 ])
 
+export const PUBLIC_PATHS = Object.freeze(['/pub/trend'])
+
 export const PROVIDERS = Object.freeze(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
 
 const APP_BODY_MARKER = 'Hello Young-In'
@@ -111,7 +113,7 @@ export function classifyVitest(stdout) {
 }
 
 /**
- * @param {{releaseDir?:string,execute?:Executor,deploy?:boolean,dryRun?:boolean,origin?:string,workersSubdomain?:string,base?:string}} [options]
+ * @param {{releaseDir?:string,execute?:Executor,deploy?:boolean,dryRun?:boolean,checkPublic?:boolean,origin?:string,workersSubdomain?:string,base?:string}} [options]
  * @returns {Promise<{ok:boolean,mode:'dry-run'|'verify'|'deploy',dryRun:boolean,deployRequested:boolean,deployed:boolean,releaseDir:string,version:string|null,scope:Scope|null,changedFiles:string[],steps:Step[]}>}
  */
 export async function runDeployVerify(options = {}) {
@@ -119,6 +121,7 @@ export async function runDeployVerify(options = {}) {
   const execute = options.execute ?? executeCommand
   const deployRequested = options.deploy === true
   const dryRun = options.dryRun === true
+  const checkPublic = options.checkPublic === true
   const origin = (options.origin ?? 'https://zzik.qus0in.dev').replace(/\/+$/, '')
   const workersSubdomain = options.workersSubdomain ?? 'qus0in'
   const base = options.base ?? 'HEAD^'
@@ -159,6 +162,7 @@ export async function runDeployVerify(options = {}) {
       { name: 'change_scope', status: 'PLAN' },
       { name: 'db_workerd', status: 'PLAN' },
       { name: 'unauthenticated_302', status: 'PLAN', details: { paths: [...UNAUTH_PATHS] } },
+      { name: 'public_paths', status: checkPublic ? 'PLAN' : 'SKIP', ...(checkPublic ? { details: { paths: [...PUBLIC_PATHS] } } : { reason: 'flag_not_set' }) },
       { name: 'verify_zzik', status: 'PLAN' },
       { name: 'usage_live_shape', status: 'PLAN', details: { providers: [...PROVIDERS] } },
     )
@@ -258,6 +262,42 @@ export async function runDeployVerify(options = {}) {
     details: { paths: pathResults },
   })
 
+  if (!checkPublic) {
+    steps.push({ name: 'public_paths', status: 'SKIP', reason: 'flag_not_set' })
+  } else {
+    const publicResults = []
+    for (const path of PUBLIC_PATHS) {
+      const url = `${origin}${path}`
+      const res = await execute('curl', ['-sS', '--max-time', '30', '-w', '\n%{http_code}\n', url], { timeoutMs: 60_000 })
+      if (res.exitCode !== 0) {
+        publicResults.push({ path, status: 'FAIL', reason: 'request_failed' })
+        continue
+      }
+      const parsedBody = parseCurlBody(res.stdout)
+      if (!parsedBody.ok) {
+        publicResults.push({ path, status: 'FAIL', reason: parsedBody.reason })
+        continue
+      }
+      const code = parsedBody.value.httpStatus
+      if (code !== 200 && code !== 503) {
+        publicResults.push({ path, status: 'FAIL', httpStatus: code, reason: code === 302 ? 'unexpected_302' : 'unexpected_status' })
+        continue
+      }
+      if (parsedBody.value.body.includes(APP_BODY_MARKER)) {
+        publicResults.push({ path, status: 'FAIL', httpStatus: code, reason: 'app_body_visible' })
+        continue
+      }
+      publicResults.push({ path, status: 'PASS', httpStatus: code })
+    }
+    const publicOk = publicResults.every((result) => result.status === 'PASS')
+    steps.push({
+      name: 'public_paths',
+      status: publicOk ? 'PASS' : 'FAIL',
+      ...(publicOk ? {} : { reason: 'public_path_failed' }),
+      details: { paths: publicResults },
+    })
+  }
+
   const verify = await execute('bash', ['scripts/verify-zzik.sh', workersSubdomain], { cwd: releaseDir, timeoutMs: 300_000 })
   steps.push(verify.exitCode === 0 ? { name: 'verify_zzik', status: 'PASS' } : { name: 'verify_zzik', status: 'FAIL', reason: 'verify_failed' })
 
@@ -295,7 +335,7 @@ export async function runDeployVerify(options = {}) {
 
 function usage() {
   process.stdout.write(
-    'node scripts/deploy-verify.mjs [--dry-run] [--deploy] [--release <dir>] [--origin <url>] [--workers-subdomain <sub>] [--base <rev>]\n' +
+    'node scripts/deploy-verify.mjs [--dry-run] [--deploy] [--check-public] [--release <dir>] [--origin <url>] [--workers-subdomain <sub>] [--base <rev>]\n' +
       'Default: read-only release/clean/version/scope, D1 workerd, cookie-less 302 paths, verify-zzik and usage-live-shape checks. No deploy.\n' +
       '--deploy: run pnpm run deploy only after the preflight checks pass. --dry-run: print the plan and run nothing.\n' +
       'Output is step-level PASS/FAIL JSON; command output, Location headers and credentials are never printed.\n',
@@ -310,6 +350,7 @@ async function main() {
   }
   let deploy = false
   let dryRun = false
+  let checkPublic = false
   let releaseDir = resolve(process.cwd(), '.worktree/release')
   let origin = 'https://zzik.qus0in.dev'
   let workersSubdomain = 'qus0in'
@@ -317,6 +358,7 @@ async function main() {
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--deploy') deploy = true
     else if (args[i] === '--dry-run') dryRun = true
+    else if (args[i] === '--check-public') checkPublic = true
     else if (args[i] === '--release' && args[i + 1] && !args[i + 1].startsWith('--')) releaseDir = resolve(args[++i])
     else if (args[i] === '--origin' && args[i + 1] && !args[i + 1].startsWith('--')) origin = args[++i]
     else if (args[i] === '--workers-subdomain' && args[i + 1] && !args[i + 1].startsWith('--')) workersSubdomain = args[++i]
@@ -332,7 +374,7 @@ async function main() {
     process.exitCode = 64
     return
   }
-  const result = await runDeployVerify({ releaseDir, deploy, dryRun, origin, workersSubdomain, base })
+  const result = await runDeployVerify({ releaseDir, deploy, dryRun, checkPublic, origin, workersSubdomain, base })
   process.stdout.write(`${JSON.stringify(result)}\n`)
   if (!result.ok) process.exitCode = 1
 }

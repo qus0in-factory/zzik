@@ -272,3 +272,45 @@ describe('Given the deploy verification CLI branches', () => {
     }
   })
 })
+
+describe('Given optional public path checks after Access change (--check-public)', () => {
+  it('When checkPublic is omitted Then public_paths step is skipped by default', async () => {
+    const res = await verifyWith(successHandler())
+    expect(res.ok).toBe(true)
+    expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'SKIP', reason: 'flag_not_set' })
+  })
+
+  it('When checkPublic is true and /pub/trend returns 503 without 302 Then public_paths passes', async () => {
+    const release = makeRelease()
+    try {
+      const { execute } = makeExecutor(successHandler((command, args) => {
+        if (command === 'curl' && args.some((a) => a.endsWith('/pub/trend'))) {
+          return { stdout: '{"error":"not_ready","sections":[]}\n503\n' }
+        }
+        return undefined
+      }))
+      const res = (await runDeployVerify({ releaseDir: release, execute, checkPublic: true })) as DeployResult
+      expect(res.ok).toBe(true)
+      expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'PASS' })
+    } finally {
+      rmSync(release, { recursive: true, force: true })
+    }
+  })
+
+  it('When checkPublic is true and /pub/trend returns 302 Then public_paths fails', async () => {
+    const release = makeRelease()
+    try {
+      const { execute } = makeExecutor(successHandler((command, args) => {
+        if (command === 'curl' && args.some((a) => a.endsWith('/pub/trend'))) {
+          return { stdout: '\n302\n' }
+        }
+        return undefined
+      }))
+      const res = (await runDeployVerify({ releaseDir: release, execute, checkPublic: true })) as DeployResult
+      expect(res.ok).toBe(false)
+      expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'FAIL', reason: 'public_path_failed' })
+    } finally {
+      rmSync(release, { recursive: true, force: true })
+    }
+  })
+})
