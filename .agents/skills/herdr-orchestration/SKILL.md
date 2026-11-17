@@ -14,7 +14,7 @@ description: 총괄 에이전트가 워커에 작업을 나누거나 직접 처�
 ## 흐름
 1. 총괄 에이전트가 작업을 쪼개 워커에 맡기거나 직접 한다(배정 기준은 `docs/harness/agents.md` 참고). 같은 파일을 동시에 수정하지 않게 한다.
 2. 시작 전 패널 라벨을 확인·지정하고(`herdr-label-models` 스킬), `herdr pane list`·`herdr agent list`로 기존 배치를 확인해 같은 워커를 중복 실행하지 않는다.
-3. 총괄 에이전트가 결과를 받아 통합하고 로컬 `dev` 병합 → `dev→main` PR → 릴리스를 직접 한다. 개발 서버는 백그라운드로 띄우고 자기 PID만 정리한다.
+3. 총괄 에이전트가 결과를 받아 통합하고 로컬 `dev` 병합 → `dev→main` PR → 릴리스를 직접 한다. 작업 묶음이 어느 정도 도입되면 `scripts/ship.mjs`로 릴리스·배포·Discord 알림까지 한 번에 한다. 개발 서버는 백그라운드로 띄우고 자기 PID만 정리한다.
 
 ## 대기·감시
 Monitor/폴링은 상태 변화나 최종 판정만 출력한다. 분 단위 진행 알림은 금지한다. 결과를 한 번만 내는 스크립트(`scripts/herdr-wait-result.mjs`, `scripts/d1-status.mjs --wait-fresh`(작성 중))를 우선한다.

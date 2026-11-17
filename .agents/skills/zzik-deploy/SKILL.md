@@ -17,3 +17,4 @@ description: zzik 배포·Access 검증·수집기 운영 반영 시 사용. Wor
 실데이터 화면을 위한 인증 우회는 작업/release 파일에 넣지 않는다. 필요하면 별도 /tmp 워크트리에서만 사용하고 삭제한다. 원격 리소스/secret 삭제는 별도 승인이다. 저장소 장애 대응·폴백 여부는 `docs/harness/operations.md` 참고.
 
 - 릴리스 준비는 `scripts/release-prep.mjs`(로컬은 screenshot·KST test·한글 띄어쓰기 검사, UTC test·typecheck·typecheck:collector·build는 CI), 문서 검사는 `scripts/check-hangul-spacing.mjs`, 확인/완료 본문은 `scripts/verify-request.mjs`(`--done`)로 만든다.
+- 작업 묶음이 어느 정도 도입되면 `scripts/ship.mjs`로 릴리스·배포·Discord 알림까지 한 번에 한다(기본 dry-run, `--apply`만 실행, 단계·범위 표는 `docs/harness/operations.md` 참고).

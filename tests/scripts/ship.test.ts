@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+// @ts-expect-error scripts/ship.mjs is plain ESM checked by vitest
 import { classifyShipScope, runShip, shipMain } from '../../scripts/ship.mjs'
 
 function makeFakeExecutor(overrides: Record<string, { exitCode?: number; stdout?: string; stderr?: string }> = {}) {
@@ -80,7 +81,7 @@ describe('Given scripts/ship.mjs dry-run mode (기본 dry-run)', () => {
     expect(result.ok).toBe(true)
     expect(result.dryRun).toBe(true)
     expect(result.kind).toBe('verify')
-    expect(result.steps.map((s) => s.name)).toEqual([
+    expect(result.steps.map((s: { name: string }) => s.name)).toEqual([
       'release_prep',
       'pr_merge',
       'release_sync',
