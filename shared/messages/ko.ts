@@ -31,6 +31,8 @@ export const ko = {
   'trend.metrics.treemap.up': '▲ {value}pt',
   'trend.metrics.treemap.down': '▼ {value}pt',
   'trend.metrics.treemap.other': '기타',
+  'trend.metrics.treemap.fullId': '전체 ID',
+  'trend.metrics.treemap.rank': '순위 {rank}',
   'trend.metrics.or.share': '점유율 {share}%',
   'trend.metrics.share.up': '{value}pt 상승',
   'trend.metrics.share.down': '{value}pt 하락',

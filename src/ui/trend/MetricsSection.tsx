@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, lazy, useState } from 'react'
 import type { ReactNode } from 'react'
 import { LayoutGrid, Table } from 'lucide-react'
 import { t } from '@shared/messages'
@@ -6,7 +6,9 @@ import { TREND_AA_LEADERBOARD_URL } from '@shared/trend-contract'
 import type { TrendMetricsBlock, TrendMetricsEntry } from '@shared/trend-contract'
 import { useTrendDeps } from '@app/trend/TrendGatewayContext'
 import { TrendLoadError, useTrendSection } from '@app/trend/useTrendSection'
-import { TREEMAP_STEPS, shouldShowTreemapLabel, squarify, treemapStep } from './treemap-layout'
+import { buildTreemapCells } from './treemap-data'
+
+const TreemapChart = lazy(() => import('./TreemapChart'))
 
 export const METRICS_VIEW_STORAGE_KEY = 'zzik:trend-metrics-view:v1'
 const METRICS_VIEW_SCHEMA_VERSION = 1
@@ -124,56 +126,20 @@ function EntryRow({ entry }: { entry: TrendMetricsEntry }): ReactNode {
 }
 
 function Treemap({ entries }: { entries: readonly TrendMetricsEntry[] }): ReactNode {
-  const maxShare = Math.max(0, ...entries.map((entry) => entry.share7d ?? 0))
-  const rects = squarify(entries.map((entry) => ({ id: entry.id, value: entry.share7d ?? 0 })), 100, 56.25)
-  const byId = new Map(entries.map((entry) => [entry.id, entry]))
+  const cells = buildTreemapCells(entries)
   return (
     <div data-testid="trend-metrics-treemap" role="list" aria-label={t('trend.metrics.treemap.aria')} className="relative mt-2 h-[220px] w-full overflow-hidden rounded-lg border border-border bg-background sm:h-[320px]">
-      {rects.map((rect) => {
-        const entry = byId.get(rect.id)
-        if (entry === undefined) return null
-        const label = entryLabel(entry)
-        const showLabel = shouldShowTreemapLabel(rect)
-        const isOther = entry.id === 'other'
-        const step = treemapStep(entry.share7d ?? 0, maxShare)
-        const palette = TREEMAP_STEPS[step]!
-        const tone = isOther || step >= 3 ? 'light' : 'dark'
-        return (
-          <div
-            key={rect.id}
-            role="listitem"
-            tabIndex={0}
-            title={label}
-            aria-label={label}
-            data-testid="trend-treemap-cell"
-            data-entry-id={rect.id}
-            data-label-visible={showLabel ? 'true' : 'false'}
-            data-step={isOther ? 'other' : step}
-            data-tone={isOther ? 'other' : tone}
-            className="absolute overflow-hidden rounded-[2px] p-1.5 text-[11px] leading-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            style={{
-              left: `calc(${rect.x}% + 1px)`,
-              top: `calc(${(rect.y / 56.25) * 100}% + 1px)`,
-              width: `max(0px, calc(${rect.width}% - 2px))`,
-              height: `max(0px, calc(${(rect.height / 56.25) * 100}% - 2px))`,
-              backgroundColor: isOther ? 'var(--muted)' : palette.background,
-              color: isOther ? 'var(--muted-foreground)' : palette.foreground,
-            }}
-          >
-            {showLabel && (
-              <span className="flex h-full min-h-0 flex-col gap-0.5">
-                <span className="break-all font-medium">{entryName(entry)}</span>
-                <span className="tabular-nums">{t('trend.metrics.or.share', { share: ((entry.share7d ?? 0) * 100).toFixed(1) })}</span>
-                {entry.shareDelta !== undefined && entry.shareDelta !== null && Math.abs(entry.shareDelta) >= 0.0005 && (
-                  <span className="tabular-nums">{treemapDeltaLabel(entry.shareDelta)}</span>
-                )}
-              </span>
-            )}
-          </div>
-        )
-      })}
+      {cells.length === 0 ? (
+        <p className="p-3 text-sm text-muted-foreground">{t('trend.metrics.empty')}</p>
+      ) : (
+        <Suspense fallback={<div data-testid="trend-treemap-loading" className="h-full w-full animate-pulse bg-muted/30" />}>
+          <TreemapChart cells={cells} />
+        </Suspense>
+      )}
       <ul data-testid="trend-treemap-sr-list" aria-label={t('trend.metrics.treemap.list')} className="absolute -left-[9999px] top-0">
-        {entries.map((entry) => <li key={entry.id}>{entry.rank}. {entryLabel(entry)}</li>)}
+        {entries.map((entry) => (
+          <li key={entry.id} data-testid="trend-treemap-sr-item">{entry.rank}. {entryLabel(entry)}</li>
+        ))}
       </ul>
     </div>
   )
