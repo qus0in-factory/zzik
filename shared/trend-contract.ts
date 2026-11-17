@@ -24,6 +24,7 @@ export const TREND_OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
 export const TREND_GO_MODELS_URL = 'https://opencode.ai/inference/go/v1/models'
 export const TREND_OLLAMA_TAGS_URL = 'https://ollama.com/api/tags'
 export const TREND_AA_URL = 'https://artificialanalysis.ai/api/v2/language/models/free'
+export const TREND_AA_LEADERBOARD_URL = 'https://artificialanalysis.ai/leaderboards/models'
 export const TREND_OR_RANKINGS_URL = 'https://openrouter.ai/api/v1/datasets/rankings-daily'
 export const TREND_METRICS_RULE = 'openrouter-usage-v1'
 export const TREND_AA_TOP_N = 15
@@ -158,6 +159,8 @@ export interface TrendSectionPayload {
   items: TrendItem[]
   /** metrics 섹션 전용. 다른 섹션 payload에는 없다. */
   blocks?: TrendMetricsBlock[]
+  /** AA brief citation(완성된 문장 1개). 점수·순위·모델 id는 구조화 필드로 내지 않는다. */
+  aaCitation?: string
   /** plan-models 섹션 전용. 다른 섹션 payload에는 없다. */
   plans?: TrendPlanGroup[]
 }

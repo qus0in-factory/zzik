@@ -22,7 +22,7 @@ import { D1PlanStore } from './infra/trend/d1-plan-store'
 import { createOllamaTagsSource, createOpenCodeGoSource } from './infra/trend/plan-sources'
 import { refreshMetrics } from './app/trend/refresh-metrics'
 import { D1MetricsStore } from './infra/trend/d1-metrics-store'
-import { createOrRankingSource } from './infra/trend/metrics-sources'
+import { createAaSource, createOrRankingSource } from './infra/trend/metrics-sources'
 import type { MetricsSourceFailureReason } from './domain/trend/metrics/types'
 
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>
@@ -132,14 +132,17 @@ export function createWorker(deps: {
       if (kind === 'metrics') {
         if (env.DB === undefined) return
         const orKey = env.OR_API_KEY?.trim() ?? ''
+        const aaKey = env.AA_API_KEY?.trim() ?? ''
         try {
           const fetchImpl = deps.trendFetch ?? globalThis.fetch
           const result = await refreshMetrics({
             store: new D1MetricsStore(env.DB),
             orSource: orKey === '' ? null : createOrRankingSource({ apiKey: orKey, fetchImpl }),
+            aaSource: aaKey === '' ? null : createAaSource({ apiKey: aaKey, fetchImpl }),
             nowMs,
           })
           console.log(`trend_metrics:or=${metricsLogStatus(result.reasons.or)}`)
+          console.log(`trend_metrics:aa=${metricsLogStatus(result.aa.reason)}`)
         } catch {
           console.log('trend_metrics:error')
         }

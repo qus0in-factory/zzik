@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { t } from '@shared/messages'
+import { TREND_AA_LEADERBOARD_URL } from '@shared/trend-contract'
 import type { TrendMetricsBlock, TrendMetricsEntry } from '@shared/trend-contract'
 import { useTrendDeps } from '@app/trend/TrendGatewayContext'
 import { TrendLoadError, useTrendSection } from '@app/trend/useTrendSection'
@@ -127,6 +128,20 @@ function MetricsSectionContent(): ReactNode {
     <section aria-labelledby="trend-metrics" className="mb-8" data-testid="trend-metrics">
       <h2 id="trend-metrics" className="text-xl font-semibold tracking-tight">{t('trend.metrics.title')}</h2>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('trend.metrics.rule')}</p>
+
+      {data?.aaCitation !== undefined && data.aaCitation !== '' && (
+        <div className="mt-3 rounded-lg border border-border bg-card p-3">
+          <p data-testid="trend-metrics-aa-citation" className="text-sm leading-6">{data.aaCitation}</p>
+          <a
+            href={TREND_AA_LEADERBOARD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-flex text-xs text-muted-foreground underline-offset-4 hover:underline"
+          >
+            {t('trend.metrics.aa.source')}
+          </a>
+        </div>
+      )}
 
       {isPending && <p role="status" className="mt-4 text-sm text-muted-foreground">{t('trend.metrics.loading')}</p>}
       {isError && (notReady ? (
