@@ -23,7 +23,7 @@ Monitor/폴링은 상태 변화나 최종 판정만 출력한다. 분 단위 진
 워커는 작업 중 관련 테스트(vitest related/해당 파일)와 typecheck만 돌린다. 전체 스위트는 CI(`dev→main` PR)가 게이트다. 총괄 에이전트는 워커가 돌린 테스트를 다시 돌리지 않는다.
 
 ## 문서
-한국어 띄어쓰기를 지우지 않는다(`scripts/check-hangul-spacing.mjs`, 작성 중).
+한국어 띄어쓰기를 지우지 않는다(`scripts/check-hangul-spacing.mjs`로 검사).
 
 ## 사용량 한도
 fast·모델 변경은 사용자에게 맡기고, effort는 opus가 작업 성격에 맞춰 조절한다. 현재 한도·effort 지시는 `docs/harness/agents.md` 참고. 워커는 작게 자주 커밋하고 결과 파일에 완료·진행 중·남은 일을 수시로 갱신한다. 소진 시 총괄 에이전트가 해당 worktree와 기록을 다른 워커에 승계한다. 사용자가 정한 역할·모델·fast 모드를 임의로 바꾸지 않는다. 도구 권한 거부(`blocked`) 시 설정을 스스로 고치지 말고 사용자에게 묻는다.

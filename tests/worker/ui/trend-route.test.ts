@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
 import { TREND_METRICS_RULE } from '../../../shared/trend-contract'
-import type { TrendSectionRow, TrendSeenRow, TrendSourceStateRow, TrendStore } from '../../../worker/domain/trend/store'
+import type { TrendSectionRow, TrendSourceStateRow, TrendStore } from '../../../worker/domain/trend/store'
 import { createRouter } from '../../../worker/ui/router'
 import { FakeStore, FakeVerifier } from '../../fakes/worker-ports'
 
@@ -51,8 +51,6 @@ class FakeTrendStore implements TrendStore {
   async writeSection(_payload: TrendSectionPayload): Promise<string> { return sha }
   async readSourceState(_source: string): Promise<TrendSourceStateRow | null> { return null }
   async writeSourceState(_row: TrendSourceStateRow): Promise<void> {}
-  async readSeen(): Promise<TrendSeenRow[]> { return [] }
-  async upsertSeen(_rows: readonly TrendSeenRow[]): Promise<void> {}
 }
 
 function setup() {
