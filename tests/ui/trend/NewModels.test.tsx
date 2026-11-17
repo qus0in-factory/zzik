@@ -35,15 +35,16 @@ describe('Given the recent new-models section on /trend', () => {
   it('When the section is loaded Then renders items, source/updated time and keeps the five reference links', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     renderPage(async () => ({ ok: true, value: fixture }))
-    expect(await screen.findByText('Claude Fable 5.2')).toBeTruthy()
+    const section = within(screen.getByTestId('trend-new-models'))
+    expect(await section.findByText('Claude Fable 5.2')).toBeTruthy()
     expect(screen.getByRole('heading', { name: '최근 7일 새 모델' })).toBeTruthy()
-    expect(screen.getByText('Qwen4 Max')).toBeTruthy()
-    expect(screen.getByText('HY4 Flash')).toBeTruthy()
-    expect(screen.getAllByText('무료')).toHaveLength(1)
-    expect(screen.getAllByText('오픈 웨이트')).toHaveLength(2)
-    expect(screen.getAllByText('출시 2026-11-16')).toHaveLength(2)
-    expect(screen.getAllByText('제공 2곳')).toHaveLength(2)
-    expect(screen.getByText(/출처 models\.dev · 갱신/)).toBeTruthy()
+    expect(section.getByText('Qwen4 Max')).toBeTruthy()
+    expect(section.getByText('HY4 Flash')).toBeTruthy()
+    expect(section.getAllByText('무료')).toHaveLength(1)
+    expect(section.getAllByText('오픈 웨이트')).toHaveLength(2)
+    expect(section.getAllByText('출시 2026-11-16')).toHaveLength(2)
+    expect(section.getAllByText('제공 2곳')).toHaveLength(2)
+    expect(section.getByText(/출처 models\.dev · 갱신/)).toBeTruthy()
     expect(screen.getByText('참고 링크')).toBeTruthy()
     const links = screen.getByRole('list', { name: '트렌드 참고 링크' })
     expect(within(links).getAllByRole('link')).toHaveLength(5)
@@ -58,14 +59,15 @@ describe('Given the recent new-models section on /trend', () => {
 
   it('When the section fails Then shows an error with retry; not_ready is an empty state', async () => {
     renderPage(async () => ({ ok: false, reason: 'api_error', message: 'http_500' }))
-    const alert = await screen.findByRole('alert')
+    const section = within(screen.getByTestId('trend-new-models'))
+    const alert = await section.findByRole('alert')
     expect(alert.textContent).toContain('새 모델을 불러오지 못했습니다.')
     expect(within(alert).getByRole('button', { name: '다시 시도' })).toBeTruthy()
     cleanup()
 
     renderPage(async () => ({ ok: false, reason: 'not_ready', message: 'not_ready' }))
     expect(await screen.findByText('최근 7일 새 모델이 없습니다.')).toBeTruthy()
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(within(screen.getByTestId('trend-new-models')).queryByRole('alert')).toBeNull()
   })
 
   it('When the section payload has no items Then shows the empty state', async () => {
