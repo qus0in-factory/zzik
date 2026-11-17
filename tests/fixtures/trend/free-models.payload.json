@@ -2,18 +2,23 @@
   "section": "free-models",
   "schemaVersion": 1,
   "generatedAt": "2026-11-17T04:07:00.000Z",
-  "rule": "opencode-zen-free",
+  "rule": "opencode-go-free-ollama-blog-promo",
   "sources": [
     {
-      "id": "opencode-zen",
+      "id": "go-models",
+      "fetchedAt": "2026-11-17T04:07:00.000Z",
+      "status": "ok"
+    },
+    {
+      "id": "ollama-blog",
       "fetchedAt": "2026-11-17T04:07:00.000Z",
       "status": "ok"
     }
   ],
   "items": [
     {
-      "id": "hy4-flash-free",
-      "name": "Hy4 Flash Free",
+      "id": "tencent/hy4-flash",
+      "name": "Hy4 flash Free",
       "creator": "tencent",
       "releaseDate": "2026-11-16",
       "precision": "day",
@@ -22,51 +27,62 @@
         "output": 0
       },
       "free": true,
-      "openWeights": true,
-      "providers": [
-        "opencode-zen"
-      ],
-      "links": {},
-      "freeKind": "opencode-zen",
-      "recentlyAdded": true
-    },
-    {
-      "id": "deepseek-v4.1-flash-free",
-      "name": "DeepSeek V4.1 Flash Free",
-      "creator": "deepseek",
-      "releaseDate": "2026-11-10",
-      "precision": "day",
-      "price": {
-        "input": 0,
-        "output": 0
-      },
-      "free": true,
-      "openWeights": true,
-      "providers": [
-        "opencode-zen"
-      ],
-      "links": {},
-      "freeKind": "opencode-zen",
-      "recentlyAdded": true
-    },
-    {
-      "id": "big-pickle",
-      "name": "Big Pickle",
-      "creator": "opencode",
-      "releaseDate": "2026-09-01",
-      "precision": "day",
-      "price": {
-        "input": 0,
-        "output": 0
-      },
-      "free": true,
       "openWeights": false,
       "providers": [
-        "opencode-zen"
+        "go-models"
       ],
-      "links": {},
-      "freeKind": "opencode-zen",
-      "recentlyAdded": false
+      "links": {
+        "opencode": "https://opencode.ai/console/go#pricing"
+      },
+      "freeKind": "opencode-go",
+      "recentlyAdded": true,
+      "limitedTime": true,
+      "limitedRegions": false
+    },
+    {
+      "id": "reflection/beam-1.0-501b-a23b",
+      "name": "Beam Free",
+      "creator": "reflection",
+      "releaseDate": "2026-10-05",
+      "precision": "day",
+      "price": {
+        "input": 0,
+        "output": 0
+      },
+      "free": true,
+      "openWeights": true,
+      "providers": [
+        "go-models"
+      ],
+      "links": {
+        "opencode": "https://opencode.ai/console/go#pricing"
+      },
+      "freeKind": "opencode-go",
+      "recentlyAdded": false,
+      "limitedTime": true,
+      "limitedRegions": true
+    },
+    {
+      "id": "ollama-blog:reflection-beam",
+      "name": "Reflection's Beam is freely available on Ollama for a limited time",
+      "creator": "ollama",
+      "releaseDate": "2026-10-16",
+      "precision": "day",
+      "price": {
+        "input": 0,
+        "output": 0
+      },
+      "free": true,
+      "openWeights": true,
+      "providers": [
+        "ollama-blog"
+      ],
+      "links": {
+        "ollama": "https://ollama.com/blog/reflection-beam"
+      },
+      "freeKind": "ollama-cloud",
+      "recentlyAdded": false,
+      "limitedTime": true
     }
   ]
 }

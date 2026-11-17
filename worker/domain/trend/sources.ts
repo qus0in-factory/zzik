@@ -20,6 +20,9 @@ export interface TrendModelRecord {
   status: string | null
   /** OpenRouter expiration_date 등 만료 시각(ms). 없으면 null. */
   expiresAtMs?: number | null
+  limitedTime?: boolean
+  limitedRegions?: boolean
+  link?: string
 }
 
 export type DecodeModelsDevResult =
@@ -219,5 +222,112 @@ export function decodeOpenRouterModels(input: unknown): DecodeModelsDevResult {
     })
   }
   if (input.data.length > 0 && records.length === 0) return { ok: false, reason: 'invalid_source' }
+  return { ok: true, value: records }
+}
+
+const OPENCODE_GO_PRICING_URL = 'https://opencode.ai/console/go#pricing'
+
+/**
+ * OpenCode Go `/inference/go/v1/models`: `{object:'list', data:[...]}`.
+ * 무료 판정은 `cost.text.input.price == 0 && output.price == 0`이며 `go.limited_regions`를 함께 읽는다.
+ */
+export function decodeGoModels(input: unknown): DecodeModelsDevResult {
+  if (!isRecord(input) || !Array.isArray(input.data)) return { ok: false, reason: 'invalid_source' }
+  const records: TrendModelRecord[] = []
+  for (const raw of input.data) {
+    if (!isRecord(raw)) continue
+    const modelId = typeof raw.id === 'string' && raw.id !== '' ? raw.id : ''
+    if (modelId === '') continue
+    const canonical = typeof raw.canonical_id === 'string' && raw.canonical_id !== '' ? raw.canonical_id : modelId
+    const release = parseRelease(raw.release_date)
+    const cost = isRecord(raw.cost) && isRecord(raw.cost.text) ? raw.cost.text : null
+    const inputPrice = cost !== null && isRecord(cost.input) ? parseNumber(cost.input.price) : null
+    const outputPrice = cost !== null && isRecord(cost.output) ? parseNumber(cost.output.price) : null
+    const price = inputPrice !== null && outputPrice !== null ? { input: inputPrice, output: outputPrice } : null
+    const free = price !== null && price.input === 0 && price.output === 0
+    const go = isRecord(raw.go) ? raw.go : null
+    const description = typeof raw.description === 'string' ? raw.description : ''
+    const limitedRegions = go?.limited_regions === true
+    const limitedTime = free && (go === null || go.monthly_usage === null || /limited time/i.test(description))
+    records.push({
+      canonicalId: canonical,
+      provider: 'opencode-go',
+      modelId,
+      name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : modelId,
+      creator: creatorOf(canonical, 'opencode-go'),
+      releaseDate: release.date,
+      releasePrecision: release.precision,
+      releaseMs: release.ms,
+      price,
+      free,
+      openWeights: raw.open_weights === true,
+      status: raw.deprecated === true ? 'deprecated' : null,
+      expiresAtMs: null,
+      limitedTime,
+      limitedRegions,
+      link: OPENCODE_GO_PRICING_URL,
+    })
+  }
+  if (input.data.length > 0 && records.length === 0) return { ok: false, reason: 'invalid_source' }
+  return { ok: true, value: records }
+}
+
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function rssTag(block: string, tag: string): string {
+  const match = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(block)
+  return match === null ? '' : decodeXmlEntities(match[1] ?? '')
+}
+
+/**
+ * Ollama 블로그 RSS(`/blog/rss.xml`)에서 기간 한정 무료 공지를 추출한다.
+ * `freely available` 또는 `for a limited time` + `free`가 포함된 항목만 선택한다.
+ */
+export function decodeOllamaBlogRss(xmlText: string): DecodeModelsDevResult {
+  if (typeof xmlText !== 'string' || !/<rss\b|<channel\b/i.test(xmlText)) return { ok: false, reason: 'invalid_source' }
+  const records: TrendModelRecord[] = []
+  const itemPattern = /<item\b[^>]*>([\s\S]*?)<\/item>/gi
+  for (const match of xmlText.matchAll(itemPattern)) {
+    const block = match[1] ?? ''
+    const title = rssTag(block, 'title')
+    const link = rssTag(block, 'link')
+    const pubDate = rssTag(block, 'pubDate')
+    const description = rssTag(block, 'description')
+    const haystack = `${title} ${description}`
+    if (!/\b(?:freely available|for a limited time)\b/i.test(haystack) || !/\bfree(?:ly)?\b/i.test(haystack)) continue
+    if (title === '' || link === '') continue
+    const parsedMs = pubDate === '' ? NaN : Date.parse(pubDate)
+    const releaseMs = Number.isFinite(parsedMs) ? parsedMs : null
+    const releaseDate = releaseMs === null ? null : new Date(releaseMs).toISOString().slice(0, 10)
+    const slug = link.replace(/\/+$/, '').split('/').pop() ?? title
+    records.push({
+      canonicalId: `ollama-blog:${slug}`,
+      provider: 'ollama-cloud',
+      modelId: slug,
+      name: title,
+      creator: 'ollama',
+      releaseDate,
+      releasePrecision: releaseDate === null ? 'unknown' : 'day',
+      releaseMs,
+      price: { input: 0, output: 0 },
+      free: true,
+      openWeights: true,
+      status: null,
+      expiresAtMs: null,
+      limitedTime: true,
+      link,
+    })
+  }
   return { ok: true, value: records }
 }

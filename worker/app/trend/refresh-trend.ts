@@ -1,6 +1,7 @@
 import {
   TREND_SOURCE_MODELS_DEV,
-  TREND_SOURCE_OPENCODE_ZEN,
+  TREND_SOURCE_OLLAMA_BLOG,
+  TREND_SOURCE_OPENCODE_GO,
   TREND_SOURCE_OPENROUTER,
 } from '../../../shared/trend-contract'
 import type { TrendSection, TrendSectionPayload, TrendSourceState } from '../../../shared/trend-contract'
@@ -132,20 +133,23 @@ async function applyNewModels(
 
 async function applyFreeModels(
   store: TrendStore,
-  zen: FetchedSource | undefined,
+  goModels: FetchedSource | undefined,
+  ollamaBlog: FetchedSource | undefined,
   modelsDev: FetchedSource | undefined,
   nowMs: number,
 ): Promise<TrendSectionOutcome> {
   const row = await store.readSection('free-models')
   const previous = row === null ? null : parseSectionPayload<TrendSectionPayload>(row.payload, 'free-models')
   const nowIso = new Date(nowMs).toISOString()
-  const sources = [sourceState(zen, previous, nowIso)].filter((source): source is TrendSourceState => source !== null)
-  const zenRecords = zen !== undefined && isFresh(zen.fetched) ? zen.fetched.models ?? [] : null
-  if (zenRecords === null && previous === null) {
+  const sources = [sourceState(goModels, previous, nowIso), sourceState(ollamaBlog, previous, nowIso)]
+    .filter((source): source is TrendSourceState => source !== null)
+  const goRecords = goModels !== undefined && isFresh(goModels.fetched) ? goModels.fetched.models ?? [] : null
+  const ollamaRecords = ollamaBlog !== undefined && isFresh(ollamaBlog.fetched) ? ollamaBlog.fetched.models ?? [] : null
+  if (goRecords === null && ollamaRecords === null && previous === null) {
     return { ok: false, written: false, count: 0, stale: true }
   }
   const catalog = modelsDev !== undefined && isFresh(modelsDev.fetched) ? modelsDev.fetched.models ?? [] : null
-  const payload = buildFreeModels({ zen: zenRecords, catalog, previous, sources, nowMs })
+  const payload = buildFreeModels({ goModels: goRecords, ollamaBlog: ollamaRecords, catalog, previous, sources, nowMs })
   const stale = payload.sources.some((source) => source.status === 'stale')
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
@@ -160,10 +164,11 @@ export async function refreshTrendSections(input: {
 }): Promise<TrendRefreshAllResult> {
   const fetched = await Promise.all(input.sources.map((source) => fetchSource(input.store, source, input.nowMs)))
   const modelsDev = fetched.find((entry) => entry.source.id === TREND_SOURCE_MODELS_DEV)
-  const zen = fetched.find((entry) => entry.source.id === TREND_SOURCE_OPENCODE_ZEN)
+  const goModels = fetched.find((entry) => entry.source.id === TREND_SOURCE_OPENCODE_GO)
+  const ollamaBlog = fetched.find((entry) => entry.source.id === TREND_SOURCE_OLLAMA_BLOG)
   const openrouter = fetched.find((entry) => entry.source.id === TREND_SOURCE_OPENROUTER)
   const newModels = await applyNewModels(input.store, modelsDev, openrouter, input.nowMs)
-  const freeModels = await applyFreeModels(input.store, zen, modelsDev, input.nowMs)
+  const freeModels = await applyFreeModels(input.store, goModels, ollamaBlog, modelsDev, input.nowMs)
   const sources: Record<string, 'ok' | 'stale'> = {}
   for (const entry of fetched) sources[entry.source.id] = entry.fetched.ok ? 'ok' : 'stale'
   const catalog = modelsDev !== undefined && isFresh(modelsDev.fetched) ? modelsDev.fetched.models ?? [] : null

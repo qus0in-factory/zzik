@@ -11,7 +11,7 @@ import type {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const isPrecision = (value: unknown): value is TrendItem['precision'] => value === 'day' || value === 'month' || value === 'unknown'
 const isStatus = (value: unknown): value is TrendSourceState['status'] => value === 'ok' || value === 'stale'
-const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'opencode-zen'
+const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'opencode-go' || value === 'ollama-cloud'
 const isRegisteredIn = (value: unknown): value is 'aa' | 'openrouter' => value === 'aa' || value === 'openrouter'
 const isBlockStatus = (value: unknown): value is TrendMetricsBlock['status'] => value === 'ok' || value === 'stale' || value === 'not_configured' || value === 'under_review'
 const isMetricsKind = (value: unknown): value is TrendMetricsEntry['kind'] => value === 'new-top' || value === 'moved' || value === 'steady'
@@ -37,6 +37,7 @@ function projectLinks(value: unknown): TrendItem['links'] | null {
   if (typeof value.modelsDev === 'string') links.modelsDev = value.modelsDev
   if (typeof value.openrouter === 'string') links.openrouter = value.openrouter
   if (typeof value.opencode === 'string') links.opencode = value.opencode
+  if (typeof value.ollama === 'string') links.ollama = value.ollama
   return links
 }
 
@@ -55,12 +56,18 @@ function projectItem(value: unknown): TrendItem | null {
   if (freeKind !== undefined && !isFreeKind(freeKind)) return null
   const recentlyAdded = value.recentlyAdded
   if (recentlyAdded !== undefined && typeof recentlyAdded !== 'boolean') return null
+  const limitedTime = value.limitedTime
+  if (limitedTime !== undefined && typeof limitedTime !== 'boolean') return null
+  const limitedRegions = value.limitedRegions
+  if (limitedRegions !== undefined && typeof limitedRegions !== 'boolean') return null
   const registeredIn = value.registeredIn
   if (registeredIn !== undefined && (!Array.isArray(registeredIn) || !registeredIn.every(isRegisteredIn))) return null
   return {
     id, name, creator, releaseDate, precision, price, free, openWeights, providers: [...providers], links,
     ...(freeKind === undefined ? {} : { freeKind }),
     ...(recentlyAdded === undefined ? {} : { recentlyAdded }),
+    ...(limitedTime === undefined ? {} : { limitedTime }),
+    ...(limitedRegions === undefined ? {} : { limitedRegions }),
     ...(registeredIn === undefined ? {} : { registeredIn: [...registeredIn] }),
   }
 }
