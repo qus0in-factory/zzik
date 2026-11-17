@@ -48,8 +48,9 @@ export function parseGrokModels(raw){
   if(!Array.isArray(parsed?.data))return {ok:false,reason:'invalid_models'}
   /** @type {Map<string,Model>} */const models=new Map()
   for(const item of parsed.data){
-   if(typeof item?.id!=='string'||!/^[a-z0-9][a-z0-9._/-]*$/i.test(item.id))return {ok:false,reason:'invalid_models'}
-   if(!models.has(item.id))models.set(item.id,{id:item.id,name:item.id,confidence:'partial'})
+   if(typeof item?.id!=='string'||!item.id.trim())return {ok:false,reason:'invalid_models'}
+   const id=item.id.trim()
+   if(!models.has(id))models.set(id,{id,name:id,confidence:'partial'})
   }
   return models.size?{ok:true,value:[...models.values()]}:{ok:false,reason:'empty_models'}
  }catch{return {ok:false,reason:'invalid_models'}}

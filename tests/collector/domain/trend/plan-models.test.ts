@@ -17,7 +17,7 @@ describe('Given authenticated model lists', () => {
  })
  it('When Grok returns a model list Then only validated identity and partial confidence are kept',()=>{
   expect(parseGrokModels(JSON.stringify({data:[{id:'grok-4.7',secret:'discard'},{id:'other-model-1'},{id:'grok-4.7'}]}))).toEqual({ok:true,value:[{id:'grok-4.7',name:'grok-4.7',confidence:'partial'},{id:'other-model-1',name:'other-model-1',confidence:'partial'}]})
-  expect(parseGrokModels(JSON.stringify({data:[{id:'bad id'}]}))).toEqual({ok:false,reason:'invalid_models'})
+  expect(parseGrokModels(JSON.stringify({data:[{id:'   '}]}))).toEqual({ok:false,reason:'invalid_models'})
   expect(parseGrokModels(JSON.stringify({data:[]}))).toEqual({ok:false,reason:'empty_models'})
  })
  it('When scoped limits contain a model and a surface Then only the model is observed',()=>{
