@@ -59,12 +59,12 @@ describe('Given the metrics section on /trend', () => {
       ok: true,
       value: {
         ...metrics,
-        aaCitation: 'Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)',
+        aaCitation: '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.',
       },
     }))
     const section = within(screen.getByTestId('trend-metrics'))
     expect(await section.findByTestId('trend-metrics-aa-citation')).toBeTruthy()
-    expect(section.getByText('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')).toBeTruthy()
+    expect(section.getByText('요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.')).toBeTruthy()
     const source = section.getByRole('link', { name: 'Source: Artificial Analysis (artificialanalysis.ai)' })
     expect(source.getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
     expect(section.queryByRole('table')).toBeNull()

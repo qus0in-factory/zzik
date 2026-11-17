@@ -33,7 +33,7 @@ describe('Given /trend?fixture=normal', () => {
     expect(await screen.findAllByTestId('trend-metrics-entry')).toHaveLength(3)
     const metrics = within(screen.getByTestId('trend-metrics'))
     expect(metrics.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
-    expect(metrics.getByTestId('trend-metrics-aa-citation').textContent).toContain('Artificial Analysis Intelligence Index 1위는 Claude Fable 5.2')
+    expect(metrics.getByTestId('trend-metrics-aa-citation').textContent).toContain('요즘 주목받는 모델은 Claude Opus, Gemini Carbon, GPT Sol')
     expect(metrics.getByRole('link', { name: /Artificial Analysis/ }).getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
 
     expect(await screen.findAllByTestId('trend-new-model')).toHaveLength(6)

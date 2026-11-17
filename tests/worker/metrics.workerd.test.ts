@@ -104,16 +104,16 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
 
   afterAll(async () => { await mf.dispose() })
 
-  it('When the metrics cron runs with keys Then it stores only the AA top two internally and serves one citation sentence', async () => {
+  it('When the metrics cron runs with keys Then it stores AA top candidates internally and serves one notable-model sentence', async () => {
     const worker = await mf.getWorker() as unknown as {
       scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
     }
     await worker.scheduled({ cron: METRICS_CRON, scheduledTime: NOW })
 
     const aa = await db.prepare('SELECT COUNT(*) AS count FROM trend_aa_snapshot').all<{ count: number }>()
-    expect(Number(aa.results[0]?.count)).toBe(2)
+    expect(Number(aa.results[0]?.count)).toBe(3)
     const aaRows = await db.prepare('SELECT slug FROM trend_aa_snapshot ORDER BY slug').all<{ slug: string }>()
-    expect(aaRows.results.map((row: { slug: string }) => row.slug)).toEqual(['a/x', 'b/x'])
+    expect(aaRows.results.map((row: { slug: string }) => row.slug)).toEqual(['a/x', 'b/x', 'c/x'])
     const or = await db.prepare('SELECT model_permaslug AS id, total_tokens AS tokens FROM trend_or_ranking WHERE day = ? ORDER BY model_permaslug').bind('2026-11-17').all<{ id: string; tokens: string }>()
     expect(or.results).toEqual([{ id: 'a/x', tokens: '600' }, { id: 'other', tokens: '400' }])
 
@@ -135,8 +135,8 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
       blocks: Array<{ id: string; status: string; entries: Array<Record<string, unknown>>; attribution: string }>
       aaCitation?: string
     }
-    expect(body.aaCitation).toBe('Artificial Analysis Intelligence Index 1위는 A X (90)입니다. (2026-11-17 기준)')
-    expect(text).not.toContain('C X')
+    expect(body.aaCitation).toBe('요즘 주목받는 모델은 A X, B X, C X 등입니다.')
+    expect(text).not.toMatch(/1위|90|Intelligence Index/)
     expect(body.section).toBe('metrics')
     expect(body.items).toEqual([])
     expect(body.sources.map((source) => source.id)).toEqual(['openrouter-rankings'])

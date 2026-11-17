@@ -42,7 +42,7 @@ describe('Given the AA dry-run diagnostics', () => {
         snapshot: { version: '5', entries: [{ slug: 'a', name: 'Model A (high)', creator: '', releaseDate: null, intelligenceIndex: 92, priceIn: null, priceOut: null, domains: {} }] },
       }),
     })
-    expect(result.aaCitation).toBe('Artificial Analysis Intelligence Index 1위는 Model A (high) (92)입니다. (2026-11-17 기준)')
+    expect(result.aaCitation).toBe('요즘 주목받는 모델은 Model A 등입니다.')
     expect(aaStatusToken(result.aa)).toBe('ok')
   })
 

@@ -1,11 +1,15 @@
 /**
- * AA brief citation의 단일 진입 검증. 생성 단계와 공개 projection이 같은 규칙을 쓴다.
- * 프리폼 문자열을 신뢰하지 않고 검증된 모델 표시명·숫자 값으로 고정 틀을 다시 만든다.
+ * AA 주목 모델 인용의 단일 진입 검증. 생성 단계와 공개 projection이 같은 규칙을 쓴다.
+ * 순위·점수·지수 이름은 공개 문장에 넣지 않고, 모델 대표 이름만 알파벳 순으로 나열한다.
  */
 
 const MAX_NAME_LENGTH = 80
+const MAX_MODELS = 5
 const MAX_CITATION_LENGTH = 500
-const CITATION_RE = /^Artificial Analysis Intelligence Index 1위는 (.+) \((\d+(?:\.\d+)?)\)입니다\. \((\d{4}-\d{2}-\d{2}) 기준\)$/
+const PREFIX = '요즘 주목받는 모델은 '
+const SUFFIX = ' 등입니다.'
+const CITATION_RE = /^요즘 주목받는 모델은 (.+) 등입니다\.$/
+const RANK_WORD_RE = /1위|2위|3위|순위|지수|점수|rank|score|index/i
 
 /** 모델 표시명: 버전 점과 "(high)" 같은 괄호 수식은 허용, 개행·추가 문장·직렬화 기호는 거부. */
 export function safeModelName(value: unknown): string | null {
@@ -19,21 +23,26 @@ export function safeModelName(value: unknown): string | null {
   return name
 }
 
-function scoreText(value: unknown): string | null {
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value) || value < 0) return null
-    return Number.isInteger(value) ? String(value) : value.toFixed(1)
-  }
-  if (typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value))) return value
-  return null
+/** 원시 표시명에서 괄호 수식과 버전 숫자를 제거해 계열 대표 이름으로 만든다. */
+export function notableFamilyName(raw: string): string | null {
+  const withoutModifier = raw.replace(/\([^)]*\)/g, ' ')
+  const withoutVersion = withoutModifier.replace(/\b\d+(?:\.\d+)*\b/g, ' ').replace(/\s*-\s*/g, ' ')
+  return safeModelName(withoutVersion.replace(/\s+/g, ' ').trim())
 }
 
-/** 검증된 값으로만 한 문장을 만든다. 하나라도 의심스러우면 null(공개에서 제외). */
-export function composeAaCitation(input: { name: unknown; score: unknown; day: string }): string | null {
-  const name = safeModelName(input.name)
-  const score = scoreText(input.score)
-  if (name === null || score === null || !/^\d{4}-\d{2}-\d{2}$/.test(input.day)) return null
-  const text = `Artificial Analysis Intelligence Index 1위는 ${name} (${score})입니다. (${input.day} 기준)`
+/** 검증된 대표 이름 목록으로 한 문장을 만든다. 하나라도 의심스러우면 null. */
+export function composeNotableCitation(names: readonly string[]): string | null {
+  if (!Array.isArray(names) || names.length === 0 || names.length > MAX_MODELS) return null
+  const clean: string[] = []
+  for (const name of names) {
+    if (safeModelName(name) === null || /\d/.test(name) || RANK_WORD_RE.test(name)) return null
+    if (clean.some((item) => item.toLowerCase() === name.toLowerCase())) return null
+    clean.push(name)
+  }
+  for (let index = 1; index < clean.length; index += 1) {
+    if (clean[index - 1]!.localeCompare(clean[index]!) >= 0) return null
+  }
+  const text = PREFIX + clean.join(', ') + SUFFIX
   return text.length <= MAX_CITATION_LENGTH ? text : null
 }
 
@@ -42,6 +51,6 @@ export function validatedAaCitation(text: unknown): string | null {
   if (typeof text !== 'string' || text.length > MAX_CITATION_LENGTH) return null
   const matched = CITATION_RE.exec(text)
   if (matched === null) return null
-  const canonical = composeAaCitation({ name: matched[1], score: matched[2], day: matched[3]! })
+  const canonical = composeNotableCitation(matched[1]!.split(', '))
   return canonical === text ? canonical : null
 }
