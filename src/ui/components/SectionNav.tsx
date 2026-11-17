@@ -160,7 +160,9 @@ export function SectionNav({
             key={section.id}
             to={{ pathname, search: location.search, hash: `#${section.id}` }}
             aria-current={current === section.id ? 'location' : undefined}
-            onClick={() => {
+            onClick={(event) => {
+              // 수정 키·비왼쪽 버튼 클릭은 새 탭 등 브라우저 기본 동작에 맡기고 현재 탭 상태를 건드리지 않는다.
+              if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
               hashIntent.current = true
               setCurrent(section.id)
               if (location.hash === `#${section.id}`) document.getElementById(section.id)?.scrollIntoView?.()

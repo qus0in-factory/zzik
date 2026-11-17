@@ -45,6 +45,32 @@ describe('Given UsageSectionNav for /usage', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
   })
 
+  it.each([
+    ['ctrl', { ctrlKey: true }],
+    ['meta', { metaKey: true }],
+  ])('When %s+click on a different link Then aria-current stays on the current section', (_name, modifier) => {
+    renderNav()
+    const nav = screen.getByRole('navigation', { name: '사용량 섹션' })
+    const links = within(nav).getAllByRole('link')
+    expect(links[0]?.getAttribute('aria-current')).toBe('location')
+    fireEvent.click(links[1]!, modifier)
+    expect(links[0]?.getAttribute('aria-current')).toBe('location')
+    expect(links[1]?.getAttribute('aria-current')).toBeNull()
+  })
+
+  it.each([
+    ['ctrl', { ctrlKey: true }],
+    ['meta', { metaKey: true }],
+  ])('When %s+click on the current link Then scrollIntoView is not called', (_name, modifier) => {
+    renderNav()
+    const nav = screen.getByRole('navigation', { name: '사용량 섹션' })
+    const current = within(nav).getAllByRole('link')[0]!
+    const scrollIntoView = vi.fn()
+    current.scrollIntoView = scrollIntoView
+    fireEvent.click(current, modifier)
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
   it('When rendered with custom order, hidden providers, and AA trend enabled Then lists visible providers in order followed by Trend and highlights current', () => {
     renderNav({
       customOrder: ['codex', 'claude', 'antigravity', 'opencode', 'grok', 'ollama'],
