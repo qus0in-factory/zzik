@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BUCKET_CRON,
   EXPORT_CRON,
+  TREND_CRON,
   EXPORT_PART_MAX_BYTES,
   buildExportDocument,
   chunkRowsByEncodedBytes,
@@ -60,6 +61,7 @@ describe('Given a scheduled cron string', () => {
   it.each([
     [EXPORT_CRON, 'export'],
     [BUCKET_CRON, 'bucket'],
+    [TREND_CRON, 'trend'],
     ['0 * * * *', 'unknown'],
     [undefined, 'unknown'],
   ] as const)('When cron is %s Then it is classified as %s', (cron, kind) => {

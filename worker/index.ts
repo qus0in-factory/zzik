@@ -14,6 +14,9 @@ import type { ExportSink, ExportSource } from './domain/usage/export'
 import { D1BucketStore, D1BucketWriterStore } from './infra/usage/d1-bucket-store'
 import { resolveUsageReadStore } from './infra/usage/read-store'
 import { USAGE_HISTORY_SCAN_VERSION } from '../shared/usage-history-contract'
+import { D1TrendStore } from './infra/trend/d1-trend-store'
+import { createModelsDevSource } from './infra/trend/http-sources'
+import { refreshTrend } from './app/trend/refresh-trend'
 
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>
   new JoseAccessVerifier(config, remoteAccessKeys(config.issuer))
@@ -31,6 +34,7 @@ export function createWorker(deps: {
   createVerifier?: typeof createVerifier
   exportSource?: (env: Env) => ExportSource | null
   exportSink?: (env: Env) => ExportSink | null
+  trendFetch?: typeof fetch
   now?: () => number
 } = {}) {
   const exportSource = deps.exportSource ?? ((env: Env) => env.DB === undefined ? null : new D1ExportSource(env.DB))
@@ -48,13 +52,27 @@ export function createWorker(deps: {
         history: new D1HistoryStore(available),
         store: new D1SnapshotStore(available),
         buckets: available === null || generation === null ? null : new D1BucketStore(available, {dataGeneration:generation}),
-        trend: null,
+        trend: env.DB === undefined ? null : new D1TrendStore(env.DB),
         assets: env.ASSETS,
       }).fetch(request)
     },
     async scheduled(controller: ScheduledControllerLike, env: Env, _context?: ScheduledContextLike): Promise<void> {
       const nowMs = controller.scheduledTime ?? deps.now?.() ?? Date.now()
       const kind = classifyScheduledCron(controller.cron)
+      if (kind === 'trend') {
+        if (env.DB === undefined) return
+        try {
+          const result = await refreshTrend({
+            store: new D1TrendStore(env.DB),
+            source: createModelsDevSource({ fetchImpl: deps.trendFetch ?? globalThis.fetch }),
+            nowMs,
+          })
+          if (!result.ok) console.error('trend_refresh_failed:models.dev')
+        } catch {
+          console.error('trend_refresh_failed:unexpected')
+        }
+        return
+      }
       if (kind === 'bucket') {
         if (env.DB === undefined) return
         const generation = parseDataGeneration(env.USAGE_DATA_GENERATION)
