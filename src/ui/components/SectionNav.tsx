@@ -83,6 +83,11 @@ export function SectionNav({
   const hashAvailable = visibleIds.includes(hashId)
 
   useEffect(() => {
+    navRef.current?.querySelector<HTMLAnchorElement>('a[aria-current="location"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [current, visibleIds])
+
+  useEffect(() => {
     hashIntent.current = true
     if (hashAvailable) setCurrent(hashId)
   }, [hashId, hashAvailable])
