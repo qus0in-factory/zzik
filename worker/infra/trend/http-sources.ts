@@ -11,8 +11,8 @@ import {
 import { decodeGoModels, decodeModelsDev, decodeOpenRouterModels, decodeZenModels } from '../../domain/trend/sources'
 import type { DecodeModelsDevResult, TrendSource, TrendSourceFailure } from '../../domain/trend/sources'
 
-/** §3.1 메모리 게이트: 6.7MB 원문 + 파싱 트리를 20MB 이하 응답으로 제한한다. 로컬 측정은 결과 문서 참조. */
-export const MODELS_DEV_MAX_BYTES = 20 * 1024 * 1024
+/** §3.1 메모리 게이트: 6.7MB 원문 + 파싱 트리를 12MB 이하 응답으로 제한한다. */
+export const MODELS_DEV_MAX_BYTES = 12 * 1024 * 1024
 export const MODELS_DEV_TIMEOUT_MS = 20_000
 export const ZEN_MAX_BYTES = 5 * 1024 * 1024
 export const OPENROUTER_MAX_BYTES = 10 * 1024 * 1024

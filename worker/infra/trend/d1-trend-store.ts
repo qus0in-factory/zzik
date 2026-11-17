@@ -81,6 +81,11 @@ export class D1TrendStore implements TrendStore {
     return row === undefined ? null : { source: row.source, etag: row.etag, fetchedAt: Number(row.fetched_at), ok: row.ok === 1, httpStatus: row.http_status === null ? null : Number(row.http_status) }
   }
 
+  async readSourceStates(): Promise<TrendSourceStateRow[]> {
+    const rows = await all<SourceDbRow>(this.db, 'SELECT source, etag, fetched_at, ok, http_status FROM trend_source_state', [])
+    return rows.map((row) => ({ source: row.source, etag: row.etag, fetchedAt: Number(row.fetched_at), ok: row.ok === 1, httpStatus: row.http_status === null ? null : Number(row.http_status) }))
+  }
+
   async writeSourceState(row: TrendSourceStateRow): Promise<void> {
     await this.db.prepare(
       `INSERT INTO trend_source_state (source, etag, fetched_at, ok, http_status)

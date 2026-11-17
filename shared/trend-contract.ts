@@ -169,6 +169,7 @@ export interface TrendIndexSection {
   id: TrendSection
   count: number
   generatedAt: string
+  checkedAt?: string
   status: 'ok' | 'stale' | 'not_ready'
 }
 

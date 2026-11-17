@@ -234,8 +234,8 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
     const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
     expect(indexBody.sections).toEqual(expect.arrayContaining([
-      { id: 'new-models', count: 0, generatedAt: new Date(NOW + 8 * 86_400_000).toISOString(), status: 'ok' },
-      expect.objectContaining({ id: 'free-models', count: 1, status: 'ok' }),
+      { id: 'new-models', count: 0, generatedAt: new Date(NOW + 8 * 86_400_000).toISOString(), checkedAt: new Date(NOW + 8 * 86_400_000).toISOString(), status: 'ok' },
+      expect.objectContaining({ id: 'free-models', count: 1, checkedAt: new Date(NOW + 8 * 86_400_000).toISOString(), status: 'ok' }),
     ]))
   })
 })

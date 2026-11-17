@@ -29,6 +29,7 @@ export interface TrendStore {
   /** payload를 저장하고 payload_sha256을 반환한다. 100KB를 넘으면 거부한다. */
   writeSection(payload: TrendSectionPayload): Promise<string>
   readSourceState(source: string): Promise<TrendSourceStateRow | null>
+  readSourceStates?(): Promise<TrendSourceStateRow[]>
   writeSourceState(row: TrendSourceStateRow): Promise<void>
   readSeen(): Promise<TrendSeenRow[]>
   upsertSeen(rows: readonly TrendSeenRow[]): Promise<void>

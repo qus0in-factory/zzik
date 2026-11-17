@@ -10,6 +10,7 @@ import {
 } from '../../../../shared/trend-contract'
 import type { TrendItem, TrendPrice, TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
 import type { TrendModelRecord } from '../sources'
+import { carryEnrichment } from './carry-metadata'
 
 const MAX_ITEMS = 50
 const DEPRECATED = new Set(['deprecated', 'retired'])
@@ -121,6 +122,7 @@ export function buildNewModels(input: NewModelsInput): TrendSectionPayload {
   const index = catalogIndex(devGroups)
   const orGroups = groupByCanonical(input.openrouter ?? [])
 
+  const prevById = new Map((input.previous?.items ?? []).map((item) => [item.id, item]))
   const fresh = new Map<string, TrendItem & { sortMs: number }>()
   if (input.openrouter !== null) {
     for (const [orId, group] of orGroups) {
@@ -129,7 +131,8 @@ export function buildNewModels(input: NewModelsInput): TrendSectionPayload {
       const matched = matchCanonical(group[0]!, devGroups, index)
       const metadata = matched === null ? group : devGroups.get(matched) ?? group
       const item = makeItem({ metadata, orMs: createdMs })
-      fresh.set(item.id === '' ? orId : item.id, item)
+      const enriched = input.modelsDev === null ? carryEnrichment(item, prevById.get(item.id)) : item
+      fresh.set(enriched.id === '' ? orId : enriched.id, { ...enriched, sortMs: item.sortMs })
     }
   }
 

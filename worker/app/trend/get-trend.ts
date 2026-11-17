@@ -13,8 +13,23 @@ function parsePayload(row: TrendSectionRow): TrendSectionPayload | null {
   }
 }
 
+const SECTION_SOURCES: Record<TrendSection, readonly string[]> = {
+  'new-models': ['models.dev', 'openrouter'],
+  'free-models': ['go-models'],
+  'plan-models': ['go-models', 'ollama-tags'],
+  metrics: ['openrouter-rankings'],
+  frontier: [],
+}
+
 export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | null> {
   const rows = await store.readSections()
+  let sourceStates: Awaited<ReturnType<NonNullable<TrendStore['readSourceStates']>>> = []
+  try {
+    if (store.readSourceStates !== undefined) sourceStates = await store.readSourceStates()
+  } catch {
+    sourceStates = []
+  }
+  const bySource = new Map(sourceStates.map((row) => [row.source, row.fetchedAt]))
   const sections: TrendIndexSection[] = []
   let generatedAt = 0
   for (const row of rows) {
@@ -22,10 +37,12 @@ export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | nul
     if (payload === null) continue
     const at = Date.parse(payload.generatedAt)
     if (Number.isFinite(at)) generatedAt = Math.max(generatedAt, at)
+    const checkedMs = SECTION_SOURCES[row.section].reduce((max, id) => Math.max(max, bySource.get(id) ?? 0), 0)
     sections.push({
       id: row.section,
       count: payload.items.length,
       generatedAt: payload.generatedAt,
+      checkedAt: checkedMs > 0 ? new Date(checkedMs).toISOString() : payload.generatedAt,
       status: payload.sources.some((source) => source.status === 'stale') ? 'stale' : 'ok',
     })
   }

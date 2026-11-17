@@ -223,7 +223,7 @@ describe('Given the multi-source trend refresh', () => {
         scripted(TREND_SOURCE_OPENROUTER, [failed]),
       ],
     })
-    expect(result.newModels).toEqual({ ok: false, reason: 'source_failed' })
+    expect(result.newModels).toMatchObject({ ok: false, reason: 'source_failed', status: 'skipped' })
     expect(result.freeModels).toMatchObject({ ok: false, written: false, stale: true })
     expect(store.sections.has('new-models')).toBe(false)
     expect(store.sections.has('free-models')).toBe(false)

@@ -15,7 +15,7 @@ import { D1BucketStore, D1BucketWriterStore } from './infra/usage/d1-bucket-stor
 import { resolveUsageReadStore } from './infra/usage/read-store'
 import { USAGE_HISTORY_SCAN_VERSION } from '../shared/usage-history-contract'
 import { D1TrendStore } from './infra/trend/d1-trend-store'
-import { createGoModelsSource, createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
+import { createGoModelsSource, createModelsDevSource, createOpenRouterSource } from './infra/trend/http-sources'
 import { refreshTrendSections } from './app/trend/refresh-trend'
 import { refreshPlanModels } from './app/trend/refresh-plan-models'
 import { D1PlanStore } from './infra/trend/d1-plan-store'
@@ -98,7 +98,6 @@ export function createWorker(deps: {
             store: new D1TrendStore(env.DB),
             sources: [
               createModelsDevSource({ fetchImpl }),
-              createZenSource({ fetchImpl }),
               createGoModelsSource({ fetchImpl }),
               createOpenRouterSource({ fetchImpl }),
             ],
@@ -107,6 +106,7 @@ export function createWorker(deps: {
           for (const [source, status] of Object.entries(result.sources)) {
             if (status === 'stale') console.error(`trend_refresh_failed:${source}`)
           }
+          let planStatus = 'error'
           try {
             const plan = await refreshPlanModels({
               store: new D1PlanStore(env.DB),
@@ -117,13 +117,26 @@ export function createWorker(deps: {
               catalog: result.catalog,
               nowMs,
             })
+            planStatus = plan.written ? 'written' : 'unchanged'
             for (const [source, status] of Object.entries(plan.sources)) {
               if (status === 'stale') console.error(`trend_plan_failed:${source}`)
             }
-          } catch {
+          } catch (error) {
+            planStatus = `error:${safeTrendErrorClass(error)}`
             console.error('trend_plan_failed:unexpected')
           }
-          logTrend('trend_refresh:complete')
+          const fmtNew = result.newModels.status === 'error'
+            ? `error:${result.newModels.errorClass ?? 'Error'}`
+            : result.newModels.status === 'skipped' || !result.newModels.ok
+              ? `skipped:${result.newModels.ok ? 'none' : result.newModels.reason}`
+              : result.newModels.status ?? (result.newModels.written ? 'written' : 'unchanged')
+          const fmtFree = result.freeModels.status === 'error'
+            ? `error:${result.freeModels.errorClass ?? 'Error'}`
+            : result.freeModels.status === 'skipped'
+              ? `skipped:${result.freeModels.reason ?? 'source_failed'}`
+              : result.freeModels.status ?? (result.freeModels.written ? 'written' : 'unchanged')
+          const sourcesLog = Object.entries(result.sourceStatuses).map(([id, code]) => `${id}:${code}`).join(',')
+          logTrend(`trend_refresh:complete new=${fmtNew} free=${fmtFree} plan=${planStatus} sources=${sourcesLog}`)
         } catch (error) {
           logTrend(`trend_refresh_failed:unexpected:${safeTrendErrorClass(error)}`)
         }

@@ -47,20 +47,18 @@ describe('Given the Worker scheduled entrypoint', () => {
     const db = {
       prepare(sql: string) {
         seenSql.push(sql)
-        return {
-          bind(..._params: unknown[]) {
-            return {
-              async all() {
-                if (sql.includes('trend_source_state')) throw new Error('d1_source_state_down')
-                return { success: true, results: [] }
-              },
-              async run() {
-                if (sql.includes('trend_source_state')) throw new Error('d1_source_state_down')
-                return { success: true, results: [] }
-              },
-            }
+        const stmt = {
+          bind(..._params: unknown[]) { return stmt },
+          async all() {
+            if (sql.includes('trend_source_state')) throw new Error('d1_source_state_down')
+            return { success: true, results: [] }
+          },
+          async run() {
+            if (sql.includes('trend_source_state')) throw new Error('d1_source_state_down')
+            return { success: true, results: [] }
           },
         }
+        return stmt
       },
       async batch() { return [] },
     }
@@ -76,20 +74,18 @@ describe('Given the Worker scheduled entrypoint', () => {
     const writtenSections: string[] = []
     const db = {
       prepare(sql: string) {
-        return {
-          bind(...params: unknown[]) {
-            return {
-              async all() { return { success: true, results: [] } },
-              async run() {
-                if (sql.includes('INSERT INTO trend_section')) {
-                  if (params[0] === 'new-models') throw new Error('trend_section_too_large')
-                  writtenSections.push(String(params[0]))
-                }
-                return { success: true, results: [] }
-              },
+        const makeStmt = (bound: unknown[] = []) => ({
+          bind(...params: unknown[]) { return makeStmt(params) },
+          async all() { return { success: true, results: [] } },
+          async run() {
+            if (sql.includes('INSERT INTO trend_section')) {
+              if (bound[0] === 'new-models') throw new Error('trend_section_too_large')
+              writtenSections.push(String(bound[0]))
             }
+            return { success: true, results: [] }
           },
-        }
+        })
+        return makeStmt()
       },
       async batch() { return [] },
     }
