@@ -1,6 +1,8 @@
 import type { UsageEnvelope, UsageProvider } from '../../../shared/usage-contract.ts'
 import type { CollectorD1WriteV1, D1WriteReceipt, D1Result } from '../../../shared/d1-contract.ts'
 export interface LedgerState {
+  rateLimitedAtMs?: number[]
+  nextDueIntervalSec?: number
   clockSkewCount?: number
   clockStopped?: boolean
   previous: UsageEnvelope | null

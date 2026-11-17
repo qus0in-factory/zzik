@@ -31,7 +31,7 @@
 | `opencode` | `180초` | 429/gate 시 `900` override |
 | `grok` | `180초` | 429/gate 시 `900` override |
 | `ollama` | `180초` | 429/gate 시 `900` override |
-| `claude` | `900초` | 상한·복귀 주기 `900초` |
+| `claude` | `300초` | provider 429 시 자동 `900초` 강등, 24시간부터 최대 7일 |
 
 ## 보존·경보 수치
 

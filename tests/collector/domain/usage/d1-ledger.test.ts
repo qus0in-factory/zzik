@@ -66,3 +66,26 @@ describe('Given a durable accepted chain and a separate remote committed baselin
     expect(reconcileSequence(data,Number.MAX_SAFE_INTEGER,{}).ok).toBe(false)
   })
 })
+describe('Given rate limit history in provider state',()=>{
+ it('When accepting a rate limit after its run starts Then records the acceptance time',()=>{
+  const envelope=d1Envelope({runAt:new Date(now).toISOString(),status:'rate_limited',called:true,httpStatus:429,rawText:null})
+  const result=successValue(acceptObservation(initialLedgerState(),{envelope,operationId:id(1),nowMs:now+100,lastStartedAtMs:now,nextDueMs:now+900000,alerts:[]}))
+  expect(result.state.rateLimitedAtMs).toEqual([now+100])
+ })
+ it('When a called rate limit is accepted Then keeps the latest ten in seven days and old states remain readable',()=>{
+  let data=initialLedgerState()
+  for(let n=1;n<=12;n++){
+   const at=now+n
+   const envelope=d1Envelope({runAt:new Date(at).toISOString(),status:'rate_limited',called:true,httpStatus:429,rawText:null})
+   data=successValue(acceptObservation(data,{envelope,operationId:id(n),nowMs:at,lastStartedAtMs:at,nextDueMs:at+900000,alerts:[]}))
+  }
+  expect(data.state.rateLimitedAtMs).toEqual(Array.from({length:10},(_,i)=>now+i+3))
+  const future=now+8*86400000
+  const envelope=d1Envelope({runAt:new Date(future).toISOString(),status:'rate_limited',called:true,httpStatus:429,rawText:null})
+  data=successValue(acceptObservation(data,{envelope,operationId:id(13),nowMs:future,lastStartedAtMs:future,nextDueMs:future+900000,alerts:[]}))
+  expect(data.state.rateLimitedAtMs).toEqual([future])
+  expect(accept(data,1,14,future+1).state.rateLimitedAtMs).toEqual([future])
+  const gated=d1Envelope({runAt:new Date(future+2).toISOString(),status:'rate_limited',called:false,httpStatus:null,rawText:null})
+  expect(successValue(acceptObservation(data,{envelope:gated,operationId:id(15),nowMs:future+2,lastStartedAtMs:future,nextDueMs:future+900000,alerts:[]})).state.rateLimitedAtMs).toEqual([future])
+ })
+})
