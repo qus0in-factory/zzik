@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import type { TrendGateway } from '@domain/trend/gateway'
@@ -73,5 +73,48 @@ describe('Given the recent new-models section on /trend', () => {
   it('When the section payload has no items Then shows the empty state', async () => {
     renderPage(async () => ({ ok: true, value: { ...fixture, items: [] } }))
     expect(await screen.findByText('최근 7일 안에 새로 등록된 모델이 없습니다.')).toBeTruthy()
+  })
+
+  it('When more than 6 items arrive Then shows latest 6 first, reveals 6 per click with remaining count and sr announcement without stealing focus, and hides button at the end', async () => {
+    const items = Array.from({ length: 15 }, (_, index) => {
+      const day = String(1 + index).padStart(2, '0')
+      return {
+        ...fixture.items[0]!,
+        id: `org/model-${index + 1}`,
+        name: `Model ${day}`,
+        releaseDate: `2026-11-${day}`,
+      }
+    })
+    renderPage(async () => ({ ok: true, value: { ...fixture, items } }))
+    const section = within(screen.getByTestId('trend-new-models'))
+    expect(await section.findAllByTestId('trend-new-model')).toHaveLength(6)
+    expect(section.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual([
+      'Model 15', 'Model 14', 'Model 13', 'Model 12', 'Model 11', 'Model 10',
+    ])
+
+    const more1 = section.getByRole('button', { name: /더보기 \(9개 남음\)/ })
+    expect(more1.getAttribute('aria-controls')).toBe('trend-new-models-list')
+    more1.focus()
+    fireEvent.click(more1)
+
+    expect(section.getAllByTestId('trend-new-model')).toHaveLength(12)
+    expect(document.activeElement).not.toBe(section.getAllByTestId('trend-new-model')[6])
+    expect(section.getByRole('status').textContent).toContain('6개')
+    expect(section.getByRole('status').textContent).toContain('12개')
+
+    const more2 = section.getByRole('button', { name: /더보기 \(3개 남음\)/ })
+    fireEvent.click(more2)
+
+    expect(section.getAllByTestId('trend-new-model')).toHaveLength(15)
+    expect(section.getByRole('status').textContent).toContain('3개')
+    expect(section.getByRole('status').textContent).toContain('15개')
+    expect(section.queryByRole('button', { name: /더보기/ })).toBeNull()
+  })
+
+  it('When 6 or fewer items arrive Then hides the show-more button', async () => {
+    renderPage(async () => ({ ok: true, value: fixture }))
+    const section = within(screen.getByTestId('trend-new-models'))
+    expect(await section.findAllByTestId('trend-new-model')).toHaveLength(3)
+    expect(section.queryByRole('button', { name: /더보기/ })).toBeNull()
   })
 })
