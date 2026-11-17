@@ -17,6 +17,9 @@ import { USAGE_HISTORY_SCAN_VERSION } from '../shared/usage-history-contract'
 import { D1TrendStore } from './infra/trend/d1-trend-store'
 import { createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
 import { refreshTrendSections } from './app/trend/refresh-trend'
+import { refreshPlanModels } from './app/trend/refresh-plan-models'
+import { D1PlanStore } from './infra/trend/d1-plan-store'
+import { createOllamaTagsSource, createOpenCodeGoSource } from './infra/trend/plan-sources'
 import { refreshMetrics } from './app/trend/refresh-metrics'
 import { D1MetricsStore } from './infra/trend/d1-metrics-store'
 import { createAaSource, createOrRankingSource } from './infra/trend/metrics-sources'
@@ -88,6 +91,22 @@ export function createWorker(deps: {
           })
           for (const [source, status] of Object.entries(result.sources)) {
             if (status === 'stale') console.error(`trend_refresh_failed:${source}`)
+          }
+          try {
+            const plan = await refreshPlanModels({
+              store: new D1PlanStore(env.DB),
+              sources: [
+                createOpenCodeGoSource({ fetchImpl }),
+                createOllamaTagsSource({ fetchImpl }),
+              ],
+              catalog: result.catalog,
+              nowMs,
+            })
+            for (const [source, status] of Object.entries(plan.sources)) {
+              if (status === 'stale') console.error(`trend_plan_failed:${source}`)
+            }
+          } catch {
+            console.error('trend_plan_failed:unexpected')
           }
         } catch {
           console.error('trend_refresh_failed:unexpected')

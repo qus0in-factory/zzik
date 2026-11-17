@@ -27,6 +27,8 @@ export interface TrendRefreshAllResult {
   newModels: TrendRefreshResult
   freeModels: TrendSectionOutcome
   sources: Record<string, 'ok' | 'stale'>
+  /** models.dev 200일 때 plan-models 메타 매칭에 재사용한다. 304·실패면 null. */
+  catalog: readonly TrendModelRecord[] | null
 }
 
 interface FetchedSource {
@@ -227,7 +229,8 @@ export async function refreshTrendSections(input: {
   const freeModels = await applyFreeModels(input.store, fetched, input.nowMs)
   const sources: Record<string, 'ok' | 'stale'> = {}
   for (const entry of fetched) sources[entry.source.id] = entry.fetched.ok ? 'ok' : 'stale'
-  return { newModels, freeModels, sources }
+  const catalog = modelsDev !== undefined && isFresh(modelsDev.fetched) ? modelsDev.fetched.models ?? [] : null
+  return { newModels, freeModels, sources, catalog }
 }
 
 export { TREND_FREE_MODELS_RULE, TREND_NEW_MODELS_RULE }
