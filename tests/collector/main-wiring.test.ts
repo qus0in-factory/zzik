@@ -35,19 +35,22 @@ describe('Given D1-only configuration',()=>{
  })
 })
 describe('Given an explicit local interval capability and synthetic expired credentials',()=>{
- it('When D1 dry-run validates 180/179 without remote access Then accepts only the valid capability and leaves the state directory untouched',()=>{
+ it('When D1 dry-run validates provider boundaries without remote access Then applies capability and leaves the state directory untouched',()=>{
   const dir=mkdtempSync(join(tmpdir(),'zzik-b3-capability-'))
   try{
    const credentials=join(dir,'auth.json')
-   writeFileSync(credentials,JSON.stringify({'https://auth.x.ai::synthetic':{key:'synthetic-expired',expires_at:'2020-01-01T00:00:00Z'}}))
+   writeFileSync(credentials,JSON.stringify({'https://auth.x.ai::synthetic':{key:'synthetic-expired',expires_at:'2020-01-01T00:00:00Z'},claudeAiOauth:{accessToken:'synthetic-expired',expiresAt:'2020-01-01T00:00:00Z'}}))
    const run=(interval:string)=>spawnSync(process.execPath,['collector/main.mjs','--once','--dry-run','--provider','grok','--credentials-file',credentials],{encoding:'utf8',timeout:10000,env:{...process.env,ZZIK_STORE:'d1',ZZIK_STATE_DIR:dir,ZZIK_PROVIDERS:'grok',ZZIK_INTERVAL_SEC:'900',ZZIK_INTERVAL_SEC_OLLAMA:interval}})
+   const runClaude=(interval:string)=>spawnSync(process.execPath,['collector/main.mjs','--once','--dry-run','--provider','claude','--credentials-file',credentials],{encoding:'utf8',timeout:10000,env:{...process.env,ZZIK_STORE:'d1',ZZIK_STATE_DIR:dir,ZZIK_PROVIDERS:'claude',ZZIK_INTERVAL_SEC:'900',ZZIK_INTERVAL_SEC_CLAUDE:interval}})
    expect(run('180').status).toBe(78)
+   expect(runClaude('300').status).toBe(78)
    writeFileSync(join(dir,'interval-capability.json'),JSON.stringify({v:1,readStore:'d1',bucketRoute:true}))
    const accepted=run('180');expect(accepted.status).toBe(0);expect(accepted.stdout).toContain('called=0')
    expect(run('179').status).toBe(78)
-   const runClaude=(interval:string)=>spawnSync(process.execPath,['collector/main.mjs','--once','--dry-run','--provider','claude','--credentials-file',credentials],{encoding:'utf8',timeout:10000,env:{...process.env,ZZIK_STORE:'d1',ZZIK_STATE_DIR:dir,ZZIK_PROVIDERS:'claude',ZZIK_INTERVAL_SEC:'900',ZZIK_INTERVAL_SEC_CLAUDE:interval}})
-   expect(runClaude('180').status).toBe(78)
-   expect(runClaude('899').status).toBe(78)
+   expect(runClaude('299').status).toBe(78)
+   for(const interval of ['300','899']){
+    const result=runClaude(interval);expect(result.status).toBe(0);expect(result.stdout).toContain('status=token_expired');expect(result.stdout).toContain('called=0');expect(result.stdout).not.toContain('synthetic-expired')
+   }
    expect(readdirSync(dir).sort()).toEqual(['auth.json','interval-capability.json'])
   }finally{rmSync(dir,{recursive:true,force:true})}
  })
