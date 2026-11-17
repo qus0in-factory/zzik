@@ -20,6 +20,7 @@
 
 import {agyCliOptions,createAgyLane} from './app/trend/agy-lane.mjs'
 import {createPlanModelsProbe} from './app/trend/plan-models-probe.mjs'
+import {createGrokModelsClient} from './infra/trend/grok-models-client.mjs'
 import {createPlanProbeState} from './infra/trend/plan-probe-state.mjs'
 import {OFFPEAK_SCHEDULE} from '../shared/offpeak-schedule.ts'
 import {formatOffpeakMessage} from './domain/usage/offpeak-notification.mjs'
@@ -284,9 +285,10 @@ async function startD1(flags){
   if(!flags.once){
     planProbe=createPlanModelsProbe({providers:providers.map(provider=>provider.id),clock,timer:createCollectorTimer(),state:createPlanProbeState({path:join(STATE_DIR,'plan-probe.json')}),retryState:createPlanProbeState({path:join(STATE_DIR,'plan-probe-retry.json')}),
       runAgy:()=>agyLane.models(),cancelAgy:()=>agyLane.cancelModels(),
-      readClaude:()=>{const result=ledger.read('claude');return result.ok?result.value.state.previous?.rawText??null:null},query,
+      readClaude:()=>{const result=ledger.read('claude');return result.ok?result.value.state.previous?.rawText??null:null},
+      readGrok:()=>createGrokModelsClient({fetchImpl:globalThis.fetch,readCredentials:()=>readGrokBuildCredentials(flags.credentialsPath??undefined)}).read(),query,
       claimNotice:(provider,at)=>{const result=ledger.claimMaintenanceNotice('plan_probe_failed_'+provider,at);return result.ok&&result.value},
-      notice:provider=>notice.notify({reason:'plan_probe_failed',provider:/** @type {'claude'|'antigravity'} */(provider)})})
+      notice:provider=>notice.notify({reason:'plan_probe_failed',provider:/** @type {'claude'|'antigravity'|'grok'} */(provider)})})
     void planProbe.start()
   }
   offpeak=createOffpeakRuntime({once:flags.once,dryRun:flags.dryRun,resume:flags.resumeWithoutQuarantine!==null,enabled:process.env.ZZIK_OFFPEAK_NOTIFY!=='0'&&alertConfig.enabled,webhook:!!alertConfig.webhookUrl,create:()=>createOffpeakScheduler({schedule:OFFPEAK_SCHEDULE,clock,timer:createCollectorTimer(),state:createOffpeakState({path:join(STATE_DIR,'offpeak-notify.json')}),send:events=>alerts.sendMessage(formatOffpeakMessage(events,clock.now()),events.length),notifyStateFailure:()=>notice.notify({reason:'offpeak_state_failed'}),log:line=>process.stderr.write(`${line}\n`)})})

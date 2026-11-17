@@ -36,3 +36,12 @@ describe('Given a failed provider attempt',()=>{
   now+=1000;const second=createPlanModelsProbe(options);await second.start();expect(attempts).toBe(1);expect(delay).toBe(6*3600000-1000);await second.shutdown()
  })
 })
+
+describe('Given Grok Build observations',()=>{
+ it('When enabled Then the probe writes partial models and respects the six hour retry state',async()=>{
+  let calls=0; const statements:any[]=[]; let attempts:Record<string,number>={}
+  const options={providers:['grok'],clock:{now:()=>1000},timer:{schedule:()=>()=>{}},state:{read:async()=>null,write:async()=>{}},retryState:{read:async()=>attempts,write:async(v:Record<string,number>)=>{attempts=v}},runAgy:async()=>null,readClaude:()=>null,readGrok:async()=>{calls++;return JSON.stringify({data:[{id:'grok-4.7'}]})},query:{query:async(s:any[])=>{statements.push(...s);return {ok:true}}},claimNotice:()=>true,notice:async()=>{}}
+  const first=createPlanModelsProbe(options);await first.start();await first.shutdown();expect(calls).toBe(1);expect(statements[0].params).toContain('partial');expect(statements[0].params).toContain('grok')
+  const second=createPlanModelsProbe(options);await second.start();await second.shutdown();expect(calls).toBe(1)
+ })
+})

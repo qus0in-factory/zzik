@@ -1,8 +1,8 @@
-import {parseAgyModels,parseClaudeModels,planStatement} from '../../domain/trend/plan-models.mjs'
+import {parseAgyModels,parseClaudeModels,parseGrokModels,planStatement} from '../../domain/trend/plan-models.mjs'
 const PERIOD=6*60*60*1000
-/** @param {{clock:{now():number},timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,state:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},retryState?:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},runAgy:()=>Promise<string|null>,readClaude:()=>string|null,query:{query(statements:import('../../../shared/d1-contract.ts').D1SqlStatement[]):Promise<{ok:boolean}>},providers?:string[],cancelAgy?:()=>void,claimNotice:(provider:string,at:number)=>boolean,notice:(provider:string)=>Promise<void>}} ports */
+/** @param {{clock:{now():number},timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,state:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},retryState?:{read():Promise<unknown>,write(value:Record<string,number>):Promise<void>},runAgy:()=>Promise<string|null>,readClaude:()=>string|null,readGrok?:()=>Promise<string|null>,query:{query(statements:import('../../../shared/d1-contract.ts').D1SqlStatement[]):Promise<{ok:boolean}>},providers?:string[],cancelAgy?:()=>void,claimNotice:(provider:string,at:number)=>boolean,notice:(provider:string)=>Promise<void>}} ports */
 export function createPlanModelsProbe(ports){
- const providers=(ports.providers??['antigravity','claude']).filter(p=>p==='antigravity'||p==='claude')
+ const providers=(ports.providers??['antigravity','claude']).filter(p=>p==='antigravity'||p==='claude'||p==='grok')
  const retryState=ports.retryState??{read:async()=>null,write:async()=>{}}
  let stopped=false,loaded=false
  /** @type {()=>void} */let cancel=()=>{}
@@ -32,10 +32,10 @@ export function createPlanModelsProbe(ports){
     // Persist the attempt before any external call, including across restarts.
     attempts={...attempts,[provider]:now};await retryState.write(attempts)
     if(stopped)return
-    const parsed=provider==='antigravity'?parseAgyModels(await ports.runAgy()):parseClaudeModels(ports.readClaude())
+    const parsed=provider==='antigravity'?parseAgyModels(await ports.runAgy()):provider==='claude'?parseClaudeModels(ports.readClaude()):parseGrokModels(await ports.readGrok?.()??null)
     if(stopped)return
     if(!parsed.ok){await fail(provider);continue}
-    const result=await ports.query.query([planStatement(provider==='claude'?'claude-max':provider,provider==='claude'?'usage-keys':'agy-cli',parsed.value,now)])
+    const result=await ports.query.query([planStatement(provider==='claude'?'claude-max':provider,provider==='claude'?'usage-keys':provider==='grok'?'grok-build-models':'agy-cli',parsed.value,now)])
     if(!result.ok){if(!stopped)await fail(provider);continue}
     saved={...saved,[provider]:now};await ports.state.write(saved)
    }catch{if(!stopped)await fail(provider)}
