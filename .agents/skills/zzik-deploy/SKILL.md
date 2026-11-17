@@ -10,7 +10,7 @@ description: zzik 배포·Access 검증·수집기 운영 반영 시 사용. Wor
 2. main 병합 후 release에서 pull→`pnpm install --frozen-lockfile`→clean 확인. 설정된 계정 일치를 안전 출력으로 확인한다. workers_dev:false/preview_urls:false·Access 정책을 유지한다.
 3. 코드 게이트 `pnpm exec vitest run --fileParallelism false --maxWorkers 1`, typecheck, typecheck:collector, build. deploy-verify의 로컬 통합 검증은 원격 API 검증 대체가 아니다.
 4. **Worker 먼저** release `pnpm run deploy`. 성공/version ID만 출력. `scripts/deploy-verify.mjs` 기본 검증/명시 --deploy 절차를 쓸 수 있다.
-5. 쿠키 없는 /, /api/usage, 현재 provider 경로(`docs/harness/operations.md` 참고) 및 bucket 302·Location cdn-cgi/access/login·본문 앱 데이터 없음을 확인한다. `verify-zzik.sh` 출력은 PASS/FAIL/status만 추린다(workers.dev 404/Access 302/DNS 미해석 허용). 인증 우회 패치/정책 추가 금지.
+5. 쿠키 없는 /usage, /api/usage, 현재 provider 경로 및 bucket 302·Location cdn-cgi/access/login과 공개 경로(/·/trend 200, /pub/* 302 아님)·본문 사용량·이메일·앱 데이터 없음을 확인한다(`docs/harness/operations.md` 참고). `verify-zzik.sh` 출력은 PASS/FAIL/status만 추린다(workers.dev 404/Access 302/DNS 미해석 허용). 인증 우회 패치/정책 추가 금지.
 6. 실제 저장소 snapshot fetched_at와 collector ack·이력 id 문자열·보존 기간 bucket(`docs/harness/operations.md` 참고)을 검증한다. usage-live-shape.sh는 원격 저장소를 읽고 원문은 마스킹 파이프 밖에 저장하지 않는다. 인증된 운영 화면은 사용자가 확인하며 미검증 항목을 보고한다.
 7. **수집기 다음**, 승인된 범위에서 release의 기본 ecosystem restart --update-env→save. 상세는 zzik-usage-collector. failure 시 수집기 반영 전에 멈추고 보고한다.
 
