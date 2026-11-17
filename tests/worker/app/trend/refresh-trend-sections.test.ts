@@ -128,7 +128,7 @@ describe('Given the multi-source trend refresh', () => {
     expect(free.sources.find((source) => source.id === TREND_SOURCE_MODELS_DEV)?.status).toBe('stale')
   })
 
-  it('When every source returns 304 Then keeps both sections and recovers stale source status', async () => {
+  it('When every source returns 304 Then keeps both sections without rewriting them', async () => {
     const store = new FakeStore()
     const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model(), local('qwen/qwen4-max')], '"md"'), notModified('"md"')])
     const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')], '"z"'), notModified('"z"')])
@@ -140,6 +140,20 @@ describe('Given the multi-source trend refresh', () => {
     expect(result.freeModels).toMatchObject({ written: false, stale: false })
     expect(store.writes).toEqual([])
     expect(section(store, 'free-models').items).toEqual(before.items)
+  })
+
+  it('When a 304 arrives after a models.dev failure Then recovers the free-models source status', async () => {
+    const store = new FakeStore()
+    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([local('qwen/qwen4-max')], '"md"'), failed, notModified('"md"')])
+    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')])])
+    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([])])
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
+    await refreshTrendSections({ store, nowMs: NOW + DAY, sources: [modelsDev, zen, router] })
+    expect(section(store, 'free-models').sources.find((source) => source.id === TREND_SOURCE_MODELS_DEV)?.status).toBe('stale')
+    const result = await refreshTrendSections({ store, nowMs: NOW + 2 * DAY, sources: [modelsDev, zen, router] })
+    expect(result.sources['models.dev']).toBe('ok')
+    expect(result.freeModels).toMatchObject({ stale: false, ok: true })
+    expect(section(store, 'free-models').sources.find((source) => source.id === TREND_SOURCE_MODELS_DEV)?.status).toBe('ok')
   })
 
   it('When a 304 arrives after the 30-day window expires Then drops only the expired local item', async () => {
