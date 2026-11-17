@@ -18,7 +18,7 @@
  * 원격 쓰기는 공용 D1 REST query lane에서 직렬 전송한다.
  */
 
-import {createAgyLane} from './app/trend/agy-lane.mjs'
+import {agyCliOptions,createAgyLane} from './app/trend/agy-lane.mjs'
 import {createPlanModelsProbe} from './app/trend/plan-models-probe.mjs'
 import {createPlanProbeState} from './infra/trend/plan-probe-state.mjs'
 import {OFFPEAK_SCHEDULE} from '../shared/offpeak-schedule.ts'
@@ -67,7 +67,7 @@ import { join } from 'node:path'
 const alertConfig = readAlertConfig(process.env)
 const alerts = createDiscordAlerts({ ...alertConfig, fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
-const agyLane=createAgyLane(kind=>runAgyQuotaCli({path:process.env.ZZIK_AGY_CLI_PATH??'agy',enabled:process.env.ZZIK_AGY_CLI_ENABLED!=='0',args:kind==='quota'?['-p','/quota']:['models']}))
+const agyLane=createAgyLane((kind,signal)=>runAgyQuotaCli({...agyCliOptions(kind,process.env.ZZIK_AGY_CLI_PATH??'agy',process.env.ZZIK_AGY_CLI_ENABLED!=='0'),signal}))
 /** @type {{mode:'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}} */
 let storageConfig = {mode:'d1',intervalSec:900,retentionDays:30}
 const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')

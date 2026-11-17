@@ -13,6 +13,7 @@ export const MAX_AGY_CLI_OUTPUT_BYTES = 1_048_576
  * @param {{
  *   path?: string,
  *   args?: string[],
+ *   signal?: AbortSignal,
  *   timeoutMs?: number,
  *   graceMs?: number,
  *   maxOutputBytes?: number,
@@ -24,6 +25,7 @@ export const MAX_AGY_CLI_OUTPUT_BYTES = 1_048_576
 export function runAgyQuotaCli({
   path = 'agy',
   args = ['-p', '/quota'],
+  signal,
   timeoutMs = DEFAULT_AGY_CLI_TIMEOUT_MS,
   graceMs = DEFAULT_AGY_CLI_KILL_GRACE_MS,
   maxOutputBytes = MAX_AGY_CLI_OUTPUT_BYTES,
@@ -45,6 +47,7 @@ export function runAgyQuotaCli({
     const finish = (value) => {
       if (settled) return
       settled = true
+      signal?.removeEventListener('abort', abort)
       if (timer !== undefined) clearTimeout(timer)
       if (killTimer !== undefined) clearTimeout(killTimer)
       resolve(value)
@@ -60,6 +63,9 @@ export function runAgyQuotaCli({
       }
     }
 
+    const abort = () => { killGroup('SIGKILL'); finish(null) }
+    if (signal?.aborted) { finish(null); return }
+    signal?.addEventListener('abort', abort, {once:true})
     try {
       child = spawnImpl(path, args, { detached: true, stdio: ['ignore', 'pipe', 'ignore'] })
     } catch {
