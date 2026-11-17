@@ -7,6 +7,7 @@ import type {
   PlanStore,
 } from '../../domain/trend/plan/types'
 import type { TrendModelRecord } from '../../domain/trend/sources'
+import { writeSectionChecked } from './refresh-trend'
 
 export interface PlanRefreshResult {
   ok: boolean
@@ -102,6 +103,7 @@ export async function refreshPlanModels(input: {
 
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload as TrendSectionPayload)
+  await writeSectionChecked(store, 'plan-models', nowMs)
   return {
     ok: !Object.values(statuses).includes('stale'),
     written: !unchanged,

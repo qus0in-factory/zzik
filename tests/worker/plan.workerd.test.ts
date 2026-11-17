@@ -52,7 +52,6 @@ describe('Given the actual Worker trend cron with plan-models in workerd', () =>
               return json({ object: 'list', data });
             }
             if (url.includes('ollama.com/api/tags')) return json({ models: [{ name: 'glm-5.3', size: 0 }] });
-            if (url.includes('opencode.ai/zen/v1/models')) return json({ object: 'list', data: [] });
             if (url.includes('openrouter.ai/api/v1/models')) return json({ data: [] });
             return new Response('not found', { status: 404 });
           };
@@ -174,9 +173,9 @@ describe('Given the actual Worker trend cron with plan-models in workerd', () =>
     ]))
 
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
-    const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
+    const indexBody = await index.json() as { sections: Array<{ id: string; count: number; checkedAt?: string; status: string }> }
     expect(indexBody.sections).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'plan-models', count: 0, status: 'stale' }),
+      expect.objectContaining({ id: 'plan-models', count: 0, checkedAt: new Date(NOW + 4 * 3_600_000).toISOString(), status: 'stale' }),
     ]))
   })
 })

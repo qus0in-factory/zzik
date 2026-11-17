@@ -1,6 +1,7 @@
 import type { TrendPlanConfidence, TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
 import type { D1DatabaseLike, D1PreparedStatementLike } from '../usage/d1-history-store'
-import { D1TrendStore } from './d1-trend-store'
+import { D1TrendStore, writeTrendSourceState } from './d1-trend-store'
+import type { TrendSourceStateRow } from '../../domain/trend/store'
 import type { PlanObservation, PlanObservationRow, PlanStore } from '../../domain/trend/plan/types'
 
 async function all<T>(db: D1DatabaseLike, query: string, params: readonly unknown[]): Promise<T[]> {
@@ -95,5 +96,9 @@ export class D1PlanStore implements PlanStore {
        ON CONFLICT(plan, model_id) DO UPDATE SET last_seen_at = excluded.last_seen_at`,
     ).bind(...params)
     await runStatements(this.db, [statement])
+  }
+
+  async writeSourceState(row: TrendSourceStateRow): Promise<void> {
+    await writeTrendSourceState(this.db, row)
   }
 }

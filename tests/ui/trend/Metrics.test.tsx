@@ -47,7 +47,7 @@ describe('Given the metrics section on /trend', () => {
     expect(section.getByText('점유율 60.0%')).toBeTruthy()
     expect(section.getByText('갱신 지연')).toBeTruthy()
     expect(section.getByText('7일 스냅샷이 쌓이면 순위·점유율 변동을 표시합니다.')).toBeTruthy()
-    expect(section.getByText(/출처: OpenRouter \(openrouter\.ai\/rankings\), 2026-11-17T04:00:00Z 기준 · CC BY 4\.0/)).toBeTruthy()
+    expect(section.getByText(/출처: OpenRouter \(openrouter\.ai\/rankings\), 2026\. 11\. 17\. 오후 1:00 기준 · CC BY 4\.0/)).toBeTruthy()
     expect(section.getByText('OpenRouter 일별 순위를 최근·직전 7일로 집계·가공한 요약입니다.')).toBeTruthy()
     const license = section.getByRole('link', { name: 'CC BY 4.0' })
     expect(license.getAttribute('href')).toBe('https://creativecommons.org/licenses/by/4.0/')

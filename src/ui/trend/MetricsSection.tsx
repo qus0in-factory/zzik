@@ -57,9 +57,10 @@ function EntryRow({ entry }: { entry: TrendMetricsEntry }): ReactNode {
 }
 
 function Block({ block }: { block: TrendMetricsBlock }): ReactNode {
+  const asOf = displayAsOf(block.asOf)
   const attribution = block.asOfKind === 'fetched'
-    ? t('trend.metrics.attribution.orFetched', { asOf: block.asOf })
-    : t('trend.metrics.attribution.or', { asOf: block.asOf })
+    ? t('trend.metrics.attribution.orFetched', { asOf })
+    : t('trend.metrics.attribution.or', { asOf })
   const note = block.note === 'baseline'
     ? t('trend.metrics.baseline')
     : block.note === 'source_failed'

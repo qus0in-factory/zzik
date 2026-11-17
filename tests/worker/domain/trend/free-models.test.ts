@@ -126,4 +126,54 @@ describe('Given the OpenCode Go free-models builder', () => {
     const payload = build({ goModels: null, previous })
     expect(payload.items.map((i) => i.id)).toEqual(['tencent/hy4-flash'])
   })
+
+  it('When models.dev is 304 (catalog=null) Then carries creator, releaseDate, precision, and openWeights from previous items', () => {
+    const previous = build({
+      goModels: [goRecord({ creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, openWeights: false })],
+      catalog: [{
+        ...goRecord(),
+        canonicalId: 'tencent/hy4-flash',
+        creator: 'tencent',
+        releaseDate: '2026-11-16',
+        releasePrecision: 'day',
+        releaseMs: NOW - DAY,
+        openWeights: true,
+      }],
+    })
+    const payload = build({
+      goModels: [goRecord({ creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, openWeights: false })],
+      catalog: null,
+      previous,
+    })
+    expect(payload.items[0]).toMatchObject({
+      id: 'tencent/hy4-flash',
+      creator: 'tencent',
+      releaseDate: '2026-11-16',
+      precision: 'day',
+      openWeights: true,
+    })
+  })
+
+  it('When models.dev is 200 without a matching catalog entry Then clears previous enrichment without flip-flop', () => {
+    const previous = build({
+      goModels: [goRecord({ creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, openWeights: false })],
+      catalog: [{
+        canonicalId: 'tencent/hy4-flash', provider: 'models.dev', modelId: 'hy4-flash',
+        name: 'Hy4 Flash', creator: 'tencent', releaseDate: '2026-11-16', releasePrecision: 'day',
+        releaseMs: NOW - DAY, price: null, free: false, openWeights: true, status: null, expiresAtMs: null,
+      }],
+    })
+    const payload = build({
+      goModels: [goRecord({ creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, openWeights: false })],
+      catalog: [],
+      previous,
+    })
+    expect(payload.items[0]).toMatchObject({
+      id: 'tencent/hy4-flash',
+      creator: '',
+      releaseDate: null,
+      precision: 'unknown',
+      openWeights: false,
+    })
+  })
 })

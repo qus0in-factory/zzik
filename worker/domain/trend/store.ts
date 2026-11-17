@@ -16,11 +16,11 @@ export interface TrendSourceStateRow {
   httpStatus: number | null
 }
 
-export interface TrendSeenRow {
-  canonicalId: string
-  firstSeenAt: number
-  releaseDate: string | null
-  source: string
+export const TREND_SECTION_STATE_PREFIX = 'section:'
+
+/** 섹션 평가 성공 시각을 trend_source_state에 기록할 때 쓰는 가상 source id. */
+export function sectionStateSourceId(section: TrendSection): string {
+  return `${TREND_SECTION_STATE_PREFIX}${section}`
 }
 
 export interface TrendStore {
@@ -29,9 +29,8 @@ export interface TrendStore {
   /** payload를 저장하고 payload_sha256을 반환한다. 100KB를 넘으면 거부한다. */
   writeSection(payload: TrendSectionPayload): Promise<string>
   readSourceState(source: string): Promise<TrendSourceStateRow | null>
+  readSourceStates?(): Promise<TrendSourceStateRow[]>
   writeSourceState(row: TrendSourceStateRow): Promise<void>
-  readSeen(): Promise<TrendSeenRow[]>
-  upsertSeen(rows: readonly TrendSeenRow[]): Promise<void>
   /** plan-models 관측 테이블(0003). free-models가 요금제 포함 목록을 읽는다. */
   readPlanObservations?(): Promise<PlanObservationRow[]>
 }

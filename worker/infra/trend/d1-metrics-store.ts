@@ -1,4 +1,5 @@
-import { D1TrendStore } from './d1-trend-store'
+import { D1TrendStore, writeTrendSourceState } from './d1-trend-store'
+import type { TrendSourceStateRow } from '../../domain/trend/store'
 import type { D1DatabaseLike, D1PreparedStatementLike } from '../usage/d1-history-store'
 import type { AaSnapshotRow, MetricsStore, OrRankingMeta, OrRankingRow } from '../../domain/trend/metrics/types'
 
@@ -146,5 +147,9 @@ export class D1MetricsStore implements MetricsStore {
       this.db.prepare('DELETE FROM trend_aa_snapshot WHERE day < ?').bind(beforeAaDay),
       this.db.prepare('DELETE FROM trend_or_ranking WHERE day < ?').bind(beforeOrDay),
     ])
+  }
+
+  async writeSourceState(row: TrendSourceStateRow): Promise<void> {
+    await writeTrendSourceState(this.db, row)
   }
 }

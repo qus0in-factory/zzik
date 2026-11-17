@@ -128,9 +128,5 @@ export const TREND_FIXTURE_SECTIONS: Record<import('@shared/trend-contract').Tre
   'plan-models': PLAN_MODELS,
   'new-models': NEW_MODELS,
   'free-models': FREE_MODELS,
-  frontier: {
-    section: 'frontier', schemaVersion: TREND_SCHEMA_VERSION, generatedAt: GENERATED_AT,
-    rule: 'not-ready', sources: [], items: [],
-  },
   metrics: METRICS,
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeModelsDev, decodeOpenRouterModels, decodeZenModels } from '../../../../worker/domain/trend/sources'
+import { decodeModelsDev, decodeOpenRouterModels } from '../../../../worker/domain/trend/sources'
 
 describe('Given models.dev api.json', () => {
   it('When provider models have day/month dates and costs Then normalizes canonical ids, creators and free/open flags', () => {
@@ -40,54 +40,6 @@ describe('Given models.dev api.json', () => {
 
   it('When a structurally valid source has no models Then returns a valid empty result, not a failure', () => {
     expect(decodeModelsDev({ anthropic: { id: 'anthropic', models: {} } })).toEqual({ ok: true, value: [] })
-  })
-})
-
-describe('Given OpenCode Zen /zen/v1/models', () => {
-  it('When free and paid models arrive Then normalizes canonical ids and per-1M prices', () => {
-    const decoded = decodeZenModels({
-      object: 'list',
-      data: [
-        {
-          id: 'mimo-v2.6-flash-free',
-          name: 'MiMo V2.6 Flash Free',
-          canonical_id: 'xiaomi/mimo-v2.6-flash',
-          release_date: '2026-09-22',
-          open_weights: true,
-          cost: { text: { input: { price: 0 }, output: { price: 0 } } },
-        },
-        {
-          id: 'claude-fable-5',
-          name: 'Claude Fable 5',
-          release_date: '2026-11-09',
-          open_weights: false,
-          cost: { text: { input: { price: 10 }, output: { price: 50 } } },
-        },
-        { id: 'big-pickle', name: 'Big Pickle', release_date: '2026-11-01', cost: { text: { input: { price: 0 }, output: { price: 0 } } } },
-      ],
-    })
-    expect(decoded.ok).toBe(true)
-    if (!decoded.ok) return
-    expect(decoded.value).toHaveLength(3)
-    expect(decoded.value[0]).toMatchObject({
-      canonicalId: 'xiaomi/mimo-v2.6-flash', modelId: 'mimo-v2.6-flash-free', provider: 'opencode',
-      creator: 'xiaomi', free: true, price: { input: 0, output: 0 }, openWeights: true, releasePrecision: 'day',
-    })
-    expect(decoded.value[1]).toMatchObject({ provider: 'opencode', creator: 'opencode', free: false, price: { input: 10, output: 50 } })
-    expect(decoded.value[2]).toMatchObject({ canonicalId: 'big-pickle', free: true })
-  })
-
-  it.each([
-    ['empty object', {}],
-    ['missing data', { object: 'list' }],
-    ['non-array data', { data: 'nope' }],
-    ['garbage rows', { data: [1, 2, 3] }],
-  ])('When Zen returns a broken 200 (%s) Then classifies it as invalid_source', (_label, input) => {
-    expect(decodeZenModels(input)).toEqual({ ok: false, reason: 'invalid_source' })
-  })
-
-  it('When Zen has an empty list Then returns a valid empty result', () => {
-    expect(decodeZenModels({ object: 'list', data: [] })).toEqual({ ok: true, value: [] })
   })
 })
 
