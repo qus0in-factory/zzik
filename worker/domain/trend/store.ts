@@ -1,4 +1,5 @@
 import type { TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
+import type { PlanObservationRow } from './plan/types'
 
 export interface TrendSectionRow {
   section: TrendSection
@@ -31,4 +32,6 @@ export interface TrendStore {
   writeSourceState(row: TrendSourceStateRow): Promise<void>
   readSeen(): Promise<TrendSeenRow[]>
   upsertSeen(rows: readonly TrendSeenRow[]): Promise<void>
+  /** plan-models 관측 테이블(0003). free-models가 요금제 포함 목록을 읽는다. */
+  readPlanObservations?(): Promise<PlanObservationRow[]>
 }

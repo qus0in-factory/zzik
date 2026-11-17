@@ -1,4 +1,4 @@
-import type { TrendIndex, TrendIndexSection, TrendMetricsBlock, TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
+import type { TrendIndex, TrendIndexSection, TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
 import { projectSectionPayload } from '../../domain/trend/projection'
 import type { TrendSectionRow, TrendStore } from '../../domain/trend/store'
 
@@ -33,27 +33,9 @@ export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | nul
   return { generatedAt: new Date(generatedAt).toISOString(), sections }
 }
 
-function underReviewAa(block: TrendMetricsBlock): TrendMetricsBlock {
-  return {
-    id: 'aa-intelligence',
-    status: 'under_review',
-    asOf: block.asOf,
-    ...(block.version === undefined ? {} : { version: block.version }),
-    note: 'terms_review',
-    entries: [],
-    attribution: block.attribution,
-  }
-}
-
-/**
- * 공개 응답용 섹션. 저장 payload를 계약 필드로 투영해 추가 필드(extra 등)를 제거한다.
- * 저장소 손상은 `corrupt`로 구분해 라우트가 고정 500을 반환하게 한다.
- * AA 점수는 재배포 권리 확인 전까지 `aaPublic:false`(기본값)면 공개하지 않는다.
- */
 export async function getPublicTrendSection(
   store: TrendStore,
   section: TrendSection,
-  options: { aaPublic?: boolean } = {},
 ): Promise<{ ok: true; payload: TrendSectionPayload } | { ok: false; reason: 'not_ready' | 'corrupt' }> {
   const row = await store.readSection(section)
   if (row === null) return { ok: false, reason: 'not_ready' }
@@ -65,14 +47,9 @@ export async function getPublicTrendSection(
   }
   const payload = projectSectionPayload(parsed, section)
   if (payload === null) return { ok: false, reason: 'corrupt' }
-  if (section === 'metrics' && options.aaPublic !== true && payload.blocks !== undefined) {
-    return {
-      ok: true,
-      payload: {
-        ...payload,
-        blocks: payload.blocks.map((block) => block.id === 'aa-intelligence' ? underReviewAa(block) : block),
-      },
-    }
+  if (section === 'metrics' && payload.blocks !== undefined) {
+    // AA 데이터는 공개 재배포가 불가하므로 저장 payload에 남아 있어도 공개하지 않는다.
+    return { ok: true, payload: { ...payload, blocks: payload.blocks.filter((block) => block.id === 'or-usage') } }
   }
   return { ok: true, payload }
 }

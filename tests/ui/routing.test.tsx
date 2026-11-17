@@ -73,14 +73,14 @@ describe('Given the usage/trend router', () => {
     expect(screen.queryByText('트렌드 화면은 아직 준비 중입니다.')).toBeNull()
     const links = within(screen.getByRole('list', { name: '트렌드 참고 링크' })).getAllByRole('link')
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
-      'https://artificialanalysis.ai/',
+      'https://artificialanalysis.ai/leaderboards/models',
       'https://cognition.com/frontiercode',
       'https://arena.ai/leaderboard',
       'https://openrouter.ai/rankings',
       'https://opencode.ai/ko/data',
     ])
     expect(screen.queryAllByTestId(/^usage-section-/)).toHaveLength(0)
-    expect(screen.queryByTestId('app-version')).toBeNull()
+    expect(screen.getByTestId('app-version').textContent).toBe(`v${__APP_VERSION__}`)
     expect(screen.queryByTestId('back-to-top-shell')).toBeNull()
     expect(gateway.calls).toBe(0)
   })

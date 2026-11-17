@@ -37,56 +37,57 @@ const bySection: TrendGateway['fetchSection'] = async (section: TrendSection) =>
 })
 
 describe('Given the metrics section on /trend', () => {
-  it('When data loads Then shows AA/OR blocks, rank deltas, share, attributions and stale state', async () => {
+  it('When data loads Then shows only the OpenRouter block with share, attribution, license and stale state', async () => {
     renderPage(bySection)
     expect(await screen.findByRole('heading', { name: '성능 지표' })).toBeTruthy()
     const section = within(screen.getByTestId('trend-metrics'))
-    expect(await section.findByText('Claude Fable 5')).toBeTruthy()
-    expect(section.getByRole('heading', { name: 'Artificial Analysis Intelligence Index' })).toBeTruthy()
+    expect(await section.findByText('deepseek/deepseek-v4')).toBeTruthy()
     expect(section.getByRole('heading', { name: 'OpenRouter 사용량 상위 변동' })).toBeTruthy()
-    expect(section.getByText('지수 72')).toBeTruthy()
-    expect(section.getByText('2위 상승')).toBeTruthy()
-    expect(section.getByText('1위 하락')).toBeTruthy()
-    expect(section.getByText('신규')).toBeTruthy()
+    expect(section.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
     expect(section.getByText('점유율 60.0%')).toBeTruthy()
     expect(section.getByText('갱신 지연')).toBeTruthy()
     expect(section.getByText('7일 스냅샷이 쌓이면 순위·점유율 변동을 표시합니다.')).toBeTruthy()
-    expect(section.getByText(/출처: Artificial Analysis — artificialanalysis\.ai \(Intelligence Index v3\.0, 2026-11-17 기준\)/)).toBeTruthy()
     expect(section.getByText(/출처: OpenRouter \(openrouter\.ai\/rankings\), 2026-11-17T04:00:00Z 기준 · CC BY 4\.0/)).toBeTruthy()
     expect(section.getByText('OpenRouter 일별 순위를 최근·직전 7일로 집계·가공한 요약입니다.')).toBeTruthy()
     const license = section.getByRole('link', { name: 'CC BY 4.0' })
     expect(license.getAttribute('href')).toBe('https://creativecommons.org/licenses/by/4.0/')
-    expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(5)
+    expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
   })
 
-  it('When a block is not configured Then explains it instead of rendering entries', async () => {
-    renderPage(async () => ({
-      ok: true,
-      value: {
-        ...metrics,
-        blocks: [{ id: 'aa-intelligence', status: 'not_configured', asOf: '2026-11-17', entries: [], attribution: '' }],
-      },
-    }))
-    const section = within(screen.getByTestId('trend-metrics'))
-    expect(await section.findByText('이 출처는 아직 설정되지 않았습니다.')).toBeTruthy()
-    expect(section.queryByTestId('trend-metrics-entry')).toBeNull()
-  })
-
-  it('When AA is hidden for terms review Then shows the notice without scores', async () => {
+  it('When a legacy payload still has an AA block Then the UI does not render AA', async () => {
     renderPage(async () => ({
       ok: true,
       value: {
         ...metrics,
         blocks: [
-          { id: 'aa-intelligence', status: 'under_review', asOf: '2026-11-17', version: '3.0', note: 'terms_review', entries: [], attribution: '' },
-          metrics.blocks!.find((block) => block.id === 'or-usage')!,
+          {
+            id: 'aa-intelligence', status: 'ok', asOf: '2026-11-17', version: '3.0',
+            entries: [{ id: 'a/x', name: 'A X', creator: 'A', rank: 1, rankDelta: null, kind: 'steady', index: 90 }],
+            attribution: 'AA',
+          },
+          ...metrics.blocks!,
         ],
       },
     }))
     const section = within(screen.getByTestId('trend-metrics'))
-    expect(await section.findByText('출처 약관 확인 중입니다. 확인 전에는 점수를 공개하지 않습니다.')).toBeTruthy()
-    expect(section.queryByText('지수 72')).toBeNull()
+    expect(await section.findByText('deepseek/deepseek-v4')).toBeTruthy()
+    expect(section.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
+    expect(section.queryByText('지수 90')).toBeNull()
     expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
+  })
+
+  it('When the OR block is not configured Then explains it instead of rendering entries', async () => {
+    const or = metrics.blocks!.find((block) => block.id === 'or-usage')!
+    renderPage(async () => ({
+      ok: true,
+      value: {
+        ...metrics,
+        blocks: [{ ...or, status: 'not_configured', entries: [], attribution: '' }],
+      },
+    }))
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByText('이 출처는 아직 설정되지 않았습니다.')).toBeTruthy()
+    expect(section.queryByTestId('trend-metrics-entry')).toBeNull()
   })
 
   it('When OpenRouter meta.as_of is missing Then labels the time as fetched time', async () => {
@@ -133,10 +134,10 @@ describe('Given the metrics section on /trend', () => {
     expect(await screen.findByText('아직 표시할 성능 지표가 없습니다.')).toBeTruthy()
   })
 
-  it('When /trend renders Then metrics stays in the fourth slot before the reference links', async () => {
+  it('When /trend renders Then metrics stays first before the other sections', async () => {
     renderPage(bySection)
-    await screen.findByText('Claude Fable 5')
+    await screen.findByText('deepseek/deepseek-v4')
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
-    expect(headings).toEqual(['요금제 추가', '최근 7일 새 모델', '무료로 쓸 수 있는 모델', '성능 지표', '참고 링크'])
+    expect(headings).toEqual(['성능 지표', '신규 모델', '무료 모델', '참고 링크'])
   })
 })

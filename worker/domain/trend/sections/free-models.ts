@@ -1,32 +1,29 @@
 /**
- * `free-models` 섹션: 호스팅 무료(Zen·OpenRouter) + 로컬 실행 가능(models.dev ollama-cloud).
- * 순수 함수. 출처별 items를 따로 보관해 한 출처가 실패해도 다른 출처 항목을 지우지 않는다.
+ * `free-models` 섹션: OpenCode Go·Ollama Cloud 요금제에 포함되어 추가 비용 없이 쓸 수 있는 모델.
+ * 관측 로그(trend_plan_observation)의 현재 목록을 두 그룹으로 보여 주고 models.dev로 메타를 보강한다.
  */
 import {
   TREND_FREE_MODELS_RULE,
   TREND_FREE_MODELS_WINDOW_MS,
   TREND_SCHEMA_VERSION,
 } from '../../../../shared/trend-contract'
-import type { TrendFreeKind, TrendItem, TrendPrice, TrendSectionPayload } from '../../../../shared/trend-contract'
-import { parseRelease } from '../sources'
+import type { TrendFreeKind, TrendItem, TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
 import type { TrendModelRecord } from '../sources'
+import { normalizePlanName } from '../plan/build'
+import type { PlanObservationRow } from '../plan/types'
 
 const MAX_ITEMS = 50
-const DEPRECATED = new Set(['deprecated', 'retired'])
+const PLAN_GROUPS: ReadonlyArray<{ id: TrendFreeKind; sourceId: string }> = [
+  { id: 'opencode-go', sourceId: 'go-models' },
+  { id: 'ollama-cloud', sourceId: 'ollama-tags' },
+]
+const SOURCE_FRESH_MS = 12 * 3_600_000
 
-/** 저장 전용: 출처별 마지막 성공 items. 공개 응답에서는 projection이 제거한다. */
-export interface FreeModelsPayload extends TrendSectionPayload {
-  sourceItems: Record<string, TrendItem[]>
-}
-
-export interface FreeModelsSourceData {
-  id: string
-  kind: TrendFreeKind
-  status: 'ok' | 'stale'
-  fetchedAt: string
-  /** 200 응답이면 정규화 레코드, 304·실패면 null이면 carried를 재사용한다. */
-  records: readonly TrendModelRecord[] | null
-  carried: readonly TrendItem[]
+export interface FreeModelsInput {
+  observations: readonly PlanObservationRow[]
+  catalog: readonly TrendModelRecord[] | null
+  previous: TrendSectionPayload | null
+  nowMs: number
 }
 
 function pickRelease(group: readonly TrendModelRecord[]): Pick<TrendItem, 'releaseDate' | 'precision'> {
@@ -43,139 +40,118 @@ function representative(group: readonly TrendModelRecord[]): TrendModelRecord {
   return group.find((record) => record.price !== null) ?? group[0]!
 }
 
-function inWindow(releaseMs: number | null, nowMs: number): boolean {
-  if (releaseMs === null) return false
-  return releaseMs >= nowMs - TREND_FREE_MODELS_WINDOW_MS && releaseMs <= nowMs
+interface CatalogIndex {
+  canonical: Map<string, TrendModelRecord[]>
+  byName: Map<string, string>
+  byModelId: Map<string, string>
 }
 
-function recordEligible(record: TrendModelRecord, kind: TrendFreeKind, nowMs: number): boolean {
-  if (record.status !== null && DEPRECATED.has(record.status)) return false
-  if (record.expiresAtMs !== undefined && record.expiresAtMs !== null && record.expiresAtMs < nowMs) return false
-  if (!inWindow(record.releaseMs, nowMs)) return false
-  if (kind === 'hosted') return record.free
-  return record.provider === 'ollama-cloud' && record.openWeights
-}
-
-function itemFromGroup(group: readonly TrendModelRecord[], kind: TrendFreeKind, nowMs: number): TrendItem {
-  const chosen = representative(group)
-  const release = pickRelease(group)
-  const providers = [...new Set(group.map((record) => record.provider))].sort()
-  const releaseMs = group.reduce((max, record) => Math.max(max, record.releaseMs ?? 0), 0)
-  const expiry = group.reduce<number | null>((min, record) => {
-    if (record.expiresAtMs === undefined || record.expiresAtMs === null) return min
-    return min === null ? record.expiresAtMs : Math.min(min, record.expiresAtMs)
-  }, null)
-  const price: TrendPrice | null = kind === 'hosted' ? (chosen.price ?? { input: 0, output: 0 }) : null
-  return {
-    id: chosen.canonicalId,
-    name: chosen.name,
-    creator: chosen.creator,
-    releaseDate: release.releaseDate,
-    precision: release.precision,
-    price,
-    free: kind === 'hosted',
-    openWeights: group.some((record) => record.openWeights),
-    providers,
-    links: {},
-    extra: expiry === null ? { releaseMs } : { releaseMs, expiresAtMs: expiry },
-    freeKind: kind,
-  }
-}
-
-/** 최근 30일 창·만료·deprecated를 적용해 canonical id 기준으로 묶는다. */
-export function filterFreeRecords(records: readonly TrendModelRecord[], kind: TrendFreeKind, nowMs: number): TrendItem[] {
-  const groups = new Map<string, TrendModelRecord[]>()
-  for (const record of records) {
-    if (!recordEligible(record, kind, nowMs)) continue
-    const group = groups.get(record.canonicalId)
-    if (group === undefined) groups.set(record.canonicalId, [record])
+function buildCatalogIndex(records: readonly TrendModelRecord[] | null): CatalogIndex {
+  const canonical = new Map<string, TrendModelRecord[]>()
+  const byName = new Map<string, string>()
+  const byModelId = new Map<string, string>()
+  for (const record of records ?? []) {
+    const group = canonical.get(record.canonicalId)
+    if (group === undefined) canonical.set(record.canonicalId, [record])
     else group.push(record)
+    if (!byName.has(normalizePlanName(record.name))) byName.set(normalizePlanName(record.name), record.canonicalId)
+    if (!byModelId.has(normalizePlanName(record.modelId))) byModelId.set(normalizePlanName(record.modelId), record.canonicalId)
   }
-  return [...groups.values()].map((group) => itemFromGroup(group, kind, nowMs))
+  return { canonical, byName, byModelId }
 }
 
-function releaseMsOf(item: TrendItem): number | null {
-  const stored = item.extra?.releaseMs
-  if (typeof stored === 'number') return stored
-  if (item.releaseDate === null) return null
-  return parseRelease(item.releaseDate).ms
+function matchMetadata(observation: PlanObservationRow, index: CatalogIndex): TrendModelRecord[] | null {
+  if (index.canonical.has(observation.modelId)) return index.canonical.get(observation.modelId) ?? null
+  if (observation.displayName !== null) {
+    const byName = index.byName.get(normalizePlanName(observation.displayName))
+    if (byName !== undefined) return index.canonical.get(byName) ?? null
+  }
+  const byModelId = index.byModelId.get(normalizePlanName(observation.modelId))
+  return byModelId === undefined ? null : index.canonical.get(byModelId) ?? null
 }
 
-/** 304·실패 시 보관한 items에 현재 시각 기준 창/만료를 다시 적용한다. */
-export function reevaluateFreeItems(items: readonly TrendItem[], kind: TrendFreeKind, nowMs: number): TrendItem[] {
-  return items.filter((item) => {
-    if (item.freeKind !== kind) return false
-    if (!inWindow(releaseMsOf(item), nowMs)) return false
-    const expiresAtMs = item.extra?.expiresAtMs
-    return !(typeof expiresAtMs === 'number' && expiresAtMs < nowMs)
-  })
+function itemFromObservation(observation: PlanObservationRow, plan: TrendFreeKind, index: CatalogIndex): TrendItem {
+  const metadata = matchMetadata(observation, index)
+  if (metadata !== null) {
+    const chosen = representative(metadata)
+    const release = pickRelease(metadata)
+    return {
+      id: chosen.canonicalId,
+      name: chosen.name,
+      creator: chosen.creator,
+      releaseDate: release.releaseDate,
+      precision: release.precision,
+      price: { input: 0, output: 0 },
+      free: true,
+      openWeights: metadata.some((record) => record.openWeights),
+      providers: [plan],
+      links: {},
+      freeKind: plan,
+    }
+  }
+  return {
+    id: observation.modelId,
+    name: observation.displayName ?? observation.modelId,
+    creator: '',
+    releaseDate: null,
+    precision: 'unknown',
+    price: { input: 0, output: 0 },
+    free: true,
+    openWeights: false,
+    providers: [plan],
+    links: {},
+    freeKind: plan,
+  }
 }
 
-function mergeById(items: readonly TrendItem[]): TrendItem[] {
+function mergePlanItems(items: readonly TrendItem[]): TrendItem[] {
   const merged = new Map<string, TrendItem>()
   for (const item of items) {
     const existing = merged.get(item.id)
     if (existing === undefined) {
-      merged.set(item.id, { ...item, providers: [...item.providers] })
+      merged.set(item.id, item)
       continue
     }
-    merged.set(item.id, {
-      ...existing,
-      providers: [...new Set([...existing.providers, ...item.providers])].sort(),
-      openWeights: existing.openWeights || item.openWeights,
-    })
+    merged.set(item.id, { ...existing, openWeights: existing.openWeights || item.openWeights })
   }
-  return [...merged.values()]
+  return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function sortByRelease(items: TrendItem[]): TrendItem[] {
-  return items.sort((a, b) => {
-    const aMs = releaseMsOf(a) ?? 0
-    const bMs = releaseMsOf(b) ?? 0
-    return bMs - aMs || a.name.localeCompare(b.name)
-  })
+function previousItems(previous: TrendSectionPayload | null, group: TrendFreeKind): TrendItem[] {
+  return previous?.items.filter((item) => item.freeKind === group) ?? []
 }
 
-export function buildFreeModels(sources: readonly FreeModelsSourceData[], nowMs: number): FreeModelsPayload {
-  const perSource: Record<string, TrendItem[]> = {}
-  for (const source of sources) {
-    perSource[source.id] = source.records === null
-      ? reevaluateFreeItems(source.carried, source.kind, nowMs)
-      : filterFreeRecords(source.records, source.kind, nowMs)
-  }
+/** 관측 로그의 최근 목록을 두 요금제 그룹으로 묶는다. source가 멈추면 마지막 공개 항목을 유지한다. */
+export function buildFreeModels(input: FreeModelsInput): TrendSectionPayload {
+  const { nowMs } = input
+  const index = buildCatalogIndex(input.catalog)
+  const items: TrendItem[] = []
+  const sources: TrendSourceState[] = []
 
-  const hosted = mergeById(sources.filter((source) => source.kind === 'hosted').flatMap((source) => perSource[source.id] ?? []))
-  const local = mergeById(sources.filter((source) => source.kind === 'local').flatMap((source) => perSource[source.id] ?? []))
+  for (const group of PLAN_GROUPS) {
+    const observations = input.observations.filter((observation) =>
+      observation.plan === group.id && observation.lastSeenAt >= nowMs - TREND_FREE_MODELS_WINDOW_MS)
+    const freshItems = mergePlanItems(observations.map((observation) => itemFromObservation(observation, group.id, index)))
+    const carried = freshItems.length > 0 ? freshItems : previousItems(input.previous, group.id)
+    items.push(...carried.slice(0, MAX_ITEMS))
 
-  // 호스팅 무료가 우선한다. 같은 canonical id의 로컬 실행 정보는 provider로 합친다.
-  const localOnly: TrendItem[] = []
-  const hostedById = new Map(hosted.map((item) => [item.id, item]))
-  for (const item of local) {
-    const hostedItem = hostedById.get(item.id)
-    if (hostedItem === undefined) {
-      localOnly.push(item)
-      continue
-    }
-    hostedById.set(item.id, {
-      ...hostedItem,
-      providers: [...new Set([...hostedItem.providers, 'ollama-cloud'])].sort(),
-      openWeights: true,
+    const lastSeen = observations.reduce((max, observation) => Math.max(max, observation.lastSeenAt), 0)
+    const previousSource = input.previous?.sources.find((source) => source.id === group.sourceId)
+    const fresh = lastSeen > 0 && lastSeen >= nowMs - SOURCE_FRESH_MS
+    const fetchedAt = lastSeen > 0 ? new Date(lastSeen).toISOString() : previousSource?.fetchedAt ?? new Date(nowMs).toISOString()
+    sources.push({
+      id: group.sourceId,
+      fetchedAt,
+      status: fresh ? 'ok' : 'stale',
     })
   }
 
-  const items = [
-    ...sortByRelease([...hostedById.values()]),
-    ...sortByRelease(localOnly),
-  ].slice(0, MAX_ITEMS)
-
-  const generatedAt = new Date(nowMs).toISOString()
   return {
     section: 'free-models',
     schemaVersion: TREND_SCHEMA_VERSION,
-    generatedAt,
+    generatedAt: new Date(nowMs).toISOString(),
     rule: TREND_FREE_MODELS_RULE,
-    sources: sources.map((source) => ({ id: source.id, fetchedAt: source.fetchedAt, status: source.status })),
-    items,
-    sourceItems: perSource,
+    sources,
+    items: items.slice(0, MAX_ITEMS),
   }
 }

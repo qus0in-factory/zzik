@@ -6,9 +6,9 @@ export const TREND_SCHEMA_VERSION = 1
 export const TREND_SECTION_MAX_BYTES = 100_000
 export const TREND_NEW_MODELS_WINDOW_MS = 7 * 86_400_000
 export const TREND_NEW_MODELS_RELEASE_MAX_MS = 30 * 86_400_000
-export const TREND_NEW_MODELS_RULE = 'release-or-first-seen-7d'
-export const TREND_FREE_MODELS_WINDOW_MS = 30 * 86_400_000
-export const TREND_FREE_MODELS_RULE = 'hosted-free-or-local-30d'
+export const TREND_NEW_MODELS_RULE = 'openrouter-registered-7d'
+export const TREND_FREE_MODELS_WINDOW_MS = 7 * 86_400_000
+export const TREND_FREE_MODELS_RULE = 'plan-included-opencode-go-ollama-cloud'
 export const TREND_PLAN_WINDOW_MS = 14 * 86_400_000
 export const TREND_PLAN_MODELS_RULE = 'plan-observation-14d'
 export const TREND_SOURCE_MODELS_DEV = 'models.dev'
@@ -25,7 +25,7 @@ export const TREND_GO_MODELS_URL = 'https://opencode.ai/inference/go/v1/models'
 export const TREND_OLLAMA_TAGS_URL = 'https://ollama.com/api/tags'
 export const TREND_AA_URL = 'https://artificialanalysis.ai/api/v2/language/models/free'
 export const TREND_OR_RANKINGS_URL = 'https://openrouter.ai/api/v1/datasets/rankings-daily'
-export const TREND_METRICS_RULE = 'aa-intelligence-and-or-usage-v1'
+export const TREND_METRICS_RULE = 'openrouter-usage-v1'
 export const TREND_AA_TOP_N = 15
 export const TREND_AA_MOVE_RANK_MAX = 30
 export const TREND_AA_MOVE_THRESHOLD = 3
@@ -39,7 +39,7 @@ export const TREND_OR_LICENSE_NAME = 'CC BY 4.0'
 export const TREND_OR_LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/'
 
 export type TrendPrecision = 'day' | 'month' | 'unknown'
-export type TrendFreeKind = 'hosted' | 'local'
+export type TrendFreeKind = 'opencode-go' | 'ollama-cloud'
 
 export interface TrendPrice {
   input: number
@@ -58,8 +58,10 @@ export interface TrendItem {
   openWeights: boolean
   providers: string[]
   links: { modelsDev?: string; openrouter?: string; opencode?: string }
-  /** free-models 전용: 호스팅 무료 또는 로컬 실행 가능 하위 그룹 */
-  freeKind?: 'hosted' | 'local'
+  /** free-models 전용: OpenCode Go 또는 Ollama Cloud 요금제 포함 그룹 */
+  freeKind?: TrendFreeKind
+  /** new-models 전용: AA 또는 OpenRouter에 새로 등록된 출처 */
+  registeredIn?: ('aa' | 'openrouter')[]
   extra?: Record<string, string | number | boolean>
 }
 

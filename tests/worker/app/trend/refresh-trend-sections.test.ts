@@ -6,12 +6,13 @@ import {
 } from '../../../../shared/trend-contract'
 import type { TrendSection, TrendSectionPayload } from '../../../../shared/trend-contract'
 import { refreshTrendSections } from '../../../../worker/app/trend/refresh-trend'
-import { buildNewModels } from '../../../../worker/domain/trend/sections/new-models'
+import type { PlanObservationRow } from '../../../../worker/domain/trend/plan/types'
 import type { TrendModelRecord, TrendSource } from '../../../../worker/domain/trend/sources'
 import type { TrendSectionRow, TrendSeenRow, TrendSourceStateRow, TrendStore } from '../../../../worker/domain/trend/store'
 
 const NOW = Date.UTC(2026, 10, 17, 0, 0, 0)
 const DAY = 86_400_000
+const HOUR = 3_600_000
 
 function model(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
   return {
@@ -22,19 +23,26 @@ function model(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
   }
 }
 
-const hosted = (id: string, provider: string, overrides: Partial<TrendModelRecord> = {}) => model({
-  canonicalId: id, provider, modelId: id, name: id, creator: id.split('/')[0] ?? provider,
-  free: true, price: { input: 0, output: 0 }, ...overrides,
-})
-const local = (id: string, overrides: Partial<TrendModelRecord> = {}) => model({
-  canonicalId: id, provider: 'ollama-cloud', modelId: id, name: id, creator: id.split('/')[0] ?? 'ollama-cloud',
-  price: null, free: false, openWeights: true, ...overrides,
-})
+function orModel(id: string, overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
+  return model({
+    canonicalId: id, provider: 'openrouter', modelId: id, name: id, creator: id.split('/')[0] ?? 'openrouter',
+    releaseDate: '2026-11-15', releaseMs: NOW - 2 * DAY, price: null, ...overrides,
+  })
+}
+
+function observation(overrides: Partial<PlanObservationRow> = {}): PlanObservationRow {
+  return {
+    plan: 'opencode-go', modelId: 'deepseek/deepseek-v4.1-flash-1017', displayName: 'DeepSeek V4.1 Flash 1017',
+    source: 'go-models', confidence: 'catalog', firstSeenAt: NOW - DAY, lastSeenAt: NOW - HOUR, baseline: false,
+    ...overrides,
+  }
+}
 
 class FakeStore implements TrendStore {
   sections = new Map<TrendSection, TrendSectionRow>()
   sources = new Map<string, TrendSourceStateRow>()
   seen: TrendSeenRow[] = []
+  planObservations: PlanObservationRow[] = []
   writes: TrendSection[] = []
   async readSection(section: TrendSection): Promise<TrendSectionRow | null> { return this.sections.get(section) ?? null }
   async readSections(): Promise<TrendSectionRow[]> { return [...this.sections.values()] }
@@ -49,6 +57,7 @@ class FakeStore implements TrendStore {
   async writeSourceState(row: TrendSourceStateRow): Promise<void> { this.sources.set(row.source, row) }
   async readSeen(): Promise<TrendSeenRow[]> { return this.seen }
   async upsertSeen(rows: readonly TrendSeenRow[]): Promise<void> { this.seen.push(...rows) }
+  async readPlanObservations(): Promise<PlanObservationRow[]> { return this.planObservations }
 }
 
 type FetchResult = Awaited<ReturnType<TrendSource['fetch']>>
@@ -73,101 +82,99 @@ function section(store: FakeStore, id: TrendSection): TrendSectionPayload {
   return JSON.parse(store.sections.get(id)!.payload) as TrendSectionPayload
 }
 
+function seedObservations(store: FakeStore): void {
+  store.planObservations = [
+    observation(),
+    observation({ plan: 'ollama-cloud', modelId: 'glm-5.3', displayName: 'glm-5.3', source: 'ollama-tags' }),
+  ]
+}
+
 describe('Given the multi-source trend refresh', () => {
-  it('When every source returns 200 Then writes new-models and free-models and records each source state', async () => {
+  it('When AA, OpenRouter and plan observations are present Then writes both new-models and plan-included free-models', async () => {
     const store = new FakeStore()
+    seedObservations(store)
     const result = await refreshTrendSections({
       store,
       nowMs: NOW,
       sources: [
-        scripted(TREND_SOURCE_MODELS_DEV, [ok([model(), local('qwen/qwen4-max')], '"md"')]),
-        scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')])]),
-        scripted(TREND_SOURCE_OPENROUTER, [ok([hosted('inclusionai/ling-3.2-flash', 'openrouter')])]),
+        scripted(TREND_SOURCE_MODELS_DEV, [ok([model()], '"md"')]),
+        scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([])]),
+        scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')])]),
       ],
     })
-    expect(result.newModels).toMatchObject({ ok: true, written: true, count: 2 })
-    expect(result.freeModels).toMatchObject({ ok: true, written: true, count: 3, stale: false })
-    expect(result.sources).toEqual({ 'models.dev': 'ok', 'opencode-zen': 'ok', openrouter: 'ok' })
-    expect(section(store, 'new-models').items.map((item) => item.id).sort()).toEqual(['anthropic/claude-x', 'qwen/qwen4-max'])
+    expect(result.newModels).toMatchObject({ ok: true, written: true, count: 1 })
+    expect(result.freeModels).toMatchObject({ ok: true, written: true, count: 2, stale: false })
+    expect(section(store, 'new-models').items.map((item) => item.id)).toEqual(['inclusionai/ling-3.2-flash'])
+    expect(section(store, 'new-models').items.every((item) => Array.isArray(item.registeredIn))).toBe(true)
+    expect(section(store, 'free-models').items.map((item) => item.freeKind).sort()).toEqual(['ollama-cloud', 'opencode-go'])
+    expect(section(store, 'free-models').sources.map((source) => source.id)).toEqual(['go-models', 'ollama-tags'])
+  })
+
+  it('When OpenRouter fails after a good run Then keeps previous OpenRouter items and still refreshes free-models', async () => {
+    const store = new FakeStore()
+    seedObservations(store)
+    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model()]), ok([model({ canonicalId: 'anthropic/claude-y', name: 'Claude Y' })])])
+    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([])])
+    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')]), failed])
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
+    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, zen, router] })
+    expect(result.sources.openrouter).toBe('stale')
+    const newModels = section(store, 'new-models')
+    expect(newModels.items.map((item) => item.id)).toEqual(['inclusionai/ling-3.2-flash'])
+    expect(newModels.items.find((item) => item.id === 'inclusionai/ling-3.2-flash')?.registeredIn).toEqual(['openrouter'])
+    expect(newModels.sources.find((source) => source.id === 'openrouter')?.status).toBe('stale')
+    expect(section(store, 'free-models').items).toHaveLength(2)
+  })
+
+  it('When models.dev fails Then keeps AA items, refreshes OpenRouter and still builds free-models from observations', async () => {
+    const store = new FakeStore()
+    seedObservations(store)
+    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model()]), failed])
+    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([])])
+    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')]), ok([orModel('baidu/ernie-5.5-flash-preview')])])
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
+    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, zen, router] })
+    expect(result.newModels).toMatchObject({ ok: true, written: true })
+    const newModels = section(store, 'new-models')
+    expect(newModels.items.map((item) => item.id)).toEqual(['baidu/ernie-5.5-flash-preview'])
+    expect(newModels.sources.find((source) => source.id === 'models.dev')?.status).toBe('stale')
     expect(section(store, 'free-models').items.map((item) => item.id).sort()).toEqual([
-      'inclusionai/ling-3.2-flash', 'qwen/qwen4-max', 'tencent/hy4-flash',
+      'deepseek/deepseek-v4.1-flash-1017', 'glm-5.3',
     ])
-    expect(store.sources.get(TREND_SOURCE_OPENCODE_ZEN)).toMatchObject({ ok: true, httpStatus: 200 })
+    expect(section(store, 'free-models').sources.every((source) => source.status === 'ok')).toBe(true)
   })
 
-  it('When Zen fails after a good run Then keeps its items, marks only Zen stale, and still updates new-models', async () => {
+  it('When all upstreams return 304 Then keeps new-models and free-models without rewriting', async () => {
     const store = new FakeStore()
-    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')]), failed])
-    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model(), local('qwen/qwen4-max')]), ok([model({ canonicalId: 'anthropic/claude-y' }), local('qwen/qwen4-max')])])
-    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([hosted('inclusionai/ling-3.2-flash', 'openrouter')])])
+    seedObservations(store)
+    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model()], '"md"'), notModified('"md"')])
+    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([]), notModified('"z"')])
+    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')], '"o"'), notModified('"o"')])
     await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
-    const result = await refreshTrendSections({ store, nowMs: NOW + DAY, sources: [modelsDev, zen, router] })
-    expect(result.sources).toMatchObject({ 'opencode-zen': 'stale', openrouter: 'ok', 'models.dev': 'ok' })
-    expect(result.freeModels).toMatchObject({ stale: true, ok: false })
-    const free = section(store, 'free-models')
-    expect(free.items.map((item) => item.id).sort()).toContain('tencent/hy4-flash')
-    expect(free.items.map((item) => item.id).sort()).toContain('qwen/qwen4-max')
-    expect(free.sources.find((source) => source.id === TREND_SOURCE_OPENCODE_ZEN)?.status).toBe('stale')
-    expect(section(store, 'new-models').items.map((item) => item.id).sort()).toEqual(['anthropic/claude-y', 'qwen/qwen4-max'])
-  })
-
-  it('When models.dev fails Then keeps local items and the new-models list, while hosted data still refreshes', async () => {
-    const store = new FakeStore()
-    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model(), local('qwen/qwen4-max')]), failed])
-    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')])])
-    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([hosted('inclusionai/ling-3.2-flash', 'openrouter')]), ok([hosted('baidu/ernie-5.5-flash-preview', 'openrouter')])])
-    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
-    const newBefore = section(store, 'new-models')
-    const result = await refreshTrendSections({ store, nowMs: NOW + DAY, sources: [modelsDev, zen, router] })
-    expect(result.newModels).toEqual({ ok: false, reason: 'source_failed' })
-    expect(section(store, 'new-models').items).toEqual(newBefore.items)
-    expect(section(store, 'new-models').sources[0]?.status).toBe('stale')
-    const free = section(store, 'free-models')
-    expect(free.items.map((item) => item.id)).toContain('qwen/qwen4-max')
-    expect(free.items.map((item) => item.id)).toContain('baidu/ernie-5.5-flash-preview')
-    expect(free.sources.find((source) => source.id === TREND_SOURCE_MODELS_DEV)?.status).toBe('stale')
-  })
-
-  it('When every source returns 304 Then keeps both sections without rewriting them', async () => {
-    const store = new FakeStore()
-    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model(), local('qwen/qwen4-max')], '"md"'), notModified('"md"')])
-    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')], '"z"'), notModified('"z"')])
-    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([hosted('inclusionai/ling-3.2-flash', 'openrouter')], '"o"'), notModified('"o"')])
-    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
-    const before = section(store, 'free-models')
+    const newBefore = section(store, 'new-models').items
+    const freeBefore = section(store, 'free-models').items
     store.writes = []
-    const result = await refreshTrendSections({ store, nowMs: NOW + DAY, sources: [modelsDev, zen, router] })
-    expect(result.freeModels).toMatchObject({ written: false, stale: false })
+    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, zen, router] })
+    expect(result.newModels).toMatchObject({ written: false, count: 1 })
+    expect(result.freeModels).toMatchObject({ written: false, count: 2 })
     expect(store.writes).toEqual([])
-    expect(section(store, 'free-models').items).toEqual(before.items)
+    expect(section(store, 'new-models').items).toEqual(newBefore)
+    expect(section(store, 'free-models').items).toEqual(freeBefore)
   })
 
-  it('When a 304 arrives after a models.dev failure Then recovers the free-models source status', async () => {
+  it('When 8 days pass and the upstreams return 304 Then drops out-of-window registrations', async () => {
     const store = new FakeStore()
-    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([local('qwen/qwen4-max')], '"md"'), failed, notModified('"md"')])
-    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')])])
-    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([])])
+    seedObservations(store)
+    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model()], '"md"'), notModified('"md"')])
+    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([]), notModified('"z"')])
+    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')], '"o"'), notModified('"o"')])
     await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
-    await refreshTrendSections({ store, nowMs: NOW + DAY, sources: [modelsDev, zen, router] })
-    expect(section(store, 'free-models').sources.find((source) => source.id === TREND_SOURCE_MODELS_DEV)?.status).toBe('stale')
-    const result = await refreshTrendSections({ store, nowMs: NOW + 2 * DAY, sources: [modelsDev, zen, router] })
-    expect(result.sources['models.dev']).toBe('ok')
-    expect(result.freeModels).toMatchObject({ stale: false, ok: true })
-    expect(section(store, 'free-models').sources.find((source) => source.id === TREND_SOURCE_MODELS_DEV)?.status).toBe('ok')
+    const result = await refreshTrendSections({ store, nowMs: NOW + 8 * DAY, sources: [modelsDev, zen, router] })
+    expect(result.newModels).toMatchObject({ count: 0, written: true })
+    expect(section(store, 'new-models').items).toEqual([])
   })
 
-  it('When a 304 arrives after the 30-day window expires Then drops only the expired local item', async () => {
-    const store = new FakeStore()
-    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([local('qwen/qwen4-max', { releaseMs: NOW - 29 * DAY })], '"md"'), notModified('"md"')])
-    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([hosted('tencent/hy4-flash', 'opencode')], '"z"'), notModified('"z"')])
-    const router = scripted(TREND_SOURCE_OPENROUTER, [ok([], '"o"'), notModified('"o"')])
-    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
-    const result = await refreshTrendSections({ store, nowMs: NOW + 2 * DAY, sources: [modelsDev, zen, router] })
-    expect(result.freeModels).toMatchObject({ count: 1, written: true })
-    expect(section(store, 'free-models').items.map((item) => item.id)).toEqual(['tencent/hy4-flash'])
-  })
-
-  it('When every source fails before any section exists Then does not create an empty free-models section', async () => {
+  it('When every upstream fails before any section exists Then creates neither section', async () => {
     const store = new FakeStore()
     const result = await refreshTrendSections({
       store,
@@ -180,6 +187,7 @@ describe('Given the multi-source trend refresh', () => {
     })
     expect(result.newModels).toEqual({ ok: false, reason: 'source_failed' })
     expect(result.freeModels).toMatchObject({ ok: false, written: false, stale: true })
+    expect(store.sections.has('new-models')).toBe(false)
     expect(store.sections.has('free-models')).toBe(false)
   })
 })

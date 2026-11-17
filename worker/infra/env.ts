@@ -14,10 +14,6 @@ export interface Env {
   USAGE_DATA_GENERATION?: string
   /** Optional compatibility selector; only d1 is accepted. */
   USAGE_READ_STORE?: string
-  /** Artificial Analysis free API key. Absent means the metrics AA block is not configured. */
-  AA_API_KEY?: string
   /** OpenRouter Data API key. Absent means the metrics OpenRouter block is not configured. */
   OR_API_KEY?: string
-  /** '1'이면 AA 점수를 공개한다. 기본값(없음/0)은 수집만 하고 공개 블록을 약관 확인 중으로 숨긴다. */
-  TREND_AA_PUBLIC?: string
 }
