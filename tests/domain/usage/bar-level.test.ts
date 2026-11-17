@@ -35,4 +35,18 @@ describe('Given the progress-bar level rule (사용률 vs 기간 경과율)', ()
   it('When describing levels Then every level has a text so color is never the only cue', () => {
     expect(BAR_LEVEL_TEXT).toEqual({ neutral: '사용 없음', ok: '여유', caution: '주의', danger: '위험' })
   })
+
+  it.each([
+    [92, 80, 30 * 86400, 'caution'],
+    [92, 95, 30 * 86400, 'ok'],
+    [92, null, 30 * 86400, 'caution'],
+    [94.9, 95, 28 * 86400, 'ok'],
+    [95, 99, 30 * 86400, 'danger'],
+    [95, 99, 31 * 86400, 'danger'],
+    [90, 95, 7 * 86400, 'danger'],
+    [89.9, 95, 7 * 86400, 'ok'],
+    [90, 95, 5 * 3600, 'danger'],
+  ] as const)('When used=%s, elapsed=%s, cycleSeconds=%s Then %s', (used, elapsed, cycleSeconds, expected) => {
+    expect(barLevelOf(used, elapsed, cycleSeconds)).toBe(expected)
+  })
 })

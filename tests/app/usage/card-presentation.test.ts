@@ -25,4 +25,9 @@ describe('Given the card presentation', () => {
   it('When 0% Then neutral and a sleeping gerbil', () => {
     expect(cardPresentation({ usedPercent: 0, elapsedPercent: 50 }, 0.6)).toMatchObject({ barLevel: 'neutral', gerbil: { mode: 'sleeping' } })
   })
+  it('When month or week cycleSeconds is given Then applies window-specific danger threshold', () => {
+    expect(cardPresentation({ usedPercent: 92, elapsedPercent: 80, cycleSeconds: 30 * 86400 }, null)).toMatchObject({ barLevel: 'caution' })
+    expect(cardPresentation({ usedPercent: 95, elapsedPercent: 98, cycleSeconds: 30 * 86400 }, null)).toMatchObject({ barLevel: 'danger' })
+    expect(cardPresentation({ usedPercent: 90, elapsedPercent: 95, cycleSeconds: 7 * 86400 }, null)).toMatchObject({ barLevel: 'danger' })
+  })
 })

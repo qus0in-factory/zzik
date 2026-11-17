@@ -16,6 +16,16 @@ describe('Given a persisted alert baseline', () => {
   it.each([[75, 'caution'], [95, 'danger'], [100, 'limit']] as const)('When used becomes %s Then reports %s entry including five-hour windows', (used, to) => {
     expect(diffAlerts(baseline(), report([limit(used)]))).toMatchObject([{ kind: 'level', from: 'normal', to, id: 'five_hour' }])
   })
+  it('When month or week windows cross thresholds Then month uses 95% danger, week and 5h use 90%, and 100% stays limit', () => {
+    const month = (usedPercent: number, elapsedPercent = 80) => ({ ...limit(usedPercent, 'monthly', elapsedPercent), cycleSeconds: 30 * 86400 })
+    const week = (usedPercent: number, elapsedPercent = 95) => ({ ...limit(usedPercent, 'seven_day', elapsedPercent), cycleSeconds: 7 * 86400 })
+    expect(diffAlerts(baseline(report([month(10, 80)])), report([month(92, 80)]))).toMatchObject([{ kind: 'level', from: 'normal', to: 'caution', id: 'monthly' }])
+    expect(diffAlerts(baseline(report([month(10, 95)])), report([month(92, 95)]))).toEqual([])
+    expect(diffAlerts(baseline(report([month(10, 98)])), report([month(95, 98)]))).toMatchObject([{ kind: 'level', from: 'normal', to: 'danger', id: 'monthly' }])
+    expect(diffAlerts(baseline(report([month(10, 99)])), report([month(100, 99)]))).toMatchObject([{ kind: 'level', from: 'normal', to: 'limit', id: 'monthly' }])
+    expect(diffAlerts(baseline(report([week(10, 95)])), report([week(90, 95)]))).toMatchObject([{ kind: 'level', from: 'normal', to: 'danger', id: 'seven_day' }])
+    expect(diffAlerts(baseline(report([limit(10, 'five_hour', 95)])), report([limit(90, 'five_hour', 95)]))).toMatchObject([{ kind: 'level', from: 'normal', to: 'danger', id: 'five_hour' }])
+  })
   it('When caution worsens Then danger and limit bypass the flap cooldown', () => {
     let s = step(baseline(), report([limit(75)]))
     s = step(s.state, report([limit(95)], nowMs + 60_000))
