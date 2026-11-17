@@ -1,3 +1,5 @@
+> G1 현재 상태: D1 단독 런타임이다. 아래 단계별 구현 기록 중 PG/꺼진 경로/PG복귀 설명은 당시 이력이며 현재 운영 명령은 docs/d1-d-cutover.md를 따른다. 기본 PM2 env가 D1이며 PostgreSQL 드라이버/백필 도구는 제거됐다.
+
 # B3 scheduler·quiesce
 
 ADR 0.10 §5·§11 B3 구현. 기본 PG·900초·PM2 env는 바꾸지 않는다. B1 코드 `0abbc85`와 B1 문서 정합 `5b90b1b`를 병합하고, B2 `db34c83`·`80c854b`를 병합했다. rolled-back 마커의 배타적 동작과 active 검증 순서는 유지했다.

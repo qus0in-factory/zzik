@@ -2,8 +2,6 @@
 import { isRecord, migrationRowTuple, normalizeD1Instant, parseD1Envelope } from '../../../shared/d1-canonical.ts'
 import { sha256Hex } from './envelope.mjs'
 /** @typedef {import('../../../shared/d1-contract.ts').D1MigrationRow} MigrationRow */
-/** @typedef {import('../../../shared/d1-contract.ts').PgRollbackEventRow} PgEvent */
-/** @typedef {import('../../../shared/d1-contract.ts').PgRollbackSnapshotRow} PgSnapshot */
 /** @template T @typedef {import('../../../shared/d1-contract.ts').D1Result<T>} Result */
 
 /** @param {unknown} value @returns {Result<{ms:number,iso:string}>} */
@@ -51,38 +49,4 @@ export function compareMigrationRows(expected, actual) {
   if (!first.ok) return first
   if (!second.ok) return second
   return first.value === second.value ? { ok:true,value:'matching' } : { ok:false,reason:'migration_hash_mismatch' }
-}
-/** Event conflicts stop rollback. A different latest snapshot is an explicit replacement (§11 D).
- * @param {unknown} expected @param {unknown} actual @returns {Result<'missing'|'matching'|'snapshot_replace'>} */
-export function classifyPgRollbackRow(expected, actual) {
-  const a = normalizeMigrationRow(expected)
-  if (!a.ok) return a
-  if (actual === null) return { ok:true,value:'missing' }
-  const b = normalizeMigrationRow(actual)
-  if (!b.ok) return b
-  const compared = compareMigrationRows(a.value,b.value)
-  if (compared.ok) return compared
-  if (compared.reason === 'migration_hash_mismatch' && a.value.id === null && b.value.id === null) return { ok:true,value:'snapshot_replace' }
-  return compared
-}
-/** @param {unknown} input @returns {Result<PgEvent>} */
-export function toPgRollbackEvent(input) {
-  const row = normalizeMigrationRow(input)
-  if (!row.ok) return row
-  const r = row.value
-  if (r.id === null) return { ok:false,reason:'invalid_event_row' }
-  return { ok:true,value:{id:r.id,provider:r.provider,runAtMs:Date.parse(r.runAt),status:r.status,rawSha256:r.rawSha256,envelope:r.envelopeJson} }
-}
-/** updatedAtMs is the explicit persisted D1 column, not an invented retry timestamp.
- * @param {unknown} input @param {unknown} updatedAtMs @returns {Result<PgSnapshot>} */
-export function toPgRollbackSnapshot(input, updatedAtMs) {
-  const row = normalizeMigrationRow(input), updated = epoch(updatedAtMs)
-  if (!row.ok) return row
-  if (row.value.id !== null || !updated.ok) return { ok:false,reason:'invalid_snapshot_row' }
-  const r = row.value, parsed = parseD1Envelope(r.envelopeJson)
-  if (!parsed.ok) return parsed
-  const fetched = parsed.value.fetchedAt === null ? null : normalizeD1Instant(parsed.value.fetchedAt)
-  if (fetched !== null && !fetched.ok) return fetched
-  return { ok:true,value:{provider:r.provider,runAtMs:Date.parse(r.runAt),fetchedAtMs:fetched?.ok ? fetched.value.ms : null,status:r.status,
-    rawSha256:r.rawSha256,envelope:r.envelopeJson,collectorVersion:parsed.value.collectorVersion,updatedAtMs:updated.value.ms} }
 }

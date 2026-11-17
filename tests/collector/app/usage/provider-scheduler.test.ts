@@ -4,7 +4,7 @@ import {initialLedgerState,acceptObservation} from '../../../../collector/domain
 import {senderFixture} from '../../../fakes/d1-sender'
 import {successValue} from '../../../fakes/d1-contract'
 const flush=async()=>{for(let i=0;i<10;i++)await Promise.resolve()}
-function setup(mode:'postgres'|'d1'='d1'){
+function setup(mode:'d1'='d1'){
  const h=senderFixture({initialLedgerState,acceptObservation});const calls:string[]=[];const release:Array<()=>void>=[]
  const scheduler=createProviderScheduler({mode,ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:['claude','codex','antigravity'].map(id=>({id:id as 'claude'|'codex'|'antigravity',intervalSec:900,run:async({markStarted}:{markStarted:()=>boolean})=>{if(!markStarted())return;calls.push(id);await new Promise<void>(r=>release.push(r))}}))})
  return {...h,scheduler,calls,release}
@@ -12,9 +12,6 @@ function setup(mode:'postgres'|'d1'='d1'){
 describe('Given provider due times and upstream-start checkpoints',()=>{
  it('When D1 ticks overlap Then runs at most two providers and one instance of each',async()=>{
   const h=setup();h.scheduler.pump();h.scheduler.pump();expect(h.calls).toEqual(['claude','codex']);h.release.shift()!();await flush();h.scheduler.pump();expect(h.calls).toEqual(['claude','codex','antigravity']);h.release.splice(0).forEach(r=>r());await flush()
- })
- it('When PG ticks overlap Then never overlaps provider transactions',async()=>{
-  const h=setup('postgres');h.scheduler.pump();h.scheduler.pump();expect(h.calls).toEqual(['claude']);h.release.shift()!();await flush();h.scheduler.pump();expect(h.calls).toEqual(['claude','codex']);h.release.splice(0).forEach(r=>r());await flush()
  })
  it('When a local gate tick skips upstream Then nextDue advances without changing lastStartedAt',async()=>{
   const h=senderFixture({initialLedgerState,acceptObservation});let calls=0

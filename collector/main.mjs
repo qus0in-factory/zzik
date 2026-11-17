@@ -4,7 +4,7 @@
  * 제공자 정의(claude/codex/antigravity/opencode/grok/ollama)를 만들어 runCycle에 주입한다. 로직은 이 파일에 두지 않는다.
  *
  * 실행 모드(PM2 상주가 기본):
- *   (기본)       즉시 1회 실행 후 900초마다 runCycle(제공자 수만큼 줄이 생긴다)
+ *   (기본)       provider별 nextDue에 따라 D1 resident가 수집한다
  *   --once       1회 실행 후 종료한다. 종료 코드는 제공자별 결과 중 가장 큰 값
  *   --dry-run    상태·DB·로그 어디에도 쓰지 않는다(--provider와 같이 쓰면 경로 목록 출력)
  *   --provider <id>   대상 제공자(claude|codex|antigravity|opencode|grok|ollama). 생략하면 켜진 제공자 전부
@@ -13,9 +13,9 @@
  * 제공자 목록: env ZZIK_PROVIDERS(기본 전체 6개). 하나의 제공자 실패가 다른
  * 제공자를 막지 않는다(예외 격리, 제공자별 상태 파일·게이트).
  *
- * 기본 저장소는 Postgres다. 명시적 ZZIK_STORE=d1에서만 ledger/sender를 조립한다.
- * DB_URL은 Node --env-file로 주입하며,
- * 수집기 연결은 유휴 5초 후 닫혀 Neon의 suspend를 방해하지 않는다.
+ * D1 단독이며 기본 실행은 ledger/sender를 조립한다.
+ * D1 자격은 Node --env-file로 주입하며,
+ * 원격 쓰기는 공용 D1 REST query lane에서 직렬 전송한다.
  */
 
 import {resumeQuarantinedProvider} from './app/usage/resume-quarantine.mjs'
@@ -30,10 +30,8 @@ import {createCollectorNotice} from './infra/usage/collector-notice.mjs'
 import {readLegacyLedgerInputs,reconcileD1Startup} from './app/usage/d1-startup.mjs'
 import {createD1Resident} from './app/usage/d1-resident.mjs'
 import {createStartupGate} from './app/usage/startup-quiesce.mjs'
-import postgres from 'postgres'
 import { readAlertConfig } from './domain/usage/alert-config.mjs'
 import { createDiscordAlerts } from './infra/usage/discord-alerts.mjs'
-import { createPostgresEnvelopeWriter } from './infra/usage/postgres-envelope-writer.mjs'
 import { readIntervalCapability } from './infra/usage/interval-capability.mjs'
 import { readStorageConfig } from './domain/usage/storage-config.mjs'
 import { createLogAppender } from './infra/usage/log.mjs'
@@ -60,14 +58,8 @@ import { join } from 'node:path'
 
 const alerts = createDiscordAlerts({ ...readAlertConfig(process.env), fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
-/** @type {{mode:'postgres'|'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}} */
-let storageConfig = {mode:'postgres',intervalSec:900,retentionDays:30}
-/** @type {ReturnType<typeof postgres>|null} */
-let database = null
-/** @type {ReturnType<typeof createPostgresEnvelopeWriter>|null} */
-let postgresWriter = null
-/** @type {NonNullable<Parameters<typeof runCycle>[0]['maintenance']>|undefined} */
-let maintenance
+/** @type {{mode:'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}} */
+let storageConfig = {mode:'d1',intervalSec:900,retentionDays:30}
 const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')
 const LOG_PATH = process.env.ZZIK_LOG_PATH ?? join(homedir(), 'Library', 'Logs', 'zzik', 'usage-collector.log')
 
@@ -144,7 +136,7 @@ function parseArgs(argv) {
 
 /**
  * 제공자 하나의 포트 묶음(ADR 0.3 D3의 표). 자격 증명 포트·usage 포트·상태 파일이
- * 제공자별로 다르고 나머지(시계, 로거, Postgres 어댑터)는 공유한다.
+ * 제공자별로 다르고 나머지(시계, 로거, D1 ledger)는 공유한다.
  * @param {string} provider
  * @param {{ credentialsPath: string|null, dryRun: boolean }} options
  * @returns {CollectorPorts}
@@ -181,7 +173,7 @@ function buildProviderPorts(provider, { credentialsPath, dryRun }) {
     },
     usage: { fetchUsage: (token, opts) => usageClient.fetchUsage(token, opts) },
     // Dry-run never invokes this port and must not construct a DB connection.
-    store: postgresWriter ?? { write: async () => ({ ok: false, httpStatus: null, message: 'DatabaseNotInitialized' }) },
+    store: { write: async () => ({ ok: false, httpStatus: null, message: 'DatabaseNotInitialized' }) },
     state: createStateFile({
       path: join(STATE_DIR, `usage-state.${provider}.json`),
       // 0.2에서 claude 전용으로 쓰던 파일의 일회성 이행(D3).
@@ -212,8 +204,8 @@ async function once(flags) {
   const intervalSec = storageConfig.intervalSec
   /** @type {Awaited<ReturnType<typeof runCycle>>} */let completed={results:[],exitCode:0}
   const runner=createResidentCollector({periodMs:intervalSec*1000,timer:createCollectorTimer(),
-    run:async shouldStop=>{completed=await runCycle({maintenance,alerts},buildProviders(flags),{dryRun:flags.dryRun,collectorVersion:VERSION,intervalSec,shouldStop})},
-    close:async()=>{await database?.end({timeout:1})},
+    run:async shouldStop=>{completed=await runCycle({alerts},buildProviders(flags),{dryRun:flags.dryRun,collectorVersion:VERSION,intervalSec,shouldStop})},
+    close:async()=>{},
     onError:()=>{completed={results:[{id:'collector',exitCode:4}],exitCode:4}},
   })
   bindShutdown(runner)
@@ -243,21 +235,6 @@ async function once(flags) {
 function bindShutdown(runner){
  const shutdown=()=>{void runner.shutdown().then(result=>{process.stderr.write(`[zzik-usage-collector] shutdown=${result.timedOut?'timeout':'complete'}\n`);process.exit(0)})}
  process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown)
-}
-
-function startResident() {
-  const runner=createResidentCollector({
-    periodMs:storageConfig.intervalSec*1000,timer:createCollectorTimer(),
-    run:async shouldStop=>{
-      const {results}=await runCycle({maintenance,alerts},buildProviders({credentialsPath:null,provider:null,dryRun:false,once:false,codexAccountHeader:false,resumeWithoutQuarantine:null}),{collectorVersion:VERSION,intervalSec:storageConfig.intervalSec,shouldStop})
-      const failures=results.filter(result=>result.exitCode!==0)
-      if(failures.length>0)process.stderr.write(`[zzik-usage-collector] 주기 결과: ${failures.map(result=>`${result.id}=exit${result.exitCode}`).join(', ')}\n`)
-    },
-    close:async()=>{await database?.end({timeout:1})},
-    onError:()=>{process.stderr.write('[zzik-usage-collector] 주기 실패: CycleError\n')},
-  })
-  bindShutdown(runner)
-  runner.start()
 }
 
 /** @param {ParsedFlags} flags */
@@ -302,38 +279,15 @@ async function main() {
     process.exit(64)
     return
   }
-  const configured = readStorageConfig(process.env, {dryRun:parsed.flags.dryRun,capability:process.env.ZZIK_STORE==='d1'?readIntervalCapability(join(STATE_DIR,'interval-capability.json')):null})
+  const configured = readStorageConfig(process.env, {dryRun:parsed.flags.dryRun,capability:readIntervalCapability(join(STATE_DIR,'interval-capability.json'))})
   if (!configured.ok) {
     process.stderr.write('Storage configuration error: ' + configured.reason + '\n')
     process.exit(78)
     return
   }
-  if(parsed.flags.resumeWithoutQuarantine!==null&&configured.mode!=='d1'){process.stderr.write('ResumeCommandRequiresD1\n');process.exit(78);return}
   storageConfig = configured
-  if(configured.mode==='d1'&&!parsed.flags.dryRun){await startD1(parsed.flags);return}
-  // Dry-run never creates a DB connection or a retention task.
-  if (!parsed.flags.dryRun && configured.mode==='postgres') {
-    try {
-      const client = postgres(/** @type {string} */ (process.env.DB_URL), {max:1,idle_timeout:5,connect_timeout:10,prepare:false,onnotice:()=>{}})
-      database = client
-      postgresWriter = createPostgresEnvelopeWriter({execute:(text,params)=>client.unsafe(text,params)})
-      maintenance = {
-        store: postgresWriter,
-        state: createStateFile({path:join(STATE_DIR,'usage-prune.json')}),
-        logger: createLogAppender({path:LOG_PATH}),
-        retentionDays: configured.retentionDays,
-      }
-    } catch {
-      process.stderr.write('Invalid database configuration\n')
-      process.exit(78)
-      return
-    }
-  }
-  if (parsed.flags.once || parsed.flags.dryRun) {
-    await once(parsed.flags)
-    return
-  }
-  startResident()
+  if (parsed.flags.dryRun) {await once(parsed.flags);return}
+  await startD1(parsed.flags)
 }
 
 await main()
