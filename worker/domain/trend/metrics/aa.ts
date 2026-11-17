@@ -4,6 +4,7 @@ import {
   TREND_AA_TOP_N,
 } from '../../../../shared/trend-contract'
 import type { TrendMetricsBlock, TrendMetricsEntry } from '../../../../shared/trend-contract'
+import { composeAaCitation } from './citation'
 import type { AaModelEntry, AaSnapshot, AaSnapshotRow } from './types'
 
 interface Ranked {
@@ -25,6 +26,17 @@ export function rankAa(entries: readonly AaModelEntry[]): Ranked[] {
 
 export function aaAttribution(version: string, asOf: string): string {
   return `Artificial Analysis — artificialanalysis.ai (Intelligence Index v${version}, ${asOf})`
+}
+
+/**
+ * 공개용 AA brief citation: 지표당 1위 한 건만 담은 완성 문장 하나.
+ * 무료 API가 실제 제공하는 지표는 Intelligence 하나뿐이다(Time per Task·Cost per Task 필드 없음).
+ * 점수·모델 id·순위는 별도 필드로 만들지 않고 문장 안에만 둔다(§2.3(c), §2.4(b)).
+ */
+export function buildAaCitation(snapshot: AaSnapshot, day: string): string | null {
+  const top = rankAa(snapshot.entries)[0]
+  if (top === undefined) return null
+  return composeAaCitation({ name: top.entry.name, score: top.entry.intelligenceIndex, day })
 }
 
 /**

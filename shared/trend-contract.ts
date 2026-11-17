@@ -7,8 +7,8 @@ export const TREND_SECTION_MAX_BYTES = 100_000
 export const TREND_NEW_MODELS_WINDOW_MS = 7 * 86_400_000
 export const TREND_NEW_MODELS_RELEASE_MAX_MS = 30 * 86_400_000
 export const TREND_NEW_MODELS_RULE = 'openrouter-registered-7d'
-export const TREND_FREE_MODELS_WINDOW_MS = 7 * 86_400_000
-export const TREND_FREE_MODELS_RULE = 'plan-included-opencode-go-ollama-cloud'
+export const TREND_FREE_MODELS_WINDOW_MS = 30 * 86_400_000
+export const TREND_FREE_MODELS_RULE = 'opencode-go-free'
 export const TREND_PLAN_WINDOW_MS = 14 * 86_400_000
 export const TREND_PLAN_MODELS_RULE = 'plan-observation-14d'
 export const TREND_SOURCE_MODELS_DEV = 'models.dev'
@@ -24,6 +24,7 @@ export const TREND_OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
 export const TREND_GO_MODELS_URL = 'https://opencode.ai/inference/go/v1/models'
 export const TREND_OLLAMA_TAGS_URL = 'https://ollama.com/api/tags'
 export const TREND_AA_URL = 'https://artificialanalysis.ai/api/v2/language/models/free'
+export const TREND_AA_LEADERBOARD_URL = 'https://artificialanalysis.ai/leaderboards/models'
 export const TREND_OR_RANKINGS_URL = 'https://openrouter.ai/api/v1/datasets/rankings-daily'
 export const TREND_METRICS_RULE = 'openrouter-usage-v1'
 export const TREND_AA_TOP_N = 15
@@ -39,7 +40,7 @@ export const TREND_OR_LICENSE_NAME = 'CC BY 4.0'
 export const TREND_OR_LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/'
 
 export type TrendPrecision = 'day' | 'month' | 'unknown'
-export type TrendFreeKind = 'opencode-go' | 'ollama-cloud'
+export type TrendFreeKind = 'opencode-go'
 
 export interface TrendPrice {
   input: number
@@ -58,8 +59,11 @@ export interface TrendItem {
   openWeights: boolean
   providers: string[]
   links: { modelsDev?: string; openrouter?: string; opencode?: string }
-  /** free-models 전용: OpenCode Go 또는 Ollama Cloud 요금제 포함 그룹 */
+  /** free-models 전용: 무료 제공 출처 그룹 및 한정·신규 표시 */
   freeKind?: TrendFreeKind
+  recentlyAdded?: boolean
+  limitedTime?: boolean
+  limitedRegions?: boolean
   /** new-models 전용: AA 또는 OpenRouter에 새로 등록된 출처 */
   registeredIn?: ('aa' | 'openrouter')[]
   extra?: Record<string, string | number | boolean>
@@ -155,6 +159,8 @@ export interface TrendSectionPayload {
   items: TrendItem[]
   /** metrics 섹션 전용. 다른 섹션 payload에는 없다. */
   blocks?: TrendMetricsBlock[]
+  /** AA brief citation(완성된 문장 1개). 점수·순위·모델 id는 구조화 필드로 내지 않는다. */
+  aaCitation?: string
   /** plan-models 섹션 전용. 다른 섹션 payload에는 없다. */
   plans?: TrendPlanGroup[]
 }

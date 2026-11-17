@@ -16,4 +16,6 @@ export interface Env {
   USAGE_READ_STORE?: string
   /** OpenRouter Data API key. Absent means the metrics OpenRouter block is not configured. */
   OR_API_KEY?: string
+  /** Artificial Analysis API key. Absent means the brief citation is hidden. */
+  AA_API_KEY?: string
 }

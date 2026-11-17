@@ -20,6 +20,9 @@ export interface TrendModelRecord {
   status: string | null
   /** OpenRouter expiration_date 등 만료 시각(ms). 없으면 null. */
   expiresAtMs?: number | null
+  limitedTime?: boolean
+  limitedRegions?: boolean
+  link?: string
 }
 
 export type DecodeModelsDevResult =
@@ -216,6 +219,53 @@ export function decodeOpenRouterModels(input: unknown): DecodeModelsDevResult {
       openWeights: typeof raw.hugging_face_id === 'string' && raw.hugging_face_id !== '',
       status: null,
       expiresAtMs: expires.ms,
+    })
+  }
+  if (input.data.length > 0 && records.length === 0) return { ok: false, reason: 'invalid_source' }
+  return { ok: true, value: records }
+}
+
+const OPENCODE_GO_PRICING_URL = 'https://opencode.ai/console/go#pricing'
+
+/**
+ * OpenCode Go `/inference/go/v1/models`: `{object:'list', data:[...]}`.
+ * 무료 판정은 `cost.text.input.price == 0 && output.price == 0`이며 `go.limited_regions`를 함께 읽는다.
+ */
+export function decodeGoModels(input: unknown): DecodeModelsDevResult {
+  if (!isRecord(input) || !Array.isArray(input.data)) return { ok: false, reason: 'invalid_source' }
+  const records: TrendModelRecord[] = []
+  for (const raw of input.data) {
+    if (!isRecord(raw)) continue
+    const modelId = typeof raw.id === 'string' && raw.id !== '' ? raw.id : ''
+    if (modelId === '') continue
+    const canonical = typeof raw.canonical_id === 'string' && raw.canonical_id !== '' ? raw.canonical_id : modelId
+    const release = parseRelease(raw.release_date)
+    const cost = isRecord(raw.cost) && isRecord(raw.cost.text) ? raw.cost.text : null
+    const inputPrice = cost !== null && isRecord(cost.input) ? parseNumber(cost.input.price) : null
+    const outputPrice = cost !== null && isRecord(cost.output) ? parseNumber(cost.output.price) : null
+    const price = inputPrice !== null && outputPrice !== null ? { input: inputPrice, output: outputPrice } : null
+    const free = price !== null && price.input === 0 && price.output === 0
+    const go = isRecord(raw.go) ? raw.go : null
+    const description = typeof raw.description === 'string' ? raw.description : ''
+    const limitedRegions = go?.limited_regions === true
+    const limitedTime = free && (go === null || go.monthly_usage === null || /limited time/i.test(description))
+    records.push({
+      canonicalId: canonical,
+      provider: 'opencode-go',
+      modelId,
+      name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : modelId,
+      creator: creatorOf(canonical, 'opencode-go'),
+      releaseDate: release.date,
+      releasePrecision: release.precision,
+      releaseMs: release.ms,
+      price,
+      free,
+      openWeights: raw.open_weights === true,
+      status: raw.deprecated === true ? 'deprecated' : null,
+      expiresAtMs: null,
+      limitedTime,
+      limitedRegions,
+      link: OPENCODE_GO_PRICING_URL,
     })
   }
   if (input.data.length > 0 && records.length === 0) return { ok: false, reason: 'invalid_source' }

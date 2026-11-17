@@ -79,12 +79,15 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
         const url = String(input);
         const headers = new Headers(init?.headers);
         if (url.includes('artificialanalysis.ai')) {
-          // If this path is ever called, it would write AA rows and fail the no-AA assertions.
           if (headers.get('x-api-key') !== 'aa-secret') return new Response('', { status: 401 });
           return new Response(JSON.stringify({
             intelligence_index_version: '3.0',
             pagination: { page: 1, total_pages: 1, has_more: false },
-            data: [{ slug: 'a/x', name: 'A X', model_creator: { name: 'A' }, evaluations: { artificial_analysis_intelligence_index: 90 } }],
+            data: [
+              { slug: 'a/x', name: 'A X', model_creator: { name: 'A' }, evaluations: { artificial_analysis_intelligence_index: 90 } },
+              { slug: 'b/x', name: 'B X', model_creator: { name: 'B' }, evaluations: { artificial_analysis_intelligence_index: 80 } },
+              { slug: 'c/x', name: 'C X', model_creator: { name: 'C' }, evaluations: { artificial_analysis_intelligence_index: 70 } },
+            ],
           }), { status: 200 });
         }
         if (url.includes('openrouter.ai/api/v1/datasets/rankings-daily')) {
@@ -101,14 +104,16 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
 
   afterAll(async () => { await mf.dispose() })
 
-  it('When the metrics cron runs with AA_API_KEY present Then it calls only OpenRouter and serves one block', async () => {
+  it('When the metrics cron runs with keys Then it stores only the AA top two internally and serves one citation sentence', async () => {
     const worker = await mf.getWorker() as unknown as {
       scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
     }
     await worker.scheduled({ cron: METRICS_CRON, scheduledTime: NOW })
 
     const aa = await db.prepare('SELECT COUNT(*) AS count FROM trend_aa_snapshot').all<{ count: number }>()
-    expect(Number(aa.results[0]?.count)).toBe(0)
+    expect(Number(aa.results[0]?.count)).toBe(2)
+    const aaRows = await db.prepare('SELECT slug FROM trend_aa_snapshot ORDER BY slug').all<{ slug: string }>()
+    expect(aaRows.results.map((row: { slug: string }) => row.slug)).toEqual(['a/x', 'b/x'])
     const or = await db.prepare('SELECT model_permaslug AS id, total_tokens AS tokens FROM trend_or_ranking WHERE day = ? ORDER BY model_permaslug').bind('2026-11-17').all<{ id: string; tokens: string }>()
     expect(or.results).toEqual([{ id: 'a/x', tokens: '600' }, { id: 'other', tokens: '400' }])
 
@@ -128,7 +133,10 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
       items: unknown[]
       sources: Array<{ id: string; status: string }>
       blocks: Array<{ id: string; status: string; entries: Array<Record<string, unknown>>; attribution: string }>
+      aaCitation?: string
     }
+    expect(body.aaCitation).toBe('Artificial Analysis Intelligence Index 1위는 A X (90)입니다. (2026-11-17 기준)')
+    expect(text).not.toContain('C X')
     expect(body.section).toBe('metrics')
     expect(body.items).toEqual([])
     expect(body.sources.map((source) => source.id)).toEqual(['openrouter-rankings'])

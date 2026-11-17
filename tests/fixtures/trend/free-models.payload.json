@@ -1,44 +1,44 @@
 {
   "section": "free-models",
   "schemaVersion": 1,
-  "generatedAt": "2026-11-17T00:00:00.000Z",
-  "rule": "plan-included-opencode-go-ollama-cloud",
+  "generatedAt": "2026-11-17T04:07:00.000Z",
+  "rule": "opencode-go-free",
   "sources": [
     {
       "id": "go-models",
-      "fetchedAt": "2026-11-17T00:00:00.000Z",
-      "status": "ok"
-    },
-    {
-      "id": "ollama-tags",
-      "fetchedAt": "2026-11-17T00:00:00.000Z",
+      "fetchedAt": "2026-11-17T04:07:00.000Z",
       "status": "ok"
     }
   ],
   "items": [
     {
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "name": "DeepSeek V4.1 Flash 1017",
-      "creator": "deepseek",
-      "releaseDate": "2026-10-17",
+      "id": "tencent/hy4-flash",
+      "name": "Hy4 flash Free",
+      "creator": "tencent",
+      "releaseDate": "2026-11-16",
       "precision": "day",
       "price": {
         "input": 0,
         "output": 0
       },
       "free": true,
-      "openWeights": true,
+      "openWeights": false,
       "providers": [
-        "opencode-go"
+        "go-models"
       ],
-      "links": {},
-      "freeKind": "opencode-go"
+      "links": {
+        "opencode": "https://opencode.ai/console/go#pricing"
+      },
+      "freeKind": "opencode-go",
+      "recentlyAdded": true,
+      "limitedTime": true,
+      "limitedRegions": false
     },
     {
-      "id": "zhipuai/glm-5.3",
-      "name": "GLM 5.3",
-      "creator": "zhipuai",
-      "releaseDate": "2026-08-14",
+      "id": "reflection/beam-1.0-501b-a23b",
+      "name": "Beam Free",
+      "creator": "reflection",
+      "releaseDate": "2026-10-05",
       "precision": "day",
       "price": {
         "input": 0,
@@ -47,46 +47,15 @@
       "free": true,
       "openWeights": true,
       "providers": [
-        "opencode-go"
+        "go-models"
       ],
-      "links": {},
-      "freeKind": "opencode-go"
-    },
-    {
-      "id": "zhipuai/glm-5.3",
-      "name": "GLM 5.3",
-      "creator": "zhipuai",
-      "releaseDate": "2026-08-14",
-      "precision": "day",
-      "price": {
-        "input": 0,
-        "output": 0
+      "links": {
+        "opencode": "https://opencode.ai/console/go#pricing"
       },
-      "free": true,
-      "openWeights": true,
-      "providers": [
-        "ollama-cloud"
-      ],
-      "links": {},
-      "freeKind": "ollama-cloud"
-    },
-    {
-      "id": "qwen/qwen4-max",
-      "name": "Qwen4 Max",
-      "creator": "qwen",
-      "releaseDate": "2026-11-05",
-      "precision": "day",
-      "price": {
-        "input": 0,
-        "output": 0
-      },
-      "free": true,
-      "openWeights": true,
-      "providers": [
-        "ollama-cloud"
-      ],
-      "links": {},
-      "freeKind": "ollama-cloud"
+      "freeKind": "opencode-go",
+      "recentlyAdded": false,
+      "limitedTime": true,
+      "limitedRegions": true
     }
   ]
 }

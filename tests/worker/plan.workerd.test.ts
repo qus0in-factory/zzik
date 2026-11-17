@@ -44,9 +44,11 @@ describe('Given the actual Worker trend cron with plan-models in workerd', () =>
             if (url.includes('models.dev')) return json(catalog);
             if (url.includes('opencode.ai/inference/go/v1/models')) {
               goCalls += 1;
-              if (goCalls === 3) return new Response('', { status: 500 });
+              // free-models와 plan-models가 각각 한 번씩 호출하므로 cron 회차 = ceil(goCalls / 2).
+              const phase = Math.ceil(goCalls / 2);
+              if (phase === 3) return new Response('', { status: 500 });
               const data = [{ id: 'deepseek-v4.1-flash', canonical_id: 'deepseek/deepseek-v4.1-flash-1017', name: 'DeepSeek V4.1 Flash 1017' }];
-              if (goCalls >= 2) data.push({ id: 'new-go-model', canonical_id: 'new/go-model', name: 'New Go Model' });
+              if (phase >= 2) data.push({ id: 'new-go-model', canonical_id: 'new/go-model', name: 'New Go Model' });
               return json({ object: 'list', data });
             }
             if (url.includes('ollama.com/api/tags')) return json({ models: [{ name: 'glm-5.3', size: 0 }] });

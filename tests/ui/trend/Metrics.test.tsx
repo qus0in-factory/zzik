@@ -54,6 +54,31 @@ describe('Given the metrics section on /trend', () => {
     expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
   })
 
+  it('When an AA citation sentence is present Then shows one line and the source link without a table', async () => {
+    renderPage(async () => ({
+      ok: true,
+      value: {
+        ...metrics,
+        aaCitation: 'Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)',
+      },
+    }))
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByTestId('trend-metrics-aa-citation')).toBeTruthy()
+    expect(section.getByText('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')).toBeTruthy()
+    const source = section.getByRole('link', { name: 'Source: Artificial Analysis (artificialanalysis.ai)' })
+    expect(source.getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
+    expect(section.queryByRole('table')).toBeNull()
+    expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
+  })
+
+  it('When no AA citation is present Then hides the AA line and source link', async () => {
+    renderPage(bySection)
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByText('deepseek/deepseek-v4')).toBeTruthy()
+    expect(section.queryByTestId('trend-metrics-aa-citation')).toBeNull()
+    expect(section.queryByRole('link', { name: 'Source: Artificial Analysis (artificialanalysis.ai)' })).toBeNull()
+  })
+
   it('When a legacy payload still has an AA block Then the UI does not render AA', async () => {
     renderPage(async () => ({
       ok: true,

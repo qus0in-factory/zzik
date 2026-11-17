@@ -15,14 +15,14 @@ import { D1BucketStore, D1BucketWriterStore } from './infra/usage/d1-bucket-stor
 import { resolveUsageReadStore } from './infra/usage/read-store'
 import { USAGE_HISTORY_SCAN_VERSION } from '../shared/usage-history-contract'
 import { D1TrendStore } from './infra/trend/d1-trend-store'
-import { createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
+import { createGoModelsSource, createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
 import { refreshTrendSections } from './app/trend/refresh-trend'
 import { refreshPlanModels } from './app/trend/refresh-plan-models'
 import { D1PlanStore } from './infra/trend/d1-plan-store'
 import { createOllamaTagsSource, createOpenCodeGoSource } from './infra/trend/plan-sources'
 import { refreshMetrics } from './app/trend/refresh-metrics'
 import { D1MetricsStore } from './infra/trend/d1-metrics-store'
-import { createOrRankingSource } from './infra/trend/metrics-sources'
+import { createAaSource, createOrRankingSource } from './infra/trend/metrics-sources'
 import type { MetricsSourceFailureReason } from './domain/trend/metrics/types'
 
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>
@@ -99,6 +99,7 @@ export function createWorker(deps: {
             sources: [
               createModelsDevSource({ fetchImpl }),
               createZenSource({ fetchImpl }),
+              createGoModelsSource({ fetchImpl }),
               createOpenRouterSource({ fetchImpl }),
             ],
             nowMs,
@@ -131,14 +132,17 @@ export function createWorker(deps: {
       if (kind === 'metrics') {
         if (env.DB === undefined) return
         const orKey = env.OR_API_KEY?.trim() ?? ''
+        const aaKey = env.AA_API_KEY?.trim() ?? ''
         try {
           const fetchImpl = deps.trendFetch ?? globalThis.fetch
           const result = await refreshMetrics({
             store: new D1MetricsStore(env.DB),
             orSource: orKey === '' ? null : createOrRankingSource({ apiKey: orKey, fetchImpl }),
+            aaSource: aaKey === '' ? null : createAaSource({ apiKey: aaKey, fetchImpl }),
             nowMs,
           })
           console.log(`trend_metrics:or=${metricsLogStatus(result.reasons.or)}`)
+          console.log(`trend_metrics:aa=${metricsLogStatus(result.aa.reason)}`)
         } catch {
           console.log('trend_metrics:error')
         }

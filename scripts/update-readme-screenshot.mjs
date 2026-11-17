@@ -1,6 +1,7 @@
 // README와 소개 페이지용 스크린샷을 고정 픽스처로 갱신한다. `pnpm screenshot:readme`
 // - vite dev를 OS가 고른 빈 포트에 띄우고 `?fixture=normal` 화면만 촬영한다(실데이터·계정 없음).
 // - 사용량 데스크톱/모바일/차트, 트렌드를 public/screenshots/*.webp로 만들고 README용 데스크톱 PNG도 남긴다.
+// - 트렌드는 `/trend?fixture=normal`의 DEV 합성 게이트웨이로 성능 지표·신규·무료·링크를 채운 뒤 촬영한다.
 // - 시각을 고정해 리셋 문구가 실행마다 달라지지 않게 한다. 진입 애니메이션이 끝난 뒤 캡처한다.
 // - 자기 프로세스(vite·Chrome)만 정리한다.
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -50,6 +51,20 @@ async function waitForUsage(page) {
   }
   // 진입 애니메이션(페이드인·막대·저빌)이 끝난 뒤에 찍는다.
   await sleep(1600)
+}
+
+/** @param {Awaited<ReturnType<typeof openPage>>} page */
+async function waitForTrend(page) {
+  for (let i = 0; i < 60; i += 1) {
+    const ready = await page.evaluate(`(() => {
+      const has = (id) => document.querySelector('[data-testid="' + id + '"]') !== null
+      return has('trend-metrics-entry') && has('trend-new-model') && has('trend-free-model')
+    })()`)
+    if (ready) break
+    await sleep(100)
+  }
+  // 진입 애니메이션과 섹션 페이드인이 끝난 뒤에 찍는다.
+  await sleep(600)
 }
 
 /** @param {Awaited<ReturnType<typeof openPage>>} page @param {'png'|'webp'} format @param {number} quality @param {string} file @param {number} maxBytes @param {{x:number,y:number,width:number,height:number,scale:number}} [clip] */
@@ -118,12 +133,12 @@ try {
   await capture(page, 'webp', 82, USAGE_CHART, MAX_WEBP_BYTES)
 
   await page.setSize(1280, 900)
-  await navigate(page, `${base}/trend`)
-  await sleep(500)
+  await navigate(page, `${base}/trend?fixture=normal`)
+  await waitForTrend(page)
   // 900px 뷰포트 아래 빈 공간을 자르고 링크 목록 아래 여백만 남긴다.
   const trendHeight = await page.evaluate(`(() => {
-    const last = document.querySelector('main li:last-child')
-    return last === null ? 480 : Math.ceil(last.getBoundingClientRect().bottom + window.scrollY + 32)
+    const links = document.querySelector('[aria-labelledby="trend-links"]')
+    return links === null ? 600 : Math.ceil(links.getBoundingClientRect().bottom + window.scrollY + 24)
   })()`)
   await capture(page, 'webp', 82, TREND, MAX_WEBP_BYTES, { x: 0, y: 0, width: 1280, height: trendHeight, scale: 1 })
 } finally {
