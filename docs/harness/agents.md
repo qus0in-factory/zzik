@@ -8,9 +8,9 @@
 |---|---|---|
 | `z-opus` (`opus`) | 사용자 응대·총괄·병합·릴리스. 조사·구현·편집·대기를 직접 해도 된다. | Claude Code (Opus) |
 | `z-sol` (`sol`) | 백엔드·수집기 구현, DB 연동, 까다로운 디버깅·조사 | Codex (`GPT-6.1-Sol`, Fast) |
-| `z-ds` (`ds`) | 경량 구현·잡무, 하네스·스크립트·문서 동기화 | OpenCode (`DeepSeek V4.1 Flash`) |
+| `z-ds` (`ds`, 현재 미가동) | 경량 구현·잡무, 하네스·스크립트·문서 동기화 | OpenCode (`DeepSeek V4.1 Flash`) |
 | `z-hf` (`hf`) | 소규모 구현·문서 동기화·가벼운 확인 | OpenCode (`Hy4 flash Free`) |
-| `z-hyd` (`hydro`) | 문서·하네스 동기화, 범위가 명확한 소규모 구현, 테스트 보강 | Antigravity CLI (`Gemini 4 Hydrogen`, medium) |
+| `z-hyd` (`hydro`, 현재 미가동) | 문서·하네스 동기화, 범위가 명확한 소규모 구현, 테스트 보강 | Antigravity CLI (`Gemini 4 Hydrogen`, medium) |
 | `z-fable` (`fable`) | 설계·리뷰 외 구현·조사·검증 등 다양한 일을 맡는다. 손이 가는 일은 `.claude/agents/`의 Sonnet 전용 서브에이전트에 위임하고 판단·지시·결과 검토에 집중한다. 결과는 `/tmp/fable-<주제>.md` | Claude Code (`Fable 5.1`, high) |
 | `z-astra` (`astra`) | 설계·리뷰 외 구현·조사·검증 등 다양한 일을 맡는다(`z-fable`과 분담). 손이 가는 일은 `.codex/agents`의 Codex Terra 서브에이전트에 위임하고 판단·지시·결과 검토에 집중한다. 결과는 `/tmp/astra-<주제>.md` | Codex (`GPT-6-Astra`, high, Fast) |
 
@@ -26,8 +26,8 @@
 ## 워크스페이스 라벨·상주 구성
 
 - 워크스페이스별 접두어 라벨(`z-`, `e-`) 규칙을 따른다.
-- `zzik` 워크스페이스 상주 구성: 위 에이전트 구성 표와 같다.
-- 닫힌 패널 감지 규칙은 재사용 대비로 남기되 `argon`·`astra`는 상주 구성에서 제외한다.
+- `zzik` 워크스페이스 상주 구성: 위 에이전트 구성 표에서 현재 미가동을 제외한다.
+- 닫힌 패널 감지 규칙은 재사용 대비로 남기되 `argon`은 상주 구성에서 제외한다.
 
 ## 모델 약칭 및 감지 매핑
 
