@@ -60,14 +60,16 @@
 | `shared/` | 실행 | 실행 | `done` (`src/` 동반 시 `verify`) |
 | 그 외 (`docs/` 등) | 생략 | 생략 | `done` |
 
-## 공개 트렌드 (#116 2단계)
+## 공개 트렌드 (#116 2~3단계)
 
-- 공개 경로: `/pub/trend`, `/pub/trend/new-models`. Access 앱에 넣지 않는다.
-- 수집 cron: `7 */2 * * *` (`TREND_CRON`). Worker가 models.dev `api.json`을 `If-None-Match` 조건부 GET으로 읽는다. 304면 본문을 다시 받지 않고, 저장된 `firstSeenAt`·`releaseMs`로 7일 창을 재평가하고 출처 상태를 `ok`로 회복한다(실패 후 304 복구 포함).
-- 구조 검증: `{}`, `{error}`, providers/models 컨테이너가 없는 응답은 수집 실패로 분류해 기존 섹션 items를 보존하고 source를 `stale`로 표시한다. 구조는 정상이고 필터 결과만 0개인 경우는 정상 빈 목록으로 저장한다.
-- 저장: D1 `trend_section`(섹션당 1행), `trend_source_state`(ETag·상태), `trend_model_seen`(canonical id·first_seen). 마이그레이션 `0002_trend.sql`. 200 응답에 ETag가 없으면 이전 값을 재사용하지 않고 `null`을 저장한다.
+- 공개 경로: `/pub/trend`, `/pub/trend/new-models`, `/pub/trend/free-models`. Access 앱에 넣지 않는다.
+- 수집 cron: `7 */2 * * *` (`TREND_CRON`). 한 번에 세 출처를 조건부 GET한다: models.dev `api.json`, OpenCode Zen `/zen/v1/models`, OpenRouter `/api/v1/models`. 출처별 실패는 격리한다(한 출처 실패가 다른 출처·섹션을 지우지 않고 해당 source만 `stale`).
+- `new-models`: models.dev 304면 저장된 `firstSeenAt`·`releaseMs`로 7일 창을 재평가하고 출처 상태를 `ok`로 회복한다.
+- `free-models`: 호스팅 무료(Zen `price 0` ∪ OpenRouter `:free`/가격 0)와 로컬 실행 가능(models.dev `ollama-cloud` + `open_weights`)을 최근 30일 창으로 고른다. deprecated·`expiration_date` 만료는 제외하고 canonical id로 중복 제거한다. 출처별 마지막 items를 저장 payload의 `sourceItems`에 보관해 실패/304 시 재사용하며, 공개 응답에서는 projection이 제거한다. 로컬 섹션은 호스팅 무료와 겹치는 모델을 호스팅 쪽 provider로 합친다.
+- 구조 검증: `{}`, `{error}`, 데이터 배열/컨테이너가 없는 응답은 수집 실패로 분류해 기존 섹션 items를 보존하고 source를 `stale`로 표시한다. 구조는 정상이고 필터 결과만 0개인 경우는 정상 빈 목록으로 저장한다.
+- 저장: D1 `trend_section`(섹션당 1행), `trend_source_state`(ETag·상태), `trend_model_seen`(canonical id·first_seen). 마이그레이션 `0002_trend.sql`. 200 응답에 ETag가 없으면 이전 값을 재사용하지 않고 `null`을 저장한다(현재 Zen·OpenRouter는 ETag를 보내지 않는다).
 - 공개 응답은 `worker/domain/trend/projection.ts`로 계약 필드만 투영한다(`extra` 등 제거). ETag는 저장 해시가 아니라 투영된 응답 본문의 SHA-256이다.
 - 메모리 게이트: 본문을 스트림으로 읽어 누적 20MiB 초과 시 중단하고, 20초 타이머는 본문 읽기 완료까지 유지한다. 로컬 Node 측정(2026-11-17)은 `api.json` 6,687,479 bytes → 문자열 12.75MiB + 파싱 11.83MiB = 약 24.6MiB heap으로 128MiB 한도 안이다. workerd 통합 테스트는 작은 고정 응답으로 경로를 검증하며, 실제 6.7MiB 원문의 workerd 피크를 측정한 것은 아니다.
-- 2단계에서는 `new-models`만 실데이터다. `free-models`·`frontier`는 아직 `not_ready`(503)다.
+- 3단계에서 `new-models`·`free-models`가 실데이터다. `frontier`와 UI의 `요금제 추가`·`성능 지표`는 아직 준비 중 자리만 둔다.
 - section/seen/source-state 갱신은 개별 D1 쓰기라 원자적이지 않다. 중간 실패 시 다음 실행에서 다시 계산한다.
 - 원격 반영 순서(opus): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다.
