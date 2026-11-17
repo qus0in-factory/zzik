@@ -79,6 +79,7 @@ export function createWorker(deps: {
         store: new D1SnapshotStore(available),
         buckets: available === null || generation === null ? null : new D1BucketStore(available, {dataGeneration:generation}),
         trend: env.DB === undefined ? null : new D1TrendStore(env.DB),
+        aaTrend: env.DB === undefined ? null : new D1MetricsStore(env.DB),
         assets: env.ASSETS,
       }).fetch(request)
     },

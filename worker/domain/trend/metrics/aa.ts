@@ -1,3 +1,5 @@
+import { TREND_AA_PANEL_LIMIT } from '../../../../shared/trend-contract'
+import type { AaTrendModelItem, AaTrendResponse } from '../../../../shared/trend-contract'
 import { composeNotableCitation, notableFamilyName } from './citation'
 import type { AaModelEntry, AaSnapshot, AaSnapshotRow } from './types'
 
@@ -76,6 +78,8 @@ export function toAaRows(snapshot: AaSnapshot, day: string): AaSnapshotRow[] {
     domains: entry.domains,
     priceIn: entry.priceIn,
     priceOut: entry.priceOut,
+    outputTokensPerSecond: entry.outputTokensPerSecond ?? null,
+    timeToFirstTokenSeconds: entry.timeToFirstTokenSeconds ?? null,
     releaseDate: entry.releaseDate,
     indexVersion: snapshot.version,
   }))
@@ -92,7 +96,68 @@ export function fromAaRows(rows: readonly AaSnapshotRow[], version: string): AaS
       intelligenceIndex: row.intelligenceIndex,
       priceIn: row.priceIn,
       priceOut: row.priceOut,
+      outputTokensPerSecond: row.outputTokensPerSecond ?? null,
+      timeToFirstTokenSeconds: row.timeToFirstTokenSeconds ?? null,
       domains: row.domains,
     })),
+  }
+}
+
+function toTrendItem(row: AaSnapshotRow): AaTrendModelItem {
+  return {
+    slug: row.slug,
+    name: row.name,
+    creator: row.creator,
+    intelligenceIndex: row.intelligenceIndex,
+    priceIn: row.priceIn,
+    priceOut: row.priceOut,
+    outputTokensPerSecond: row.outputTokensPerSecond ?? null,
+    timeToFirstTokenSeconds: row.timeToFirstTokenSeconds ?? null,
+    releaseDate: row.releaseDate,
+  }
+}
+
+/**
+ * 내부 전용(/api/trend/aa, Access JWT 뒤) AA 표 데이터 구성.
+ * 우리가 만든 종합 점수 없이 AA 원시 필드만으로 정렬해 상위/하위 10을 뽑는다.
+ */
+export function buildAaTrendResponse(rows: readonly AaSnapshotRow[]): AaTrendResponse | null {
+  if (rows.length === 0) return null
+  const first = rows[0]!
+  const items = rows.map(toTrendItem)
+  const byIntelligence = [...items]
+    .sort((a, b) => b.intelligenceIndex - a.intelligenceIndex || a.slug.localeCompare(b.slug))
+    .slice(0, TREND_AA_PANEL_LIMIT)
+
+  const priced = items.filter((item): item is AaTrendModelItem & { priceIn: number; priceOut: number } =>
+    item.priceIn !== null && item.priceOut !== null)
+  const priceLowest = [...priced]
+    .sort((a, b) => a.priceOut - b.priceOut || a.priceIn - b.priceIn || a.slug.localeCompare(b.slug))
+    .slice(0, TREND_AA_PANEL_LIMIT)
+  const priceHighest = [...priced]
+    .sort((a, b) => b.priceOut - a.priceOut || b.priceIn - a.priceIn || a.slug.localeCompare(b.slug))
+    .slice(0, TREND_AA_PANEL_LIMIT)
+
+  const speedHighest = items
+    .filter((item): item is AaTrendModelItem & { outputTokensPerSecond: number } =>
+      item.outputTokensPerSecond !== null && item.outputTokensPerSecond > 0)
+    .sort((a, b) => b.outputTokensPerSecond - a.outputTokensPerSecond || a.slug.localeCompare(b.slug))
+    .slice(0, TREND_AA_PANEL_LIMIT)
+
+  const latencyLowest = items
+    .filter((item): item is AaTrendModelItem & { timeToFirstTokenSeconds: number } =>
+      item.timeToFirstTokenSeconds !== null && item.timeToFirstTokenSeconds > 0)
+    .sort((a, b) => a.timeToFirstTokenSeconds - b.timeToFirstTokenSeconds || a.slug.localeCompare(b.slug))
+    .slice(0, TREND_AA_PANEL_LIMIT)
+
+  return {
+    day: first.day,
+    indexVersion: first.indexVersion,
+    attribution: 'Source: Artificial Analysis (artificialanalysis.ai)',
+    intelligenceTop: byIntelligence,
+    priceLowest,
+    priceHighest,
+    speedHighest,
+    latencyLowest,
   }
 }

@@ -105,7 +105,7 @@ async function main() {
   let local = null, initialPlanObservations = null
   if (!apply) {
     const db = new DatabaseSync(':memory:')
-    for (const file of ['0002_trend.sql', '0003-trend-plan-observation.sql', '0004_metrics.sql']) db.exec(readFileSync(new URL(`../worker/migrations/${file}`, import.meta.url), 'utf8'))
+    for (const file of ['0002_trend.sql', '0003-trend-plan-observation.sql', '0004_metrics.sql', '0005_aa_speed.sql']) db.exec(readFileSync(new URL(`../worker/migrations/${file}`, import.meta.url), 'utf8'))
     stage = "remote_read"
     const snapshots = await remote(tables.map(table => ({ sql: `SELECT * FROM ${table}`, params: [] })))
     initialPlanObservations = snapshots[3].results.reduce((counts, row) => { counts[row.baseline === 1 ? 'baseline' : 'other']++; return counts }, { baseline: 0, other: 0 })

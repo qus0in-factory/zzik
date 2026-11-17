@@ -9,10 +9,11 @@ import { METRICS_CRON } from '../../worker/domain/usage/export'
 const migration1 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0001_d1_storage.sql', import.meta.url)), 'utf8')
 const migration2 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0002_trend.sql', import.meta.url)), 'utf8')
 const migration4 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0004_metrics.sql', import.meta.url)), 'utf8')
+const migration5 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0005_aa_speed.sql', import.meta.url)), 'utf8')
 const NOW = Date.parse('2026-11-17T05:00:00.000Z')
 
 async function applyMigrations(db: Awaited<ReturnType<Miniflare['getD1Database']>>): Promise<void> {
-  for (const migration of [migration1, migration2, migration4]) {
+  for (const migration of [migration1, migration2, migration4, migration5]) {
     for (const statement of migration.replace(/^--.*$/gm, '').split(';').map((sql) => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }

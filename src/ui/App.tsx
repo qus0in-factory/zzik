@@ -5,6 +5,7 @@ import { BackToTop } from '@ui/components/BackToTop'
 import { SiteHeader } from '@ui/SiteHeader'
 import { Footer } from '@ui/components/Footer'
 import { PaceChips } from '@ui/usage/PaceChips'
+import { AaTrendPanel } from '@ui/usage/AaTrendPanel'
 import { UsageSection } from '@ui/usage/UsageSection'
 
 const FLIP_MS = 200
@@ -66,6 +67,7 @@ export default function App() {
         {order.map((provider) => (
           <UsageSection key={provider} provider={provider} />
         ))}
+        <AaTrendPanel />
       </main>
       <Footer />
       <BackToTop />

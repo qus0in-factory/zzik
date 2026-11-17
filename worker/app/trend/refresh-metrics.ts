@@ -1,4 +1,5 @@
 import {
+  TREND_AA_SNAPSHOT_TOP_N,
   TREND_METRICS_RULE,
   TREND_OR_LICENSE_NAME,
   TREND_OR_LICENSE_URL,
@@ -11,7 +12,7 @@ import type {
   TrendSourceState,
   TrendSectionPayload,
 } from '../../../shared/trend-contract'
-import { AA_NOTABLE_SCAN_N, buildAaCitation, rankAa, toAaRows } from '../../domain/trend/metrics/aa'
+import { buildAaCitation, rankAa, toAaRows } from '../../domain/trend/metrics/aa'
 import { buildOrBlock, orAttribution } from '../../domain/trend/metrics/or'
 import { addDays, utcDay } from '../../domain/trend/metrics/types'
 import { writeSectionChecked } from './refresh-trend'
@@ -104,7 +105,8 @@ export async function refreshMetrics(input: {
       const aa = await aaSource.fetch(nowMs)
       if (aa.ok) {
         try {
-          const top = rankAa(aa.snapshot.entries).slice(0, AA_NOTABLE_SCAN_N).map(({ entry }) => entry)
+          // 내부 패널용으로 상위 50개를 저장하고, 공개 문장은 buildAaCitation이 상위 일부만 본다.
+          const top = rankAa(aa.snapshot.entries).slice(0, TREND_AA_SNAPSHOT_TOP_N).map(({ entry }) => entry)
           await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
           aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }) ?? undefined
           if (aaCitation === undefined) {
