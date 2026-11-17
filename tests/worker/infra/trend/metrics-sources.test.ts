@@ -5,12 +5,12 @@ const NOW = Date.parse('2026-11-17T05:00:00.000Z')
 
 describe('Given the Artificial Analysis metrics source', () => {
   it('When pages have has_more Then fetches every page with the API key and merges by slug', async () => {
-    const calls: Array<{ url: string; key: string | null }> = []
+    const calls: Array<{ url: string; key: string | null; redirect: RequestRedirect | undefined }> = []
     const source = createAaSource({
       apiKey: 'aa-secret',
       fetchImpl: async (input, init) => {
         const url = String(input)
-        calls.push({ url, key: new Headers(init?.headers).get('x-api-key') })
+        calls.push({ url, key: new Headers(init?.headers).get('x-api-key'), redirect: init?.redirect })
         const page = url.endsWith('page=1') ? 1 : 2
         return new Response(JSON.stringify({
           intelligence_index_version: '3.0',
@@ -23,8 +23,8 @@ describe('Given the Artificial Analysis metrics source', () => {
     })
     const result = await source.fetch(NOW)
     expect(calls).toEqual([
-      { url: 'https://artificialanalysis.ai/api/v2/language/models/free?page=1', key: 'aa-secret' },
-      { url: 'https://artificialanalysis.ai/api/v2/language/models/free?page=2', key: 'aa-secret' },
+      { url: 'https://artificialanalysis.ai/api/v2/language/models/free?page=1', key: 'aa-secret', redirect: 'manual' },
+      { url: 'https://artificialanalysis.ai/api/v2/language/models/free?page=2', key: 'aa-secret', redirect: 'manual' },
     ])
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -53,6 +53,21 @@ describe('Given the Artificial Analysis metrics source', () => {
     expect(JSON.stringify(result)).not.toContain('aa-secret')
   })
 
+  it('When AA answers with a redirect Then does not follow it to a second host', async () => {
+    let calls = 0
+    const result = await createAaSource({
+      apiKey: 'aa-secret',
+      fetchImpl: async (_input, init) => {
+        calls += 1
+        expect(init?.redirect).toBe('manual')
+        return new Response(null, { status: 302, headers: { location: 'https://evil.example/steal' } })
+      },
+    }).fetch(NOW)
+    expect(calls).toBe(1)
+    expect(result).toEqual({ ok: false, reason: 'http', httpStatus: 302 })
+    expect(JSON.stringify(result)).not.toContain('aa-secret')
+  })
+
   it('When the body is not JSON Then reports invalid instead of throwing', async () => {
     const result = await createAaSource({ apiKey: 'aa-secret', fetchImpl: async () => new Response('nope', { status: 200 }) }).fetch(NOW)
     expect(result).toEqual({ ok: false, reason: 'invalid', httpStatus: null })
@@ -63,21 +78,31 @@ describe('Given the OpenRouter rankings source', () => {
   it('When a 14-day range is requested Then sends the bearer key and date bounds and decodes rows', async () => {
     let url = ''
     let auth: string | null = null
+    let redirect: RequestRedirect | undefined
     const source = createOrRankingSource({
       apiKey: 'or-secret',
       fetchImpl: async (input, init) => {
         url = String(input)
         auth = new Headers(init?.headers).get('Authorization')
+        redirect = init?.redirect
         return new Response(JSON.stringify({
           data: [{ date: '2026-11-16', model_permaslug: 'a/x', total_tokens: '100' }],
-          meta: { as_of: '2026-11-17T04:00:00Z' },
+          meta: { as_of: '2026-11-17T04:00:00Z', version: 'v1', start_date: '2026-11-04', end_date: '2026-11-17' },
         }), { status: 200 })
       },
     })
     const result = await source.fetch(NOW)
     expect(url).toBe('https://openrouter.ai/api/v1/datasets/rankings-daily?start_date=2026-11-04&end_date=2026-11-17')
     expect(auth).toBe('Bearer or-secret')
-    expect(result).toMatchObject({ ok: true, snapshot: { asOf: '2026-11-17T04:00:00Z' } })
+    expect(redirect).toBe('manual')
+    expect(result).toMatchObject({
+      ok: true,
+      snapshot: {
+        asOf: '2026-11-17T04:00:00Z',
+        asOfKind: 'source',
+        meta: { version: 'v1', startDate: '2026-11-04', endDate: '2026-11-17' },
+      },
+    })
     if (result.ok) expect(result.snapshot.rows[0]).toEqual({ day: '2026-11-16', permaslug: 'a/x', totalTokens: '100' })
   })
 
@@ -97,12 +122,38 @@ describe('Given the OpenRouter rankings source', () => {
     expect(result).toEqual({ ok: false, reason, httpStatus: status })
   })
 
-  it('When meta.as_of is missing Then falls back to the run time', async () => {
+  it('When OR answers with a redirect Then does not follow it to a second host', async () => {
+    let calls = 0
+    const result = await createOrRankingSource({
+      apiKey: 'or-secret',
+      fetchImpl: async (_input, init) => {
+        calls += 1
+        expect(init?.redirect).toBe('manual')
+        return new Response(null, { status: 302, headers: { location: 'https://evil.example/steal' } })
+      },
+    }).fetch(NOW)
+    expect(calls).toBe(1)
+    expect(result).toEqual({ ok: false, reason: 'http', httpStatus: 302 })
+  })
+
+  it('When OR returns more than the fixed row budget Then rejects it before storage', async () => {
+    const data = Array.from({ length: 1_001 }, (_, index) => ({ date: '2026-11-16', model_permaslug: `m/${index}`, total_tokens: '1' }))
+    const result = await createOrRankingSource({
+      apiKey: 'or-secret',
+      fetchImpl: async () => new Response(JSON.stringify({ data }), { status: 200 }),
+    }).fetch(NOW)
+    expect(result).toEqual({ ok: false, reason: 'invalid', httpStatus: null })
+  })
+
+  it('When meta.as_of is missing Then marks the fallback as fetched time, not source as-of', async () => {
     const result = await createOrRankingSource({
       apiKey: 'or-secret',
       fetchImpl: async () => new Response(JSON.stringify({ data: [{ date: '2026-11-16', model_permaslug: 'a/x', total_tokens: '1' }] }), { status: 200 }),
     }).fetch(NOW)
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.snapshot.asOf).toBe(new Date(NOW).toISOString())
+    if (result.ok) {
+      expect(result.snapshot.asOf).toBe(new Date(NOW).toISOString())
+      expect(result.snapshot.asOfKind).toBe('fetched')
+    }
   })
 })

@@ -22,6 +22,7 @@ export const OR_RANKINGS_MAX_BYTES = 2 * 1024 * 1024
 export const AA_MAX_PAGES = 5
 
 function statusFailure(status: number): MetricsSourceFailure {
+  if (status >= 300 && status < 400) return { ok: false, reason: 'http', httpStatus: status }
   if (status === 401 || status === 403) return { ok: false, reason: 'unauthorized', httpStatus: status }
   if (status === 429) return { ok: false, reason: 'rate_limited', httpStatus: status }
   return { ok: false, reason: 'http', httpStatus: status }
@@ -59,7 +60,7 @@ export function createAaSource(options: AaSourceOptions): AaSource {
         const result = await fetchJsonWithLimits({
           fetchImpl,
           url,
-          init: { headers: { 'x-api-key': options.apiKey } },
+          init: { headers: { 'x-api-key': options.apiKey }, redirect: 'manual' },
           maxBytes,
           timeoutMs,
         })
@@ -101,20 +102,19 @@ export function createOrRankingSource(options: OrRankingSourceOptions): OrRankin
       const result = await fetchJsonWithLimits({
         fetchImpl,
         url,
-        init: { headers: { Authorization: `Bearer ${options.apiKey}` } },
+        init: { headers: { Authorization: `Bearer ${options.apiKey}` }, redirect: 'manual' },
         maxBytes,
         timeoutMs,
       })
       if (!result.ok) return requestFailure(result.reason, result.httpStatus)
       if (result.status !== 200) return statusFailure(result.status)
-      const decoded = decodeOrRankings(result.value)
+      const decoded = decodeOrRankings(result.value, { start, end })
       if (!decoded.ok) return { ok: false, reason: 'invalid', httpStatus: null }
       return {
         ok: true,
-        snapshot: {
-          asOf: decoded.asOf === '' ? new Date(nowMs).toISOString() : decoded.asOf,
-          rows: decoded.rows,
-        },
+        snapshot: decoded.asOf === ''
+          ? { asOf: new Date(nowMs).toISOString(), asOfKind: 'fetched', meta: decoded.meta, rows: decoded.rows }
+          : { asOf: decoded.asOf, asOfKind: 'source', meta: decoded.meta, rows: decoded.rows },
       }
     },
   }

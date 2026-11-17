@@ -26,6 +26,11 @@ export const TREND_AA_MOVE_THRESHOLD = 3
 export const TREND_OR_TOP_N = 10
 export const TREND_OR_MOVE_RANK_MAX = 30
 export const TREND_OR_SHARE_DELTA = 0.01
+export const TREND_OR_MAX_DAYS = 14
+export const TREND_OR_MAX_ROWS_PER_DAY = 51
+export const TREND_OR_MAX_ROWS = TREND_OR_MAX_DAYS * TREND_OR_MAX_ROWS_PER_DAY
+export const TREND_OR_LICENSE_NAME = 'CC BY 4.0'
+export const TREND_OR_LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/'
 
 export type TrendPrecision = 'day' | 'month' | 'unknown'
 export type TrendFreeKind = 'hosted' | 'local'
@@ -58,9 +63,9 @@ export interface TrendSourceState {
   status: 'ok' | 'stale'
 }
 
-export type TrendMetricsBlockStatus = 'ok' | 'stale' | 'not_configured'
+export type TrendMetricsBlockStatus = 'ok' | 'stale' | 'not_configured' | 'under_review'
 export type TrendMetricsKind = 'new-top' | 'moved' | 'steady'
-export type TrendMetricsNote = 'baseline' | 'version_changed' | 'source_failed'
+export type TrendMetricsNote = 'baseline' | 'version_changed' | 'source_failed' | 'terms_review'
 
 export interface TrendMetricsEntry {
   id: string
@@ -78,15 +83,34 @@ export interface TrendMetricsEntry {
   shareDelta?: number
 }
 
+export interface TrendMetricsMeta {
+  version?: string
+  startDate?: string
+  endDate?: string
+}
+
+export interface TrendMetricsLicense {
+  name: string
+  url: string
+}
+
 export interface TrendMetricsBlock {
   id: 'aa-intelligence' | 'or-usage'
   status: TrendMetricsBlockStatus
   asOf: string
+  /** asOf가 출처 meta.as_of인지, 메타데이터가 없어 조회 시각으로 대체했는지. */
+  asOfKind?: 'source' | 'fetched'
   version?: string
+  /** OpenRouter 응답의 meta.version/start_date/end_date 보존. */
+  meta?: TrendMetricsMeta
   note?: TrendMetricsNote
   entries: TrendMetricsEntry[]
   /** 재배포 시 요구되는 고정 출처 문구(영문). UI는 t()로 같은 내용을 표시한다. */
   attribution: string
+  /** OpenRouter CC BY 4.0 라이선스 링크. */
+  license?: TrendMetricsLicense
+  /** 원자료를 7일 창으로 집계·가공했음을 알리는 고지. */
+  processed?: boolean
 }
 
 export interface TrendSectionPayload {

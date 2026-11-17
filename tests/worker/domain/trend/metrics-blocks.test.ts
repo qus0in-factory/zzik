@@ -90,7 +90,7 @@ describe('Given OpenRouter daily ranking aggregates', () => {
       row(0, 'a/x', '600'), row(0, 'b/x', '200'), row(0, 'other', '200'),
       row(-7, 'a/x', '500'), row(-7, 'b/x', '300'), row(-7, 'other', '200'),
     ]
-    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z' })
+    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z', asOfKind: 'source', meta: {} })
     expect(block.id).toBe('or-usage')
     expect(block.note).toBeUndefined()
     const a = block.entries.find((entry) => entry.id === 'a/x')
@@ -112,7 +112,7 @@ describe('Given OpenRouter daily ranking aggregates', () => {
       ...Array.from({ length: 8 }, (_, index) => row(0, `old/${index + 1}`, `${900 - index * 10}`)),
       row(0, 'other', '10000'),
     ]
-    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z' })
+    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z', asOfKind: 'source', meta: {} })
     expect(block.entries[0]).toMatchObject({ id: 'new/x', rank: 1, rankDelta: null, kind: 'new-top' })
     const moved = block.entries.find((entry) => entry.kind === 'moved')
     expect(moved).toBeDefined()
@@ -121,7 +121,7 @@ describe('Given OpenRouter daily ranking aggregates', () => {
 
   it('When there are no previous-window rows Then shows the current top 10 with a baseline note', () => {
     const rows = [row(0, 'a/x', '100'), row(0, 'b/x', '50'), row(0, 'other', '50')]
-    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z' })
+    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z', asOfKind: 'source', meta: {} })
     expect(block.note).toBe('baseline')
     expect(block.entries.map((entry) => entry.id)).toEqual(['a/x', 'b/x'])
     expect(block.entries.every((entry) => entry.rankDelta === null && entry.kind === 'steady')).toBe(true)
@@ -136,7 +136,7 @@ describe('Given OpenRouter daily ranking aggregates', () => {
       row(-7, 'a/x', '1'),
       row(-7, 'other', '1'),
     ]
-    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z' })
+    const block = buildOrBlock({ rows, today: DAY(0), asOf: '2026-11-17T05:00:00Z', asOfKind: 'source', meta: {} })
     expect(block.entries[0]?.id).toBe('a/x')
     expect(block.entries[1]?.id).toBe('b/x')
   })

@@ -52,19 +52,30 @@ describe('Given an Artificial Analysis models page', () => {
   })
 })
 
+const BOUNDS = { start: '2026-11-04', end: '2026-11-17' }
+
+function row(day: string, permaslug: string, tokens = '100') {
+  return { date: day, model_permaslug: permaslug, total_tokens: tokens }
+}
+
 describe('Given an OpenRouter rankings-daily response', () => {
-  it('When rows arrive Then normalizes token strings and preserves as_of', () => {
+  it('When rows arrive Then normalizes token strings and preserves meta as_of/version/start/end', () => {
     const decoded = decodeOrRankings({
       data: [
         { date: '2026-11-16', model_permaslug: 'a/x', total_tokens: '12345678901234567890' },
         { date: '2026-11-16', model_permaslug: 'other', total_tokens: 42 },
-        { date: 'bad', model_permaslug: 'skip/x', total_tokens: '1' },
       ],
-      meta: { as_of: '2026-11-17T04:00:00Z' },
-    })
+      meta: {
+        as_of: '2026-11-17T04:00:00Z',
+        version: '2026-11-17',
+        start_date: '2026-11-04',
+        end_date: '2026-11-17',
+      },
+    }, BOUNDS)
     expect(decoded).toEqual({
       ok: true,
       asOf: '2026-11-17T04:00:00Z',
+      meta: { version: '2026-11-17', startDate: '2026-11-04', endDate: '2026-11-17' },
       rows: [
         { day: '2026-11-16', permaslug: 'a/x', totalTokens: '12345678901234567890' },
         { day: '2026-11-16', permaslug: 'other', totalTokens: '42' },
@@ -72,8 +83,36 @@ describe('Given an OpenRouter rankings-daily response', () => {
     })
   })
 
-  it('When the response is structurally broken Then rejects it', () => {
+  it('When the response is structurally broken or a row is malformed Then rejects it', () => {
     expect(decodeOrRankings({})).toEqual({ ok: false, reason: 'invalid' })
     expect(decodeOrRankings({ data: [{ date: '2026-11-16' }] })).toEqual({ ok: false, reason: 'invalid' })
+    expect(decodeOrRankings({ data: [{ date: 'bad', model_permaslug: 'a/x', total_tokens: '1' }] })).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  it('When a date is outside the requested 14-day range Then rejects the whole response', () => {
+    expect(decodeOrRankings({ data: [row('2026-11-03', 'a/x')] }, BOUNDS)).toEqual({ ok: false, reason: 'invalid' })
+    expect(decodeOrRankings({ data: [row('2026-11-18', 'a/x')] }, BOUNDS)).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  it('When the same day and model is duplicated Then rejects the whole response', () => {
+    expect(decodeOrRankings({ data: [row('2026-11-16', 'a/x'), row('2026-11-16', 'a/x')] }, BOUNDS)).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  it('When a day has more than 51 rows Then rejects the whole response', () => {
+    const rows = Array.from({ length: 52 }, (_, index) => row('2026-11-16', `m/${index}`))
+    expect(decodeOrRankings({ data: rows }, BOUNDS)).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  it('When the response has more than 714 rows Then rejects before any storage call', () => {
+    const rows = Array.from({ length: 715 }, (_, index) => row('2026-11-16', `m/${index}`))
+    expect(decodeOrRankings({ data: rows }, BOUNDS)).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  it('When the response fills the fixed budget (14 days × 51 rows) Then accepts it', () => {
+    const days = Array.from({ length: 14 }, (_, index) => `2026-11-${String(4 + index).padStart(2, '0')}`)
+    const rows = days.flatMap((day) => Array.from({ length: 51 }, (_, index) => row(day, `m/${index}`)))
+    const decoded = decodeOrRankings({ data: rows }, BOUNDS)
+    expect(decoded.ok).toBe(true)
+    if (decoded.ok) expect(decoded.rows).toHaveLength(714)
   })
 })

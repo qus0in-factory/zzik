@@ -1,4 +1,5 @@
 /** Artificial Analysis·OpenRouter 응답의 순수 디코더. I/O·시간 없음. */
+import { TREND_OR_MAX_ROWS, TREND_OR_MAX_ROWS_PER_DAY } from '../../../../shared/trend-contract'
 import { isRecord } from '../../../../shared/d1-canonical'
 import type { AaModelEntry } from './types'
 import type { OrRankingRow } from './types'
@@ -86,9 +87,16 @@ export function decodeAaPage(input: unknown): DecodedAaPage | DecodeFailure {
   return { ok: true, version, entries, hasMore, page, totalPages }
 }
 
+export interface DecodedOrMeta {
+  version?: string
+  startDate?: string
+  endDate?: string
+}
+
 export interface DecodedOrRankings {
   ok: true
   asOf: string
+  meta: DecodedOrMeta
   rows: OrRankingRow[]
 }
 
@@ -100,19 +108,39 @@ function tokenString(value: unknown): string | null {
   return null
 }
 
-export function decodeOrRankings(input: unknown): DecodedOrRankings | DecodeFailure {
+/**
+ * 날짜 범위·날짜별 개수·중복 키·총 행 수를 강제한다. 하나라도 위반하면 전체 응답을
+ * 실패로 돌려 이전 스냅샷을 보존한다(D1 호출 예산 보호).
+ */
+export function decodeOrRankings(
+  input: unknown,
+  bounds?: { start: string; end: string },
+): DecodedOrRankings | DecodeFailure {
   if (!isRecord(input) || !Array.isArray(input.data)) return { ok: false, reason: 'invalid' }
+  if (input.data.length > TREND_OR_MAX_ROWS) return { ok: false, reason: 'invalid' }
   const meta = isRecord(input.meta) ? input.meta : null
-  const asOf = meta !== null && typeof meta.as_of === 'string' ? meta.as_of : ''
+  const asOf = meta !== null && typeof meta.as_of === 'string' ? meta.as_of.trim() : ''
+  const decodedMeta: DecodedOrMeta = {}
+  if (meta !== null && typeof meta.version === 'string' && meta.version !== '') decodedMeta.version = meta.version
+  if (meta !== null && typeof meta.start_date === 'string' && meta.start_date !== '') decodedMeta.startDate = meta.start_date
+  if (meta !== null && typeof meta.end_date === 'string' && meta.end_date !== '') decodedMeta.endDate = meta.end_date
   const rows: OrRankingRow[] = []
+  const seen = new Set<string>()
+  const perDay = new Map<string, number>()
   for (const raw of input.data) {
-    if (!isRecord(raw)) continue
+    if (!isRecord(raw)) return { ok: false, reason: 'invalid' }
     const day = typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : ''
     const permaslug = typeof raw.model_permaslug === 'string' && raw.model_permaslug !== '' ? raw.model_permaslug : ''
     const totalTokens = tokenString(raw.total_tokens)
-    if (day === '' || permaslug === '' || totalTokens === null) continue
+    if (day === '' || permaslug === '' || totalTokens === null) return { ok: false, reason: 'invalid' }
+    if (bounds !== undefined && (day < bounds.start || day > bounds.end)) return { ok: false, reason: 'invalid' }
+    const key = `${day}\u0000${permaslug}`
+    if (seen.has(key)) return { ok: false, reason: 'invalid' }
+    seen.add(key)
+    const count = (perDay.get(day) ?? 0) + 1
+    if (count > TREND_OR_MAX_ROWS_PER_DAY) return { ok: false, reason: 'invalid' }
+    perDay.set(day, count)
     rows.push({ day, permaslug, totalTokens })
   }
-  if (input.data.length > 0 && rows.length === 0) return { ok: false, reason: 'invalid' }
-  return { ok: true, asOf, rows }
+  return { ok: true, asOf, meta: decodedMeta, rows }
 }

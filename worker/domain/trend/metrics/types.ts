@@ -10,6 +10,7 @@ export type MetricsSourceFailureReason =
   | 'network'
   | 'invalid'
   | 'too_large'
+  | 'storage'
 
 export interface MetricsSourceFailure {
   ok: false
@@ -48,8 +49,17 @@ export interface OrRankingRow {
   totalTokens: string
 }
 
+export interface OrRankingMeta {
+  version?: string
+  startDate?: string
+  endDate?: string
+}
+
 export interface OrRankingSnapshot {
   asOf: string
+  /** meta.as_of가 있으면 source, 없으면 실행 시각(fetched)으로 표시한다. */
+  asOfKind: 'source' | 'fetched'
+  meta: OrRankingMeta
   rows: OrRankingRow[]
 }
 
@@ -80,8 +90,8 @@ export interface MetricsStore {
   /** 해당 day의 스냅샷을 주어진 행으로 교체한다. */
   writeAaSnapshot(day: string, rows: readonly AaSnapshotRow[]): Promise<void>
   readOrRanking(fromDay: string, toDay: string): Promise<OrRankingRow[]>
-  /** 주어진 행의 day들을 교체한다. */
-  writeOrRanking(rows: readonly OrRankingRow[], asOf: string): Promise<void>
+  /** 주어진 행의 day들을 원자적으로 교체한다. */
+  writeOrRanking(rows: readonly OrRankingRow[], asOf: string, meta: OrRankingMeta): Promise<void>
   /** 보존 기간이 지난 스냅샷을 지운다. */
   prune(beforeAaDay: string, beforeOrDay: string): Promise<void>
 }

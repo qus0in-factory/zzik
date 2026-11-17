@@ -1,11 +1,13 @@
 import {
+  TREND_OR_LICENSE_NAME,
+  TREND_OR_LICENSE_URL,
   TREND_OR_MOVE_RANK_MAX,
   TREND_OR_SHARE_DELTA,
   TREND_OR_TOP_N,
 } from '../../../../shared/trend-contract'
-import type { TrendMetricsBlock, TrendMetricsEntry } from '../../../../shared/trend-contract'
+import type { TrendMetricsBlock, TrendMetricsEntry, TrendMetricsMeta } from '../../../../shared/trend-contract'
 import { addDays } from './types'
-import type { OrRankingRow } from './types'
+import type { OrRankingMeta, OrRankingRow } from './types'
 
 interface Aggregate {
   tokens: Map<string, bigint>
@@ -54,7 +56,13 @@ export function orAttribution(asOf: string): string {
  * OpenRouter 일별 상위 50 토큰 합으로 최근 7일과 직전 7일의 점유율·순위를 비교한다.
  * 토큰 절대값은 공급자별 토크나이저가 달라 공개하지 않고 점유율·변동만 낸다.
  */
-export function buildOrBlock(input: { rows: readonly OrRankingRow[]; today: string; asOf: string }): TrendMetricsBlock {
+export function buildOrBlock(input: {
+  rows: readonly OrRankingRow[]
+  today: string
+  asOf: string
+  asOfKind: 'source' | 'fetched'
+  meta: OrRankingMeta
+}): TrendMetricsBlock {
   const currentFrom = addDays(input.today, -6)
   const previousFrom = addDays(input.today, -13)
   const previousTo = addDays(input.today, -7)
@@ -91,12 +99,21 @@ export function buildOrBlock(input: { rows: readonly OrRankingRow[]; today: stri
     })
   }
 
+  const meta: TrendMetricsMeta = {
+    ...(input.meta.version === undefined ? {} : { version: input.meta.version }),
+    ...(input.meta.startDate === undefined ? {} : { startDate: input.meta.startDate }),
+    ...(input.meta.endDate === undefined ? {} : { endDate: input.meta.endDate }),
+  }
   return {
     id: 'or-usage',
     status: 'ok',
     asOf: input.asOf,
+    asOfKind: input.asOfKind,
+    ...(Object.keys(meta).length === 0 ? {} : { meta }),
     ...(comparable ? {} : { note: 'baseline' as const }),
     entries,
     attribution: orAttribution(input.asOf),
+    license: { name: TREND_OR_LICENSE_NAME, url: TREND_OR_LICENSE_URL },
+    processed: true,
   }
 }
