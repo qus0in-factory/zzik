@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TREND_NEW_MODELS_RULE, TREND_SOURCE_MODELS_DEV } from '../../../../shared/trend-contract'
-import { buildNewModels } from '../../../../worker/domain/trend/sections/new-models'
+import { buildNewModels, reevaluateNewModels } from '../../../../worker/domain/trend/sections/new-models'
 import type { TrendModelRecord } from '../../../../worker/domain/trend/sources'
 
 const NOW = Date.UTC(2026, 10, 17, 0, 0, 0)
@@ -74,5 +74,21 @@ describe('Given the new-models section builder', () => {
     expect(items).toMatchObject({ section: 'new-models', schemaVersion: 1, rule: TREND_NEW_MODELS_RULE })
     expect(items.sources).toEqual([{ id: TREND_SOURCE_MODELS_DEV, fetchedAt: new Date(NOW).toISOString(), status: 'ok' }])
     expect(items.generatedAt).toBe(new Date(NOW).toISOString())
+  })
+
+  it('When items are re-evaluated on a later 304 Then stores normalization metadata and drops expired items', () => {
+    const built = buildNewModels([record()], new Map(), NOW)
+    expect(built.items[0]?.extra).toEqual({ firstSeenAt: NOW, releaseMs: Date.UTC(2026, 10, 16) })
+    const same = reevaluateNewModels(built, NOW + 86_400_000)
+    expect(same?.items.map((item) => item.id)).toEqual(['anthropic/claude-x'])
+    const expired = reevaluateNewModels(built, NOW + 8 * 86_400_000)
+    expect(expired?.items).toEqual([])
+    expect(expired?.generatedAt).toBe(new Date(NOW + 8 * 86_400_000).toISOString())
+  })
+
+  it('When stored items predate the metadata Then re-evaluation refuses so the caller can refetch', () => {
+    const built = buildNewModels([record()], new Map(), NOW)
+    const legacy = { ...built, items: built.items.map(({ extra: _extra, ...item }) => item) }
+    expect(reevaluateNewModels(legacy, NOW)).toBeNull()
   })
 })

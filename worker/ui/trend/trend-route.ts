@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { TREND_SECTIONS } from '../../../shared/trend-contract'
 import type { TrendSection } from '../../../shared/trend-contract'
-import { getTrendIndex, getTrendSection } from '../../app/trend/get-trend'
+import { getPublicTrendSection, getTrendIndex } from '../../app/trend/get-trend'
 import type { TrendStore } from '../../domain/trend/store'
 import { respondPublic } from '../respond'
 
@@ -41,11 +41,17 @@ export function createTrendRoute(store: TrendStore | null) {
     if (!(TREND_SECTIONS as readonly string[]).includes(section)) return respondPublic({ error: 'not_found' }, { status: 404, noStore: true })
     if (store === null) return notReadySection()
     try {
-      const result = await getTrendSection(store, section as TrendSection)
-      if (!result.ok) return notReadySection()
-      const etag = `"${result.row.payloadSha256}"`
+      const result = await getPublicTrendSection(store, section as TrendSection)
+      if (!result.ok) {
+        return result.reason === 'not_ready'
+          ? notReadySection()
+          : respondPublic({ error: 'internal_error' }, { status: 500, noStore: true })
+      }
+      // ETag는 저장 해시가 아니라 실제 응답 표현의 해시여야 조건부 요청이 정확하다.
+      const body = JSON.stringify(result.payload)
+      const etag = `"${await sha256Hex(body)}"`
       if (c.req.header('If-None-Match') === etag) return notModified(etag)
-      return respondPublic(JSON.parse(result.row.payload), { etag })
+      return respondPublic(result.payload, { etag })
     } catch {
       return respondPublic({ error: 'internal_error' }, { status: 500, noStore: true })
     }

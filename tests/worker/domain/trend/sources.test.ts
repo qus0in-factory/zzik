@@ -27,4 +27,18 @@ describe('Given models.dev api.json', () => {
     expect(decoded.ok).toBe(true)
     if (decoded.ok) expect(decoded.value[0]).toMatchObject({ releaseDate: null, releasePrecision: 'unknown', price: null })
   })
+
+  it.each([
+    ['empty object', {}],
+    ['error envelope', { error: 'synthetic' }],
+    ['non-record providers', { providers: [] }],
+    ['empty providers', { providers: {} }],
+    ['providers without model containers', { a: { id: 'a' }, b: { models: 'nope' } }],
+  ])('When the payload is a broken 200 (%s) Then classifies it as invalid_source', (_label, input) => {
+    expect(decodeModelsDev(input)).toEqual({ ok: false, reason: 'invalid_source' })
+  })
+
+  it('When a structurally valid source has no models Then returns a valid empty result, not a failure', () => {
+    expect(decodeModelsDev({ anthropic: { id: 'anthropic', models: {} } })).toEqual({ ok: true, value: [] })
+  })
 })

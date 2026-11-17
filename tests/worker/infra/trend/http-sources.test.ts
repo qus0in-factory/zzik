@@ -42,4 +42,40 @@ describe('Given the models.dev HTTP source adapter', () => {
     const result = await createModelsDevSource({ fetchImpl: async () => new Response(JSON.stringify(payload)), maxBytes: 1, timeoutMs: 10 }).fetch(null)
     expect(result).toEqual({ ok: false, reason: 'too_large', httpStatus: null })
   })
+
+  it('When a streamed body crosses the cap mid-read Then stops reading and returns too_large', async () => {
+    let pulls = 0
+    const result = await createModelsDevSource({
+      timeoutMs: 50,
+      maxBytes: 10,
+      fetchImpl: async () => new Response(new ReadableStream({
+        pull(controller) {
+          pulls += 1
+          controller.enqueue(new TextEncoder().encode('{"a":1}'))
+        },
+      }), { status: 200 }),
+    }).fetch(null)
+    expect(result).toEqual({ ok: false, reason: 'too_large', httpStatus: null })
+    expect(pulls).toBeLessThan(5)
+  })
+
+  it('When the body stalls Then the timeout still aborts the read instead of hanging', async () => {
+    const started = Date.now()
+    const result = await source(async (_url, init) => {
+      const body = new ReadableStream({
+        start(controller) {
+          init?.signal?.addEventListener('abort', () => controller.error(new DOMException('aborted', 'AbortError')))
+        },
+      })
+      return new Response(body, { status: 200, headers: { etag: '"v1"' } })
+    }).fetch(null)
+    expect(result).toEqual({ ok: false, reason: 'network', httpStatus: null })
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  it('When a 200 arrives without an ETag Then stores null instead of the previous validator', async () => {
+    const models = { anthropic: { id: 'anthropic', models: { x: { id: 'x', name: 'X', release_date: '2026-11-16' } } } }
+    const result = await source(async () => new Response(JSON.stringify(models), { status: 200 })).fetch('"old"')
+    expect(result).toMatchObject({ ok: true, notModified: false, etag: null })
+  })
 })

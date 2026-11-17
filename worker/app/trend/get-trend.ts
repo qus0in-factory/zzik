@@ -1,4 +1,5 @@
 import type { TrendIndex, TrendIndexSection, TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
+import { projectSectionPayload } from '../../domain/trend/projection'
 import type { TrendSectionRow, TrendStore } from '../../domain/trend/store'
 
 function parsePayload(row: TrendSectionRow): TrendSectionPayload | null {
@@ -32,7 +33,22 @@ export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | nul
   return { generatedAt: new Date(generatedAt).toISOString(), sections }
 }
 
-export async function getTrendSection(store: TrendStore, section: TrendSection): Promise<{ ok: true; row: TrendSectionRow } | { ok: false; reason: 'not_ready' }> {
+/**
+ * 공개 응답용 섹션. 저장 payload를 계약 필드로 투영해 추가 필드(extra 등)를 제거한다.
+ * 저장소 손상은 `corrupt`로 구분해 라우트가 고정 500을 반환하게 한다.
+ */
+export async function getPublicTrendSection(
+  store: TrendStore,
+  section: TrendSection,
+): Promise<{ ok: true; payload: TrendSectionPayload } | { ok: false; reason: 'not_ready' | 'corrupt' }> {
   const row = await store.readSection(section)
-  return row === null ? { ok: false, reason: 'not_ready' } : { ok: true, row }
+  if (row === null) return { ok: false, reason: 'not_ready' }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(row.payload)
+  } catch {
+    return { ok: false, reason: 'corrupt' }
+  }
+  const payload = projectSectionPayload(parsed, section)
+  return payload === null ? { ok: false, reason: 'corrupt' } : { ok: true, payload }
 }

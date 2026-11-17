@@ -17,13 +17,14 @@ const sha = 'a'.repeat(64)
 
 class FakeTrendStore implements TrendStore {
   reads = 0
+  stored = JSON.stringify(payload)
   async readSection(section: TrendSection): Promise<TrendSectionRow | null> {
     this.reads += 1
-    return section === 'new-models' ? { section, payload: JSON.stringify(payload), payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) } : null
+    return section === 'new-models' ? { section, payload: this.stored, payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) } : null
   }
   async readSections(): Promise<TrendSectionRow[]> {
     this.reads += 1
-    return [{ section: 'new-models', payload: JSON.stringify(payload), payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) }]
+    return [{ section: 'new-models', payload: this.stored, payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) }]
   }
   async writeSection(_payload: TrendSectionPayload): Promise<string> { return sha }
   async readSourceState(_source: string): Promise<TrendSourceStateRow | null> { return null }
@@ -57,12 +58,39 @@ describe('Given public trend routes with a ready D1 store', () => {
     const first = await s.app.request('/pub/trend/new-models')
     expect(first.status).toBe(200)
     expect(first.headers.get('Cache-Control')).toBe('public, max-age=300, stale-while-revalidate=3600')
-    expect(first.headers.get('ETag')).toBe(`"${sha}"`)
+    const etag = first.headers.get('ETag')!
+    expect(etag).toMatch(/^"[0-9a-f]{64}"$/)
     expect(await first.json()).toMatchObject({ section: 'new-models', items: [{ id: 'anthropic/claude-x' }] })
-    const second = await s.app.request('/pub/trend/new-models', { headers: { 'If-None-Match': `"${sha}"` } })
+    const second = await s.app.request('/pub/trend/new-models', { headers: { 'If-None-Match': etag } })
     expect(second.status).toBe(304)
     expect(await second.text()).toBe('')
-    expect(second.headers.get('ETag')).toBe(`"${sha}"`)
+    expect(second.headers.get('ETag')).toBe(etag)
+  })
+
+  it('When the stored payload has extra/internal fields Then the public body contains only contract fields', async () => {
+    const s = setup()
+    const stored = {
+      ...payload,
+      internal: 'sentinel-top-secret',
+      items: [{ ...payload.items[0], extra: { firstSeenAt: 1, releaseMs: 2 }, secret: 'sentinel-item' }],
+    }
+    ;(s.trend as unknown as { stored: string }).stored = JSON.stringify(stored)
+    const res = await s.app.request('/pub/trend/new-models')
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).not.toContain('sentinel')
+    expect(text).not.toContain('extra')
+    expect(text).not.toContain('firstSeenAt')
+    expect(JSON.parse(text)).toEqual(payload)
+  })
+
+  it('When the stored payload violates the contract Then returns a fixed 500 without echoing the payload', async () => {
+    const s = setup()
+    ;(s.trend as unknown as { stored: string }).stored = JSON.stringify({ ...payload, items: [{ id: 'x' }], secret: 'sentinel' })
+    const res = await s.app.request('/pub/trend/new-models')
+    expect(res.status).toBe(500)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(await res.json()).toEqual({ error: 'internal_error' })
   })
 
   it('When a valid section has no row Then 503 no-store; unknown section 404; POST 405; deep path 404', async () => {

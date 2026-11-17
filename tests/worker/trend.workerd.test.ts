@@ -131,4 +131,19 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     const state = await db.prepare('SELECT http_status AS status FROM trend_source_state WHERE source = ?').bind('models.dev').all<{ status: number }>()
     expect(state.results[0]?.status).toBe(304)
   })
+
+  it('When 8 days pass and the cron still gets 304 Then the public section re-evaluates and drops the expired item', async () => {
+    const worker = await mf.getWorker() as unknown as {
+      scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
+    }
+    await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW + 8 * 86_400_000 })
+
+    const response = await mf.dispatchFetch('http://localhost/pub/trend/new-models')
+    expect(response.status).toBe(200)
+    const body = await response.json() as { items: unknown[]; generatedAt: string }
+    expect(body.items).toEqual([])
+    expect(body.generatedAt).toBe(new Date(NOW + 8 * 86_400_000).toISOString())
+    const index = await mf.dispatchFetch('http://localhost/pub/trend')
+    expect(await index.json()).toMatchObject({ sections: [{ id: 'new-models', count: 0, status: 'ok' }] })
+  })
 })

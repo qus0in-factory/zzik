@@ -63,10 +63,15 @@ function creatorOf(canonicalId: string, provider: string): string {
 
 export function decodeModelsDev(input: unknown): DecodeModelsDevResult {
   if (!isRecord(input)) return { ok: false, reason: 'invalid_source' }
+  if (input.providers !== undefined && !isRecord(input.providers)) return { ok: false, reason: 'invalid_source' }
   const providers = isRecord(input.providers) ? input.providers : input
+  const providerEntries = Object.entries(providers)
+  if (providerEntries.length === 0) return { ok: false, reason: 'invalid_source' }
   const records: TrendModelRecord[] = []
-  for (const [providerKey, providerValue] of Object.entries(providers)) {
+  let modelContainers = 0
+  for (const [providerKey, providerValue] of providerEntries) {
     if (!isRecord(providerValue) || !isRecord(providerValue.models)) continue
+    modelContainers += 1
     const provider = typeof providerValue.id === 'string' && providerValue.id !== '' ? providerValue.id : providerKey
     for (const [modelKey, modelValue] of Object.entries(providerValue.models)) {
       if (!isRecord(modelValue)) continue
@@ -92,6 +97,7 @@ export function decodeModelsDev(input: unknown): DecodeModelsDevResult {
       })
     }
   }
+  if (modelContainers === 0) return { ok: false, reason: 'invalid_source' }
   return { ok: true, value: records }
 }
 
