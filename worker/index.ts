@@ -28,6 +28,15 @@ import type { MetricsSourceFailureReason } from './domain/trend/metrics/types'
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>
   new JoseAccessVerifier(config, remoteAccessKeys(config.issuer))
 
+/** Exception messages and arbitrary names may contain sensitive data. */
+function safeTrendErrorClass(error: unknown): string {
+  if (error instanceof TypeError) return 'TypeError'
+  if (error instanceof RangeError) return 'RangeError'
+  if (error instanceof SyntaxError) return 'SyntaxError'
+  if (error instanceof Error) return 'Error'
+  return 'unknown'
+}
+
 /** Worker 로그에는 키·본문 없이 상태만 남긴다. */
 function metricsLogStatus(reason: MetricsSourceFailureReason | null): string {
   if (reason === null) return 'ok'
@@ -51,6 +60,7 @@ export function createWorker(deps: {
   exportSource?: (env: Env) => ExportSource | null
   exportSink?: (env: Env) => ExportSink | null
   trendFetch?: typeof fetch
+  logTrend?: (message: string) => void
   now?: () => number
 } = {}) {
   const exportSource = deps.exportSource ?? ((env: Env) => env.DB === undefined ? null : new D1ExportSource(env.DB))
@@ -77,7 +87,12 @@ export function createWorker(deps: {
       const nowMs = controller.scheduledTime ?? deps.now?.() ?? Date.now()
       const kind = classifyScheduledCron(controller.cron)
       if (kind === 'trend') {
-        if (env.DB === undefined) return
+        const logTrend = deps.logTrend ?? ((message: string) => console.log(message))
+        logTrend('trend_refresh:start')
+        if (env.DB === undefined) {
+          logTrend('trend_refresh_failed:missing_db')
+          return
+        }
         try {
           const fetchImpl = deps.trendFetch ?? globalThis.fetch
           const result = await refreshTrendSections({
@@ -108,8 +123,9 @@ export function createWorker(deps: {
           } catch {
             console.error('trend_plan_failed:unexpected')
           }
-        } catch {
-          console.error('trend_refresh_failed:unexpected')
+          logTrend('trend_refresh:complete')
+        } catch (error) {
+          logTrend(`trend_refresh_failed:unexpected:${safeTrendErrorClass(error)}`)
         }
         return
       }
