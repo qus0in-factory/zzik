@@ -10,6 +10,18 @@ import {acceptObservation,initialLedgerState} from '../../../../collector/domain
 import {D1_NOW,D1_OPERATION_ID,successValue} from '../../../fakes/d1-contract'
 import type {D1QueryResult} from '../../../../collector/domain/usage/d1-sender-types'
 describe('Given D1 runtime ports without operational credentials',()=>{
+ it('When notifier is still stopping Then retains the ledger lock until its work finishes', async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'zzik-notifier-lock-')),now=Date.parse(D1_NOW)
+  const ledger=successValue(openSqliteLedger({directory,nowMs:now})),h=senderFixture({initialLedgerState,acceptObservation})
+  let finish!:()=>void;const pending=new Promise<void>(resolve=>{finish=resolve})
+  const runtime=createD1Resident({ledger,control:h.control,query:h.query,clock:h.clock,timer:{schedule:()=>()=>{}},random:()=>0,operationId:()=>D1_OPERATION_ID,notice:h.notice,notifyAlerts:h.notifyAlerts,providers:[],intervals:{},retentionDays:30,collectorVersion:'test',shutdownPending:()=>[pending]})
+  try {
+   const stopped=runtime.shutdown()
+   expect(openSqliteLedger({directory,nowMs:now})).toMatchObject({ok:false,reason:'already_running'})
+   finish();expect(await stopped).toEqual({timedOut:false})
+   const reopened=successValue(openSqliteLedger({directory,nowMs:now}));reopened.close()
+  } finally {ledger.close();rmSync(directory,{recursive:true,force:true})}
+ })
  it('When quarantine marks an old row Then emits a safe queue notice instead of silently stopping collection',async()=>{
   const h=senderFixture({initialLedgerState,acceptObservation});const ledger={...h.ledger,quarantine:()=>({ok:true as const,value:1})}
   const runtime=createD1Resident({ledger,control:h.control,query:h.query,clock:h.clock,timer:{schedule:()=>()=>{}},random:()=>0,operationId:()=>D1_OPERATION_ID,notice:h.notice,notifyAlerts:h.notifyAlerts,providers:[],intervals:{},retentionDays:30,collectorVersion:'test',once:false})

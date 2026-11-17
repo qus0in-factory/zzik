@@ -19,6 +19,16 @@ describe('Given Discord alerts', () => {
     expect(calls[0].init.signal).toBeInstanceOf(AbortSignal)
     expect(sink.timeoutMs).toBe(5000)
   })
+  it('When sending public schedule text Then uses the same masked delivery and reports failure', async () => {
+    const logs: string[] = []
+    let body: any
+    const sink = createDiscordAlerts({ webhookUrl: url, log: s => logs.push(s), fetchImpl: (async (_u, init) => { body = JSON.parse(String(init?.body)); return new Response('private', { status: 429 }) }) as typeof fetch })
+    expect(await sink.sendMessage('public schedule', 2)).toEqual({ status: 'failed', count: 2 })
+    expect(body).toEqual({ content: 'public schedule', allowed_mentions: { parse: [] } })
+    expect(logs.join('')).toContain('[가림]')
+    expect(logs.join('')).not.toContain('public schedule')
+    expect(logs.join('')).not.toContain(url)
+  })
   it('When webhook is absent Then only logs metadata without sending', async () => {
     const logs: string[] = []
     const sink = createDiscordAlerts({ log: s => logs.push(s), fetchImpl: (async () => { throw Error('must not fetch') }) as typeof fetch })

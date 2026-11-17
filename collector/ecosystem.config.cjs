@@ -25,6 +25,7 @@ module.exports = {
         ZZIK_CODEX_AUTH_PATH: '/Users/young-mini/.codex/auth.json',
         ZZIK_INTERVAL_SEC: '900',
         ZZIK_STORE: 'd1',
+        ZZIK_OFFPEAK_NOTIFY: '1',
         ZZIK_D1_AUTH: 'wrangler-oauth',
         ZZIK_D1_OAUTH_PROFILE: 'zzik-collector',
         ZZIK_INTERVAL_SEC_CODEX: '180',
