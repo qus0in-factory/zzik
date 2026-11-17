@@ -12,6 +12,7 @@ export const MAX_AGY_CLI_OUTPUT_BYTES = 1_048_576
  * - 토큰을 넘기지 않고 stderr는 버린다. stdout은 최대 MAX_AGY_CLI_OUTPUT_BYTES까지만 모은다.
  * @param {{
  *   path?: string,
+ *   args?: string[],
  *   timeoutMs?: number,
  *   graceMs?: number,
  *   maxOutputBytes?: number,
@@ -22,6 +23,7 @@ export const MAX_AGY_CLI_OUTPUT_BYTES = 1_048_576
  */
 export function runAgyQuotaCli({
   path = 'agy',
+  args = ['-p', '/quota'],
   timeoutMs = DEFAULT_AGY_CLI_TIMEOUT_MS,
   graceMs = DEFAULT_AGY_CLI_KILL_GRACE_MS,
   maxOutputBytes = MAX_AGY_CLI_OUTPUT_BYTES,
@@ -59,7 +61,7 @@ export function runAgyQuotaCli({
     }
 
     try {
-      child = spawnImpl(path, ['-p', '/quota'], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] })
+      child = spawnImpl(path, args, { detached: true, stdio: ['ignore', 'pipe', 'ignore'] })
     } catch {
       finish(null)
       return
