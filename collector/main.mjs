@@ -276,7 +276,7 @@ async function startD1(flags){
     await active.shutdown();process.exit(result.ok?0:3);return
   }
   active.start()
-  offpeak=createOffpeakRuntime({once:flags.once,dryRun:flags.dryRun,resume:flags.resumeWithoutQuarantine!==null,enabled:process.env.ZZIK_OFFPEAK_NOTIFY!=='0'&&alertConfig.enabled,webhook:!!alertConfig.webhookUrl,create:()=>createOffpeakScheduler({schedule:OFFPEAK_SCHEDULE,clock,timer:createCollectorTimer(),state:createOffpeakState({path:join(STATE_DIR,'offpeak-notify.json')}),send:events=>alerts.sendMessage(formatOffpeakMessage(events),events.length),log:reason=>process.stderr.write(`[zzik-offpeak] ${reason}\n`)})})
+  offpeak=createOffpeakRuntime({once:flags.once,dryRun:flags.dryRun,resume:flags.resumeWithoutQuarantine!==null,enabled:process.env.ZZIK_OFFPEAK_NOTIFY!=='0'&&alertConfig.enabled,webhook:!!alertConfig.webhookUrl,create:()=>createOffpeakScheduler({schedule:OFFPEAK_SCHEDULE,clock,timer:createCollectorTimer(),state:createOffpeakState({path:join(STATE_DIR,'offpeak-notify.json')}),send:events=>alerts.sendMessage(formatOffpeakMessage(events,clock.now()),events.length),notifyStateFailure:()=>notice.notify({reason:'offpeak_state_failed'}),log:line=>process.stderr.write(`${line}\n`)})})
   if(offpeak)void offpeak.start()
   if(flags.once){while(!active.onceDone())await new Promise(resolve=>setTimeout(resolve,100));const code=active.exitCode();await active.shutdown();process.exit(code)}
 }

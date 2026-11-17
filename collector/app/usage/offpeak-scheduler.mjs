@@ -2,7 +2,7 @@ import {nextOffpeakEvents} from '../../domain/usage/offpeak-notification.mjs'
 /** @typedef {import('../../domain/usage/offpeak-notification.mjs').OffpeakEvent} Event */
 /** @typedef {import('../../domain/usage/offpeak-notification.mjs').OffpeakNoticeState} OffpeakNoticeState */
 /** One next-event timeout, not polling. Claim before sending: at-most-once across crashes.
- * @param {{schedule:import('../../domain/usage/offpeak-notification.mjs').Schedule,clock:{now():number},timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,state:{read():Promise<unknown>,write(state:OffpeakNoticeState):Promise<void>},send:(events:Event[])=>Promise<unknown>,log?:(reason:string)=>void}} ports */
+ * @param {{schedule:import('../../domain/usage/offpeak-notification.mjs').Schedule,clock:{now():number},timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,state:{read():Promise<unknown>,write(state:OffpeakNoticeState):Promise<void>},send:(events:Event[])=>Promise<unknown>,notifyStateFailure?:()=>Promise<void>,log?:(line:string)=>void}} ports */
 export function createOffpeakScheduler(ports){
  let stopped=false
  /** @type {Record<string,number>} */let keys={}
@@ -10,8 +10,12 @@ export function createOffpeakScheduler(ports){
  /** @type {Promise<void>|null} */let starting=null
  /** @type {Promise<void>|null} */let inFlight=null
  /** @type {Promise<void>|null} */let closing=null
- const log=(/** @type {string} */reason)=>{try{ports.log?.(reason)}catch{}}
- const fail=()=>{stopped=true;cancel();log('state_failed')}
+ const log=(/** @type {string} */status,/** @type {number} */count)=>{try{ports.log?.(`offpeak=${status} count=${count}`)}catch{}}
+ const fail=async(/** @type {number} */count)=>{
+  if(stopped)return
+  stopped=true;cancel();log('state_failed',count)
+  try{await ports.notifyStateFailure?.()}catch{}
+ }
  const arm=()=>{
   if(stopped)return
   const now=ports.clock.now(),events=nextOffpeakEvents(ports.schedule,now-120000,Object.keys(keys))
@@ -24,16 +28,17 @@ export function createOffpeakScheduler(ports){
  /** @param {Event[]} batch */
  const deliver=async batch=>{
   const now=ports.clock.now(),events=batch.filter(e=>!Object.hasOwn(keys,e.key))
-  if(stopped||!events.length||now<events[0].atMs||now-events[0].atMs>120000)return
+  if(stopped||!events.length||now<events[0].atMs)return
+  if(now-events[0].atMs>120000){log('skipped_late',events.length);return}
   const next=Object.fromEntries(Object.entries(keys).filter(([,at])=>at>=now-14*86400000))
   for(const event of events)next[event.key]=event.atMs
-  try{await ports.state.write({v:1,keys:next})}catch{fail();return}
+  try{await ports.state.write({v:1,keys:next})}catch{await fail(events.length);return}
   keys=next
   if(stopped)return
   try{
    const sent=await ports.send(events)
-   if(sent!==null&&typeof sent==='object'&&'status' in sent&&sent.status==='failed')log('send_failed')
-  }catch{log('send_failed')}
+   log(sent!==null&&typeof sent==='object'&&'status' in sent&&sent.status==='failed'?'failed':'sent',events.length)
+  }catch{log('failed',events.length)}
  }
  return {
   start(){
@@ -48,7 +53,7 @@ export function createOffpeakScheduler(ports){
       keys=/** @type {Record<string,number>} */(saved.keys)
      }
      arm()
-    }catch{fail()}
+    }catch{await fail(0)}
    })()
    return starting
   },
