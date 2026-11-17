@@ -20,7 +20,7 @@ describe('Given a queued model call',()=>{
 describe('Given the shared agy runner',()=>{
  it('When selecting models Then its timeout is bounded while quota keeps its existing default',()=>{
   expect(agyCliOptions('models','agy',true)).toEqual({path:'agy',enabled:true,args:['models'],timeoutMs:5000,waitForCloseOnKill:true})
-  expect(agyCliOptions('quota','agy',true)).toEqual({path:'agy',enabled:true,args:['-p','/quota']})
+  expect(agyCliOptions('quota','agy',true)).toEqual({path:'agy',enabled:true,args:['-p','/quota'],waitForCloseOnKill:true})
  })
 })
 

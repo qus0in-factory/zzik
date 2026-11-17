@@ -11,3 +11,12 @@ describe('Given a model CLI process',()=>{
   child.emit('close',null);await Promise.all([model,quota]);expect(calls).toEqual(['models','quota'])
  })
 })
+
+describe('Given a quota process with excessive output',()=>{
+ it('When a model is queued Then it waits until quota child closes',async()=>{
+  const child=Object.assign(new EventEmitter(),{stdout:new EventEmitter(),kill:()=>true});const calls:string[]=[]
+  const lane=createAgyLane(async(kind,signal)=>{calls.push(kind);return kind==='quota'?runAgyQuotaCli({signal,maxOutputBytes:1,waitForCloseOnKill:true,spawn:()=>child}):'models'})
+  const quota=lane.quota();await Promise.resolve();const model=lane.models();child.stdout.emit('data',Buffer.from('excess'));await new Promise(resolve=>setImmediate(resolve));expect(calls).toEqual(['quota'])
+  child.emit('close',null);await Promise.all([quota,model]);expect(calls).toEqual(['quota','models'])
+ })
+})
