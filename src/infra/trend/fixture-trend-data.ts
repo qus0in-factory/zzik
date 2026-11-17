@@ -45,6 +45,42 @@ const NEW_MODELS = {
       free: false, openWeights: true, providers: ['openrouter'], links: {},
       registeredIn: ['openrouter'],
     },
+    {
+      id: 'deepseek/deepseek-v4.1-mini', name: 'DeepSeek V4.1 Mini', creator: 'deepseek',
+      releaseDate: '2026-11-11', precision: 'day', price: { input: 0.12, output: 0.48 },
+      free: false, openWeights: true, providers: ['deepseek', 'openrouter'], links: {},
+      registeredIn: ['openrouter'],
+    },
+    {
+      id: 'google/gemini-3.5-nano', name: 'Gemini 3.5 Nano', creator: 'google',
+      releaseDate: '2026-11-10', precision: 'day', price: { input: 0.08, output: 0.3 },
+      free: false, openWeights: false, providers: ['google', 'openrouter'], links: {},
+      registeredIn: ['openrouter'],
+    },
+    {
+      id: 'openai/gpt-5.4-nano', name: 'GPT-5.4 Nano', creator: 'openai',
+      releaseDate: '2026-11-10', precision: 'day', price: { input: 0.1, output: 0.4 },
+      free: false, openWeights: false, providers: ['openai', 'openrouter'], links: {},
+      registeredIn: ['openrouter'],
+    },
+    {
+      id: 'mistral/mistral-small-4', name: 'Mistral Small 4', creator: 'mistral',
+      releaseDate: '2026-11-09', precision: 'day', price: { input: 0.15, output: 0.5 },
+      free: false, openWeights: true, providers: ['openrouter'], links: {},
+      registeredIn: ['openrouter'],
+    },
+    {
+      id: 'zhipuai/glm-5.3-lite', name: 'GLM 5.3 Lite', creator: 'zhipuai',
+      releaseDate: '2026-11-09', precision: 'day', price: { input: 0.09, output: 0.35 },
+      free: false, openWeights: true, providers: ['openrouter'], links: {},
+      registeredIn: ['openrouter'],
+    },
+    {
+      id: 'meta-llama/llama-5-8b', name: 'Llama 5 8B', creator: 'meta',
+      releaseDate: '2026-11-08', precision: 'day', price: { input: 0.05, output: 0.2 },
+      free: false, openWeights: true, providers: ['openrouter'], links: {},
+      registeredIn: ['openrouter'],
+    },
   ],
 } satisfies TrendSectionPayload
 

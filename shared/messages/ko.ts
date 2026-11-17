@@ -49,6 +49,8 @@ export const ko = {
   'trend.newModels.release': '출시 {date}',
   'trend.newModels.releaseUnknown': '출시일 미상',
   'trend.newModels.source.openrouter': 'OpenRouter',
+  'trend.newModels.more': '더보기 ({remaining}개 남음)',
+  'trend.newModels.loadedMore': '신규 모델 {added}개를 더 불러와 총 {visible}개를 표시합니다.',
   'trend.freeModels.title': '무료 모델',
   'trend.freeModels.rule': 'OpenCode Go 가격표의 무료(Free) 항목입니다.',
   'trend.freeModels.group.opencodeGo': 'OpenCode Go 무료',

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { useNewModelsPagination } from '@app/trend/useNewModelsPagination'
 import { t } from '@shared/messages'
 import { useTrendDeps } from '@app/trend/TrendGatewayContext'
 import { TrendLoadError, useTrendSection } from '@app/trend/useTrendSection'
@@ -30,6 +31,8 @@ function NewModelsSectionContent(): ReactNode {
   const query = useTrendSection('new-models')
   const { data, error, isError, isPending, refetch } = query
   const notReady = error instanceof TrendLoadError && error.reason === 'not_ready'
+  const { visibleItems, remaining, showMore } = useNewModelsPagination(data?.items)
+  const [announcement, setAnnouncement] = useState('')
 
   return (
     <section aria-labelledby="trend-new-models" className="mb-8" data-testid="trend-new-models">
@@ -52,27 +55,45 @@ function NewModelsSectionContent(): ReactNode {
       {data !== undefined && data.items.length === 0 && (
         <p className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{t('trend.newModels.empty')}</p>
       )}
-      {data !== undefined && data.items.length > 0 && (
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-          {data.items.map((item) => (
-            <li key={item.id} data-testid="trend-new-model" className="rounded-xl border border-border bg-card p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="break-words text-base font-semibold">{item.name}</h3>
-                  {item.creator !== '' && <p className="mt-0.5 text-xs text-muted-foreground">{item.creator}</p>}
+      {data !== undefined && visibleItems.length > 0 && (
+        <>
+          <ul id="trend-new-models-list" className="mt-4 grid gap-3 sm:grid-cols-2">
+            {visibleItems.map((item) => (
+              <li key={item.id} data-testid="trend-new-model" className="rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="break-words text-base font-semibold">{item.name}</h3>
+                    {item.creator !== '' && <p className="mt-0.5 text-xs text-muted-foreground">{item.creator}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {(item.registeredIn ?? []).includes('openrouter') && badge(t('trend.newModels.source.openrouter'))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {(item.registeredIn ?? []).includes('openrouter') && badge(t('trend.newModels.source.openrouter'))}
+                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>{item.releaseDate === null ? t('trend.newModels.releaseUnknown') : t('trend.newModels.release', { date: item.releaseDate })}</span>
+                  <span>{t('trend.newModels.providers', { count: item.providers.length })}</span>
+                  {item.price !== null && <span>{t('trend.newModels.price', { input: item.price.input, output: item.price.output })}</span>}
                 </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span>{item.releaseDate === null ? t('trend.newModels.releaseUnknown') : t('trend.newModels.release', { date: item.releaseDate })}</span>
-                <span>{t('trend.newModels.providers', { count: item.providers.length })}</span>
-                {item.price !== null && <span>{t('trend.newModels.price', { input: item.price.input, output: item.price.output })}</span>}
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+          <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
+          {remaining > 0 && (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                aria-controls="trend-new-models-list"
+                onClick={() => {
+                  const { added, visible } = showMore()
+                  setAnnouncement(t('trend.newModels.loadedMore', { added, visible }))
+                }}
+                className="motion-button rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent"
+              >
+                {t('trend.newModels.more', { remaining })}
+              </button>
+            </div>
+          )}
+        </>
       )}
       {data !== undefined && (
         <p className="mt-3 text-xs text-muted-foreground">{t('trend.newModels.source', {
