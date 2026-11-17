@@ -16,6 +16,11 @@ describe('Given recent Claude rate limits',()=>{
   expect(effectiveIntervalSec(policy,{rateLimitedAtMs:history},now+4*day)).toBe(900)
   expect(effectiveIntervalSec(policy,{rateLimitedAtMs:history},now+4*day+1)).toBe(300)
  })
+ it('When three recent rate limits occur Then holds through exactly 96 hours',()=>{
+  const history=[now-2,now-1,now]
+  expect(effectiveIntervalSec(policy,{rateLimitedAtMs:history},now+4*day)).toBe(900)
+  expect(effectiveIntervalSec(policy,{rateLimitedAtMs:history},now+4*day+1)).toBe(300)
+ })
  it('When rate limits repeat Then doubles the hold up to seven days and excludes old entries',()=>{
   expect(effectiveIntervalSec(policy,{rateLimitedAtMs:[now-100,now]},now+2*day)).toBe(900)
   expect(effectiveIntervalSec(policy,{rateLimitedAtMs:[now-100,now]},now+2*day+1)).toBe(300)

@@ -13,6 +13,8 @@ describe('Given explicit per-provider interval capability',()=>{
   expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'299'},{mode:'d1',capability})).toMatchObject({ok:false,exitCode:78})
   expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'300'},{mode:'d1',capability})).toMatchObject({ok:true,value:{claude:300}})
   expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'300'},{mode:'d1',capability:null})).toMatchObject({ok:false,exitCode:78})
+  expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'899'},{mode:'d1',capability})).toMatchObject({ok:true,value:{claude:899}})
+  expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'899'},{mode:'d1',capability:null})).toMatchObject({ok:false,exitCode:78})
   expect(readIntervalPolicy({ZZIK_INTERVAL_SEC_CLAUDE:'900'},{mode:'d1',capability})).toMatchObject({ok:true,value:{claude:900}})
  })
 })
