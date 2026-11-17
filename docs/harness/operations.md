@@ -80,8 +80,13 @@
   - OpenRouter: 최근 7일 vs 직전 7일 점유율(`other` 포함 분모)과 순위를 비교한다. 토큰 절대값은 공개하지 않고 점유율·변동만 낸다. 응답은 14일 범위·날짜별 51행·중복 키·총 714행 예산을 검증하고, 위반 시 이전 스냅샷을 보존한다. `meta.version/start_date/end_date`를 보존하고 `meta.as_of`가 없으면 `asOfKind:'fetched'`로 조회 시각임을 구분한다. `CC BY 4.0` 라이선스 링크와 집계·가공 고지를 블록/UI에 포함한다.
   - 실패 블록은 직전 공개 payload의 같은 블록을 `stale`로 유지한다. AA는 429/401을 구분해 로그에 `aa=429|unauthorized` 수준만 남기고 키·본문은 남기지 않는다.
   - 저장: `trend_aa_snapshot`(일·slug, 90일 보존), `trend_or_ranking`(일·permaslug, 60일 보존, meta 컬럼 포함). 스냅샷 교체는 D1 `batch`로 원자화하고, 저장소 예외는 해당 출처만 stale로 낮춰 다른 출처 갱신을 막지 않는다. 마이그레이션 `0004_metrics.sql`(0003은 plan-models용으로 비워 둔다).
-  - AA 공개는 기본 비활성이다. `TREND_AA_PUBLIC='0'`(기본)이면 AA 수집·스냅샷 저장은 계속하되 공개 projection/UI에서 AA 블록을 `under_review`('출처 약관 확인 중')로 숨긴다. `='1'`일 때만 Intelligence Index 점수를 공개한다.
-  - AA 약관상 재배포 조건(Terms PDF) 확인 전에는 `TREND_AA_PUBLIC`을 켜지 않는다.
-- UI는 `요금제 추가`(준비 중) → 최신 → free → 성능 지표 → 참고 링크 순서다. `frontier`는 아직 준비 중이다.
+  - AA 공개는 기본 비활성(`TREND_AA_PUBLIC='0'`)이며 켜지 않는다. 약관 검토(`/tmp/fable-terms.md`) 결과 무료·Pro 티어 모두 공개 대시보드·JSON API 재배포가 불가하므로 AA 블록은 공개하지 않고 참고 링크만 유지한다.
+- UI는 `요금제 추가` → 최신 → free → 성능 지표 → 참고 링크 순서다. `frontier`는 아직 준비 중이다.
 - section/seen/source-state 갱신은 개별 D1 쓰기라 원자적이지 않다. 중간 실패 시 다음 실행에서 다시 계산한다.
-- 원격 반영 순서(opus): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다. `AA_API_KEY`·`OR_API_KEY`는 이미 운영 secret에 등록되어 있다고 가정한다.
+- 원격 반영 순서(총괄 에이전트): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함).
+- **수동 채우기 (`scripts/trend-refresh-once.mjs`)**:
+  - 용도: Worker cron(2시간 `7 */2 * * *`, metrics 일 1회 `17 0 * * *` = `00:17 UTC`)을 기다리지 않고 원격 D1에 트렌드 데이터를 수동으로 채울 때 사용한다.
+  - 실행: `node scripts/trend-refresh-once.mjs` (기본 `dry-run`: 원격 D1 읽기 + 인메모리 SQLite 시뮬레이션, 원격 쓰기 0) → 결과 JSON 확인 후 `node scripts/trend-refresh-once.mjs --apply` (원격 D1 반영).
+  - 필요 설정: `.env`에 `ZZIK_D1_ACCOUNT_ID`, `ZZIK_D1_DATABASE_ID` (선택: `OR_API_KEY`, `AA_API_KEY`), Wrangler OAuth profile `zzik-collector`.
+  - 주의: D1 REST API 한도(요청당 statement 100개, SQL 100KB, params 100개, 문자열 2MB)를 검증하며 `trend_model_seen`은 100개씩 chunk flush한다. `--apply`는 운영 D1 `trend_*` 테이블에 직접 쓰므로 반드시 `dry-run`으로 `remoteWrites`/`seenWriteRequestsEstimate`/`failedRequest`를 먼저 확인한다.
+  - 수동 채우기 절차: (1) 원격 D1 마이그레이션 적용 확인 → (2) `node scripts/trend-refresh-once.mjs` dry-run 확인 → (3) `node scripts/trend-refresh-once.mjs --apply` 실행 → (4) `curl -sS https://zzik.qus0in.dev/pub/trend` 200 및 섹션 상태(`ok`) 확인.
