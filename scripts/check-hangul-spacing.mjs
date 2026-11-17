@@ -54,9 +54,9 @@ export function checkFiles(files) {
   return failed ? 1 : 0
 }
 
-/** @returns {string[]} */
-export function changedMarkdownFiles() {
-  const output = execFileSync('git', ['diff', '--name-only', 'dev...HEAD'], { encoding: 'utf8' })
+/** @param {string} [base] @returns {string[]} */
+export function changedMarkdownFiles(base = 'dev') {
+  const output = execFileSync('git', ['diff', '--name-only', '--diff-filter=d', `${base}...HEAD`], { encoding: 'utf8' })
   return String(output)
     .split(/\r?\n/)
     .filter((file) => file !== '' && file.endsWith('.md'))
@@ -64,9 +64,9 @@ export function changedMarkdownFiles() {
 
 function usage() {
   process.stdout.write(
-    'node scripts/check-hangul-spacing.mjs [--help] [file ...]\n' +
+    'node scripts/check-hangul-spacing.mjs [--help] [--base <ref>] [file ...]\n' +
       'Reports 9+ consecutive Hangul syllable runs outside fenced code blocks and inline code.\n' +
-      'Without file arguments, checks .md files from `git diff --name-only dev...HEAD`.\n' +
+      'Without file arguments, checks .md files from `git diff --name-only <base>...HEAD` (default base: dev).\n' +
       'Exits 1 when any finding or missing file exists.\n',
   )
 }
@@ -77,10 +77,17 @@ function main() {
     usage()
     return
   }
-  let files = args
+  const baseAt = args.indexOf('--base')
+  const base = baseAt >= 0 ? args[baseAt + 1] : 'dev'
+  if (!base) {
+    process.stderr.write('missing_base\n')
+    process.exitCode = 64
+    return
+  }
+  let files = baseAt >= 0 ? args.filter((_, i) => i !== baseAt && i !== baseAt + 1) : args
   if (files.length === 0) {
     try {
-      files = changedMarkdownFiles()
+      files = changedMarkdownFiles(base)
     } catch {
       process.stderr.write('git_diff_failed\n')
       process.exitCode = 1

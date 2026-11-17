@@ -28,7 +28,7 @@ export function releasePlan(version) {
   return [
     { name: 'screenshot_readme', command: ['pnpm', 'screenshot:readme'], timeoutMs: 300_000 },
     { name: 'test_kst', command: ['pnpm', 'test'], env: { TZ: 'Asia/Seoul' }, timeoutMs: 900_000 },
-    { name: 'check_hangul_spacing', command: ['node', 'scripts/check-hangul-spacing.mjs'], timeoutMs: 120_000 },
+    { name: 'check_hangul_spacing', command: ['node', 'scripts/check-hangul-spacing.mjs', '--base', 'origin/main'], timeoutMs: 120_000 },
     { name: 'stage', command: ['git', 'add', 'package.json', 'docs/screenshots/desktop.png'], timeoutMs: 120_000 },
     { name: 'commit', command: ['git', 'commit', '-m', message], timeoutMs: 120_000 },
     { name: 'push_dev', command: ['git', 'push', 'origin', 'dev'], timeoutMs: 300_000 },
