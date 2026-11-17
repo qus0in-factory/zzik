@@ -2,7 +2,7 @@
 /**
  * Deterministic Korean spacing check (issue #106 item 8).
  * Reports runs of 9+ Hangul syllables outside fenced code blocks and inline code.
- * With no file arguments, checks Markdown files changed by dev...HEAD.
+ * With no file arguments, checks Markdown files changed by origin/main...HEAD.
  */
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -55,7 +55,7 @@ export function checkFiles(files) {
 }
 
 /** @param {string} [base] @returns {string[]} */
-export function changedMarkdownFiles(base = 'dev') {
+export function changedMarkdownFiles(base = 'origin/main') {
   const output = execFileSync('git', ['diff', '--name-only', '--diff-filter=d', `${base}...HEAD`], { encoding: 'utf8' })
   return String(output)
     .split(/\r?\n/)
@@ -66,7 +66,7 @@ function usage() {
   process.stdout.write(
     'node scripts/check-hangul-spacing.mjs [--help] [--base <ref>] [file ...]\n' +
       'Reports 9+ consecutive Hangul syllable runs outside fenced code blocks and inline code.\n' +
-      'Without file arguments, checks .md files from `git diff --name-only <base>...HEAD` (default base: dev).\n' +
+      'Without file arguments, checks .md files from `git diff --name-only <base>...HEAD` (default base: origin/main).\n' +
       'Exits 1 when any finding or missing file exists.\n',
   )
 }
@@ -78,7 +78,7 @@ function main() {
     return
   }
   const baseAt = args.indexOf('--base')
-  const base = baseAt >= 0 ? args[baseAt + 1] : 'dev'
+  const base = baseAt >= 0 ? args[baseAt + 1] : 'origin/main'
   if (!base) {
     process.stderr.write('missing_base\n')
     process.exitCode = 64
