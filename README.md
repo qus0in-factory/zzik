@@ -44,7 +44,7 @@ architecture-beta
 - **화면 구성**:
   - `/` (공개): 프로젝트 소개 페이지(아키텍처·기능 요약, `/usage`·`/trend` 이동 링크)
   - `/usage` (Cloudflare Access 보호): AI 사용량 대시보드 — 페이스 칩·한도 카드·사용량 추이 차트(uPlot)로 6개 제공자(Claude, ChatGPT(Codex), Antigravity, OpenCode, Grok, Ollama)의 사용률을 보여 준다.
-  - `/trend` (공개): AI 모델 트렌드 — 요금제 추가 모델(`plan-models`), 신규 모델(`new-models`), 무료 모델(`free-models`), 점유율·순위 지표(`metrics`), 참고 링크를 제공한다.
+  - `/trend` (공개): AI 모델 트렌드 — 성능 지표(OpenRouter 점유율·순위, `metrics`), 신규 모델(최근 7일 OpenRouter 등록, `new-models`), 무료 모델(OpenCode Go·Ollama Cloud 요금제 포함, `free-models`), 참고 링크를 보여 준다. 요금제 추가 관측(`plan-models`)은 수집·API만 유지한다.
 - **공개 / 비공개 경로**:
   - 공개(인증 없음, 캐시 `public, max-age=300`): `/`, `/trend`, `/pub/trend*`
   - 비공개(Cloudflare Access + Worker JWT 검증): `/usage`, `/usage/*`, `/api/usage*`, `/api/usage-history*`
