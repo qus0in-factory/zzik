@@ -56,7 +56,7 @@
 
 | 변경 경로 | Worker 배포 (`deploy-verify`) | 트렌드 재적재 (`trend_refill`) | 수집기 반영 (`collector-apply`) | 기본 `--kind` |
 |---|---|---|---|---|
-| `worker/domain/trend/`, `worker/app/trend/`, `shared/trend-*.ts` | 실행 | 실행 | `shared/`만 실행 | `done` (`src/` 동반 시 `verify`) |
+| `worker/domain/trend/`, `worker/app/trend/`, `worker/infra/trend/`, `shared/trend-*.ts` | 실행 | 실행 | `shared/`만 실행 | `done` (`src/` 동반 시 `verify`) |
 | `src/` | 실행 | 생략 | — | `verify` (화면 확인 요청) |
 | 그 외 `worker/`, `wrangler.jsonc` | 실행 | 생략 | — | `done` |
 | `collector/` | — | 생략 | 실행 | `done` |

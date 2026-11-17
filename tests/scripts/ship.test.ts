@@ -129,6 +129,17 @@ describe('Given trend refill scope (트렌드 재적재 범위)', () => {
     }
   })
 
+  it('When only a trend infrastructure file changes Then deploys before refilling', async () => {
+    const fake = makeFakeExecutor({ 'git diff --name-only': { stdout: 'worker/infra/trend/metrics-sources.ts\n' } })
+    const result = await runShip({ apply: true, execute: fake.execute, summary: '트렌드 수집 갱신', version: '0.7.1' })
+    const ran = fake.calls.map((c) => [c.command, ...c.args].join(' '))
+    const deploy = ran.findIndex((c) => c.includes('deploy-verify.mjs --deploy'))
+    const refill = ran.findIndex((c) => c === 'node scripts/trend-refresh-once.mjs --apply')
+    expect(deploy).toBeGreaterThanOrEqual(0)
+    expect(refill).toBe(deploy + 1)
+    expect(result.steps.find((s: { name: string }) => s.name === 'trend_refill')?.status).toBe('PASS')
+  })
+
   it('When unrelated or similar paths change Then skips trend refill', async () => {
     const fake = makeFakeExecutor({ 'git diff --name-only': { stdout: 'worker/index.ts\nshared/trendish.ts\nshared/trend-nested/a.ts\nworker/domain/trends/a.ts\n' } })
     const result = await runShip({ apply: true, execute: fake.execute, summary: '워커 갱신', version: '0.7.1' })

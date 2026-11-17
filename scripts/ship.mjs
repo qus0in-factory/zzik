@@ -18,7 +18,7 @@ import { verifyRequestBody } from './verify-request.mjs'
 export function classifyShipScope(files) {
   const has = (pred) => files.some(pred)
   const deployWorker = has((f) => f === 'wrangler.jsonc' || f.startsWith('worker/') || f.startsWith('src/') || f.startsWith('shared/'))
-  const trendRefill = has((f) => f.startsWith('worker/domain/trend/') || f.startsWith('worker/app/trend/') || /^shared\/trend-[^/]*\.ts$/.test(f))
+  const trendRefill = has((f) => f.startsWith('worker/domain/trend/') || f.startsWith('worker/app/trend/') || f.startsWith('worker/infra/trend/') || /^shared\/trend-[^/]*\.ts$/.test(f))
   const applyCollector = has((f) => f.startsWith('collector/') || f.startsWith('shared/'))
   const hasUi = has((f) => f.startsWith('src/'))
   return { deployWorker, trendRefill, applyCollector, hasUi, defaultKind: hasUi ? 'verify' : 'done' }
