@@ -34,23 +34,27 @@ function renderAt(entry: string, navigate?: (url: string) => void) {
 }
 
 describe('Given the usage/trend router', () => {
-  it('When / is requested Then full-navigates to /usage', async () => {
+  it('When / is requested Then renders the landing page without navigating away', async () => {
     const navigate = vi.fn()
-    renderAt('/', navigate)
-    await waitFor(() => expect(navigate).toHaveBeenCalledExactlyOnceWith('/usage'))
+    const { gateway } = renderAt('/', navigate)
+    expect(await screen.findByText('AI 사용량을 한곳에서')).toBeTruthy()
+    expect(navigate).not.toHaveBeenCalled()
     expect(screen.getByTestId('location').textContent).toBe('/')
+    expect(gateway.calls).toBe(0)
   })
 
-  it('When / has a fixture query and hash Then the full navigation keeps both', async () => {
+  it('When / has a fixture query and hash Then keeps the landing location without navigating', async () => {
     const navigate = vi.fn()
     renderAt('/?fixture=normal#usage-claude', navigate)
-    await waitFor(() => expect(navigate).toHaveBeenCalledExactlyOnceWith('/usage?fixture=normal#usage-claude'))
+    expect(await screen.findByText('AI 사용량을 한곳에서')).toBeTruthy()
+    expect(navigate).not.toHaveBeenCalled()
+    expect(screen.getByTestId('location').textContent).toBe('/?fixture=normal#usage-claude')
   })
 
-  it('When an unknown path is requested Then full-navigates to /usage with the query', async () => {
+  it('When an unknown path is requested Then full-navigates to /usage with the query and hash', async () => {
     const navigate = vi.fn()
-    renderAt('/unknown?fixture=normal', navigate)
-    await waitFor(() => expect(navigate).toHaveBeenCalledExactlyOnceWith('/usage?fixture=normal'))
+    renderAt('/unknown?fixture=normal#usage-claude', navigate)
+    await waitFor(() => expect(navigate).toHaveBeenCalledExactlyOnceWith('/usage?fixture=normal#usage-claude'))
   })
 
   it('When /usage is requested Then renders the existing usage screen and marks usage current', async () => {
@@ -132,6 +136,16 @@ describe('Given the usage/trend router', () => {
 })
 
 describe('Given the nav active marker', () => {
+  it('When the path is / Then neither nav item is current', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <SiteHeader />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: '사용량' }).getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('link', { name: '트렌드' }).getAttribute('aria-current')).toBeNull()
+  })
+
   it.each(['/usage', '/usage/', '/USAGE'])('When the path is %s Then usage is current', (entry) => {
     render(
       <MemoryRouter initialEntries={[entry]}>
