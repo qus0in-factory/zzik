@@ -13,6 +13,26 @@ export interface TreemapRect {
   height: number
 }
 
+/** --brand(#057873) 계열의 5단계 명도. 0~2는 흰 글자, 3~4는 검정 글자로 4.5:1 이상이다. */
+export const TREEMAP_STEPS = [
+  { background: '#024a46', foreground: '#ffffff' },
+  { background: '#035c58', foreground: '#ffffff' },
+  { background: '#057873', foreground: '#ffffff' },
+  { background: '#4fa8a2', foreground: '#0a0a0a' },
+  { background: '#9fd4d0', foreground: '#0a0a0a' },
+] as const
+
+/** 점유율을 최대값 대비 5단계 명도로 매핑한다. 작은 점유율일수록 밝다. */
+export function treemapStep(value: number, maxValue: number): number {
+  if (maxValue <= 0) return TREEMAP_STEPS.length - 1
+  const ratio = value / maxValue
+  if (ratio >= 0.65) return 0
+  if (ratio >= 0.35) return 1
+  if (ratio >= 0.18) return 2
+  if (ratio >= 0.07) return 3
+  return 4
+}
+
 function worstRatio(row: readonly number[], side: number): number {
   const sum = row.reduce((total, area) => total + area, 0)
   const max = Math.max(...row)
@@ -71,5 +91,5 @@ export function squarify(items: readonly TreemapItem[], width: number, height: n
 
 /** 칸이 작으면 라벨을 숨기고 title·aria-label·sr-only 목록으로 대체한다. */
 export function shouldShowTreemapLabel(rect: Pick<TreemapRect, 'width' | 'height'>): boolean {
-  return rect.width * rect.height >= 110
+  return rect.width * rect.height >= 240
 }

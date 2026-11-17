@@ -120,7 +120,8 @@ describe('Given the metrics section on /trend', () => {
     renderPage(async () => ({ ok: true, value: payload }))
     await screen.findByTestId('trend-metrics-treemap')
     const other = screen.getAllByTestId('trend-treemap-cell').find((cell) => cell.getAttribute('data-entry-id') === 'other')!
-    expect(other.className).toContain('bg-muted')
+    expect(other.getAttribute('data-step')).toBe('other')
+    expect((other as HTMLElement).style.backgroundColor).toContain('--muted')
     expect(other.getAttribute('title')).toContain('기타')
   })
 
