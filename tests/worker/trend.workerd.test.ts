@@ -161,7 +161,6 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(states.results).toEqual([
       { source: 'go-models', etag: null, ok: 1, status: 200 },
       { source: 'models.dev', etag: '"v1"', ok: 1, status: 200 },
-      { source: 'opencode-zen', etag: null, ok: 1, status: 200 },
       { source: 'openrouter', etag: null, ok: 1, status: 200 },
     ])
 
@@ -192,8 +191,8 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(index.status).toBe(200)
     const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
     expect(indexBody.sections).toEqual(expect.arrayContaining([
-      { id: 'new-models', count: 1, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
-      { id: 'free-models', count: 1, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
+      { id: 'new-models', count: 1, generatedAt: new Date(NOW).toISOString(), checkedAt: new Date(NOW).toISOString(), status: 'ok' },
+      { id: 'free-models', count: 1, generatedAt: new Date(NOW).toISOString(), checkedAt: new Date(NOW).toISOString(), status: 'ok' },
     ]))
 
     const notModified = await mf.dispatchFetch('http://localhost/pub/trend/new-models', { headers: { 'If-None-Match': response.headers.get('ETag')! } })

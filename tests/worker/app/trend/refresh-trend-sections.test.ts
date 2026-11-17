@@ -171,6 +171,35 @@ describe('Given the multi-source trend refresh', () => {
     expect(section(store, 'free-models').items).toEqual(freeBefore)
   })
 
+  it('When models.dev returns 304 while Go and OpenRouter return 200 Then keeps enrichment from previous and skips section rewrites', async () => {
+    const store = new FakeStore()
+    seedObservations(store)
+    const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [
+      ok([
+        model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', creator: 'tencent', releaseDate: '2026-11-16', releasePrecision: 'day', releaseMs: NOW - DAY, openWeights: true }),
+        model({ canonicalId: 'inclusionai/ling-3.2-flash', provider: 'inclusionai', modelId: 'ling-3.2-flash', name: 'Ling 3.2 Flash', creator: 'inclusionai', releaseDate: '2026-11-15', releasePrecision: 'day', releaseMs: NOW - 2 * DAY }),
+      ], '"md"'),
+      notModified('"md"'),
+    ])
+    const go = scripted(TREND_SOURCE_OPENCODE_GO, [
+      ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, price: { input: 0, output: 0 }, free: true, openWeights: false })]),
+      ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, price: { input: 0, output: 0 }, free: true, openWeights: false })]),
+    ])
+    const router = scripted(TREND_SOURCE_OPENROUTER, [
+      ok([orModel('inclusionai/ling-3.2-flash')]),
+      ok([orModel('inclusionai/ling-3.2-flash')]),
+    ])
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, router] })
+    const freeBefore = section(store, 'free-models').items
+    expect(freeBefore[0]).toMatchObject({ creator: 'tencent', releaseDate: '2026-11-16', openWeights: true })
+    store.writes = []
+    const result = await refreshTrendSections({ store, nowMs: NOW + HOUR, sources: [modelsDev, go, router] })
+    expect(result.newModels).toMatchObject({ written: false, count: 1 })
+    expect(result.freeModels).toMatchObject({ written: false, count: 1 })
+    expect(store.writes).toEqual([])
+    expect(section(store, 'free-models').items).toEqual(freeBefore)
+  })
+
   it('When 8 days pass and the upstreams return 304 Then drops out-of-window registrations', async () => {
     const store = new FakeStore()
     seedObservations(store)

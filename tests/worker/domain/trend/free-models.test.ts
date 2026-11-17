@@ -126,4 +126,31 @@ describe('Given the OpenCode Go free-models builder', () => {
     const payload = build({ goModels: null, previous })
     expect(payload.items.map((i) => i.id)).toEqual(['tencent/hy4-flash'])
   })
+
+  it('When models.dev is 304 (catalog=null) Then carries creator, releaseDate, precision, and openWeights from previous items', () => {
+    const previous = build({
+      goModels: [goRecord({ creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, openWeights: false })],
+      catalog: [{
+        ...goRecord(),
+        canonicalId: 'tencent/hy4-flash',
+        creator: 'tencent',
+        releaseDate: '2026-11-16',
+        releasePrecision: 'day',
+        releaseMs: NOW - DAY,
+        openWeights: true,
+      }],
+    })
+    const payload = build({
+      goModels: [goRecord({ creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, openWeights: false })],
+      catalog: null,
+      previous,
+    })
+    expect(payload.items[0]).toMatchObject({
+      id: 'tencent/hy4-flash',
+      creator: 'tencent',
+      releaseDate: '2026-11-16',
+      precision: 'day',
+      openWeights: true,
+    })
+  })
 })
