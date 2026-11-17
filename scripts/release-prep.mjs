@@ -38,6 +38,8 @@ export function releasePlan(version) {
       command: ['gh', 'pr', 'create', '-B', 'main', '-H', 'dev', '--title', message, '--body', `Release ${version}`],
       timeoutMs: 120_000,
     },
+    // Checks register a few seconds after PR creation; `gh pr checks --watch` fails fast with none.
+    { name: 'ci_registered', command: ['sh', '-c', 'for i in $(seq 1 12); do [ -n "$(gh pr checks 2>/dev/null)" ] && exit 0; sleep 5; done; exit 1'], timeoutMs: 120_000 },
     { name: 'ci_wait', command: ['gh', 'pr', 'checks', '--watch'], timeoutMs: 1_800_000 },
   ]
 }

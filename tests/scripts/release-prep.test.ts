@@ -93,6 +93,9 @@ describe('Given the release preparation script', () => {
       expect(result.steps.find((step) => step.name === 'typecheck_collector')).toBeUndefined()
       expect(result.steps.find((step) => step.name === 'build')).toBeUndefined()
       expect(result.steps.find((step) => step.name === 'ci_wait')).toMatchObject({ status: 'PLAN' })
+      const names = result.steps.map((step) => step.name)
+      expect(names.indexOf('ci_registered')).toBeGreaterThan(names.indexOf('pull_request'))
+      expect(names.indexOf('ci_registered')).toBeLessThan(names.indexOf('ci_wait'))
     } finally {
       rmSync(pkg.directory, { recursive: true, force: true })
     }
