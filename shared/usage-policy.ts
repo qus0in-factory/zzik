@@ -9,6 +9,7 @@ export function statusOf(percentage: number | null | undefined): PercentStatus |
   return percentage == null ? 'unknown' : getUsageStatus(percentage)
 }
 export const BAR_DANGER_THRESHOLD = { month: 95, default: 90 } as const
+export const BAR_DANGER_PACE_GAP = 5
 export function barLevelOf(
   used: number | null | undefined,
   elapsed: number | null | undefined,
@@ -18,8 +19,9 @@ export function barLevelOf(
   const dangerAt = summaryUnitOf({ id: '', cycleSeconds, usedPercent: null }) === 'month'
     ? BAR_DANGER_THRESHOLD.month
     : BAR_DANGER_THRESHOLD.default
-  if (used >= dangerAt) return 'danger'
-  if (typeof elapsed === 'number' && Number.isFinite(elapsed)) return used <= elapsed ? 'ok' : 'caution'
+  const hasElapsed = typeof elapsed === 'number' && Number.isFinite(elapsed)
+  if (used >= dangerAt || (hasElapsed && used - elapsed >= BAR_DANGER_PACE_GAP)) return 'danger'
+  if (hasElapsed) return used <= elapsed ? 'ok' : 'caution'
   return used >= 70 ? 'caution' : 'ok'
 }
 export function elapsedPercent(resetsAt: string | null, seconds: number | null, now: Date): number | null {

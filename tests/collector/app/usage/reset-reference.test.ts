@@ -8,7 +8,7 @@ const minute = 60_000
 function report(used: number, at: number, reset: number, weekly = true, expired = false): AlertReport {
   const id = weekly ? 'seven_day' : 'five_hour'
   return { provider: 'claude', nowMs: start + at * minute, primaryId: weekly ? id : null,
-    limits: [{ id, label: id, usedPercent: used, elapsedPercent: 42.4,
+    limits: [{ id, label: id, usedPercent: used, elapsedPercent: 51.4,
       cycleSeconds: weekly ? 604800 : 18000, resetsAt: new Date(start + reset * minute).toISOString(), expired }] }
 }
 function step(state: AlertState, next: AlertReport) {
@@ -28,7 +28,7 @@ function baseline(used = 80, reset = 2880, weekly = true) {
 describe('Given an early zero outside the two-poll reset tolerance', () => {
   it('When E1 weekly usage grows after a zero two days early Then the old boundary invents no reset or recovery', () => {
     let state = baseline()
-    for (const [used, at] of [[0, 15], [30, 60], [50, 120]] as const) {
+    for (const [used, at] of [[0, 15], [30, 60], [53, 120]] as const) {
       state = step(state, report(used, at, 10080)).state
     }
     const last = step(state, report(55, 2895, 10080))

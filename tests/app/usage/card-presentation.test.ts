@@ -16,7 +16,7 @@ describe('Given the gerbil display state (app 판정)', () => {
 
 describe('Given the card presentation', () => {
   it('When caution Then level, text and gerbil state come together', () => {
-    expect(cardPresentation({ usedPercent: 60, elapsedPercent: 20 }, null)).toEqual({
+    expect(cardPresentation({ usedPercent: 60, elapsedPercent: 57 }, null)).toEqual({
       barLevel: 'caution',
       barLevelText: '주의',
       gerbil: { mode: 'idle', lapSeconds: null },
@@ -26,7 +26,7 @@ describe('Given the card presentation', () => {
     expect(cardPresentation({ usedPercent: 0, elapsedPercent: 50 }, 0.6)).toMatchObject({ barLevel: 'neutral', gerbil: { mode: 'sleeping' } })
   })
   it('When month or week cycleSeconds is given Then applies window-specific danger threshold', () => {
-    expect(cardPresentation({ usedPercent: 92, elapsedPercent: 80, cycleSeconds: 30 * 86400 }, null)).toMatchObject({ barLevel: 'caution' })
+    expect(cardPresentation({ usedPercent: 92, elapsedPercent: 88, cycleSeconds: 30 * 86400 }, null)).toMatchObject({ barLevel: 'caution' })
     expect(cardPresentation({ usedPercent: 95, elapsedPercent: 98, cycleSeconds: 30 * 86400 }, null)).toMatchObject({ barLevel: 'danger' })
     expect(cardPresentation({ usedPercent: 90, elapsedPercent: 95, cycleSeconds: 7 * 86400 }, null)).toMatchObject({ barLevel: 'danger' })
   })
