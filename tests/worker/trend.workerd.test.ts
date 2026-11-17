@@ -36,6 +36,39 @@ const models = {
       },
     },
   },
+  'ollama-cloud': {
+    id: 'ollama-cloud',
+    models: {
+      'qwen4-max': {
+        id: 'qwen4-max',
+        name: 'Qwen4 Max',
+        release_date: '2026-11-05',
+        canonical_model_id: 'qwen/qwen4-max',
+        open_weights: true,
+      },
+    },
+  },
+}
+const zen = {
+  object: 'list',
+  data: [{
+    id: 'hy4-flash-free',
+    name: 'Hy4 Flash Free',
+    canonical_id: 'tencent/hy4-flash',
+    release_date: '2026-11-16',
+    open_weights: false,
+    cost: { text: { input: { price: 0 }, output: { price: 0 } } },
+  }],
+}
+const openrouter = {
+  data: [{
+    id: 'inclusionai/ling-3.2-flash:free',
+    name: 'Ling 3.2 Flash (free)',
+    created: 1_794_528_000,
+    pricing: { prompt: '0', completion: '0' },
+    hugging_face_id: null,
+    expiration_date: null,
+  }],
 }
 
 describe('Given the actual Worker trend cron and public route in workerd', () => {
@@ -48,12 +81,23 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
         resolveDir: fileURLToPath(new URL('../../', import.meta.url)),
         contents: `
           import { createWorker } from './worker/index.ts';
-          const fixture = ${JSON.stringify(models)};
-          const fakeFetch = async (_url, init) => {
-            const headers = init?.headers ?? {};
-            const inm = headers['If-None-Match'];
-            if (inm === '"v1"') return new Response(null, { status: 304, headers: { etag: '"v1"' } });
-            return new Response(JSON.stringify(fixture), { status: 200, headers: { etag: '"v1"', 'content-type': 'application/json' } });
+          const models = ${JSON.stringify(models)};
+          const zen = ${JSON.stringify(zen)};
+          const openrouter = ${JSON.stringify(openrouter)};
+          const json = (body, etag) => new Response(JSON.stringify(body), {
+            status: 200,
+            headers: etag === undefined ? {} : { etag, 'content-type': 'application/json' },
+          });
+          const fakeFetch = async (input, init) => {
+            const url = String(input);
+            const inm = new Headers(init?.headers).get('If-None-Match');
+            if (url.includes('models.dev')) {
+              if (inm === '"v1"') return new Response(null, { status: 304, headers: { etag: '"v1"' } });
+              return json(models, '"v1"');
+            }
+            if (url.includes('opencode.ai')) return json(zen);
+            if (url.includes('openrouter.ai')) return json(openrouter);
+            return new Response('not found', { status: 404 });
           };
           export default createWorker({ trendFetch: fakeFetch });
         `,
@@ -89,19 +133,28 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
 
   afterAll(async () => { await mf.dispose() })
 
-  it('When the trend cron fetches models.dev Then writes D1 and /pub returns the section with ETag and cache', async () => {
+  it('When the trend cron fetches all sources Then writes both sections and /pub serves them with ETag and cache', async () => {
     const worker = await mf.getWorker() as unknown as {
       scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
     }
     await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW })
 
     const sections = await db.prepare('SELECT section, payload, payload_sha256 AS sha, generated_at AS at FROM trend_section').all<{ section: string; payload: string; sha: string; at: number }>()
-    expect(sections.results).toHaveLength(1)
-    expect(sections.results[0]).toMatchObject({ section: 'new-models', sha: expect.stringMatching(/^[0-9a-f]{64}$/), at: NOW })
-    const seen = await db.prepare('SELECT canonical_id AS id, first_seen_at AS at FROM trend_model_seen').all<{ id: string; at: number }>()
-    expect(seen.results).toEqual([{ id: 'anthropic/claude-x', at: NOW }])
-    const state = await db.prepare('SELECT etag, ok, http_status AS status FROM trend_source_state WHERE source = ?').bind('models.dev').all<{ etag: string; ok: number; status: number }>()
-    expect(state.results[0]).toMatchObject({ etag: '"v1"', ok: 1, status: 200 })
+    const sectionRows = sections.results as Array<{ section: string; payload: string; sha: string; at: number }>
+    expect(sectionRows.map((row) => row.section).sort()).toEqual(['free-models', 'new-models'])
+    expect(sectionRows.every((row) => /^[0-9a-f]{64}$/.test(row.sha) && row.at === NOW)).toBe(true)
+
+    const seen = await db.prepare('SELECT canonical_id AS id, first_seen_at AS at FROM trend_model_seen ORDER BY canonical_id').all<{ id: string; at: number }>()
+    expect(seen.results).toEqual([
+      { id: 'anthropic/claude-x', at: NOW },
+      { id: 'qwen/qwen4-max', at: NOW },
+    ])
+    const states = await db.prepare('SELECT source, etag, ok, http_status AS status FROM trend_source_state ORDER BY source').all<{ source: string; etag: string | null; ok: number; status: number }>()
+    expect(states.results).toEqual([
+      { source: 'models.dev', etag: '"v1"', ok: 1, status: 200 },
+      { source: 'opencode-zen', etag: null, ok: 1, status: 200 },
+      { source: 'openrouter', etag: null, ok: 1, status: 200 },
+    ])
 
     const response = await mf.dispatchFetch('http://localhost/pub/trend/new-models')
     expect(response.status).toBe(200)
@@ -109,30 +162,53 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(response.headers.get('ETag')).toMatch(/^"[0-9a-f]{64}"$/)
     const body = await response.json() as { section: string; items: Array<{ id: string; providers: string[] }> }
     expect(body.section).toBe('new-models')
-    expect(body.items).toEqual([expect.objectContaining({ id: 'anthropic/claude-x', providers: ['anthropic', 'reseller'] })])
+    expect(body.items).toEqual([
+      expect.objectContaining({ id: 'anthropic/claude-x', providers: ['anthropic', 'reseller'] }),
+      expect.objectContaining({ id: 'qwen/qwen4-max', providers: ['ollama-cloud'] }),
+    ])
+
+    const free = await mf.dispatchFetch('http://localhost/pub/trend/free-models')
+    expect(free.status).toBe(200)
+    expect(free.headers.get('ETag')).toMatch(/^"[0-9a-f]{64}"$/)
+    const freeText = await free.text()
+    expect(freeText).not.toContain('sourceItems')
+    expect(freeText).not.toContain('extra')
+    const freeBody = JSON.parse(freeText) as { items: Array<{ id: string; freeKind: string; price: unknown }>; sources: Array<{ id: string; status: string }> }
+    expect(freeBody.items).toEqual([
+      expect.objectContaining({ id: 'tencent/hy4-flash', freeKind: 'hosted', price: { input: 0, output: 0 } }),
+      expect.objectContaining({ id: 'inclusionai/ling-3.2-flash', freeKind: 'hosted' }),
+      expect.objectContaining({ id: 'qwen/qwen4-max', freeKind: 'local', price: null }),
+    ])
+    expect(freeBody.sources.map((source) => source.id)).toEqual(['models.dev', 'opencode-zen', 'openrouter'])
 
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
     expect(index.status).toBe(200)
-    expect(await index.json()).toMatchObject({ sections: [{ id: 'new-models', count: 1, status: 'ok' }] })
+    const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
+    expect(indexBody.sections).toEqual(expect.arrayContaining([
+      { id: 'new-models', count: 2, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
+      { id: 'free-models', count: 3, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
+    ]))
 
     const notModified = await mf.dispatchFetch('http://localhost/pub/trend/new-models', { headers: { 'If-None-Match': response.headers.get('ETag')! } })
     expect(notModified.status).toBe(304)
     expect(await notModified.text()).toBe('')
+    const freeNotModified = await mf.dispatchFetch('http://localhost/pub/trend/free-models', { headers: { 'If-None-Match': free.headers.get('ETag')! } })
+    expect(freeNotModified.status).toBe(304)
   })
 
-  it('When the next trend cron gets 304 Then keeps the section and records the 304 source state', async () => {
+  it('When the next trend cron gets 304 from models.dev Then keeps section hashes and records each source state', async () => {
     const worker = await mf.getWorker() as unknown as {
       scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
     }
-    const before = await db.prepare('SELECT payload_sha256 AS sha FROM trend_section WHERE section = ?').bind('new-models').all<{ sha: string }>()
+    const before = await db.prepare('SELECT section, payload_sha256 AS sha FROM trend_section ORDER BY section').all<{ section: string; sha: string }>()
     await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW + 7_200_000 })
-    const after = await db.prepare('SELECT payload_sha256 AS sha FROM trend_section WHERE section = ?').bind('new-models').all<{ sha: string }>()
-    expect(after.results[0]?.sha).toBe(before.results[0]?.sha)
+    const after = await db.prepare('SELECT section, payload_sha256 AS sha FROM trend_section ORDER BY section').all<{ section: string; sha: string }>()
+    expect(after.results).toEqual(before.results)
     const state = await db.prepare('SELECT http_status AS status FROM trend_source_state WHERE source = ?').bind('models.dev').all<{ status: number }>()
     expect(state.results[0]?.status).toBe(304)
   })
 
-  it('When 8 days pass and the cron still gets 304 Then the public section re-evaluates and drops the expired item', async () => {
+  it('When 8 days pass and models.dev still returns 304 Then re-evaluates both sections at the new time', async () => {
     const worker = await mf.getWorker() as unknown as {
       scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
     }
@@ -143,7 +219,18 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     const body = await response.json() as { items: unknown[]; generatedAt: string }
     expect(body.items).toEqual([])
     expect(body.generatedAt).toBe(new Date(NOW + 8 * 86_400_000).toISOString())
+
+    // free-models의 30일 창은 아직 유효하므로 세 항목이 유지된다.
+    const free = await mf.dispatchFetch('http://localhost/pub/trend/free-models')
+    const freeBody = await free.json() as { items: unknown[] }
+    expect(freeBody.items).toHaveLength(3)
+
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
-    expect(await index.json()).toMatchObject({ sections: [{ id: 'new-models', count: 0, status: 'ok' }] })
+    const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
+    expect(indexBody.sections).toEqual(expect.arrayContaining([
+      { id: 'new-models', count: 0, generatedAt: new Date(NOW + 8 * 86_400_000).toISOString(), status: 'ok' },
+      // free-models는 내용이 그대로라 마지막 변경 시각을 유지한다.
+      expect.objectContaining({ id: 'free-models', count: 3, status: 'ok' }),
+    ]))
   })
 })
