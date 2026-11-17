@@ -15,8 +15,8 @@ import { D1BucketStore, D1BucketWriterStore } from './infra/usage/d1-bucket-stor
 import { resolveUsageReadStore } from './infra/usage/read-store'
 import { USAGE_HISTORY_SCAN_VERSION } from '../shared/usage-history-contract'
 import { D1TrendStore } from './infra/trend/d1-trend-store'
-import { createModelsDevSource } from './infra/trend/http-sources'
-import { refreshTrend } from './app/trend/refresh-trend'
+import { createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
+import { refreshTrendSections } from './app/trend/refresh-trend'
 
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>
   new JoseAccessVerifier(config, remoteAccessKeys(config.issuer))
@@ -62,12 +62,19 @@ export function createWorker(deps: {
       if (kind === 'trend') {
         if (env.DB === undefined) return
         try {
-          const result = await refreshTrend({
+          const fetchImpl = deps.trendFetch ?? globalThis.fetch
+          const result = await refreshTrendSections({
             store: new D1TrendStore(env.DB),
-            source: createModelsDevSource({ fetchImpl: deps.trendFetch ?? globalThis.fetch }),
+            sources: [
+              createModelsDevSource({ fetchImpl }),
+              createZenSource({ fetchImpl }),
+              createOpenRouterSource({ fetchImpl }),
+            ],
             nowMs,
           })
-          if (!result.ok) console.error('trend_refresh_failed:models.dev')
+          for (const [source, status] of Object.entries(result.sources)) {
+            if (status === 'stale') console.error(`trend_refresh_failed:${source}`)
+          }
         } catch {
           console.error('trend_refresh_failed:unexpected')
         }

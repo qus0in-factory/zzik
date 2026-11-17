@@ -8,6 +8,7 @@ import type { TrendItem, TrendPrice, TrendSection, TrendSectionPayload, TrendSou
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const isPrecision = (value: unknown): value is TrendItem['precision'] => value === 'day' || value === 'month' || value === 'unknown'
 const isStatus = (value: unknown): value is TrendSourceState['status'] => value === 'ok' || value === 'stale'
+const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'hosted' || value === 'local'
 
 /** @returns 유효하면 가격, 없으면 null, 구조가 잘못됐으면 undefined */
 function projectPrice(value: unknown): TrendPrice | null | undefined {
@@ -40,7 +41,12 @@ function projectItem(value: unknown): TrendItem | null {
   if (price === undefined) return null
   const links = projectLinks(value.links)
   if (links === null) return null
-  return { id, name, creator, releaseDate, precision, price, free, openWeights, providers: [...providers], links }
+  const freeKind = value.freeKind
+  if (freeKind !== undefined && !isFreeKind(freeKind)) return null
+  return {
+    id, name, creator, releaseDate, precision, price, free, openWeights, providers: [...providers], links,
+    ...(freeKind === undefined ? {} : { freeKind }),
+  }
 }
 
 function projectSources(value: unknown): TrendSourceState[] | null {

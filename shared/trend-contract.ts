@@ -7,10 +7,17 @@ export const TREND_SECTION_MAX_BYTES = 100_000
 export const TREND_NEW_MODELS_WINDOW_MS = 7 * 86_400_000
 export const TREND_NEW_MODELS_RELEASE_MAX_MS = 30 * 86_400_000
 export const TREND_NEW_MODELS_RULE = 'release-or-first-seen-7d'
+export const TREND_FREE_MODELS_WINDOW_MS = 30 * 86_400_000
+export const TREND_FREE_MODELS_RULE = 'hosted-free-or-local-30d'
 export const TREND_SOURCE_MODELS_DEV = 'models.dev'
+export const TREND_SOURCE_OPENCODE_ZEN = 'opencode-zen'
+export const TREND_SOURCE_OPENROUTER = 'openrouter'
 export const TREND_MODELS_DEV_URL = 'https://models.dev/api.json'
+export const TREND_ZEN_MODELS_URL = 'https://opencode.ai/zen/v1/models'
+export const TREND_OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
 
 export type TrendPrecision = 'day' | 'month' | 'unknown'
+export type TrendFreeKind = 'hosted' | 'local'
 
 export interface TrendPrice {
   input: number
@@ -29,6 +36,8 @@ export interface TrendItem {
   openWeights: boolean
   providers: string[]
   links: { modelsDev?: string; openrouter?: string; opencode?: string }
+  /** free-models 전용: 호스팅 무료 또는 로컬 실행 가능 하위 그룹 */
+  freeKind?: 'hosted' | 'local'
   extra?: Record<string, string | number | boolean>
 }
 

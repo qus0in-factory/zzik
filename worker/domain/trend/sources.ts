@@ -18,6 +18,8 @@ export interface TrendModelRecord {
   free: boolean
   openWeights: boolean
   status: string | null
+  /** OpenRouter expiration_date 등 만료 시각(ms). 없으면 null. */
+  expiresAtMs?: number | null
 }
 
 export type DecodeModelsDevResult =
@@ -30,7 +32,7 @@ interface Release {
   ms: number | null
 }
 
-function parseRelease(value: unknown): Release {
+export function parseRelease(value: unknown): Release {
   if (typeof value !== 'string') return { date: null, precision: 'unknown', ms: null }
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
   if (day !== null) {
@@ -59,6 +61,29 @@ function parseCost(value: unknown): TrendPrice | null {
 function creatorOf(canonicalId: string, provider: string): string {
   const slash = canonicalId.indexOf('/')
   return slash > 0 ? canonicalId.slice(0, slash) : provider
+}
+
+function parseNumber(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+/** OpenRouter 가격은 토큰당 USD 문자열이다. 계약 단위(1M 토큰)로 환산한다. */
+function perMillion(value: unknown): number | null {
+  const perToken = parseNumber(value)
+  if (perToken === null || perToken < 0) return null
+  return Number((perToken * 1_000_000).toFixed(6))
+}
+
+function fromUnixSeconds(value: unknown): Release {
+  const seconds = parseNumber(value)
+  if (seconds === null || seconds < 0) return { date: null, precision: 'unknown', ms: null }
+  const ms = Math.trunc(seconds * 1000)
+  return { date: new Date(ms).toISOString().slice(0, 10), precision: 'day', ms }
 }
 
 export function decodeModelsDev(input: unknown): DecodeModelsDevResult {
@@ -117,4 +142,82 @@ export interface TrendSourceFailure {
 export interface TrendSource {
   id: string
   fetch(etag: string | null): Promise<TrendSourceFetchResult | TrendSourceFailure>
+}
+
+
+/**
+ * OpenCode Zen `/zen/v1/models`: `{object:'list', data:[...]}`.
+ * 무료 판정은 `cost.text.input.price == 0 && output.price == 0`이다.
+ */
+export function decodeZenModels(input: unknown): DecodeModelsDevResult {
+  if (!isRecord(input) || !Array.isArray(input.data)) return { ok: false, reason: 'invalid_source' }
+  const records: TrendModelRecord[] = []
+  for (const raw of input.data) {
+    if (!isRecord(raw)) continue
+    const modelId = typeof raw.id === 'string' && raw.id !== '' ? raw.id : ''
+    if (modelId === '') continue
+    const canonical = typeof raw.canonical_id === 'string' && raw.canonical_id !== '' ? raw.canonical_id : modelId
+    const release = parseRelease(raw.release_date)
+    const cost = isRecord(raw.cost) && isRecord(raw.cost.text) ? raw.cost.text : null
+    // Zen 가격은 이미 USD/1M 토큰 단위다.
+    const inputPrice = cost !== null && isRecord(cost.input) ? parseNumber(cost.input.price) : null
+    const outputPrice = cost !== null && isRecord(cost.output) ? parseNumber(cost.output.price) : null
+    const price = inputPrice !== null && outputPrice !== null ? { input: inputPrice, output: outputPrice } : null
+    records.push({
+      canonicalId: canonical,
+      provider: 'opencode',
+      modelId,
+      name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : modelId,
+      creator: creatorOf(canonical, 'opencode'),
+      releaseDate: release.date,
+      releasePrecision: release.precision,
+      releaseMs: release.ms,
+      price,
+      free: price !== null && price.input === 0 && price.output === 0,
+      openWeights: raw.open_weights === true,
+      status: raw.deprecated === true ? 'deprecated' : null,
+      expiresAtMs: null,
+    })
+  }
+  if (input.data.length > 0 && records.length === 0) return { ok: false, reason: 'invalid_source' }
+  return { ok: true, value: records }
+}
+
+/**
+ * OpenRouter `/api/v1/models`: `{data:[...]}`. 무료 판정은 `:free` 접미 또는 가격 0이다.
+ * `created`는 출시일이 아니라 OpenRouter 등록일이므로 그대로 precision:'day'로 쓴다.
+ */
+export function decodeOpenRouterModels(input: unknown): DecodeModelsDevResult {
+  if (!isRecord(input) || !Array.isArray(input.data)) return { ok: false, reason: 'invalid_source' }
+  const records: TrendModelRecord[] = []
+  for (const raw of input.data) {
+    if (!isRecord(raw)) continue
+    const modelId = typeof raw.id === 'string' && raw.id !== '' ? raw.id : ''
+    if (modelId === '') continue
+    const canonical = modelId.replace(/:free$/, '')
+    const release = fromUnixSeconds(raw.created)
+    const pricing = isRecord(raw.pricing) ? raw.pricing : null
+    const prompt = pricing === null ? null : perMillion(pricing.prompt)
+    const completion = pricing === null ? null : perMillion(pricing.completion)
+    const price = prompt !== null && completion !== null ? { input: prompt, output: completion } : null
+    const free = modelId.endsWith(':free') || (prompt === 0 && completion === 0)
+    const expires = parseRelease(raw.expiration_date)
+    records.push({
+      canonicalId: canonical,
+      provider: 'openrouter',
+      modelId,
+      name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : modelId,
+      creator: creatorOf(canonical, 'openrouter'),
+      releaseDate: release.date,
+      releasePrecision: release.precision,
+      releaseMs: release.ms,
+      price,
+      free,
+      openWeights: typeof raw.hugging_face_id === 'string' && raw.hugging_face_id !== '',
+      status: null,
+      expiresAtMs: expires.ms,
+    })
+  }
+  if (input.data.length > 0 && records.length === 0) return { ok: false, reason: 'invalid_source' }
+  return { ok: true, value: records }
 }
