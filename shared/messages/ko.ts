@@ -7,6 +7,10 @@
 export const ko = {
   // 앱·섹션
   'app.title': 'Zzik : AI 사용량 대시보드',
+  'nav.aria': '주요 화면',
+  'nav.usage': '사용량',
+  'nav.trend': '트렌드',
+  'trend.empty': '트렌드 화면은 아직 준비 중입니다.',
   'section.ariaLabel.default': '사용량',
   'section.metrics.model': '모델·기능별 한도',
   'section.metrics.extra': '추가 한도',

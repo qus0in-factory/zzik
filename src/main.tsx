@@ -5,7 +5,8 @@ import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import ky from 'ky'
 import { parseFixtureUsageName } from '@domain/usage/fixture-name'
-import App from '@ui/App'
+import { BrowserRouter } from 'react-router'
+import { AppRoutes } from '@ui/AppRoutes'
 import { createAppQueryClient } from '@app/query-client'
 import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
 import { ProviderOrderProvider } from '@app/usage/ProviderOrderContext'
@@ -111,7 +112,9 @@ async function start(): Promise<void> {
           <ProviderOrderProvider store={orderStore}>
             <ViewModeProvider store={viewModeStore}>
               <HistoryDepsProvider deps={historyDeps}>
-                <App />
+                <BrowserRouter>
+                  <AppRoutes />
+                </BrowserRouter>
               </HistoryDepsProvider>
             </ViewModeProvider>
           </ProviderOrderProvider>

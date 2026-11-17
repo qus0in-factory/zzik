@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import App from '@ui/App'
 import { PaceChips } from '@ui/usage/PaceChips'
 import { ProviderOrderProvider } from '@app/usage/ProviderOrderContext'
@@ -48,7 +49,9 @@ function renderApp(saved: unknown[] | null = null) {
   render(
     <providers.wrapper>
       <ProviderOrderProvider store={store}>
-        <App />
+        <MemoryRouter initialEntries={['/usage']}>
+          <App />
+        </MemoryRouter>
       </ProviderOrderProvider>
     </providers.wrapper>,
   )
