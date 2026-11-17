@@ -14,6 +14,7 @@ async function all<T>(db: D1DatabaseLike, query: string, params: readonly unknow
 
 /** D1 batch가 있으면 원자적으로, 없으면(테스트 더블) 순차 실행한다. */
 async function runStatements(db: D1DatabaseLike, statements: D1PreparedStatementLike[]): Promise<void> {
+  if (statements.length === 0) return
   const batch = (db as D1BatchDatabaseLike).batch
   if (batch !== undefined) {
     const results = await batch.call(db, statements)

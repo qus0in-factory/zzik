@@ -104,6 +104,13 @@ describe('Given the D1 metrics store batch replacement', () => {
     expect(db.individualRuns).toBe(3)
   })
 
+  it('When there are no OR rows Then skips the batch instead of calling it with an empty list', async () => {
+    const db = new FakeDb()
+    await new D1MetricsStore(db as unknown as D1DatabaseLike).writeOrRanking([], '2026-11-17T04:00:00Z', {})
+    expect(db.batches).toHaveLength(0)
+    expect(db.individualRuns).toBe(0)
+  })
+
   it('When pruning Then both deletes run in one batch', async () => {
     const db = new FakeDb()
     await new D1MetricsStore(db as unknown as D1DatabaseLike).prune('2026-08-19', '2026-09-18')
