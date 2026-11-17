@@ -17,4 +17,4 @@ export function createAgyLane(run){
 }
 
 /** @param {'quota'|'models'} kind @param {string} path @param {boolean} enabled */
-export function agyCliOptions(kind,path,enabled){return kind==='models'?{path,enabled,args:['models'],timeoutMs:5000}:{path,enabled,args:['-p','/quota']}}
+export function agyCliOptions(kind,path,enabled){return kind==='models'?{path,enabled,args:['models'],timeoutMs:5000,waitForCloseOnKill:true}:{path,enabled,args:['-p','/quota']}}
