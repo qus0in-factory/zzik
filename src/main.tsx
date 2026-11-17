@@ -6,6 +6,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import ky from 'ky'
 import { parseFixtureUsageName } from '@domain/usage/fixture-name'
 import { BrowserRouter } from 'react-router'
+import { TrendGatewayProvider } from '@app/trend/TrendGatewayContext'
+import { createHttpTrendGateway } from '@infra/trend/http-trend-gateway'
 import { AppRoutes } from '@ui/AppRoutes'
 import { createAppQueryClient } from '@app/query-client'
 import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
@@ -31,6 +33,7 @@ import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 // - 프로덕션: 실 게이트웨이(HttpUsageGateway → /api/usage, ky 인스턴스 주입).
 // - 개발(dev 빌드에서 ?fixture= 지정): 목 게이트웨이 + Zustand 픽스처 선택 상태.
 const queryClient = createAppQueryClient()
+const trendGateway = createHttpTrendGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 }), '/pub/trend')
 const devFixtureRequested = import.meta.env.DEV && new URLSearchParams(window.location.search).has('fixture')
 
 // 제공자 순서는 zustand 스토어(app)가 들고, 브라우저별 localStorage 저장은 infra 어댑터를 여기서 주입한다.
@@ -112,9 +115,11 @@ async function start(): Promise<void> {
           <ProviderOrderProvider store={orderStore}>
             <ViewModeProvider store={viewModeStore}>
               <HistoryDepsProvider deps={historyDeps}>
-                <BrowserRouter>
-                  <AppRoutes />
-                </BrowserRouter>
+                <TrendGatewayProvider deps={{ gateway: trendGateway, enabled: true }}>
+                  <BrowserRouter>
+                    <AppRoutes />
+                  </BrowserRouter>
+                </TrendGatewayProvider>
               </HistoryDepsProvider>
             </ViewModeProvider>
           </ProviderOrderProvider>

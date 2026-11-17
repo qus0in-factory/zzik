@@ -1,0 +1,47 @@
+{
+  "section": "new-models",
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-17T00:00:00.000Z",
+  "rule": "release-or-first-seen-7d",
+  "sources": [
+    { "id": "models.dev", "fetchedAt": "2026-11-17T00:00:00.000Z", "status": "ok" }
+  ],
+  "items": [
+    {
+      "id": "anthropic/claude-fable-5-2",
+      "name": "Claude Fable 5.2",
+      "creator": "anthropic",
+      "releaseDate": "2026-11-16",
+      "precision": "day",
+      "price": { "input": 3, "output": 15 },
+      "free": false,
+      "openWeights": false,
+      "providers": ["anthropic", "openrouter"],
+      "links": {}
+    },
+    {
+      "id": "qwen/qwen4-max",
+      "name": "Qwen4 Max",
+      "creator": "qwen",
+      "releaseDate": "2026-11-16",
+      "precision": "day",
+      "price": { "input": 0, "output": 0 },
+      "free": true,
+      "openWeights": true,
+      "providers": ["ollama-cloud", "opencode"],
+      "links": {}
+    },
+    {
+      "id": "tencent/hy4-flash",
+      "name": "HY4 Flash",
+      "creator": "tencent",
+      "releaseDate": "2026-11-15",
+      "precision": "day",
+      "price": { "input": 0.1, "output": 0.4 },
+      "free": false,
+      "openWeights": true,
+      "providers": ["openrouter"],
+      "links": {}
+    }
+  ]
+}
