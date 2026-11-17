@@ -28,7 +28,7 @@ async function createLivePorts({directory,checkpointPath,env,transport='rest',da
   const spool=openedSpool.value;ownSpool=spool
   const reader=createPgBackfillSource({query:async(sql,params)=>({rows:await connection.unsafe(sql,/** @type {any} */(params??[]))})})
   /** @type {Promise<import('../shared/d1-contract.ts').D1Result<import('../collector/domain/usage/d1-backfill-types.ts').BackfillInput>>|null} */let prepared=null
-  const query=transport==='wrangler'?createWranglerD1Query({directory,database}):createD1RestClient({mode:'d1',dryRun:false,control:createD1ControlFile({path:join(directory,'backfill-rest-control.json')}),accountId:/** @type {string} */(env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(env.ZZIK_D1_DATABASE_ID),token:/** @type {string} */(env.ZZIK_D1_API_TOKEN),clock:{now:()=>Date.now()},wait:ms=>new Promise(r=>setTimeout(r,ms)),fetch:globalThis.fetch})
+  const query=transport==='wrangler'?createWranglerD1Query({directory,database,env}):createD1RestClient({mode:'d1',dryRun:false,control:createD1ControlFile({path:join(directory,'backfill-rest-control.json')}),accountId:/** @type {string} */(env.ZZIK_D1_ACCOUNT_ID),databaseId:/** @type {string} */(env.ZZIK_D1_DATABASE_ID),token:/** @type {string} */(env.ZZIK_D1_API_TOKEN),clock:{now:()=>Date.now()},wait:ms=>new Promise(r=>setTimeout(r,ms)),fetch:globalThis.fetch})
   return {ok:true,value:{
    source:{read(){prepared??=(async()=>{
     let envelopeBytes=0,maxStatementBytes=0
