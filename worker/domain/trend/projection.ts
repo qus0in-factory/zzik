@@ -4,7 +4,7 @@
  */
 import { TREND_SECTIONS } from '../../../shared/trend-contract'
 import type {
-  TrendItem, TrendMetricsBlock, TrendMetricsEntry, TrendMetricsNote, TrendPrice,
+  TrendItem, TrendMetricsBlock, TrendMetricsEntry, TrendMetricsLicense, TrendMetricsMeta, TrendMetricsNote, TrendPrice,
   TrendSection, TrendSectionPayload, TrendSourceState,
 } from '../../../shared/trend-contract'
 
@@ -12,9 +12,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isPrecision = (value: unknown): value is TrendItem['precision'] => value === 'day' || value === 'month' || value === 'unknown'
 const isStatus = (value: unknown): value is TrendSourceState['status'] => value === 'ok' || value === 'stale'
 const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'hosted' || value === 'local'
-const isBlockStatus = (value: unknown): value is TrendMetricsBlock['status'] => value === 'ok' || value === 'stale' || value === 'not_configured'
+const isBlockStatus = (value: unknown): value is TrendMetricsBlock['status'] => value === 'ok' || value === 'stale' || value === 'not_configured' || value === 'under_review'
 const isMetricsKind = (value: unknown): value is TrendMetricsEntry['kind'] => value === 'new-top' || value === 'moved' || value === 'steady'
-const isMetricsNote = (value: unknown): value is TrendMetricsNote => value === 'baseline' || value === 'version_changed' || value === 'source_failed'
+const isMetricsNote = (value: unknown): value is TrendMetricsNote => value === 'baseline' || value === 'version_changed' || value === 'source_failed' || value === 'terms_review'
 
 /** @returns 유효하면 가격, 없으면 null, 구조가 잘못됐으면 undefined */
 function projectPrice(value: unknown): TrendPrice | null | undefined {
@@ -91,19 +91,60 @@ function projectMetricsEntry(value: unknown): TrendMetricsEntry | null {
   return entry
 }
 
+function projectMetricsMeta(value: unknown): TrendMetricsMeta | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const meta: TrendMetricsMeta = {}
+  if (value.version !== undefined) {
+    if (typeof value.version !== 'string') return null
+    meta.version = value.version
+  }
+  if (value.startDate !== undefined) {
+    if (typeof value.startDate !== 'string') return null
+    meta.startDate = value.startDate
+  }
+  if (value.endDate !== undefined) {
+    if (typeof value.endDate !== 'string') return null
+    meta.endDate = value.endDate
+  }
+  return meta
+}
+
+function projectMetricsLicense(value: unknown): TrendMetricsLicense | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  if (typeof value.name !== 'string' || value.name === '') return null
+  if (typeof value.url !== 'string' || !value.url.startsWith('https://')) return null
+  return { name: value.name, url: value.url }
+}
+
 function projectMetricsBlock(value: unknown): TrendMetricsBlock | null {
   if (!isRecord(value)) return null
   const { id, status, asOf, entries, attribution } = value
   if (id !== 'aa-intelligence' && id !== 'or-usage') return null
   if (!isBlockStatus(status) || typeof asOf !== 'string' || typeof attribution !== 'string' || !Array.isArray(entries)) return null
   const block: TrendMetricsBlock = { id, status, asOf, entries: [], attribution }
+  if (value.asOfKind !== undefined) {
+    if (value.asOfKind !== 'source' && value.asOfKind !== 'fetched') return null
+    block.asOfKind = value.asOfKind
+  }
   if (value.version !== undefined) {
     if (typeof value.version !== 'string') return null
     block.version = value.version
   }
+  const meta = projectMetricsMeta(value.meta)
+  if (meta === null) return null
+  if (meta !== undefined) block.meta = meta
   if (value.note !== undefined) {
     if (!isMetricsNote(value.note)) return null
     block.note = value.note
+  }
+  const license = projectMetricsLicense(value.license)
+  if (license === null) return null
+  if (license !== undefined) block.license = license
+  if (value.processed !== undefined) {
+    if (typeof value.processed !== 'boolean') return null
+    block.processed = value.processed
   }
   for (const entry of entries) {
     const projected = projectMetricsEntry(entry)

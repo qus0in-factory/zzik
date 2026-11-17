@@ -66,6 +66,7 @@ export function createWorker(deps: {
         store: new D1SnapshotStore(available),
         buckets: available === null || generation === null ? null : new D1BucketStore(available, {dataGeneration:generation}),
         trend: env.DB === undefined ? null : new D1TrendStore(env.DB),
+        trendAaPublic: env.TREND_AA_PUBLIC === '1',
         assets: env.ASSETS,
       }).fetch(request)
     },
@@ -97,10 +98,6 @@ export function createWorker(deps: {
         if (env.DB === undefined) return
         const aaKey = env.AA_API_KEY?.trim() ?? ''
         const orKey = env.OR_API_KEY?.trim() ?? ''
-        if (aaKey === '' && orKey === '') {
-          console.log('trend_metrics:skipped_not_configured')
-          return
-        }
         try {
           const fetchImpl = deps.trendFetch ?? globalThis.fetch
           const result = await refreshMetrics({

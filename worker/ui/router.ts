@@ -16,6 +16,8 @@ export interface RouterDependencies {
   buckets?: BucketStore | null
   store: SnapshotStore
   trend?: TrendStore | null
+  /** AA 점수 공개 여부. false(기본)면 metrics AA 블록을 약관 확인 중으로 숨긴다. */
+  trendAaPublic?: boolean
   assets: { fetch(request: Request): Promise<Response> }
 }
 export function createRouter(deps: RouterDependencies) {
@@ -33,7 +35,7 @@ export function createRouter(deps: RouterDependencies) {
     if (!auth.ok) return respond({ error: auth.reason === 'unavailable' ? 'jwks_unavailable' : 'unauthorized' }, auth.reason === 'unavailable' ? 503 : 401)
     await next()
   })
-  app.route('/pub/trend', createTrendRoute(deps.trend ?? null))
+  app.route('/pub/trend', createTrendRoute(deps.trend ?? null, { aaPublic: deps.trendAaPublic === true }))
   if(deps.history) app.route('/api/usage-history', createUsageHistoryRoute(deps.history, deps.buckets ?? null))
   app.route('/api/usage', createUsageRoute(deps.store))
   app.notFound(() => respond({ error: 'not_found' }, 404))

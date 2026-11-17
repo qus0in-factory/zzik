@@ -20,7 +20,15 @@ async function applyMigrations(db: Awaited<ReturnType<Miniflare['getD1Database']
   }
 }
 
-async function createBundle(contents: string): Promise<Miniflare> {
+let workerSeq = 0
+
+async function createBundle(
+  contents: string,
+  options: { keys?: boolean; aaPublic?: '0' | '1' } = {},
+): Promise<Miniflare> {
+  workerSeq += 1
+  const keys = options.keys ?? true
+  const aaPublic = options.aaPublic ?? '1'
   const bundle = await build({
     stdin: {
       resolveDir: fileURLToPath(new URL('../../', import.meta.url)),
@@ -40,14 +48,14 @@ async function createBundle(contents: string): Promise<Miniflare> {
   return new Miniflare({
     workers: [{
       config: {
-        name: 'zzik-metrics-test',
+        name: `zzik-metrics-test-${workerSeq}`,
         compatibilityDate: '2026-11-11',
         compatibilityFlags: ['nodejs_compat'],
         triggers: [{ type: 'scheduled', schedule: METRICS_CRON }],
         env: {
-          DB: { type: 'd1', id: 'zzik-metrics-test' },
-          AA_API_KEY: { type: 'text', value: 'aa-secret' },
-          OR_API_KEY: { type: 'text', value: 'or-secret' },
+          DB: { type: 'd1', id: `zzik-metrics-test-${workerSeq}` },
+          ...(keys ? { AA_API_KEY: { type: 'text', value: 'aa-secret' }, OR_API_KEY: { type: 'text', value: 'or-secret' } } : {}),
+          TREND_AA_PUBLIC: { type: 'text', value: aaPublic },
         },
         manifest: { mainModule: 'probe.mjs', modules: { 'probe.mjs': { type: 'esm', contents: bundle.outputFiles[0]!.text } } },
       },
@@ -101,7 +109,7 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
         return new Response('not found', { status: 404 });
       };
       export default createWorker({ trendFetch: fakeFetch });
-    `)
+    `, { keys: true, aaPublic: '1' })
     db = await mf.getD1Database('DB')
     await applyMigrations(db)
     await db.prepare(
@@ -164,7 +172,7 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
     const mf2 = await createBundle(`
       import { createWorker } from './worker/index.ts';
       export default createWorker({ trendFetch: async () => { throw new Error('network must not be called'); } });
-    `)
+    `, { keys: false })
     try {
       const db2 = await mf2.getD1Database('DB')
       await applyMigrations(db2)
@@ -179,6 +187,96 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
       expect(response.headers.get('Cache-Control')).toBe('no-store')
     } finally {
       await mf2.dispose()
+    }
+  })
+
+  it('When keys are removed after a good run Then the existing metrics payload becomes not_configured without network', async () => {
+    const mf3 = await createBundle(`
+      import { createWorker } from './worker/index.ts';
+      export default createWorker({ trendFetch: async () => { throw new Error('network must not be called'); } });
+    `, { keys: false })
+    try {
+      const db3 = await mf3.getD1Database('DB')
+      await applyMigrations(db3)
+      const prior = {
+        section: 'metrics',
+        schemaVersion: 1,
+        generatedAt: new Date(NOW).toISOString(),
+        rule: 'aa-intelligence-and-or-usage-v1',
+        sources: [
+          { id: 'artificial-analysis', fetchedAt: new Date(NOW).toISOString(), status: 'ok' },
+          { id: 'openrouter-rankings', fetchedAt: new Date(NOW).toISOString(), status: 'ok' },
+        ],
+        items: [],
+        blocks: [
+          { id: 'aa-intelligence', status: 'ok', asOf: '2026-11-17', version: '3.0', entries: [{ id: 'a/x', name: 'A X', creator: 'A', rank: 1, rankDelta: null, kind: 'steady', index: 90 }], attribution: 'AA' },
+          { id: 'or-usage', status: 'ok', asOf: '2026-11-17T04:00:00Z', entries: [{ id: 'a/x', name: 'a/x', creator: 'a', rank: 1, rankDelta: null, kind: 'steady', share7d: 0.6 }], attribution: 'OR', license: { name: 'CC BY 4.0', url: 'https://creativecommons.org/licenses/by/4.0/' }, processed: true },
+        ],
+      }
+      const text = JSON.stringify(prior)
+      const sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+      await db3.prepare(
+        'INSERT INTO trend_section (section, schema_version, generated_at, payload, payload_sha256) VALUES (?, ?, ?, ?, ?)',
+      ).bind('metrics', 1, NOW, text, sha).run()
+      const worker = await mf3.getWorker() as unknown as {
+        scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
+      }
+      await worker.scheduled({ cron: METRICS_CRON, scheduledTime: NOW + 86_400_000 })
+      const response = await mf3.dispatchFetch('http://localhost/pub/trend/metrics')
+      expect(response.status).toBe(200)
+      const body = await response.json() as { blocks: Array<{ id: string; status: string; entries: unknown[] }>; sources: unknown[] }
+      expect(body.sources).toEqual([])
+      expect(body.blocks.map((block) => block.status)).toEqual(['not_configured', 'not_configured'])
+      expect(body.blocks.every((block) => block.entries.length === 0)).toBe(true)
+    } finally {
+      await mf3.dispose()
+    }
+  })
+
+  it('When TREND_AA_PUBLIC=0 Then AA collection still runs but the public block is hidden for terms review', async () => {
+    const mf4 = await createBundle(`
+      import { createWorker } from './worker/index.ts';
+      const fakeFetch = async (input, init) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        if (url.includes('artificialanalysis.ai')) {
+          if (headers.get('x-api-key') !== 'aa-secret') return new Response('', { status: 401 });
+          return new Response(JSON.stringify({
+            intelligence_index_version: '3.0',
+            pagination: { page: 1, total_pages: 1, has_more: false },
+            data: [{ slug: 'a/x', name: 'A X', model_creator: { name: 'A' }, evaluations: { artificial_analysis_intelligence_index: 90 } }],
+          }), { status: 200 });
+        }
+        if (url.includes('openrouter.ai/api/v1/datasets/rankings-daily')) {
+          if (headers.get('Authorization') !== 'Bearer or-secret') return new Response('', { status: 401 });
+          return new Response(JSON.stringify({
+            data: [{ date: '2026-11-17', model_permaslug: 'a/x', total_tokens: '600' }, { date: '2026-11-17', model_permaslug: 'other', total_tokens: '400' }],
+            meta: { as_of: '2026-11-17T04:00:00Z' },
+          }), { status: 200 });
+        }
+        return new Response('not found', { status: 404 });
+      };
+      export default createWorker({ trendFetch: fakeFetch });
+    `, { keys: true, aaPublic: '0' })
+    try {
+      const db4 = await mf4.getD1Database('DB')
+      await applyMigrations(db4)
+      const worker = await mf4.getWorker() as unknown as {
+        scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
+      }
+      await worker.scheduled({ cron: METRICS_CRON, scheduledTime: NOW })
+      const aaRows = await db4.prepare('SELECT slug FROM trend_aa_snapshot WHERE day = ?').bind('2026-11-17').all<{ slug: string }>()
+      expect(aaRows.results).toEqual([{ slug: 'a/x' }])
+
+      const response = await mf4.dispatchFetch('http://localhost/pub/trend/metrics')
+      const text = await response.text()
+      expect(text).not.toContain('\"index\":90')
+      const body = JSON.parse(text) as { blocks: Array<{ id: string; status: string; note?: string; entries: unknown[] }> }
+      const aa = body.blocks.find((block) => block.id === 'aa-intelligence')!
+      expect(aa).toMatchObject({ status: 'under_review', note: 'terms_review', entries: [] })
+      expect(body.blocks.find((block) => block.id === 'or-usage')).toMatchObject({ status: 'ok' })
+    } finally {
+      await mf4.dispose()
     }
   })
 })
