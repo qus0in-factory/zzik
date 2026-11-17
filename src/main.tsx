@@ -25,7 +25,6 @@ import { createBrowserClock, createBrowserScheduler } from '@infra/usage/browser
 import { browserLocalKeyValue, browserSessionKeyValue, subscribeStorageKey } from '@infra/usage/browser-storage'
 import { browserLocalStorage, createLocalStorageOrderStore, PROVIDER_ORDER_STORAGE_KEY } from '@infra/usage/local-storage-order-store'
 import { createLocalStorageViewModeStore, VIEW_MODE_STORAGE_KEY } from '@infra/usage/local-storage-view-mode-store'
-import { createFixtureUsageGateway } from '@infra/usage/fixture-usage-gateway'
 import { createHttpUsageGateway } from '@infra/usage/http-usage-gateway'
 
 // 조립 루트(ADR 0.2 D10, 스택 부록 A3~A5): infra 구현과 QueryClient를 만들어 app에 주입한다.
@@ -43,16 +42,16 @@ const viewModeStore = createViewModeStore(createLocalStorageViewModeStore(browse
 subscribeStorageKey(PROVIDER_ORDER_STORAGE_KEY, () => orderStore.getState().rehydrate())
 subscribeStorageKey(VIEW_MODE_STORAGE_KEY, () => viewModeStore.getState().rehydrate())
 
-const usageDeps: UsageDeps = {
-  offpeak: OFFPEAK_SCHEDULE,
-  clock: createBrowserClock(),
-  scheduler: createBrowserScheduler(),
-  gateway: devFixtureRequested
-    ? createFixtureUsageGateway({ getFixtureName: () => useUsageUiStore.getState().fixtureName })
+async function createUsageDeps(): Promise<UsageDeps> {
+  const gateway = devFixtureRequested
+    ? (await import('@infra/usage/fixture-usage-gateway')).createFixtureUsageGateway({
+        getFixtureName: () => useUsageUiStore.getState().fixtureName,
+      })
     : createHttpUsageGateway(
         ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 }),
         '/api/usage',
-      ),
+      )
+  return { offpeak: OFFPEAK_SCHEDULE, clock: createBrowserClock(), scheduler: createBrowserScheduler(), gateway }
 }
 
 // 이력 계층(ADR 0.7): 기능 플래그 `__HISTORY_ENABLED__`(빌드 시 주입, 기본 꺼짐)가 꺼져 있으면 비활성 의존만 쓰고,
@@ -64,17 +63,18 @@ const usageDeps: UsageDeps = {
 let viewBuilder: ChartViewBuilder = emptyChartViewBuilder
 async function loadHistoryDeps(): Promise<HistoryDeps> {
   if (!__HISTORY_ENABLED__) return createDisabledHistoryDeps()
-  const [syncModule, fixtureGateway, httpGateway, idbCache] = await Promise.all([
+  const [syncModule, httpGateway, idbCache] = await Promise.all([
     import('@app/usage/history/sync-history'),
-    import('@infra/usage/fixture-usage-history-gateway'),
     import('@infra/usage/http-usage-history-gateway'),
     import('@infra/usage/idb-history-cache'),
   ])
+  // fixture 이력 게이트웨이는 DEV fixture일 때만 받는다(운영 시작 시 fixture 청크 요청 0).
+  const fixtureGateway = devFixtureRequested ? await import('@infra/usage/fixture-usage-history-gateway') : null
   const chartPrefs = createChartPrefsStore(browserLocalKeyValue())
   subscribeStorageKey(CHART_PREFS_KEY, () => void chartPrefs.persist.rehydrate()) // 다른 탭의 범례 설정 변경을 따라간다
   return {
     enabled: true,
-    gateway: devFixtureRequested
+    gateway: fixtureGateway !== null
       ? fixtureGateway.createFixtureUsageHistoryGateway()
       : httpGateway.createHttpUsageHistoryGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 })),
     cache: idbCache.createIdbHistoryCache(idbCache.browserIndexedDb()),
@@ -104,7 +104,7 @@ if (devFixtureRequested) {
 }
 
 async function start(): Promise<void> {
-  const historyDeps = await loadHistoryDeps()
+  const [historyDeps, usageDeps] = await Promise.all([loadHistoryDeps(), createUsageDeps()])
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
