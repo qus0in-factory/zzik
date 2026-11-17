@@ -120,3 +120,64 @@ describe('Given Antigravity routing', () => {
     expect(response.status).toBe(502)
   })
 })
+
+describe('Given public /pub/* routing without authentication (1단계: deps.trend=null)', () => {
+  it('When GET /pub/trend without JWT Then returns 503 not_ready without auth or usage store calls', async () => {
+    const s = setup()
+    const res = await s.app.request('/pub/trend')
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'not_ready', sections: [] })
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(res.headers.has('Access-Control-Allow-Origin')).toBe(false)
+    expect(s.verifier.tokens).toEqual([])
+    expect(s.store.reads).toBe(0)
+    expect(s.assets.calls).toBe(0)
+  })
+
+  it('When GET /pub/trend/new-models without JWT Then returns 503 not_ready without auth or store calls', async () => {
+    const s = setup()
+    const res = await s.app.request('/pub/trend/new-models')
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'not_ready' })
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(s.verifier.tokens).toEqual([])
+    expect(s.store.reads).toBe(0)
+  })
+
+  it('When GET /pub/unknown without JWT Then returns 404 not_found without auth or store calls', async () => {
+    const s = setup()
+    const res = await s.app.request('/pub/unknown')
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'not_found' })
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(s.verifier.tokens).toEqual([])
+    expect(s.store.reads).toBe(0)
+  })
+
+  it('When POST /pub/trend Then returns 405 method_not_allowed', async () => {
+    const s = setup()
+    const res = await s.app.request('/pub/trend', { method: 'POST' })
+    expect(res.status).toBe(405)
+    expect(await res.json()).toEqual({ error: 'method_not_allowed' })
+    expect(s.verifier.tokens).toEqual([])
+  })
+
+  it('When Access config is invalid Then /pub/trend still responds 503 (Access 설정과 무관)', async () => {
+    const s = setup()
+    const app = createRouter({ ...s, config: { ok: false, reason: 'misconfigured' } })
+    const res = await app.request('/pub/trend')
+    expect(res.status).toBe(503)
+    expect(s.verifier.tokens).toEqual([])
+    expect(s.store.reads).toBe(0)
+  })
+
+  it('When GET /pub without trailing slash Then falls back to assets', async () => {
+    const s = setup()
+    const res = await s.app.request('/pub')
+    expect(await res.text()).toBe('SPA')
+    expect(s.assets.calls).toBe(1)
+    expect(s.verifier.tokens).toEqual([])
+  })
+})
