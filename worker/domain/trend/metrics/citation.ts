@@ -7,13 +7,13 @@ const MAX_NAME_LENGTH = 80
 const MAX_CITATION_LENGTH = 500
 const CITATION_RE = /^Artificial Analysis Intelligence Index 1위는 (.+) \((\d+(?:\.\d+)?)\)입니다\. \((\d{4}-\d{2}-\d{2}) 기준\)$/
 
-/** 모델 표시명: 버전 점은 허용, 개행·추가 문장·직렬화 괄호는 거부. */
+/** 모델 표시명: 버전 점과 "(high)" 같은 괄호 수식은 허용, 개행·추가 문장·직렬화 기호는 거부. */
 export function safeModelName(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const name = value.trim()
   if (name === '' || name.length > MAX_NAME_LENGTH) return null
   if (/[\r\n\u0000-\u001f\u007f]/.test(name)) return null
-  if (/[\[\]{}()"'\\]/.test(name)) return null
+  if (/[\[\]{}"'\\]/.test(name)) return null
   if (/[.!?]\s/.test(name) || /[.!?]$/.test(name)) return null
   if (/입니다|기준|Artificial Analysis/.test(name)) return null
   return name
