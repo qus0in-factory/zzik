@@ -33,6 +33,15 @@ describe('Given an Artificial Analysis models page', () => {
     expect(decoded.entries[0]?.domains).not.toHaveProperty('coding')
   })
 
+  it('When the source returns a numeric index version Then normalizes it to the stored string', () => {
+    const decoded = decodeAaPage({ intelligence_index_version: 4.1, data: [
+      { slug: 'example', model_creator: { name: 'Example' }, evaluations: { artificial_analysis_intelligence_index: 42 } },
+    ] })
+    expect(decoded).toMatchObject({ ok: true, version: '4.1', entries: [{ slug: 'example', intelligenceIndex: 42 }] })
+    expect(decodeAaPage({ intelligence_index_version: Infinity, data: [] })).toEqual({ ok: false, reason: 'invalid' })
+    expect(decodeAaPage({ intelligence_index_version: NaN, data: [] })).toEqual({ ok: false, reason: 'invalid' })
+  })
+
   it('When the version or data array is missing Then rejects the page', () => {
     expect(decodeAaPage({ data: [] })).toEqual({ ok: false, reason: 'invalid' })
     expect(decodeAaPage({ intelligence_index_version: '3.0' })).toEqual({ ok: false, reason: 'invalid' })

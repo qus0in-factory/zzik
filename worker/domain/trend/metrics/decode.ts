@@ -67,7 +67,9 @@ function decodeAaEntry(raw: Record<string, unknown>): AaModelEntry | null {
 
 export function decodeAaPage(input: unknown): DecodedAaPage | DecodeFailure {
   if (!isRecord(input) || !Array.isArray(input.data)) return { ok: false, reason: 'invalid' }
-  const version = typeof input.intelligence_index_version === 'string' ? input.intelligence_index_version.trim() : ''
+  const rawVersion = input.intelligence_index_version
+  const version = typeof rawVersion === 'string' ? rawVersion.trim()
+    : typeof rawVersion === 'number' && Number.isFinite(rawVersion) ? String(rawVersion) : ''
   if (version === '') return { ok: false, reason: 'invalid' }
   const pagination = isRecord(input.pagination) ? input.pagination : null
   const page = pagination !== null && typeof pagination.page === 'number' && Number.isFinite(pagination.page) ? Math.trunc(pagination.page) : 1
