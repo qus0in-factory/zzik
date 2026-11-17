@@ -90,7 +90,7 @@ export function UsageDashboard({
 
   if (status === 'loading') {
     return (
-      <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-24 space-y-4">
+      <section {...sectionProps} aria-busy="true" className="mt-8 scroll-mt-[var(--section-nav-offset,6rem)] space-y-4">
         {title !== undefined && (
           <SectionTitle provider={provider} title={title} light={null} offpeak={offpeak}>
             <div data-testid="usage-skeleton-status" aria-hidden="true" className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -140,7 +140,7 @@ export function UsageDashboard({
   const light = providerStatusOf({ status, reportStatus: report?.status ?? null, collectionStatus, issueCount: report?.issues.length ?? 0, lastSuccessText })
 
   return (
-    <section {...sectionProps} className="mt-8 scroll-mt-24 space-y-4">
+    <section {...sectionProps} className="mt-8 scroll-mt-[var(--section-nav-offset,6rem)] space-y-4">
       {title !== undefined ? (
         <SectionTitle provider={provider} title={title} light={light} offpeak={offpeak}>
           <StatusBar lastSuccessText={lastSuccessText} onRetry={onRetry} refreshing={refreshing} chart={chart} />
