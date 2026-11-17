@@ -46,7 +46,7 @@ architecture-beta
   - `/usage` (Cloudflare Access 보호): AI 사용량 대시보드 — 페이스 칩·한도 카드·사용량 추이 차트(uPlot)로 6개 제공자(Claude, ChatGPT(Codex), Antigravity, OpenCode, Grok, Ollama)의 사용률을 보여 준다.
   - `/trend` (공개): AI 모델 트렌드 — 성능 지표(OpenRouter 점유율·순위, `metrics`), 신규 모델(최근 7일 OpenRouter 등록, `new-models`), 무료 모델(OpenCode Go·Ollama Cloud 요금제 포함, `free-models`), 참고 링크를 보여 준다. 요금제 추가 관측(`plan-models`)은 수집·API만 유지한다.
 - **공개 / 비공개 경로**:
-  - 공개(인증 없음, 캐시 `public, max-age=300`): `/`, `/trend`, `/pub/trend*`
+  - 공개(인증 없음, 캐시 `public, max-age=300, stale-while-revalidate=3600`): `/`, `/trend`, `/pub/trend*`
   - 비공개(Cloudflare Access + Worker JWT 검증): `/usage`, `/usage/*`, `/api/usage*`, `/api/usage-history*`
 - **사용량 수집기**: PM2 상주 프로세스로 6개 제공자의 사용량을 읽어 D1에 저장하고, 값 변화·6시간 경과 시 이력을 남기며 주의·위험 진입/해제와 최상위 한도 리셋을 Discord로 알린다(상세 주기·설정은 `docs/harness/operations.md` 참고). Grok 자격 증명은 `~/.grok/auth.json`의 access token과 만료만 읽으며 로그인·갱신은 Grok Build가 소유한다.
 - **트렌드 수집과 데이터 출처·약관**:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAaBlock, fromAaRows, rankAa, toAaRows } from '../../../../worker/domain/trend/metrics/aa'
+import { fromAaRows, rankAa, toAaRows } from '../../../../worker/domain/trend/metrics/aa'
 import { buildOrBlock } from '../../../../worker/domain/trend/metrics/or'
 import type { AaModelEntry, AaSnapshot, OrRankingRow } from '../../../../worker/domain/trend/metrics/types'
 
@@ -24,51 +24,6 @@ describe('Given Artificial Analysis Intelligence Index ranking', () => {
   it('When entries have equal index Then sorts by release date desc and slug', () => {
     const ranked = rankAa([aa('b/x', 50, '2026-11-01'), aa('a/x', 50, '2026-11-02'), aa('c/x', 50, null)])
     expect(ranked.map((item) => item.entry.slug)).toEqual(['a/x', 'b/x', 'c/x'])
-  })
-
-  it('When no previous snapshot exists Then shows the current top 15 with no deltas and a baseline note', () => {
-    const block = buildAaBlock({
-      today: snapshot('3.0', Array.from({ length: 20 }, (_, index) => aa(`m/${index}`, 100 - index))),
-      previous: null,
-      asOf: '2026-11-17',
-    })
-    expect(block).toMatchObject({ id: 'aa-intelligence', status: 'ok', version: '3.0', note: 'baseline', asOf: '2026-11-17' })
-    expect(block.entries).toHaveLength(15)
-    expect(block.entries.every((entry) => entry.rankDelta === null && entry.kind === 'steady')).toBe(true)
-    expect(block.attribution).toBe('Artificial Analysis — artificialanalysis.ai (Intelligence Index v3.0, 2026-11-17)')
-  })
-
-  it('When a model enters the top 15 Then marks it new-top and computes rank deltas', () => {
-    const previous = snapshot('3.0', Array.from({ length: 15 }, (_, index) => aa(`old/${index}`, 100 - index)))
-    const today = snapshot('3.0', [aa('new/x', 200), ...Array.from({ length: 14 }, (_, index) => aa(`old/${index}`, 99 - index))])
-    const block = buildAaBlock({ today, previous, asOf: '2026-11-17' })
-    expect(block.entries[0]).toMatchObject({ id: 'new/x', rank: 1, rankDelta: null, kind: 'new-top', index: 200 })
-    expect(block.entries.find((entry) => entry.id === 'old/0')).toMatchObject({ rank: 2, rankDelta: -1, kind: 'steady' })
-  })
-
-  it('When a top-30 model moves by 3+ places Then includes it as moved; small moves stay out', () => {
-    const previousEntries = Array.from({ length: 30 }, (_, index) => aa(`m/${index}`, 100 - index))
-    const todayEntries = previousEntries.map((entry) => {
-      if (entry.slug === 'm/5') return { ...entry, intelligenceIndex: 86.5 }
-      if (entry.slug === 'm/25') return { ...entry, intelligenceIndex: 71.5 }
-      if (entry.slug === 'm/10') return { ...entry, intelligenceIndex: 91.5 }
-      return entry
-    })
-    const block = buildAaBlock({ today: snapshot('3.0', todayEntries), previous: snapshot('3.0', previousEntries), asOf: '2026-11-17' })
-    expect(block.entries.find((entry) => entry.id === 'm/5')).toMatchObject({ rank: 14, rankDelta: -8, kind: 'moved' })
-    expect(block.entries.find((entry) => entry.id === 'm/25')).toMatchObject({ rank: 29, rankDelta: -3, kind: 'moved' })
-    expect(block.entries.find((entry) => entry.id === 'm/10')).toMatchObject({ rankDelta: 2, kind: 'steady' })
-    expect(block.entries.filter((entry) => entry.rank > 15).every((entry) => entry.kind === 'moved')).toBe(true)
-  })
-
-  it('When the index version changes Then resets comparison and explains why', () => {
-    const block = buildAaBlock({
-      today: snapshot('4.0', [aa('a/x', 90), aa('b/x', 80)]),
-      previous: snapshot('3.0', [aa('b/x', 99), aa('a/x', 98)]),
-      asOf: '2026-11-17',
-    })
-    expect(block.note).toBe('version_changed')
-    expect(block.entries.every((entry) => entry.rankDelta === null && entry.kind === 'steady')).toBe(true)
   })
 
   it('When snapshots are stored and read back Then round-trips the rankable fields', () => {

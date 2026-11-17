@@ -9,7 +9,7 @@ import type { TrendSection, TrendSectionPayload } from '../../../../shared/trend
 import { refreshTrendSections } from '../../../../worker/app/trend/refresh-trend'
 import type { PlanObservationRow } from '../../../../worker/domain/trend/plan/types'
 import type { TrendModelRecord, TrendSource } from '../../../../worker/domain/trend/sources'
-import type { TrendSectionRow, TrendSeenRow, TrendSourceStateRow, TrendStore } from '../../../../worker/domain/trend/store'
+import type { TrendSectionRow, TrendSourceStateRow, TrendStore } from '../../../../worker/domain/trend/store'
 
 const NOW = Date.UTC(2026, 10, 17, 0, 0, 0)
 const DAY = 86_400_000
@@ -42,7 +42,6 @@ function observation(overrides: Partial<PlanObservationRow> = {}): PlanObservati
 class FakeStore implements TrendStore {
   sections = new Map<TrendSection, TrendSectionRow>()
   sources = new Map<string, TrendSourceStateRow>()
-  seen: TrendSeenRow[] = []
   planObservations: PlanObservationRow[] = []
   writes: TrendSection[] = []
   async readSection(section: TrendSection): Promise<TrendSectionRow | null> { return this.sections.get(section) ?? null }
@@ -56,8 +55,6 @@ class FakeStore implements TrendStore {
   }
   async readSourceState(source: string): Promise<TrendSourceStateRow | null> { return this.sources.get(source) ?? null }
   async writeSourceState(row: TrendSourceStateRow): Promise<void> { this.sources.set(row.source, row) }
-  async readSeen(): Promise<TrendSeenRow[]> { return this.seen }
-  async upsertSeen(rows: readonly TrendSeenRow[]): Promise<void> { this.seen.push(...rows) }
   async readPlanObservations(): Promise<PlanObservationRow[]> { return this.planObservations }
 }
 

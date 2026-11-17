@@ -2,7 +2,7 @@ import { TREND_SECTION_MAX_BYTES } from '../../../shared/trend-contract'
 import type { TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
 import type { PlanObservationRow } from '../../domain/trend/plan/types'
 import type { D1DatabaseLike } from '../usage/d1-history-store'
-import type { TrendSectionRow, TrendSeenRow, TrendSourceStateRow, TrendStore } from '../../domain/trend/store'
+import type { TrendSectionRow, TrendSourceStateRow, TrendStore } from '../../domain/trend/store'
 
 async function all<T>(db: D1DatabaseLike, query: string, params: readonly unknown[]): Promise<T[]> {
   const result = await db.prepare(query).bind(...params).all<T>()
@@ -27,12 +27,6 @@ interface SourceDbRow {
   fetched_at: number
   ok: number
   http_status: number | null
-}
-interface SeenDbRow {
-  canonical_id: string
-  first_seen_at: number
-  release_date: string | null
-  source: string
 }
 interface PlanObservationDbRow {
   plan: string
@@ -90,11 +84,6 @@ export class D1TrendStore implements TrendStore {
     ).bind(row.source, row.etag, row.fetchedAt, row.ok ? 1 : 0, row.httpStatus).run()
   }
 
-  async readSeen(): Promise<TrendSeenRow[]> {
-    const rows = await all<SeenDbRow>(this.db, 'SELECT canonical_id, first_seen_at, release_date, source FROM trend_model_seen', [])
-    return rows.map((row) => ({ canonicalId: row.canonical_id, firstSeenAt: Number(row.first_seen_at), releaseDate: row.release_date, source: row.source }))
-  }
-
   async readPlanObservations(): Promise<PlanObservationRow[]> {
     const rows = await all<PlanObservationDbRow>(
       this.db,
@@ -113,13 +102,4 @@ export class D1TrendStore implements TrendStore {
     }))
   }
 
-  async upsertSeen(rows: readonly TrendSeenRow[]): Promise<void> {
-    for (const row of rows) {
-      await this.db.prepare(
-        `INSERT INTO trend_model_seen (canonical_id, first_seen_at, release_date, source)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(canonical_id) DO NOTHING`,
-      ).bind(row.canonicalId, row.firstSeenAt, row.releaseDate, row.source).run()
-    }
-  }
 }
