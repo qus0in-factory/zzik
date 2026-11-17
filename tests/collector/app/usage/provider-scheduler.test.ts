@@ -62,3 +62,38 @@ describe('Given provider due times and upstream-start checkpoints',()=>{
   const s=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>false,notice:h.notice,providers:[{id:'claude',intervalSec:900,run:async()=>{calls++}}]});s.pump();expect(calls).toBe(0)
  })
 })
+describe('Given a provider with adaptive intervals',()=>{
+ it('When a rate limit is accepted Then schedules 900, reports entry once and resumes 300 after the hold',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation});let count=0
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[{id:'claude',intervalSec:300,degrade:{intervalSec:900},run:async({markStarted})=>{
+   if(!markStarted())return
+   count++
+   if(count<=2)h.ledger.update('claude',data=>({ok:true,value:{...data,state:{...data.state,rateLimitedAtMs:[...(data.state.rateLimitedAtMs??[]),h.clock.now()]}}}))
+  }}]})
+  scheduler.pump();await flush()
+  expect(successValue(h.ledger.read('claude')).state.nextDueMs).toBe(h.clock.now()+900000)
+  expect(h.notices).toEqual([{reason:'claude_rate_limited_degraded',provider:'claude'}])
+  h.advance(900000);scheduler.pump();await flush();expect(h.notices).toHaveLength(1)
+  h.advance(2*86400000+1);scheduler.pump();await flush()
+  expect(count).toBe(3)
+  expect(successValue(h.ledger.read('claude')).state.nextDueMs).toBe(h.clock.now()+300000)
+ })
+ it('When a persisted 900 second due outlives the hold Then resumes at the current 300 second due',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation}),now=h.clock.now();let count=0
+  h.ledger.update('claude',data=>({ok:true,value:{...data,state:{...data.state,rateLimitedAtMs:[now-86400000],lastStartedAtMs:now-300001,nextDueMs:now+599999}}}))
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[{id:'claude',intervalSec:300,degrade:{intervalSec:900},run:async({markStarted})=>{if(markStarted())count++}}]})
+  scheduler.pump();expect(count).toBe(0);h.advance(1);scheduler.pump();await flush();expect(count).toBe(1)
+ })
+})
+describe('Given a changing rate limit before an upstream call',()=>{
+ it('When markStarted rereads the ledger Then it enforces the effective 900 second interval',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation}),now=h.clock.now();let started=true
+  h.ledger.update('claude',data=>({ok:true,value:{...data,state:{...data.state,lastStartedAtMs:now-300000,nextDueMs:now}}}))
+  const scheduler=createProviderScheduler({mode:'d1',ledger:h.ledger,clock:h.clock,canCollect:()=>true,notice:h.notice,providers:[{id:'claude',intervalSec:300,degrade:{intervalSec:900},run:async({markStarted})=>{
+   h.ledger.update('claude',data=>({ok:true,value:{...data,state:{...data.state,rateLimitedAtMs:[now]}}}))
+   started=markStarted()
+  }}]})
+  scheduler.pump();await flush();expect(started).toBe(false)
+  expect(successValue(h.ledger.read('claude')).state.lastStartedAtMs).toBe(now-300000)
+ })
+})

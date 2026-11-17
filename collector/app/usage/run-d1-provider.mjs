@@ -1,7 +1,8 @@
 import { runOnce, emptyCollectorState } from './run-once.mjs'
 import { acceptObservation, queueHealth } from '../../domain/usage/d1-ledger.mjs'
+import { effectiveIntervalSec } from '../../domain/usage/interval-degrade.mjs'
 /** @typedef {import('../../domain/usage/ports.mjs').CollectorState} Legacy */
-/** @param {{provider:import('../../../shared/usage-contract.ts').UsageProvider,ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,clock:{now():number},intervalSec:number,operationId:()=>string,context:{markStarted():boolean,isStopping():boolean},ports:import('../../domain/usage/ports.mjs').CollectorPorts,runOptions?:object,collectorVersion?:string}} options */
+/** @param {{provider:import('../../../shared/usage-contract.ts').UsageProvider,ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,clock:{now():number},intervalSec:number,degrade?:{intervalSec:number},operationId:()=>string,context:{markStarted():boolean,isStopping():boolean},ports:import('../../domain/usage/ports.mjs').CollectorPorts,runOptions?:object,collectorVersion?:string}} options */
 export async function runD1Provider(options){
  const read=options.ledger.read(options.provider),stats=options.ledger.stats()
  if(!read.ok||!stats.ok)return {reason:'ledger_read_failed'}
@@ -22,7 +23,7 @@ export async function runD1Provider(options){
    if(!options.context.markStarted()){cancelled=true;return {ok:false,kind:'network_error',httpStatus:null,retryAfterSec:null}}
    return options.ports.usage.fetchUsage(token,opts)
   }},
- },{...options.runOptions,provider:options.provider,intervalSec:options.intervalSec,collectorVersion:options.collectorVersion})
+ },{...options.runOptions,provider:options.provider,intervalSec:effectiveIntervalSec(options,baseline,options.clock.now()),collectorVersion:options.collectorVersion})
  if(cancelled)return {reason:'stopping'}
  // Async injected callbacks assign these staged values before runOnce resolves.
  const staged=/** @type {Legacy|null} */(captured),observation=/** @type {import('../../../shared/usage-contract.ts').UsageEnvelope|null} */(envelope)

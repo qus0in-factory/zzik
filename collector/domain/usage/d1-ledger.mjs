@@ -3,6 +3,7 @@ import { createCollectorD1Write } from './d1-write-contract.mjs'
 import { snapshotChanged } from './snapshot-change.mjs'
 import { eventHeartbeatDue } from './event-heartbeat.mjs'
 import { sha256Hex } from './envelope.mjs'
+import { appendRateLimit } from './interval-degrade.mjs'
 /** @typedef {import('./d1-ledger-types.ts').LedgerData} Data */
 /** @typedef {import('./d1-ledger-types.ts').ReceiptFacts} Receipts */
 /** @typedef {import('../../../shared/d1-contract.ts').D1WriteReceipt} Receipt */
@@ -31,7 +32,7 @@ export function acceptObservation(data,input) {
   const emitEvent=emits(data.state,input.envelope)
   const op=createCollectorD1Write({operationId:input.operationId,provider:input.envelope.provider,writeSeq:data.state.nextSeq,envelopeJson:JSON.stringify(input.envelope),emitEvent})
   if(!op.ok)return op
-  return {ok:true,value:{state:{...data.state,previous:input.envelope,lastEventAt:emitEvent?input.envelope.runAt:data.state.lastEventAt,
+  return {ok:true,value:{state:{...data.state,...(input.envelope.status==='rate_limited' && input.envelope.called ? {rateLimitedAtMs:appendRateLimit(data.state.rateLimitedAtMs,at)} : {}),previous:input.envelope,lastEventAt:emitEvent?input.envelope.runAt:data.state.lastEventAt,
     lastRun:{status:input.envelope.status,tokenExpiresAt:input.envelope.tokenExpiresAt===null?null:Date.parse(input.envelope.tokenExpiresAt)},gate:input.gate===undefined?data.state.gate:input.gate,alerts:input.alertBaseline===undefined?data.state.alerts:input.alertBaseline,
     nextSeq:data.state.nextSeq+1,lastStartedAtMs:input.lastStartedAtMs,nextDueMs:input.nextDueMs,revision:data.state.revision+1},
     rows:[...data.rows,{operation:op.value,createdAtMs:input.nowMs,attempts:0,nextAttemptAtMs:input.nowMs,alerts:input.alerts,quarantined:false}]}}
