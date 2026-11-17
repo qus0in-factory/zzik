@@ -53,6 +53,7 @@ describe('Given the public landing page', () => {
     expect(document.querySelectorAll('.landing-architecture > svg')).toHaveLength(2)
     expect(document.querySelector('.landing-architecture.hidden')).not.toBeNull()
     expect(document.querySelector('.landing-architecture.sm\\:hidden')).not.toBeNull()
+    for (const diagram of document.querySelectorAll('.landing-architecture')) expect(diagram.textContent).toContain('R2 export')
 
     const screenshots = [
       ['사용량 · 데스크톱', '/screenshots/usage-desktop.webp'],
@@ -65,6 +66,7 @@ describe('Given the public landing page', () => {
       expect(image.getAttribute('src')).toBe(src)
       expect(image.getAttribute('loading')).toBe('lazy')
     }
+    expect(screen.getByAltText('트렌드 화면 (합성 fixture 데이터)').getAttribute('height')).toBe('481')
 
     expect(screen.getByRole('link', { name: '사용량' })).toBeTruthy()
     expect(screen.getByRole('link', { name: '트렌드' })).toBeTruthy()

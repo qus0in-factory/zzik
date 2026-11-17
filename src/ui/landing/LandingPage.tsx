@@ -61,7 +61,7 @@ export function LandingPage(): ReactNode {
               className="mx-auto w-full max-w-[320px]"
             />
             <Screenshot src="/screenshots/usage-chart.webp" width={1280} height={900} label={t('landing.screens.chart')} />
-            <Screenshot src="/screenshots/trend.webp" width={1280} height={900} label={t('landing.screens.trend')} />
+            <Screenshot src="/screenshots/trend.webp" width={1280} height={481} label={t('landing.screens.trend')} />
           </div>
         </section>
       </main>

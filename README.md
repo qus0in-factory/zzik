@@ -26,6 +26,7 @@ architecture-beta
   service agy(disk)[agy CLI] in local
   service collector(server)[수집기 PM2] in local
   service db(database)[D1] in cf
+  service r2(disk)[R2 export] in cf
   service worker(server)[Worker] in cf
   service access(internet)[Access] in cf
   service spa(internet)[정적 SPA] in cf
@@ -33,6 +34,7 @@ architecture-beta
 
   agy:R --> L:collector
   collector:R --> L:db
+  db:B --> T:r2
   db:R --> L:worker
   worker:R --> L:access
   access:R --> L:spa

@@ -52,9 +52,9 @@ async function waitForUsage(page) {
   await sleep(1600)
 }
 
-/** @param {Awaited<ReturnType<typeof openPage>>} page @param {'png'|'webp'} format @param {number} quality @param {string} file @param {number} maxBytes */
-async function capture(page, format, quality, file, maxBytes) {
-  const params = { format, ...(format === 'webp' ? { quality } : {}) }
+/** @param {Awaited<ReturnType<typeof openPage>>} page @param {'png'|'webp'} format @param {number} quality @param {string} file @param {number} maxBytes @param {{x:number,y:number,width:number,height:number,scale:number}} [clip] */
+async function capture(page, format, quality, file, maxBytes, clip) {
+  const params = { format, ...(format === 'webp' ? { quality } : {}), ...(clip === undefined ? {} : { clip, captureBeyondViewport: true }) }
   const { data } = await page.send('Page.captureScreenshot', params)
   const buffer = Buffer.from(data, 'base64')
   if (buffer.length > maxBytes) throw new Error(`${relative(ROOT, file)}이(가) ${maxBytes} bytes를 넘습니다: ${buffer.length} bytes`)
@@ -120,7 +120,12 @@ try {
   await page.setSize(1280, 900)
   await navigate(page, `${base}/trend`)
   await sleep(500)
-  await capture(page, 'webp', 82, TREND, MAX_WEBP_BYTES)
+  // 900px 뷰포트 아래 빈 공간을 자르고 링크 목록 아래 여백만 남긴다.
+  const trendHeight = await page.evaluate(`(() => {
+    const last = document.querySelector('main li:last-child')
+    return last === null ? 480 : Math.ceil(last.getBoundingClientRect().bottom + window.scrollY + 32)
+  })()`)
+  await capture(page, 'webp', 82, TREND, MAX_WEBP_BYTES, { x: 0, y: 0, width: 1280, height: trendHeight, scale: 1 })
 } finally {
   page.close()
 }
