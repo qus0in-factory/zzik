@@ -20,3 +20,5 @@ Worker 선배포·검증 후 release frozen install. 주기 사이에 `pm2 resta
 - 격리 해제는 collector 정지/quiesce 완료, 원격 in-flight 완료·receipt 부재 확정 후에만 한다. gate/순번을 재번호하지 않는다.
 - export 36시간 경보·R2 보존 30일 이상·이벤트 30일/receipt 35일 정리를 관측한다. 실제 export 성공과 로컬 테스트를 구분한다.
 - D1 불통 시 PG로 모드만 바꾸지 않는다. 수집 정지 후 forward-fix/R2→scratch D1 복구·id 펜스·outbox 재생을 검증한다. 운영 D1 덮어쓰기/Neon 삭제/secret 삭제는 이번 권한에 없다.
+
+상태 확인은 `scripts/d1-status.mjs`, 수집기 반영은 `scripts/collector-apply.mjs`(기본 dry-run, 명시 `--apply`, 필요 시 `--release <경로>`)를 사용하며 두 도구는 최종 JSON 한 줄만 출력한다.
