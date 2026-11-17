@@ -55,6 +55,51 @@ async function readCappedBody(response: Response, maxBytes: number): Promise<Bod
   return { ok: true, text: chunks.join(''), bytes }
 }
 
+export interface JsonRequestOptions {
+  fetchImpl: typeof fetch
+  url: string
+  init?: RequestInit
+  maxBytes: number
+  timeoutMs: number
+}
+
+export type JsonRequestResult =
+  | { ok: true; status: number; etag: string | null; value: unknown; bytes: number }
+  | { ok: false; reason: 'network' | 'too_large' | 'invalid'; httpStatus: number | null }
+
+/**
+ * GET + 스트림 크기/timeout 게이트를 공통 적용한다. 2xx가 아니면 본문을 읽지 않고
+ * `value:null`로 돌려주므로 호출자가 304·401·429를 구분한다.
+ */
+export async function fetchJsonWithLimits(options: JsonRequestOptions): Promise<JsonRequestResult> {
+  const controller = new AbortController()
+  // 타이머는 헤더 수신이 아니라 본문 읽기 완료(또는 실패)까지 유지한다.
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs)
+  try {
+    let response: Response
+    try {
+      response = await options.fetchImpl(options.url, { ...options.init, signal: controller.signal })
+    } catch {
+      return { ok: false, reason: 'network', httpStatus: null }
+    }
+    const etag = response.headers.get('etag')
+    if (response.status !== 200) return { ok: true, status: response.status, etag, value: null, bytes: 0 }
+    const declared = Number(response.headers.get('content-length') ?? 0)
+    if (Number.isFinite(declared) && declared > options.maxBytes) return { ok: false, reason: 'too_large', httpStatus: null }
+    const body = await readCappedBody(response, options.maxBytes)
+    if (!body.ok) return { ok: false, reason: body.reason, httpStatus: null }
+    let value: unknown
+    try {
+      value = JSON.parse(body.text)
+    } catch {
+      return { ok: false, reason: 'invalid', httpStatus: null }
+    }
+    return { ok: true, status: 200, etag, value, bytes: body.bytes }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 interface JsonSourceOptions {
   id: string
   url: string
@@ -67,44 +112,23 @@ interface JsonSourceOptions {
 /** 조건부 GET + 스트림 크기/timeout 게이트를 공통 적용하는 JSON 출처 어댑터. */
 function createJsonSource(options: JsonSourceOptions): TrendSource {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch
-  const maxBytes = options.maxBytes
-  const timeoutMs = options.timeoutMs
   return {
     id: options.id,
     async fetch(etag) {
-      const controller = new AbortController()
-      // 타이머는 헤더 수신이 아니라 본문 읽기 완료(또는 실패)까지 유지한다.
-      const timer = setTimeout(() => controller.abort(), timeoutMs)
-      try {
-        let response: Response
-        try {
-          response = await fetchImpl(options.url, {
-            headers: etag === null ? {} : { 'If-None-Match': etag },
-            signal: controller.signal,
-          })
-        } catch {
-          return { ok: false, reason: 'network', httpStatus: null } satisfies TrendSourceFailure
-        }
-        const responseEtag = response.headers.get('etag')
-        if (response.status === 304) return { ok: true, notModified: true, etag: responseEtag ?? etag, bytes: 0 }
-        if (response.status !== 200) return { ok: false, reason: 'http', httpStatus: response.status } satisfies TrendSourceFailure
-        const declared = Number(response.headers.get('content-length') ?? 0)
-        if (Number.isFinite(declared) && declared > maxBytes) return { ok: false, reason: 'too_large', httpStatus: null } satisfies TrendSourceFailure
-        const body = await readCappedBody(response, maxBytes)
-        if (!body.ok) return { ok: false, reason: body.reason, httpStatus: null } satisfies TrendSourceFailure
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(body.text)
-        } catch {
-          return { ok: false, reason: 'invalid', httpStatus: null } satisfies TrendSourceFailure
-        }
-        const decoded = options.decode(parsed)
-        if (!decoded.ok) return { ok: false, reason: 'invalid', httpStatus: null } satisfies TrendSourceFailure
-        // 200에 ETag가 없으면 이전 validator를 재사용하지 않는다(null 저장).
-        return { ok: true, notModified: false, etag: responseEtag, models: decoded.value, bytes: body.bytes }
-      } finally {
-        clearTimeout(timer)
-      }
+      const result = await fetchJsonWithLimits({
+        fetchImpl,
+        url: options.url,
+        init: { headers: etag === null ? {} : { 'If-None-Match': etag } },
+        maxBytes: options.maxBytes,
+        timeoutMs: options.timeoutMs,
+      })
+      if (!result.ok) return { ok: false, reason: result.reason, httpStatus: result.httpStatus } satisfies TrendSourceFailure
+      if (result.status === 304) return { ok: true, notModified: true, etag: result.etag ?? etag, bytes: 0 }
+      if (result.status !== 200) return { ok: false, reason: 'http', httpStatus: result.status } satisfies TrendSourceFailure
+      const decoded = options.decode(result.value)
+      if (!decoded.ok) return { ok: false, reason: 'invalid', httpStatus: null } satisfies TrendSourceFailure
+      // 200에 ETag가 없으면 이전 validator를 재사용하지 않는다(null 저장).
+      return { ok: true, notModified: false, etag: result.etag, models: decoded.value, bytes: result.bytes }
     },
   }
 }
