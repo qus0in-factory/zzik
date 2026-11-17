@@ -9,6 +9,7 @@ export type MetricsSourceFailureReason =
   | 'http'
   | 'network'
   | 'invalid'
+  | 'rejected'
   | 'too_large'
   | 'storage'
 

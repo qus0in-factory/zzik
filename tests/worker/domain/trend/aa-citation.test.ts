@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildAaCitation } from '../../../../worker/domain/trend/metrics/aa'
+import { validatedAaCitation } from '../../../../worker/domain/trend/metrics/citation'
 import type { AaModelEntry, AaSnapshot } from '../../../../worker/domain/trend/metrics/types'
 
 const entry = (slug: string, name: string, index: number): AaModelEntry => ({
@@ -27,6 +28,16 @@ describe('Given the Artificial Analysis brief citation', () => {
   it('When the model name keeps a version dot Then it is preserved', () => {
     expect(buildAaCitation(snapshot([entry('a', 'GPT-5.4', 92)]), '2026-11-17'))
       .toBe('Artificial Analysis Intelligence Index 1위는 GPT-5.4 (92)입니다. (2026-11-17 기준)')
+  })
+
+  it('When the model name ends with a parenthetical Then it is preserved', () => {
+    expect(buildAaCitation(snapshot([entry('a', 'Model A (high)', 92)]), '2026-11-17'))
+      .toBe('Artificial Analysis Intelligence Index 1위는 Model A (high) (92)입니다. (2026-11-17 기준)')
+  })
+
+  it('When a parenthesized citation round-trips Then projection validation keeps it', () => {
+    const text = 'Artificial Analysis Intelligence Index 1위는 Model A (high) (92)입니다. (2026-11-17 기준)'
+    expect(validatedAaCitation(text)).toBe(text)
   })
 
   it.each([
