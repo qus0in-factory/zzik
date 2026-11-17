@@ -48,7 +48,7 @@ describe('Given the metrics section on /trend', () => {
     expect(await section.findByText('deepseek/deepseek-v4')).toBeTruthy()
     expect(section.getByRole('heading', { name: 'OpenRouter 사용량 상위 변동' })).toBeTruthy()
     expect(section.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
-    expect(section.getByText('점유율 60.0%')).toBeTruthy()
+    expect(section.getByTestId('trend-treemap-sr-list').textContent).toContain('점유율 60.0%')
     expect(section.getByText('갱신 지연')).toBeTruthy()
     expect(section.getByText('7일 스냅샷이 쌓이면 순위·점유율 변동을 표시합니다.')).toBeTruthy()
     expect(section.getByText(/출처: OpenRouter \(openrouter\.ai\/rankings\), 2026\. 11\. 17\. 오후 1:00 기준 · CC BY 4\.0/)).toBeTruthy()
@@ -87,7 +87,7 @@ describe('Given the metrics section on /trend', () => {
     expect(section.queryByTestId('trend-metrics-treemap')).toBeNull()
   })
 
-  it('When a cell is too small Then omits its visible label but keeps title and the sr-only list', async () => {
+  it('When a cell is too small Then drops the visible label but keeps an accessible name and the sr-only list', async () => {
     const block = metrics.blocks![0]!
     const payload = {
       ...metrics,
@@ -98,14 +98,47 @@ describe('Given the metrics section on /trend', () => {
     }
     renderPage(async () => ({ ok: true, value: payload }))
     await screen.findByTestId('trend-metrics-treemap')
-    const cells = screen.getAllByTestId('trend-treemap-cell')
+    const cells = await screen.findAllByTestId('trend-treemap-cell')
     expect(cells).toHaveLength(3)
     const tiny = cells.find((cell) => cell.getAttribute('data-entry-id') === 'tiny')!
-    expect(tiny.getAttribute('data-label-visible')).toBe('false')
-    expect(tiny.getAttribute('title')).toContain('Tiny Model')
-    expect(tiny.getAttribute('title')).toContain('점유율 0.1%')
+    expect(tiny.getAttribute('data-stage')).toBe('none')
+    expect(tiny.getAttribute('aria-label')).toContain('Tiny Model')
+    expect(tiny.getAttribute('aria-label')).toContain('점유율 0.1%')
     expect(screen.getByTestId('trend-treemap-sr-list').textContent).toContain('Tiny Model')
     expect(screen.getByTestId('trend-treemap-sr-list').querySelectorAll('li')).toHaveLength(3)
+  })
+
+  it('When a small cell is focused Then shows the full id and values in a tooltip', async () => {
+    const block = metrics.blocks![0]!
+    const payload = {
+      ...metrics,
+      blocks: [{
+        ...block,
+        entries: [...block.entries, { id: 'tiny/tiny-20261017', name: 'tiny/tiny-20261017', creator: 'tiny', rank: 3, rankDelta: null, kind: 'steady' as const, share7d: 0.001, shareDelta: 0.002 }],
+      }],
+    }
+    renderPage(async () => ({ ok: true, value: payload }))
+    await screen.findByTestId('trend-metrics-treemap')
+    const cells = await screen.findAllByTestId('trend-treemap-cell')
+    const tiny = cells.find((cell) => cell.getAttribute('data-entry-id') === 'tiny/tiny-20261017')!
+    fireEvent.focus(tiny)
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip.querySelector('p')?.textContent).toBe('tiny/tiny')
+    expect(tooltip.textContent).toContain('전체 ID tiny/tiny-20261017')
+    expect(tooltip.textContent).toContain('점유율 0.1%')
+    expect(tooltip.textContent).toContain('▲ 0.2pt')
+    expect(tooltip.textContent).toContain('순위 3')
+  })
+
+  it('When a small cell is tapped Then pins its tooltip until Escape', async () => {
+    renderPage(bySection)
+    await screen.findByTestId('trend-metrics-treemap')
+    const cells = await screen.findAllByTestId('trend-treemap-cell')
+    const smallest = cells[cells.length - 1]!
+    fireEvent.click(smallest)
+    expect(await screen.findByRole('tooltip')).toBeTruthy()
+    fireEvent.keyDown(screen.getByTestId('trend-treemap-chart'), { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
   it('When an entry is other Then paints it with the muted token and keeps the label accessible', async () => {
@@ -121,8 +154,8 @@ describe('Given the metrics section on /trend', () => {
     await screen.findByTestId('trend-metrics-treemap')
     const other = screen.getAllByTestId('trend-treemap-cell').find((cell) => cell.getAttribute('data-entry-id') === 'other')!
     expect(other.getAttribute('data-step')).toBe('other')
-    expect((other as HTMLElement).style.backgroundColor).toContain('--muted')
-    expect(other.getAttribute('title')).toContain('기타')
+    expect(other.children[1]?.getAttribute('fill')).toBe('var(--muted)')
+    expect(other.getAttribute('aria-label')).toContain('기타')
   })
 
   it('When the treemap renders Then each cell is focusable and a screen-reader list mirrors it', async () => {
@@ -132,6 +165,7 @@ describe('Given the metrics section on /trend', () => {
     expect(section.getByRole('group', { name: '성능 지표 보기 방식' })).toBeTruthy()
     const cells = section.getAllByTestId('trend-treemap-cell')
     expect(cells.every((cell) => cell.getAttribute('tabindex') === '0')).toBe(true)
+    expect(cells.every((cell) => (cell.getAttribute('aria-label') ?? '') !== '')).toBe(true)
     expect(section.getByTestId('trend-treemap-sr-list').getAttribute('aria-label')).toBe('성능 지표 목록')
   })
 
