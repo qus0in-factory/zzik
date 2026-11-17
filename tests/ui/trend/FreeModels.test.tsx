@@ -51,6 +51,16 @@ describe('Given the free-models section on /trend', () => {
     expect(section.getByText(/출처 OpenCode Go · 갱신/)).toBeTruthy()
   })
 
+  it('When creator is empty Then no empty creator paragraph is rendered', async () => {
+    const blank = { ...free, items: free.items.map((item) => ({ ...item, creator: '' })) }
+    renderPage(async (section) => ({ ok: true, value: section === 'free-models' ? blank : latest }))
+    const cards = await screen.findAllByTestId('trend-free-model')
+    expect(cards.length).toBeGreaterThan(0)
+    for (const card of cards) {
+      for (const paragraph of card.querySelectorAll('p')) expect(paragraph.textContent?.trim() ?? '').not.toBe('')
+    }
+  })
+
   it('When items are empty or not_ready Then hides the entire free-models section without empty-state text', async () => {
     renderPage(async (section) => ({ ok: true, value: section === 'free-models' ? { ...free, items: [] } : latest }))
     await screen.findByTestId('trend-new-models')

@@ -1,6 +1,6 @@
 /** #116 공개 트렌드 계약. Worker 섹션 payload와 UI가 같은 타입을 쓴다. */
 export const TREND_PUBLIC_PATH = '/pub/trend'
-export const TREND_SECTIONS = ['plan-models', 'new-models', 'free-models', 'frontier', 'metrics'] as const
+export const TREND_SECTIONS = ['plan-models', 'new-models', 'free-models', 'metrics'] as const
 export type TrendSection = (typeof TREND_SECTIONS)[number]
 export const TREND_SCHEMA_VERSION = 1
 export const TREND_SECTION_MAX_BYTES = 100_000
@@ -75,9 +75,9 @@ export interface TrendSourceState {
   status: 'ok' | 'stale'
 }
 
-export type TrendMetricsBlockStatus = 'ok' | 'stale' | 'not_configured' | 'under_review'
+export type TrendMetricsBlockStatus = 'ok' | 'stale' | 'not_configured'
 export type TrendMetricsKind = 'new-top' | 'moved' | 'steady'
-export type TrendMetricsNote = 'baseline' | 'version_changed' | 'source_failed' | 'terms_review'
+export type TrendMetricsNote = 'baseline' | 'source_failed'
 
 export interface TrendMetricsEntry {
   id: string

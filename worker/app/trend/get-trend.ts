@@ -40,7 +40,8 @@ export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | nul
     const checkedMs = SECTION_SOURCES[row.section].reduce((max, id) => Math.max(max, bySource.get(id) ?? 0), 0)
     sections.push({
       id: row.section,
-      count: payload.items.length,
+      // metrics는 items가 비어 있고 blocks.entries가 실질 항목이다.
+      count: payload.items.length + (payload.blocks?.reduce((total, block) => total + block.entries.length, 0) ?? 0),
       generatedAt: payload.generatedAt,
       checkedAt: checkedMs > 0 ? new Date(checkedMs).toISOString() : payload.generatedAt,
       status: payload.sources.some((source) => source.status === 'stale') ? 'stale' : 'ok',

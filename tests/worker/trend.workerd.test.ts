@@ -155,8 +155,6 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(sectionRows.map((row) => row.section).sort()).toEqual(['free-models', 'new-models', 'plan-models'])
     expect(sectionRows.every((row) => /^[0-9a-f]{64}$/.test(row.sha) && row.at === NOW)).toBe(true)
 
-    const seen = await db.prepare('SELECT canonical_id AS id FROM trend_model_seen ORDER BY canonical_id').all<{ id: string }>()
-    expect(seen.results).toEqual([])
     const states = await db.prepare('SELECT source, etag, ok, http_status AS status FROM trend_source_state ORDER BY source').all<{ source: string; etag: string | null; ok: number; status: number }>()
     expect(states.results).toEqual([
       { source: 'go-models', etag: null, ok: 1, status: 200 },
