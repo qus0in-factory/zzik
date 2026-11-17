@@ -1,0 +1,34 @@
+# 에이전트 구성 및 모델 라벨
+
+이 문서는 자주 바뀌는 에이전트 구성·모델·역할·라벨 매핑의 현재 정본이다. 절차는 `herdr-orchestration`, `herdr-label-models` 스킬을 따른다.
+
+## 에이전트 구성 (2026-11-16 사용자 결정, 2026-11-17 `z-hyd` 추가)
+
+| 에이전트 | 역할 | 도구·모델 |
+|---|---|---|
+| `z-opus` (`opus`) | 사용자 응대·총괄·병합·릴리스. 조사·구현·편집·대기를 직접 해도 된다. | Claude Code (Opus) |
+| `z-sol` (`sol`) | 백엔드·수집기 구현, DB 연동, 까다로운 디버깅·조사 | Codex (`GPT-6.1-Sol`) |
+| `z-ds` (`ds`) | 경량 구현·잡무, 하네스·스크립트·문서 동기화 | OpenCode (`DeepSeek V4.1 Flash`) |
+| `z-hf` (`hf`) | 소규모 구현·문서 동기화·가벼운 확인 | OpenCode (`Hy4 flash Free`) |
+| `z-hyd` (`hydro`) | 문서·하네스 동기화, 범위가 명확한 소규모 구현, 테스트 보강 | Antigravity CLI (`Gemini 4 Hydrogen`, medium) |
+
+- `z-grok`은 배정 대상이 아니다.
+
+## 사용량 한도 지시 (2026-11-17 사용자 지시)
+
+- 한도 판단·변경(fast·effort·모델 조정)은 사용자에게 맡긴다.
+- 한도를 의식하지 않고 소진까지 사용하며, 잔량 경고로 배정을 미루지 않는다.
+
+## 워크스페이스 라벨·상주 구성
+
+- 워크스페이스별 접두어 라벨(`z-`, `e-`) 규칙을 따른다.
+- `zzik` 워크스페이스 상주 구성: `z-opus`, `z-sol`, `z-ds`, `z-grok`, `z-hydro` (`z-hyd`).
+- 닫힌 패널 감지 규칙은 재사용 대비로 남기되 `argon`·`astra`는 상주 구성에서 제외한다.
+
+## 모델 약칭 및 감지 매핑
+
+- `agent` 필드 1차 판정: `codex`→`sol`, `grok`→`grok`.
+- 하단 상태줄(비어 있지 않은 마지막 5줄) 판정:
+  - `agy`: `Gemini <버전> Hydrogen` 또는 `Hydrogen`→`hydro`, 그 외 `Gemini <버전>`→`gemini`.
+  - `opencode`: `GPT-<버전>-Sol`→`sol`, `DeepSeek <버전>`→`ds`, `Hy<버전>`→`hy`, `Hy4 flash`→`hf`(`hy`와 구분), `GLM-<버전>`→`glm`, `Beam Free`→`beam`.
+  - `claude`: `Opus|Fable|Sonnet <버전>`→`opus`|`fable`|`sonnet`(마지막 줄 우선).
