@@ -36,6 +36,58 @@ describe('Given an Artificial Analysis models page', () => {
     expect(decoded.entries[0]?.domains).not.toHaveProperty('coding')
   })
 
+  it('When speed fields are nested under performance Then reads median output tokens and TTFT, not end-to-end', () => {
+    const decoded = decodeAaPage({
+      intelligence_index_version: '5',
+      data: [{
+        slug: 'nested/x',
+        evaluations: { artificial_analysis_intelligence_index: 72 },
+        performance: {
+          median_output_tokens_per_second: 84.5,
+          median_time_to_first_token_seconds: 1.12,
+          median_time_to_first_answer_token_seconds: 2.5,
+          median_end_to_end_response_time_seconds: 9.9,
+        },
+        performance_v3: {
+          mean_output_tokens_per_second: 70,
+          mean_time_to_first_token_seconds: 0.9,
+        },
+      }],
+    })
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.entries[0]).toMatchObject({ outputTokensPerSecond: 84.5, timeToFirstTokenSeconds: 1.12 })
+    expect(decoded.entries[0]?.timeToFirstTokenSeconds).not.toBe(9.9)
+  })
+
+  it('When only performance_v3 is present Then falls back to its mean fields', () => {
+    const decoded = decodeAaPage({
+      intelligence_index_version: '5',
+      data: [{
+        slug: 'v3/x',
+        evaluations: { artificial_analysis_intelligence_index: 60 },
+        performance_v3: { mean_output_tokens_per_second: 70, mean_time_to_first_token_seconds: 0.9 },
+      }],
+    })
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.entries[0]).toMatchObject({ outputTokensPerSecond: 70, timeToFirstTokenSeconds: 0.9 })
+  })
+
+  it('When cost per task is nested under the intelligence index cost Then it is decoded', () => {
+    const decoded = decodeAaPage({
+      intelligence_index_version: '5',
+      data: [{
+        slug: 'cost/x',
+        evaluations: { artificial_analysis_intelligence_index: 70 },
+        artificial_analysis_intelligence_index_cost: { total_cost: 8.4, cost_per_task: { total_cost: 0.42 } },
+      }],
+    })
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.entries[0]?.costPerTask).toBe(0.42)
+  })
+
   it('When the source returns a numeric index version Then normalizes it to the stored string', () => {
     const decoded = decodeAaPage({ intelligence_index_version: 4.1, data: [
       { slug: 'example', model_creator: { name: 'Example' }, evaluations: { artificial_analysis_intelligence_index: 42 } },

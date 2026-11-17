@@ -41,12 +41,12 @@ class FakeMetricsStore implements MetricsStore {
 const orOk = (rows: OrRankingRow[], asOf = '2026-11-17T04:00:00Z'): OrFetchResult => ({ ok: true, snapshot: { asOf, asOfKind: 'source', meta: {}, rows } })
 const orFail = (reason: 'unauthorized' | 'rate_limited'): OrFetchResult => ({ ok: false, reason, httpStatus: reason === 'unauthorized' ? 401 : 429 })
 function orSource(result: OrFetchResult): OrRankingSource { return { id: TREND_SOURCE_OPENROUTER_RANKINGS, async fetch() { return result } } }
-const aaEntry = (slug: string, name: string, index: number) => ({
-  slug, name, creator: '', releaseDate: null, intelligenceIndex: index, priceIn: null, priceOut: null, domains: {},
+const aaEntry = (slug: string, name: string, index: number, creator = 'Maker') => ({
+  slug, name, creator, releaseDate: null, intelligenceIndex: index, priceIn: null, priceOut: null, domains: {},
 })
 const aaOk: AaFetchResult = {
   ok: true,
-  snapshot: { version: '5', entries: [aaEntry('b', 'Model B', 80), aaEntry('a', 'Model A', 90), aaEntry('c', 'Model C', 70)] },
+  snapshot: { version: '5', entries: [aaEntry('b', 'Model B', 80, 'Org B'), aaEntry('a', 'Model A', 90, 'Org A'), aaEntry('c', 'Model C', 70, 'Org C')] },
 }
 function aaSource(result: AaFetchResult): AaSource { return { id: TREND_SOURCE_ARTIFICIAL_ANALYSIS, async fetch() { return result } } }
 const rows = (offset: number, permaslug: string, tokens: string): OrRankingRow => ({ day: day(offset), permaslug, totalTokens: tokens })

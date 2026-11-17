@@ -36,6 +36,7 @@ interface AaDbRow {
   price_out: number | null
   output_tokens_per_second: number | null
   time_to_first_token_seconds: number | null
+  cost_per_task: number | null
   release_date: string | null
   index_version: string
 }
@@ -83,7 +84,7 @@ export class D1MetricsStore implements MetricsStore {
   async readAaSnapshot(day: string): Promise<AaSnapshotRow[]> {
     const rows = await all<AaDbRow>(
       this.db,
-      'SELECT day, slug, name, creator, intelligence_index, domain_json, price_in, price_out, output_tokens_per_second, time_to_first_token_seconds, release_date, index_version FROM trend_aa_snapshot WHERE day = ?',
+      'SELECT day, slug, name, creator, intelligence_index, domain_json, price_in, price_out, output_tokens_per_second, time_to_first_token_seconds, cost_per_task, release_date, index_version FROM trend_aa_snapshot WHERE day = ?',
       [day],
     )
     return rows.map((row) => ({
@@ -97,6 +98,7 @@ export class D1MetricsStore implements MetricsStore {
       priceOut: row.price_out === null ? null : Number(row.price_out),
       outputTokensPerSecond: row.output_tokens_per_second === null ? null : Number(row.output_tokens_per_second),
       timeToFirstTokenSeconds: row.time_to_first_token_seconds === null ? null : Number(row.time_to_first_token_seconds),
+      costPerTask: row.cost_per_task === null ? null : Number(row.cost_per_task),
       releaseDate: row.release_date,
       indexVersion: row.index_version,
     }))
@@ -108,19 +110,20 @@ export class D1MetricsStore implements MetricsStore {
     ]
     for (const row of rows) {
       statements.push(this.db.prepare(
-        `INSERT INTO trend_aa_snapshot (day, slug, name, creator, intelligence_index, domain_json, price_in, price_out, output_tokens_per_second, time_to_first_token_seconds, release_date, index_version)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO trend_aa_snapshot (day, slug, name, creator, intelligence_index, domain_json, price_in, price_out, output_tokens_per_second, time_to_first_token_seconds, cost_per_task, release_date, index_version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(day, slug) DO UPDATE SET
            name = excluded.name, creator = excluded.creator,
            intelligence_index = excluded.intelligence_index, domain_json = excluded.domain_json,
            price_in = excluded.price_in, price_out = excluded.price_out,
            output_tokens_per_second = excluded.output_tokens_per_second,
            time_to_first_token_seconds = excluded.time_to_first_token_seconds,
+           cost_per_task = excluded.cost_per_task,
            release_date = excluded.release_date, index_version = excluded.index_version`,
       ).bind(
         row.day, row.slug, row.name, row.creator, row.intelligenceIndex, JSON.stringify(row.domains),
         row.priceIn, row.priceOut, row.outputTokensPerSecond ?? null, row.timeToFirstTokenSeconds ?? null,
-        row.releaseDate, row.indexVersion,
+        row.costPerTask ?? null, row.releaseDate, row.indexVersion,
       ))
     }
     await runStatements(this.db, statements)
