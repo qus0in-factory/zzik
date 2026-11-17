@@ -20,7 +20,7 @@ export interface CardPresentation {
 }
 
 /** 카드가 그릴 판정 결과. ui는 이 값을 색·자세로만 옮긴다. */
-export function cardPresentation(item: { usedPercent: number | null; elapsedPercent?: number | null }, lapSeconds: number | null): CardPresentation {
-  const barLevel = barLevelOf(item.usedPercent, item.elapsedPercent)
+export function cardPresentation(item: { usedPercent: number | null; elapsedPercent?: number | null; cycleSeconds?: number | null }, lapSeconds: number | null): CardPresentation {
+  const barLevel = barLevelOf(item.usedPercent, item.elapsedPercent, item.cycleSeconds)
   return { barLevel, barLevelText: BAR_LEVEL_TEXT[barLevel], gerbil: gerbilStateOf(item.usedPercent, lapSeconds) }
 }

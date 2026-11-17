@@ -12,13 +12,13 @@ describe('Given only the last notified level N controls transitions',()=>{
  it('When caution/normal oscillates Then never sends caution to caution',()=>{
   let state=baseline()
   const events=[]
-  for(const [m,v] of [[0,75],[15,10],[30,75],[45,10],[60,75]]){const s=step(state,report(v,m));state=s.state;events.push(...s.events)}
+  for(const [m,v] of [[0,53],[15,10],[30,53],[45,10],[60,53]]){const s=step(state,report(v,m));state=s.state;events.push(...s.events)}
   expect(events.map(e=>[e.from,e.to])).toEqual([['normal','caution'],['caution','normal']])
  })
  it('When danger eases then worsens Then cooldown permits an actual downgrade followed by immediate worsening',()=>{
   let s=step(baseline(),report(95))
-  expect(step(s.state,report(75,15)).events).toEqual([])
-  s=step(s.state,report(75,30))
+  expect(step(s.state,report(53,15)).events).toEqual([])
+  s=step(s.state,report(53,30))
   expect(s.events).toMatchObject([{from:'danger',to:'caution'}])
   expect(step(s.state,report(95,75)).events).toMatchObject([{from:'caution',to:'danger'}])
  })
@@ -27,14 +27,14 @@ describe('Given only the last notified level N controls transitions',()=>{
   expect(step(s.state,report(100,31)).events).toMatchObject([{from:'normal',to:'limit'}])
  })
  it('When a clear waits at the cooldown boundary Then 30 minutes is inclusive',()=>{
-  const s=step(baseline(),report(75))
+  const s=step(baseline(),report(53))
   expect(step(s.state,{...report(10),nowMs:start+1799999}).events).toEqual([])
   expect(step(s.state,report(10,30)).events).toMatchObject([{to:'normal'}])
  })
  it('When pace is caution below 25% Then suppresses it without changing dashboard policy',()=>{
   const s=baseline(0)
-  expect(step(s,report(24.9,0,{elapsedPercent:0})).events).toEqual([])
-  expect(step(s,report(25,0,{elapsedPercent:0})).events).toMatchObject([{to:'caution'}])
+  expect(step(s,report(24.9,0,{elapsedPercent:22})).events).toEqual([])
+  expect(step(s,report(25,0,{elapsedPercent:22})).events).toMatchObject([{to:'caution'}])
   expect(step(s,report(95,0,{elapsedPercent:100})).events).toMatchObject([{to:'danger'}])
  })
 })

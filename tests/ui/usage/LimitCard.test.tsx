@@ -32,7 +32,7 @@ describe('Given a limit card for the five hour window', () => {
 describe('Given a limit card status badges', () => {
   it('When rendering an warn level item then the caution badge appears (U3)', () => {
     const report = buildUsageView(warnRaw, { now: NOW })
-    const item = report.windows[0]
+    const item = { ...report.windows[0], elapsedPercent: 81 }
     render(<LimitCard item={item} presentation={cardPresentation(item, null)} />)
     expect(screen.getByText('주의')).toBeTruthy()
   })
@@ -129,7 +129,7 @@ describe('Given badges and bar share one judgment', () => {
   const item = (used: number, elapsed: number | null) => ({ id: 'x', label: 'X', usedPercent: used, resetsAt: null, expired: false, status: 'normal' as const, elapsedPercent: elapsed })
   it.each([
     [30, 50, null, 'ok'],
-    [60, 20, '주의', 'caution'],
+    [60, 57, '주의', 'caution'],
     [92, 99, '위험', 'danger'],
     [100, 100, '한도 도달', 'danger'],
     [85, 95, null, 'ok'],
