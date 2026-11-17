@@ -8,7 +8,7 @@ import type { SnapshotStore } from '../domain/usage/store'
 import { respond } from './respond'
 import { createUsageRoute } from './usage/usage-route'
 import { createTrendRoute } from './trend/trend-route'
-import type { TrendStore } from './trend/trend-route'
+import type { TrendStore } from '../domain/trend/store'
 export interface RouterDependencies {
   config: ConfigResult
   verifier: AccessTokenVerifier

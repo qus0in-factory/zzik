@@ -8,6 +8,8 @@ import type { UsageProvider, UsageStatus } from '../../../shared/usage-contract'
 /** The daily export cron. E's 15-minute bucket writer keeps its own string. */
 export const EXPORT_CRON = '0 3 * * *'
 export const BUCKET_CRON = '*/15 * * * *'
+/** Public trend refresh: every two hours, off the other cron boundaries. */
+export const TREND_CRON = '7 */2 * * *'
 
 /** ADR cap: a page never exceeds 1,000 rows. */
 export const EXPORT_EVENT_PAGE_MAX_ROWS = 1_000
@@ -27,7 +29,7 @@ export const EXPORT_DOCUMENT_VERSION = 1
 
 const SIGNED_64_MAX = 9223372036854775807n
 
-export type ExportCronKind = 'export' | 'bucket' | 'unknown'
+export type ExportCronKind = 'export' | 'bucket' | 'trend' | 'unknown'
 export type ExportResult<T> = { ok: true; value: T } | { ok: false; reason: 'invalid_export_object' }
 
 export interface ExportManifest {
@@ -122,6 +124,7 @@ export interface RestoreTarget {
 export function classifyScheduledCron(cron: string | undefined): ExportCronKind {
   if (cron === EXPORT_CRON) return 'export'
   if (cron === BUCKET_CRON) return 'bucket'
+  if (cron === TREND_CRON) return 'trend'
   return 'unknown'
 }
 

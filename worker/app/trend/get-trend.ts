@@ -1,0 +1,54 @@
+import type { TrendIndex, TrendIndexSection, TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
+import { projectSectionPayload } from '../../domain/trend/projection'
+import type { TrendSectionRow, TrendStore } from '../../domain/trend/store'
+
+function parsePayload(row: TrendSectionRow): TrendSectionPayload | null {
+  try {
+    const value: unknown = JSON.parse(row.payload)
+    if (typeof value !== 'object' || value === null) return null
+    const payload = value as TrendSectionPayload
+    return payload.section === row.section && Array.isArray(payload.items) && Array.isArray(payload.sources) ? payload : null
+  } catch {
+    return null
+  }
+}
+
+export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | null> {
+  const rows = await store.readSections()
+  const sections: TrendIndexSection[] = []
+  let generatedAt = 0
+  for (const row of rows) {
+    const payload = parsePayload(row)
+    if (payload === null) continue
+    const at = Date.parse(payload.generatedAt)
+    if (Number.isFinite(at)) generatedAt = Math.max(generatedAt, at)
+    sections.push({
+      id: row.section,
+      count: payload.items.length,
+      generatedAt: payload.generatedAt,
+      status: payload.sources.some((source) => source.status === 'stale') ? 'stale' : 'ok',
+    })
+  }
+  if (sections.length === 0) return null
+  return { generatedAt: new Date(generatedAt).toISOString(), sections }
+}
+
+/**
+ * 공개 응답용 섹션. 저장 payload를 계약 필드로 투영해 추가 필드(extra 등)를 제거한다.
+ * 저장소 손상은 `corrupt`로 구분해 라우트가 고정 500을 반환하게 한다.
+ */
+export async function getPublicTrendSection(
+  store: TrendStore,
+  section: TrendSection,
+): Promise<{ ok: true; payload: TrendSectionPayload } | { ok: false; reason: 'not_ready' | 'corrupt' }> {
+  const row = await store.readSection(section)
+  if (row === null) return { ok: false, reason: 'not_ready' }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(row.payload)
+  } catch {
+    return { ok: false, reason: 'corrupt' }
+  }
+  const payload = projectSectionPayload(parsed, section)
+  return payload === null ? { ok: false, reason: 'corrupt' } : { ok: true, payload }
+}
