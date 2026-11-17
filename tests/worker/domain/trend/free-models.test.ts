@@ -1,40 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import type { TrendSectionPayload } from '../../../../shared/trend-contract'
-import { TREND_FREE_MODELS_RULE } from '../../../../shared/trend-contract'
+import type { TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
+import { TREND_FREE_MODELS_RULE, TREND_SOURCE_OPENCODE_ZEN } from '../../../../shared/trend-contract'
 import { buildFreeModels } from '../../../../worker/domain/trend/sections/free-models'
-import type { PlanObservationRow } from '../../../../worker/domain/trend/plan/types'
 import type { TrendModelRecord } from '../../../../worker/domain/trend/sources'
 
 const NOW = Date.UTC(2026, 10, 17, 5, 0, 0)
-const HOUR = 3_600_000
 const DAY = 86_400_000
 
-function observation(overrides: Partial<PlanObservationRow> = {}): PlanObservationRow {
+function zenRecord(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
   return {
-    plan: 'opencode-go',
-    modelId: 'deepseek/deepseek-v4.1-flash-1017',
-    displayName: 'DeepSeek V4.1 Flash 1017',
-    source: 'go-models',
-    confidence: 'catalog',
-    firstSeenAt: NOW - DAY,
-    lastSeenAt: NOW - HOUR,
-    baseline: false,
-    ...overrides,
-  }
-}
-
-function record(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
-  return {
-    canonicalId: 'deepseek/deepseek-v4.1-flash-1017',
-    provider: 'opencode-go',
-    modelId: 'deepseek-v4.1-flash',
-    name: 'DeepSeek V4.1 Flash 1017',
-    creator: 'deepseek',
-    releaseDate: '2026-10-17',
+    canonicalId: 'hy4-flash-free',
+    provider: 'opencode',
+    modelId: 'hy4-flash-free',
+    name: 'Hy4 Flash Free',
+    creator: 'tencent',
+    releaseDate: '2026-11-16',
     releasePrecision: 'day',
-    releaseMs: Date.UTC(2026, 9, 17),
-    price: { input: 0.15, output: 0.6 },
-    free: false,
+    releaseMs: NOW - DAY,
+    price: { input: 0, output: 0 },
+    free: true,
     openWeights: true,
     status: null,
     expiresAtMs: null,
@@ -42,72 +26,115 @@ function record(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
   }
 }
 
+function catalogRecord(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
+  return {
+    canonicalId: 'tencent/hy4-flash',
+    provider: 'opencode',
+    modelId: 'hy4-flash-free',
+    name: 'Hy4 Flash Free',
+    creator: 'tencent',
+    releaseDate: '2026-11-16',
+    releasePrecision: 'day',
+    releaseMs: NOW - DAY,
+    price: { input: 0, output: 0 },
+    free: true,
+    openWeights: true,
+    status: null,
+    expiresAtMs: null,
+    ...overrides,
+  }
+}
+
+const okSource: TrendSourceState[] = [{ id: TREND_SOURCE_OPENCODE_ZEN, fetchedAt: new Date(NOW).toISOString(), status: 'ok' }]
+
 function build(input: {
-  observations?: PlanObservationRow[]
+  zen?: TrendModelRecord[] | null
   catalog?: TrendModelRecord[] | null
   previous?: TrendSectionPayload | null
+  sources?: TrendSourceState[]
 }) {
   return buildFreeModels({
-    observations: input.observations ?? [],
+    zen: input.zen === undefined ? [] : input.zen,
     catalog: input.catalog ?? null,
     previous: input.previous ?? null,
+    sources: input.sources ?? okSource,
     nowMs: NOW,
   })
 }
 
-describe('Given the plan-included free-models builder', () => {
-  it('When Go and Ollama observations exist Then emits two groups with metadata and plan-included pricing', () => {
+describe('Given the OpenCode Zen zero-price free-models builder', () => {
+  it('When Zen models include free, paid, deprecated, and >30d free models Then emits all active free models with recentlyAdded flag', () => {
     const payload = build({
-      observations: [
-        observation(),
-        observation({ plan: 'ollama-cloud', modelId: 'glm-5.3', displayName: 'glm-5.3', source: 'ollama-tags' }),
+      zen: [
+        zenRecord(),
+        zenRecord({
+          canonicalId: 'big-pickle',
+          modelId: 'big-pickle',
+          name: 'Big Pickle',
+          creator: '',
+          releaseDate: '2026-09-01',
+          releaseMs: NOW - 77 * DAY,
+        }),
+        zenRecord({
+          canonicalId: 'paid-model',
+          modelId: 'paid-model',
+          name: 'Paid Model',
+          price: { input: 1.5, output: 4.0 },
+          free: false,
+        }),
+        zenRecord({
+          canonicalId: 'old-deprecated-free',
+          modelId: 'old-deprecated-free',
+          name: 'Old Deprecated Free',
+          status: 'deprecated',
+        }),
       ],
       catalog: [
-        record(),
-        record({ canonicalId: 'zhipuai/glm-5.3', provider: 'ollama-cloud', modelId: 'glm-5.3', name: 'GLM 5.3', creator: 'zhipuai', releaseDate: '2026-08-14', releaseMs: Date.UTC(2026, 7, 14), price: null }),
+        catalogRecord({ canonicalId: 'opencode/big-pickle', modelId: 'big-pickle', name: 'Big Pickle', creator: 'opencode' }),
       ],
     })
     expect(payload.rule).toBe(TREND_FREE_MODELS_RULE)
-    expect(payload.items.map((item) => item.freeKind)).toEqual(['opencode-go', 'ollama-cloud'])
+    expect(payload.items).toHaveLength(2)
     expect(payload.items[0]).toMatchObject({
-      id: 'deepseek/deepseek-v4.1-flash-1017', name: 'DeepSeek V4.1 Flash 1017', creator: 'deepseek',
-      price: { input: 0, output: 0 }, free: true, openWeights: true, freeKind: 'opencode-go',
+      id: 'hy4-flash-free',
+      name: 'Hy4 Flash Free',
+      free: true,
+      price: { input: 0, output: 0 },
+      freeKind: 'opencode-zen',
+      recentlyAdded: true,
     })
-    expect(payload.items[1]).toMatchObject({ id: 'zhipuai/glm-5.3', name: 'GLM 5.3', freeKind: 'ollama-cloud' })
-    expect(payload.sources).toEqual([
-      { id: 'go-models', fetchedAt: new Date(NOW - HOUR).toISOString(), status: 'ok' },
-      { id: 'ollama-tags', fetchedAt: new Date(NOW - HOUR).toISOString(), status: 'ok' },
-    ])
+    expect(payload.items[1]).toMatchObject({
+      id: 'big-pickle',
+      name: 'Big Pickle',
+      creator: 'opencode',
+      free: true,
+      freeKind: 'opencode-zen',
+      recentlyAdded: false,
+    })
+    expect(payload.sources).toEqual(okSource)
   })
 
-  it('When an observation has no models.dev match Then keeps the display name and empty creator', () => {
-    const payload = build({ observations: [observation({ modelId: 'new/model-x', displayName: 'Model X' })] })
-    expect(payload.items[0]).toMatchObject({ id: 'new/model-x', name: 'Model X', creator: '', releaseDate: null, precision: 'unknown', freeKind: 'opencode-go' })
-  })
-
-  it('When the last observation is older than 12 hours Then keeps items but marks the source stale', () => {
-    const payload = build({ observations: [observation({ lastSeenAt: NOW - 13 * HOUR })] })
+  it('When Zen fetch fails or returns 304 (zen=null) Then preserves previous free items and source state', () => {
+    const previous = build({ zen: [zenRecord()] })
+    const staleSources: TrendSourceState[] = [{ id: TREND_SOURCE_OPENCODE_ZEN, fetchedAt: new Date(NOW).toISOString(), status: 'stale' }]
+    const payload = build({ zen: null, previous, sources: staleSources })
     expect(payload.items).toHaveLength(1)
-    expect(payload.sources.find((source) => source.id === 'go-models')?.status).toBe('stale')
+    expect(payload.items[0]?.id).toBe('hy4-flash-free')
+    expect(payload.sources).toEqual(staleSources)
   })
 
-  it('When a plan has no current observations Then carries the previous group items', () => {
-    const previous = build({ observations: [observation()] })
-    const payload = build({ observations: [], previous })
-    expect(payload.items.map((item) => item.freeKind)).toEqual(['opencode-go'])
-    expect(payload.sources.find((source) => source.id === 'go-models')?.status).toBe('stale')
-  })
-
-  it('When an observation is older than the 7-day window Then excludes it', () => {
-    const payload = build({ observations: [observation({ lastSeenAt: NOW - 8 * DAY })] })
-    expect(payload.items).toEqual([])
-  })
-
-  it('When there is no data Then returns two stale sources and no items', () => {
-    const payload = build({})
-    expect(payload.items).toEqual([])
-    expect(payload.sources.map((source) => [source.id, source.status])).toEqual([
-      ['go-models', 'stale'], ['ollama-tags', 'stale'],
-    ])
+  it('When Zen returns free models without releaseDate Then recentlyAdded is false and metadata still renders', () => {
+    const payload = build({
+      zen: [zenRecord({ canonicalId: 'iceman-free', modelId: 'iceman-free', name: 'Iceman Free', creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null })],
+    })
+    expect(payload.items[0]).toMatchObject({
+      id: 'iceman-free',
+      name: 'Iceman Free',
+      creator: '',
+      releaseDate: null,
+      precision: 'unknown',
+      recentlyAdded: false,
+      freeKind: 'opencode-zen',
+    })
   })
 })

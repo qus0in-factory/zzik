@@ -181,19 +181,18 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     const freeText = await free.text()
     expect(freeText).not.toContain('sourceItems')
     expect(freeText).not.toContain('extra')
-    const freeBody = JSON.parse(freeText) as { items: Array<{ id: string; freeKind: string; price: unknown }>; sources: Array<{ id: string; status: string }> }
+    const freeBody = JSON.parse(freeText) as { items: Array<{ id: string; freeKind: string; price: unknown; recentlyAdded?: boolean }>; sources: Array<{ id: string; status: string }> }
     expect(freeBody.items).toEqual([
-      expect.objectContaining({ id: 'deepseek/deepseek-v4.1-flash-1017', freeKind: 'opencode-go', price: { input: 0, output: 0 } }),
-      expect.objectContaining({ id: 'glm-5.3', freeKind: 'ollama-cloud', price: { input: 0, output: 0 } }),
+      expect.objectContaining({ id: 'tencent/hy4-flash', freeKind: 'opencode-zen', price: { input: 0, output: 0 }, recentlyAdded: true }),
     ])
-    expect(freeBody.sources.map((source) => source.id)).toEqual(['go-models', 'ollama-tags'])
+    expect(freeBody.sources.map((source) => source.id)).toEqual(['opencode-zen'])
 
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
     expect(index.status).toBe(200)
     const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
     expect(indexBody.sections).toEqual(expect.arrayContaining([
       { id: 'new-models', count: 1, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
-      { id: 'free-models', count: 2, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
+      { id: 'free-models', count: 1, generatedAt: new Date(NOW).toISOString(), status: 'ok' },
     ]))
 
     const notModified = await mf.dispatchFetch('http://localhost/pub/trend/new-models', { headers: { 'If-None-Match': response.headers.get('ETag')! } })
@@ -227,17 +226,16 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(body.items).toEqual([])
     expect(body.generatedAt).toBe(new Date(NOW + 8 * 86_400_000).toISOString())
 
-    // free-models는 최신 요금제 목록을 쓰므로 두 항목이 유지된다.
+    // free-models는 Zen 무료 목록을 유지한다.
     const free = await mf.dispatchFetch('http://localhost/pub/trend/free-models')
     const freeBody = await free.json() as { items: unknown[] }
-    expect(freeBody.items).toHaveLength(2)
+    expect(freeBody.items).toHaveLength(1)
 
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
     const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
     expect(indexBody.sections).toEqual(expect.arrayContaining([
       { id: 'new-models', count: 0, generatedAt: new Date(NOW + 8 * 86_400_000).toISOString(), status: 'ok' },
-      // free-models는 이번 실행 전 관측을 읽어 출처가 stale로 표시된다.
-      expect.objectContaining({ id: 'free-models', count: 2, status: 'stale' }),
+      expect.objectContaining({ id: 'free-models', count: 1, status: 'ok' }),
     ]))
   })
 })

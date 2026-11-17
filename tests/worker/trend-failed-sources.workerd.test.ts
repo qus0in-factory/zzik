@@ -9,7 +9,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url))
 const now = Date.parse('2026-11-17T04:07:00Z')
 
 describe('Given the actual trend cron and existing collector observations', () => {
-  it('When every public source fails Then it records failures and still builds stale free-models and plan-models sections', async () => {
+  it('When every public source fails Then it records failures and still builds a stale plan-models section', async () => {
     const bundle = await build({ stdin: { resolveDir: root, contents: `
       import { createWorker } from './worker/index.ts';
       export default createWorker({ trendFetch: async () => new Response('', { status: 500 }) });
@@ -28,7 +28,7 @@ describe('Given the actual trend cron and existing collector observations', () =
       expect(states.results).toHaveLength(3)
       expect(states.results.every((row: { ok: number; http_status: number }) => row.ok === 0 && row.http_status === 500)).toBe(true)
       const sections = await db.prepare('SELECT section, generated_at, payload FROM trend_section ORDER BY section').all<{ section: string; generated_at: number; payload: string }>()
-      expect(sections.results.map((row: { section: string }) => row.section)).toEqual(['free-models', 'plan-models'])
+      expect(sections.results.map((row: { section: string }) => row.section)).toEqual(['plan-models'])
       expect(sections.results.every((row: { generated_at: number }) => row.generated_at === now)).toBe(true)
       expect(sections.results.every((row: { payload: string }) => JSON.parse(row.payload).sources.every((source: { status: string }) => source.status === 'stale'))).toBe(true)
     } finally { await mf.dispose() }

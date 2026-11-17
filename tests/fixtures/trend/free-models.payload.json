@@ -1,26 +1,40 @@
 {
   "section": "free-models",
   "schemaVersion": 1,
-  "generatedAt": "2026-11-17T00:00:00.000Z",
-  "rule": "plan-included-opencode-go-ollama-cloud",
+  "generatedAt": "2026-11-17T04:07:00.000Z",
+  "rule": "opencode-zen-free",
   "sources": [
     {
-      "id": "go-models",
-      "fetchedAt": "2026-11-17T00:00:00.000Z",
-      "status": "ok"
-    },
-    {
-      "id": "ollama-tags",
-      "fetchedAt": "2026-11-17T00:00:00.000Z",
+      "id": "opencode-zen",
+      "fetchedAt": "2026-11-17T04:07:00.000Z",
       "status": "ok"
     }
   ],
   "items": [
     {
-      "id": "deepseek/deepseek-v4.1-flash-1017",
-      "name": "DeepSeek V4.1 Flash 1017",
+      "id": "hy4-flash-free",
+      "name": "Hy4 Flash Free",
+      "creator": "tencent",
+      "releaseDate": "2026-11-16",
+      "precision": "day",
+      "price": {
+        "input": 0,
+        "output": 0
+      },
+      "free": true,
+      "openWeights": true,
+      "providers": [
+        "opencode-zen"
+      ],
+      "links": {},
+      "freeKind": "opencode-zen",
+      "recentlyAdded": true
+    },
+    {
+      "id": "deepseek-v4.1-flash-free",
+      "name": "DeepSeek V4.1 Flash Free",
       "creator": "deepseek",
-      "releaseDate": "2026-10-17",
+      "releaseDate": "2026-11-10",
       "precision": "day",
       "price": {
         "input": 0,
@@ -29,64 +43,30 @@
       "free": true,
       "openWeights": true,
       "providers": [
-        "opencode-go"
+        "opencode-zen"
       ],
       "links": {},
-      "freeKind": "opencode-go"
+      "freeKind": "opencode-zen",
+      "recentlyAdded": true
     },
     {
-      "id": "zhipuai/glm-5.3",
-      "name": "GLM 5.3",
-      "creator": "zhipuai",
-      "releaseDate": "2026-08-14",
+      "id": "big-pickle",
+      "name": "Big Pickle",
+      "creator": "opencode",
+      "releaseDate": "2026-09-01",
       "precision": "day",
       "price": {
         "input": 0,
         "output": 0
       },
       "free": true,
-      "openWeights": true,
+      "openWeights": false,
       "providers": [
-        "opencode-go"
+        "opencode-zen"
       ],
       "links": {},
-      "freeKind": "opencode-go"
-    },
-    {
-      "id": "zhipuai/glm-5.3",
-      "name": "GLM 5.3",
-      "creator": "zhipuai",
-      "releaseDate": "2026-08-14",
-      "precision": "day",
-      "price": {
-        "input": 0,
-        "output": 0
-      },
-      "free": true,
-      "openWeights": true,
-      "providers": [
-        "ollama-cloud"
-      ],
-      "links": {},
-      "freeKind": "ollama-cloud"
-    },
-    {
-      "id": "qwen/qwen4-max",
-      "name": "Qwen4 Max",
-      "creator": "qwen",
-      "releaseDate": "2026-11-05",
-      "precision": "day",
-      "price": {
-        "input": 0,
-        "output": 0
-      },
-      "free": true,
-      "openWeights": true,
-      "providers": [
-        "ollama-cloud"
-      ],
-      "links": {},
-      "freeKind": "ollama-cloud"
+      "freeKind": "opencode-zen",
+      "recentlyAdded": false
     }
   ]
 }

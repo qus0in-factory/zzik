@@ -35,17 +35,18 @@ const bySection: TrendGateway['fetchSection'] = async (section: TrendSection) =>
 })
 
 describe('Given the free-models section on /trend', () => {
-  it('When data loads Then shows OpenCode Go and Ollama Cloud groups, badges and source state', async () => {
+  it('When data loads Then shows OpenCode (무료) group, 무료/최근 추가 badges and source state', async () => {
     renderPage(bySection)
     expect(await screen.findByRole('heading', { name: '무료 모델' })).toBeTruthy()
     const section = within(screen.getByTestId('trend-free-models'))
-    expect(await section.findByText('DeepSeek V4.1 Flash 1017')).toBeTruthy()
-    expect(section.getByRole('heading', { name: 'OpenCode Go' })).toBeTruthy()
-    expect(section.getByRole('heading', { name: 'Ollama Cloud' })).toBeTruthy()
-    expect(section.getAllByText('GLM 5.3')).toHaveLength(2)
-    expect(section.getByText('Qwen4 Max')).toBeTruthy()
-    expect(section.getAllByText('요금제 포함')).toHaveLength(4)
-    expect(section.getByText(/출처 OpenCode Go · Ollama Cloud · 갱신/)).toBeTruthy()
+    expect(await section.findByText('Hy4 Flash Free')).toBeTruthy()
+    expect(section.getByRole('heading', { name: 'OpenCode (무료)' })).toBeTruthy()
+    expect(section.getByText('DeepSeek V4.1 Flash Free')).toBeTruthy()
+    expect(section.getByText('Big Pickle')).toBeTruthy()
+    expect(section.getAllByText('무료')).toHaveLength(3)
+    expect(section.getAllByText('최근 추가')).toHaveLength(2)
+    expect(section.queryByText('요금제 포함')).toBeNull()
+    expect(section.getByText(/출처 OpenCode Zen · 갱신/)).toBeTruthy()
   })
 
   it('When the section is loading Then shows the loading state', async () => {
@@ -63,20 +64,19 @@ describe('Given the free-models section on /trend', () => {
     cleanup()
 
     renderPage(async () => ({ ok: false, reason: 'not_ready', message: 'not_ready' }))
-    expect(await screen.findByText('요금제에 포함된 모델이 없습니다.')).toBeTruthy()
+    expect(await screen.findByText('현재 제공 중인 무료 모델이 없습니다.')).toBeTruthy()
     expect(within(screen.getByTestId('trend-free-models')).queryByRole('alert')).toBeNull()
   })
 
   it('When the payload has no items Then shows the empty state without group headings', async () => {
     renderPage(async () => ({ ok: true, value: { ...free, items: [] } }))
-    expect(await screen.findByText('요금제에 포함된 모델이 없습니다.')).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'OpenCode Go' })).toBeNull()
-    expect(screen.queryByRole('heading', { name: 'Ollama Cloud' })).toBeNull()
+    expect(await screen.findByText('현재 제공 중인 무료 모델이 없습니다.')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'OpenCode (무료)' })).toBeNull()
   })
 
   it('When /trend renders Then sections follow 성능 지표 → 신규 모델 → 무료 모델 → 참고 링크', async () => {
     renderPage(bySection)
-    await screen.findByText('DeepSeek V4.1 Flash 1017')
+    await screen.findByText('Hy4 Flash Free')
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
     expect(headings).toEqual(['성능 지표', '신규 모델', '무료 모델', '참고 링크'])
   })
