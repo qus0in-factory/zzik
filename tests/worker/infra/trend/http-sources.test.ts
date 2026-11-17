@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import payload from '../../../fixtures/trend/new-models.payload.json'
-import { createModelsDevSource } from '../../../../worker/infra/trend/http-sources'
+import { createModelsDevSource, createOpenRouterSource, createZenSource } from '../../../../worker/infra/trend/http-sources'
 
 const source = (fetchImpl: typeof fetch) => createModelsDevSource({ fetchImpl, timeoutMs: 10 })
 
@@ -77,5 +77,57 @@ describe('Given the models.dev HTTP source adapter', () => {
     const models = { anthropic: { id: 'anthropic', models: { x: { id: 'x', name: 'X', release_date: '2026-11-16' } } } }
     const result = await source(async () => new Response(JSON.stringify(models), { status: 200 })).fetch('"old"')
     expect(result).toMatchObject({ ok: true, notModified: false, etag: null })
+  })
+})
+
+describe('Given the OpenCode Zen HTTP source adapter', () => {
+  it('When a 200 list arrives Then requests the Zen endpoint and decodes free models', async () => {
+    let url = ''
+    const result = await createZenSource({
+      fetchImpl: async (input) => {
+        url = String(input)
+        return new Response(JSON.stringify({
+          object: 'list',
+          data: [{ id: 'hy4-flash-free', canonical_id: 'tencent/hy4-flash', name: 'Hy4 Flash Free', release_date: '2026-11-16', cost: { text: { input: { price: 0 }, output: { price: 0 } } } }],
+        }), { status: 200 })
+      },
+    }).fetch(null)
+    expect(url).toBe('https://opencode.ai/zen/v1/models')
+    expect(result).toMatchObject({ ok: true, notModified: false, etag: null })
+    if (result.ok) expect(result.models?.[0]).toMatchObject({ canonicalId: 'tencent/hy4-flash', free: true, provider: 'opencode' })
+  })
+
+  it('When Zen collapses to a broken 200 Then returns invalid so the section can stay stale', async () => {
+    const result = await createZenSource({ fetchImpl: async () => new Response('{"error":"synthetic"}', { status: 200 }) }).fetch(null)
+    expect(result).toEqual({ ok: false, reason: 'invalid', httpStatus: null })
+  })
+})
+
+describe('Given the OpenRouter HTTP source adapter', () => {
+  it('When a 200 list arrives Then requests the models endpoint and converts per-token prices', async () => {
+    let url = ''
+    const result = await createOpenRouterSource({
+      fetchImpl: async (input) => {
+        url = String(input)
+        return new Response(JSON.stringify({
+          data: [{ id: 'tencent/hy4-flash:free', name: 'Tencent: Hy4 flash', created: 1794838706, pricing: { prompt: '0', completion: '0' } }],
+        }), { status: 200 })
+      },
+    }).fetch(null)
+    expect(url).toBe('https://openrouter.ai/api/v1/models')
+    expect(result).toMatchObject({ ok: true, notModified: false, etag: null })
+    if (result.ok) expect(result.models?.[0]).toMatchObject({ canonicalId: 'tencent/hy4-flash', free: true, provider: 'openrouter' })
+  })
+
+  it('When OpenRouter has no ETag and returns 304 Then reports notModified with the previous validator', async () => {
+    const result = await createOpenRouterSource({
+      fetchImpl: async () => new Response(null, { status: 304 }),
+    }).fetch('"old"')
+    expect(result).toEqual({ ok: true, notModified: true, etag: '"old"', bytes: 0 })
+  })
+
+  it('When OpenRouter collapses to a broken 200 Then returns invalid', async () => {
+    const result = await createOpenRouterSource({ fetchImpl: async () => new Response('{"total_count":0}', { status: 200 }) }).fetch(null)
+    expect(result).toEqual({ ok: false, reason: 'invalid', httpStatus: null })
   })
 })
