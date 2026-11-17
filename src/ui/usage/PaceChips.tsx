@@ -69,6 +69,7 @@ function PaceChip({ provider, drag }: { provider: UsageProvider; drag: ChipDragP
         draggable={false}
         data-testid={`usage-pace-${provider}`}
         data-over-pace={pace.overPace}
+        data-bar-level={pace.barLevel}
         title={t('chips.title', { provider: meta.title, period: t(pace.unit === 'month' ? 'chips.period.month' : 'chips.period.week'), used, expected })}
         aria-describedby="pace-chips-help"
         onPointerDown={drag.onPointerDown}

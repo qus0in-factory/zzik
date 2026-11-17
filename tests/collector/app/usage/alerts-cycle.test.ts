@@ -32,10 +32,10 @@ describe('Given collector alert orchestration', () => {
   it('When persistence fails Then does not emit or advance the alert baseline', async () => {
     const p = createFakeCollectorPorts();queue(p,10);await runOnce(p)
     const baseline = (p.state.snapshot() as {alerts:unknown}).alerts
-    queue(p,75);p.store.queueResult({ok:false,httpStatus:null,message:'SyntheticError'})
+    queue(p,53);p.store.queueResult({ok:false,httpStatus:null,message:'SyntheticError'})
     expect(await runOnce(p)).toEqual({exitCode:3})
     expect((p.state.snapshot() as {alerts:unknown}).alerts).toEqual(baseline)
-    queue(p,75)
+    queue(p,53)
     expect(await runOnce(p)).toMatchObject({alerts:[{to:'caution'}]})
   })
   it('When collection fails or parsing is invalid Then preserves the alert baseline', async () => {
