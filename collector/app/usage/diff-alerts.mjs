@@ -17,7 +17,7 @@ const RANK = { normal: 0, caution: 1, danger: 2, limit: 3 }
 /** Alert-only caution floor; dashboard policy is unchanged. @param {AlertLimit} item @returns {AlertLevel} */
 function levelOf(item) {
   if (getUsageStatus(item.usedPercent) === 'limit') return 'limit'
-  const bar = barLevelOf(item.usedPercent, item.elapsedPercent)
+  const bar = barLevelOf(item.usedPercent, item.elapsedPercent, item.cycleSeconds)
   if (bar === 'danger') return 'danger'
   return bar === 'caution' && item.usedPercent >= ALERT_CAUTION_MIN_PERCENT ? 'caution' : 'normal'
 }

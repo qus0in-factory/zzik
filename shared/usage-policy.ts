@@ -8,9 +8,17 @@ export function getUsageStatus(percentage: number): PercentStatus {
 export function statusOf(percentage: number | null | undefined): PercentStatus | 'unknown' {
   return percentage == null ? 'unknown' : getUsageStatus(percentage)
 }
-export function barLevelOf(used: number | null | undefined, elapsed: number | null | undefined): BarLevel {
+export const BAR_DANGER_THRESHOLD = { month: 95, default: 90 } as const
+export function barLevelOf(
+  used: number | null | undefined,
+  elapsed: number | null | undefined,
+  cycleSeconds?: number | null,
+): BarLevel {
   if (typeof used !== 'number' || !Number.isFinite(used) || used <= 0) return 'neutral'
-  if (used >= 90) return 'danger'
+  const dangerAt = summaryUnitOf({ id: '', cycleSeconds, usedPercent: null }) === 'month'
+    ? BAR_DANGER_THRESHOLD.month
+    : BAR_DANGER_THRESHOLD.default
+  if (used >= dangerAt) return 'danger'
   if (typeof elapsed === 'number' && Number.isFinite(elapsed)) return used <= elapsed ? 'ok' : 'caution'
   return used >= 70 ? 'caution' : 'ok'
 }
