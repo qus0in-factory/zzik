@@ -23,6 +23,9 @@ class FakeMetricsStore implements MetricsStore {
   or: OrRankingRow[] = []
   writes: TrendSection[] = []
   pruned: [string, string] | null = null
+  failAaWrite = false
+  failOrWrite = false
+  failPrune = false
   async readSection(section: TrendSection): Promise<TrendSectionRow | null> { return this.sections.get(section) ?? null }
   async writeSection(payload: TrendSectionPayload): Promise<string> {
     this.writes.push(payload.section)
@@ -30,10 +33,10 @@ class FakeMetricsStore implements MetricsStore {
     return 'a'.repeat(64)
   }
   async readAaSnapshot(dayKey: string) { return this.aa.get(dayKey) ?? [] }
-  async writeAaSnapshot(dayKey: string, rows: ReturnType<typeof toAaRows>) { this.aa.set(dayKey, rows) }
+  async writeAaSnapshot(dayKey: string, rows: ReturnType<typeof toAaRows>) { if (this.failAaWrite) throw new Error('aa storage failed'); this.aa.set(dayKey, rows) }
   async readOrRanking(fromDay: string, toDay: string) { return this.or.filter((row) => row.day >= fromDay && row.day <= toDay) }
-  async writeOrRanking(rows: readonly OrRankingRow[]) { this.or = [...rows] }
-  async prune(beforeAaDay: string, beforeOrDay: string) { this.pruned = [beforeAaDay, beforeOrDay] }
+  async writeOrRanking(rows: readonly OrRankingRow[]) { if (this.failOrWrite) throw new Error('or storage failed'); this.or = [...rows] }
+  async prune(beforeAaDay: string, beforeOrDay: string) { if (this.failPrune) throw new Error('prune failed'); this.pruned = [beforeAaDay, beforeOrDay] }
 }
 
 const aaOk = (entries: Array<[string, number]>, version = '3.0'): AaFetchResult => ({
@@ -47,7 +50,7 @@ const aaOk = (entries: Array<[string, number]>, version = '3.0'): AaFetchResult 
   },
 })
 const aaFail = (reason: 'rate_limited' | 'unauthorized' | 'http'): AaFetchResult => ({ ok: false, reason, httpStatus: reason === 'rate_limited' ? 429 : 401 })
-const orOk = (rows: OrRankingRow[], asOf = '2026-11-17T04:00:00Z'): OrFetchResult => ({ ok: true, snapshot: { asOf, rows } })
+const orOk = (rows: OrRankingRow[], asOf = '2026-11-17T04:00:00Z'): OrFetchResult => ({ ok: true, snapshot: { asOf, asOfKind: 'source', meta: {}, rows } })
 const orFail = (reason: 'unauthorized' | 'rate_limited'): OrFetchResult => ({ ok: false, reason, httpStatus: reason === 'unauthorized' ? 401 : 429 })
 
 function aaSource(result: AaFetchResult): AaSource { return { id: TREND_SOURCE_ARTIFICIAL_ANALYSIS, async fetch() { return result } } }
@@ -149,6 +152,55 @@ describe('Given the daily metrics refresh', () => {
     expect(result).toMatchObject({ ok: false, written: false, notConfigured: true, blocks: { aa: 'not_configured', or: 'not_configured' } })
     expect(store.writes).toEqual([])
     expect(store.sections.has('metrics')).toBe(false)
+  })
+
+  it('When both keys are removed after a good run Then rewrites both blocks as not_configured with no network', async () => {
+    const store = new FakeMetricsStore()
+    await refreshMetrics({ store, nowMs: NOW, aaSource: aaSource(aaOk([['a/x', 90]])), orSource: orSource(orOk([rows(0, 'a/x', '100')])) })
+    const result = await refreshMetrics({ store, nowMs: NOW + DAY, aaSource: null, orSource: null })
+    expect(result).toMatchObject({ ok: false, written: true, notConfigured: true, blocks: { aa: 'not_configured', or: 'not_configured' } })
+    const payload = metricsPayload(store)
+    expect(payload.sources).toEqual([])
+    expect(payload.blocks.map((block) => block.status)).toEqual(['not_configured', 'not_configured'])
+    expect(payload.blocks.every((block) => block.entries.length === 0)).toBe(true)
+  })
+
+  it('When AA storage throws Then OR still updates and AA becomes stale with a storage reason', async () => {
+    const store = new FakeMetricsStore()
+    store.failAaWrite = true
+    const result = await refreshMetrics({
+      store, nowMs: NOW,
+      aaSource: aaSource(aaOk([['a/x', 90]])),
+      orSource: orSource(orOk([rows(0, 'a/x', '600'), rows(0, 'other', '400')])),
+    })
+    expect(result).toMatchObject({ ok: true, written: true, blocks: { aa: 'stale', or: 'ok' } })
+    expect(result.reasons).toEqual({ aa: 'storage', or: null })
+    expect(store.or).toHaveLength(2)
+    const payload = metricsPayload(store)
+    expect(payload.blocks.find((block) => block.id === 'aa-intelligence')).toMatchObject({ status: 'stale', note: 'source_failed', entries: [] })
+    expect(payload.blocks.find((block) => block.id === 'or-usage')?.entries[0]).toMatchObject({ id: 'a/x', rank: 1 })
+  })
+
+  it('When OR storage throws Then AA still updates and OR becomes stale with a storage reason', async () => {
+    const store = new FakeMetricsStore()
+    store.failOrWrite = true
+    const result = await refreshMetrics({
+      store, nowMs: NOW,
+      aaSource: aaSource(aaOk([['a/x', 90]])),
+      orSource: orSource(orOk([rows(0, 'a/x', '100')])),
+    })
+    expect(result).toMatchObject({ ok: true, written: true, blocks: { aa: 'ok', or: 'stale' } })
+    expect(result.reasons).toEqual({ aa: null, or: 'storage' })
+    expect(store.aa.get(day(0))).toHaveLength(1)
+    expect(metricsPayload(store).blocks.find((block) => block.id === 'or-usage')).toMatchObject({ status: 'stale', entries: [] })
+  })
+
+  it('When prune fails Then the public section is still written', async () => {
+    const store = new FakeMetricsStore()
+    store.failPrune = true
+    const result = await refreshMetrics({ store, nowMs: NOW, aaSource: aaSource(aaOk([['a/x', 90]])), orSource: null })
+    expect(result).toMatchObject({ ok: true, written: true, blocks: { aa: 'ok', or: 'not_configured' } })
+    expect(metricsPayload(store).blocks.find((block) => block.id === 'aa-intelligence')?.status).toBe('ok')
   })
 
   it('When the first run has one failed source Then still writes the healthy block and marks the other stale', async () => {

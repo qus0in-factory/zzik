@@ -1,11 +1,26 @@
 import { D1TrendStore } from './d1-trend-store'
-import type { D1DatabaseLike } from '../usage/d1-history-store'
-import type { AaSnapshotRow, MetricsStore, OrRankingRow } from '../../domain/trend/metrics/types'
+import type { D1DatabaseLike, D1PreparedStatementLike } from '../usage/d1-history-store'
+import type { AaSnapshotRow, MetricsStore, OrRankingMeta, OrRankingRow } from '../../domain/trend/metrics/types'
+
+interface D1BatchDatabaseLike extends D1DatabaseLike {
+  batch?(statements: D1PreparedStatementLike[]): Promise<Array<{ success?: boolean }>>
+}
 
 async function all<T>(db: D1DatabaseLike, query: string, params: readonly unknown[]): Promise<T[]> {
   const result = await db.prepare(query).bind(...params).all<T>()
   if (result.success === false) throw new Error('D1 statement failed')
   return result.results
+}
+
+/** D1 batch가 있으면 원자적으로, 없으면(테스트 더블) 순차 실행한다. */
+async function runStatements(db: D1DatabaseLike, statements: D1PreparedStatementLike[]): Promise<void> {
+  const batch = (db as D1BatchDatabaseLike).batch
+  if (batch !== undefined) {
+    const results = await batch.call(db, statements)
+    if (results.some((result) => result.success === false)) throw new Error('D1 batch failed')
+    return
+  }
+  for (const statement of statements) await statement.run()
 }
 
 interface AaDbRow {
@@ -77,9 +92,11 @@ export class D1MetricsStore implements MetricsStore {
   }
 
   async writeAaSnapshot(day: string, rows: readonly AaSnapshotRow[]): Promise<void> {
-    await this.db.prepare('DELETE FROM trend_aa_snapshot WHERE day = ?').bind(day).run()
+    const statements: D1PreparedStatementLike[] = [
+      this.db.prepare('DELETE FROM trend_aa_snapshot WHERE day = ?').bind(day),
+    ]
     for (const row of rows) {
-      await this.db.prepare(
+      statements.push(this.db.prepare(
         `INSERT INTO trend_aa_snapshot (day, slug, name, creator, intelligence_index, domain_json, price_in, price_out, release_date, index_version)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(day, slug) DO UPDATE SET
@@ -90,8 +107,9 @@ export class D1MetricsStore implements MetricsStore {
       ).bind(
         row.day, row.slug, row.name, row.creator, row.intelligenceIndex, JSON.stringify(row.domains),
         row.priceIn, row.priceOut, row.releaseDate, row.indexVersion,
-      ).run()
+      ))
     }
+    await runStatements(this.db, statements)
   }
 
   async readOrRanking(fromDay: string, toDay: string): Promise<OrRankingRow[]> {
@@ -103,23 +121,29 @@ export class D1MetricsStore implements MetricsStore {
     return rows.map((row) => ({ day: row.day, permaslug: row.model_permaslug, totalTokens: row.total_tokens }))
   }
 
-  async writeOrRanking(rows: readonly OrRankingRow[], asOf: string): Promise<void> {
+  async writeOrRanking(rows: readonly OrRankingRow[], asOf: string, meta: OrRankingMeta): Promise<void> {
     const days = [...new Set(rows.map((row) => row.day))].sort()
-    for (const day of days) {
-      await this.db.prepare('DELETE FROM trend_or_ranking WHERE day = ?').bind(day).run()
-    }
+    const statements: D1PreparedStatementLike[] = days.map((day) =>
+      this.db.prepare('DELETE FROM trend_or_ranking WHERE day = ?').bind(day))
     for (const row of rows) {
-      await this.db.prepare(
-        `INSERT INTO trend_or_ranking (day, model_permaslug, total_tokens, as_of)
-         VALUES (?, ?, ?, ?)
+      statements.push(this.db.prepare(
+        `INSERT INTO trend_or_ranking (day, model_permaslug, total_tokens, as_of, meta_version, start_date, end_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(day, model_permaslug) DO UPDATE SET
-           total_tokens = excluded.total_tokens, as_of = excluded.as_of`,
-      ).bind(row.day, row.permaslug, row.totalTokens, asOf).run()
+           total_tokens = excluded.total_tokens, as_of = excluded.as_of,
+           meta_version = excluded.meta_version, start_date = excluded.start_date, end_date = excluded.end_date`,
+      ).bind(
+        row.day, row.permaslug, row.totalTokens, asOf,
+        meta.version ?? null, meta.startDate ?? null, meta.endDate ?? null,
+      ))
     }
+    await runStatements(this.db, statements)
   }
 
   async prune(beforeAaDay: string, beforeOrDay: string): Promise<void> {
-    await this.db.prepare('DELETE FROM trend_aa_snapshot WHERE day < ?').bind(beforeAaDay).run()
-    await this.db.prepare('DELETE FROM trend_or_ranking WHERE day < ?').bind(beforeOrDay).run()
+    await runStatements(this.db, [
+      this.db.prepare('DELETE FROM trend_aa_snapshot WHERE day < ?').bind(beforeAaDay),
+      this.db.prepare('DELETE FROM trend_or_ranking WHERE day < ?').bind(beforeOrDay),
+    ])
   }
 }

@@ -1,5 +1,7 @@
 import {
   TREND_METRICS_RULE,
+  TREND_OR_LICENSE_NAME,
+  TREND_OR_LICENSE_URL,
   TREND_SCHEMA_VERSION,
   TREND_SOURCE_ARTIFICIAL_ANALYSIS,
   TREND_SOURCE_OPENROUTER_RANKINGS,
@@ -60,7 +62,10 @@ function notConfiguredAa(day: string): TrendMetricsBlock {
 }
 
 function notConfiguredOr(day: string): TrendMetricsBlock {
-  return { id: 'or-usage', status: 'not_configured', asOf: day, entries: [], attribution: orAttribution(day) }
+  return {
+    id: 'or-usage', status: 'not_configured', asOf: day, entries: [], attribution: orAttribution(day),
+    license: { name: TREND_OR_LICENSE_NAME, url: TREND_OR_LICENSE_URL }, processed: true,
+  }
 }
 
 function staleBlock(previous: TrendMetricsBlock | undefined, fallback: TrendMetricsBlock): TrendMetricsBlock {
@@ -93,23 +98,27 @@ export async function refreshMetrics(input: {
   let aaBlock: TrendMetricsBlock
   let aaStatus: TrendMetricsBlockStatus
   let aaReason: MetricsSourceFailureReason | null
-  if (aaSource === null) {
-    aaBlock = notConfiguredAa(day)
-    aaStatus = 'not_configured'
-    aaReason = 'not_configured'
-  } else if (aa === null) {
+  if (aaSource === null || aa === null) {
     aaBlock = notConfiguredAa(day)
     aaStatus = 'not_configured'
     aaReason = 'not_configured'
   } else if (aa.ok) {
-    const ranked = rankAa(aa.snapshot.entries).slice(0, AA_TOP_STORED).map((item) => item.entry)
-    const stored = { version: aa.snapshot.version, entries: ranked }
-    await store.writeAaSnapshot(day, toAaRows(stored, day))
-    const previousRows = await store.readAaSnapshot(addDays(day, -7))
-    const previousSnapshot = previousRows.length === 0 ? null : fromAaRows(previousRows, previousRows[0]!.indexVersion)
-    aaBlock = buildAaBlock({ today: stored, previous: previousSnapshot, asOf: day })
-    aaStatus = 'ok'
-    aaReason = null
+    try {
+      const ranked = rankAa(aa.snapshot.entries).slice(0, AA_TOP_STORED).map((item) => item.entry)
+      const stored = { version: aa.snapshot.version, entries: ranked }
+      await store.writeAaSnapshot(day, toAaRows(stored, day))
+      const previousRows = await store.readAaSnapshot(addDays(day, -7))
+      const previousSnapshot = previousRows.length === 0 ? null : fromAaRows(previousRows, previousRows[0]!.indexVersion)
+      aaBlock = buildAaBlock({ today: stored, previous: previousSnapshot, asOf: day })
+      aaStatus = 'ok'
+      aaReason = null
+    } catch {
+      // 저장소 예외가 OR 갱신을 막지 않도록 이 출처만 stale로 낮춘다.
+      const fallback: TrendMetricsBlock = { id: 'aa-intelligence', status: 'stale', asOf: day, note: 'source_failed', entries: [], attribution: aaAttribution('', day) }
+      aaBlock = staleBlock(previous?.blocks.find((block) => block.id === 'aa-intelligence'), fallback)
+      aaStatus = 'stale'
+      aaReason = 'storage'
+    }
   } else {
     const fallback: TrendMetricsBlock = { id: 'aa-intelligence', status: 'stale', asOf: day, note: 'source_failed', entries: [], attribution: aaAttribution('', day) }
     aaBlock = staleBlock(previous?.blocks.find((block) => block.id === 'aa-intelligence'), fallback)
@@ -125,18 +134,37 @@ export async function refreshMetrics(input: {
     orStatus = 'not_configured'
     orReason = 'not_configured'
   } else if (or.ok) {
-    await store.writeOrRanking(or.snapshot.rows, or.snapshot.asOf)
-    orBlock = buildOrBlock({ rows: or.snapshot.rows, today: day, asOf: or.snapshot.asOf })
-    orStatus = 'ok'
-    orReason = null
+    try {
+      await store.writeOrRanking(or.snapshot.rows, or.snapshot.asOf, or.snapshot.meta)
+      orBlock = buildOrBlock({
+        rows: or.snapshot.rows, today: day, asOf: or.snapshot.asOf, asOfKind: or.snapshot.asOfKind, meta: or.snapshot.meta,
+      })
+      orStatus = 'ok'
+      orReason = null
+    } catch {
+      const fallback: TrendMetricsBlock = {
+        id: 'or-usage', status: 'stale', asOf: day, note: 'source_failed', entries: [], attribution: orAttribution(day),
+        license: { name: TREND_OR_LICENSE_NAME, url: TREND_OR_LICENSE_URL }, processed: true,
+      }
+      orBlock = staleBlock(previous?.blocks.find((block) => block.id === 'or-usage'), fallback)
+      orStatus = 'stale'
+      orReason = 'storage'
+    }
   } else {
-    const fallback: TrendMetricsBlock = { id: 'or-usage', status: 'stale', asOf: day, note: 'source_failed', entries: [], attribution: orAttribution(day) }
+    const fallback: TrendMetricsBlock = {
+      id: 'or-usage', status: 'stale', asOf: day, note: 'source_failed', entries: [], attribution: orAttribution(day),
+      license: { name: TREND_OR_LICENSE_NAME, url: TREND_OR_LICENSE_URL }, processed: true,
+    }
     orBlock = staleBlock(previous?.blocks.find((block) => block.id === 'or-usage'), fallback)
     orStatus = 'stale'
     orReason = or.reason
   }
 
-  await store.prune(addDays(day, -AA_RETENTION_DAYS), addDays(day, -OR_RETENTION_DAYS))
+  try {
+    await store.prune(addDays(day, -AA_RETENTION_DAYS), addDays(day, -OR_RETENTION_DAYS))
+  } catch {
+    // 보존 기간 정리는 실패해도 공개 섹션 갱신을 막지 않는다.
+  }
 
   const sources: TrendSourceState[] = []
   if (aaSource !== null) sources.push({ id: TREND_SOURCE_ARTIFICIAL_ANALYSIS, fetchedAt: nowIso, status: aaStatus === 'ok' ? 'ok' : 'stale' })
