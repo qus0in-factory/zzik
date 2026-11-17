@@ -4,6 +4,7 @@ import { t } from '@shared/messages'
 import { SiteHeader } from './SiteHeader'
 import { TREND_LINKS } from './trend-links'
 import { FreeModelsSection } from './trend/FreeModelsSection'
+import { MetricsSection } from './trend/MetricsSection'
 import { NewModelsSection } from './trend/NewModelsSection'
 
 function ComingSoonSection({ id, title }: { id: string; title: string }): ReactNode {
@@ -24,7 +25,7 @@ export function TrendPage(): ReactNode {
         <ComingSoonSection id="plan-models" title={t('trend.planModels.title')} />
         <NewModelsSection />
         <FreeModelsSection />
-        <ComingSoonSection id="metrics" title={t('trend.metrics.title')} />
+        <MetricsSection />
         <section aria-labelledby="trend-links">
           <h2 id="trend-links" className="text-xl font-semibold tracking-tight">{t('trend.links.title')}</h2>
           <ul aria-label={t('trend.links.aria')} className="mt-3 flex flex-col gap-2">

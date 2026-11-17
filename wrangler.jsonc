@@ -27,7 +27,8 @@
     "ACCESS_AUD": "d83bb3725ec247352d8a87ea9be8fc43a4aea78d68821b927a479f622bf29b79",
     "ALLOWED_EMAIL": "qus0in@gmail.com",
     "USAGE_READ_STORE": "d1",
-    "USAGE_DATA_GENERATION": "0"
+    "USAGE_DATA_GENERATION": "0",
+    "TREND_AA_PUBLIC": "0"
   },
   "d1_databases": [
     {
@@ -47,7 +48,8 @@
     "crons": [
       "0 3 * * *",
       "*/15 * * * *",
-      "7 */2 * * *"
+      "7 */2 * * *",
+      "37 4 * * *"
     ]
   }
 }

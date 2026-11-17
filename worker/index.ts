@@ -17,9 +17,22 @@ import { USAGE_HISTORY_SCAN_VERSION } from '../shared/usage-history-contract'
 import { D1TrendStore } from './infra/trend/d1-trend-store'
 import { createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
 import { refreshTrendSections } from './app/trend/refresh-trend'
+import { refreshMetrics } from './app/trend/refresh-metrics'
+import { D1MetricsStore } from './infra/trend/d1-metrics-store'
+import { createAaSource, createOrRankingSource } from './infra/trend/metrics-sources'
+import type { MetricsSourceFailureReason } from './domain/trend/metrics/types'
 
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>
   new JoseAccessVerifier(config, remoteAccessKeys(config.issuer))
+
+/** Worker 로그에는 키·본문 없이 상태만 남긴다. */
+function metricsLogStatus(reason: MetricsSourceFailureReason | null): string {
+  if (reason === null) return 'ok'
+  if (reason === 'rate_limited') return '429'
+  if (reason === 'unauthorized') return 'unauthorized'
+  if (reason === 'not_configured') return 'not_configured'
+  return 'error'
+}
 
 export interface ScheduledControllerLike {
   cron?: string
@@ -53,6 +66,7 @@ export function createWorker(deps: {
         store: new D1SnapshotStore(available),
         buckets: available === null || generation === null ? null : new D1BucketStore(available, {dataGeneration:generation}),
         trend: env.DB === undefined ? null : new D1TrendStore(env.DB),
+        trendAaPublic: env.TREND_AA_PUBLIC === '1',
         assets: env.ASSETS,
       }).fetch(request)
     },
@@ -77,6 +91,24 @@ export function createWorker(deps: {
           }
         } catch {
           console.error('trend_refresh_failed:unexpected')
+        }
+        return
+      }
+      if (kind === 'metrics') {
+        if (env.DB === undefined) return
+        const aaKey = env.AA_API_KEY?.trim() ?? ''
+        const orKey = env.OR_API_KEY?.trim() ?? ''
+        try {
+          const fetchImpl = deps.trendFetch ?? globalThis.fetch
+          const result = await refreshMetrics({
+            store: new D1MetricsStore(env.DB),
+            aaSource: aaKey === '' ? null : createAaSource({ apiKey: aaKey, fetchImpl }),
+            orSource: orKey === '' ? null : createOrRankingSource({ apiKey: orKey, fetchImpl }),
+            nowMs,
+          })
+          console.log(`trend_metrics:aa=${metricsLogStatus(result.reasons.aa)} or=${metricsLogStatus(result.reasons.or)}`)
+        } catch {
+          console.log('trend_metrics:error')
         }
         return
       }
