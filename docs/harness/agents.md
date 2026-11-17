@@ -11,16 +11,17 @@
 | `z-ds` (`ds`) | 경량 구현·잡무, 하네스·스크립트·문서 동기화 | OpenCode (`DeepSeek V4.1 Flash`) |
 | `z-hf` (`hf`) | 소규모 구현·문서 동기화·가벼운 확인 | OpenCode (`Hy4 flash Free`) |
 | `z-hyd` (`hydro`) | 문서·하네스 동기화, 범위가 명확한 소규모 구현, 테스트 보강 | Antigravity CLI (`Gemini 4 Hydrogen`, medium) |
-| `z-fable` (`fable`) | 설계·리뷰 위주, 필요하면 구현도 맡는다. 손이 가는 일은 Sonnet 서브에이전트에 위임해 Fable 사용량을 아낀다. 결과는 `/tmp/fable-<주제>.md` | Claude Code (`Fable 5.1`, high) |
-| `z-astra` (`astra`) | 설계·리뷰 전용(주로 구현 코드 리뷰, `z-fable`과 분담). 파일 수정·커밋 금지. 결과는 `/tmp/astra-<주제>.md` | Codex (`GPT-6-Astra`, high, Fast) |
+| `z-fable` (`fable`) | 설계·리뷰 외 구현·조사·검증 등 다양한 일을 맡는다. 손이 가는 일은 `.claude/agents/`의 Sonnet 전용 서브에이전트에 위임하고 판단·지시·결과 검토에 집중한다. 결과는 `/tmp/fable-<주제>.md` | Claude Code (`Fable 5.1`, high) |
+| `z-astra` (`astra`) | 설계·리뷰 외 구현·조사·검증 등 다양한 일을 맡는다(`z-fable`과 분담). 손이 가는 일은 `.codex/agents`의 Codex Terra 서브에이전트에 위임하고 판단·지시·결과 검토에 집중한다. 결과는 `/tmp/astra-<주제>.md` | Codex (`GPT-6-Astra`, high, Fast) |
 
 - `z-grok`은 한도가 남을 때만 쓰고 소진되면 다른 워커가 승계한다.
 
 ## 사용량 한도·effort (2026-11-17 사용자 지시)
 
 - opus는 작업 성격에 맞춰 워커 effort를 조절할 수 있다(2026-11-17 사용자 허용). fast·모델 변경은 사용자에게 맡긴다. Codex 계열은 현재 Fast를 쓴다. `z-sol`·`z-astra`는 손이 가는 일(탐색·테스트·측정·배포 확인)을 `.codex/agents`의 GPT-6.1 Terra 서브에이전트에 위임하고 판단·설계·통합·최종 검토를 맡는다(2026-11-17 사용자 지시).
-- `z-fable`은 같은 철학으로 `.claude/agents/`의 Sonnet 전용 서브에이전트(`explorer` 탐색, `test-runner` 검증 실행, `ui-checker` 화면 넘침 점검, `ops-probe` 운영 읽기 전용 확인, `doc-sync` 문서·띄어쓰기 동기화)에 손이 가는 일을 위임하고 판단·설계·최종 검토를 맡는다. 범위·금지사항은 각 파일 frontmatter와 본문이 정본이며 general-purpose는 쓰지 않는다. 구 `worker-watcher`·`work-reviewer`는 2026-11-16 규칙 폐지에 따라 제거했다(2026-11-17).
+- `z-fable`은 같은 철학으로 `.claude/agents/`의 Sonnet 전용 서브에이전트(`explorer` 탐색, `test-runner` 검증 실행, `ui-checker` 화면 넘침 점검, `ops-probe` 운영 읽기 전용 확인, `doc-sync` 문서·띄어쓰기 동기화)에 손이 가는 일을 위임하고 판단·설계·최종 검토를 맡는다. 범위·금지사항은 각 파일 frontmatter와 본문이 정본이며 general-purpose는 쓰지 않는다. `work-reviewer`는 제거했고 `worker-watcher`는 총괄의 워커 대기용으로 2026-11-17 복원했다.
 - 한도를 의식하지 않고 소진까지 사용하며, 잔량 경고로 배정을 미루지 않는다.
+- 작업 크기(5분·최대 15분 조각), 진행 중 워커에 덧붙이기 금지, 워커 대기는 `worker-watcher` 서브에이전트 — 절차는 `.agents/skills/herdr-orchestration` 참조.
 
 ## 워크스페이스 라벨·상주 구성
 
@@ -36,4 +37,4 @@
   - `opencode`: `GPT-<버전>-Sol`→`sol`, `DeepSeek <버전>`→`ds`, `Hy<버전>`→`hy`, `Hy4 flash`→`hf`(`hy`와 구분), `GLM-<버전>`→`glm`, `Beam Free`→`beam`.
   - `claude`: `Opus|Fable|Sonnet <버전>`→`opus`|`fable`|`sonnet`(마지막 줄 우선).
 
-- 2026-11-17 사용자 지시: z-fable·z-astra는 놀리지 말고 구현 후 리뷰에 적극 투입한다. z-fable은 리뷰·설계 외 작업도 하되 과하게 쓰지 않도록 Sonnet 서브에이전트와 협업한다.
+- 2026-11-17 사용자 지시: z-fable·z-astra는 설계·리뷰 전용이 아니라 구현·조사·검증 등 다양한 일을 맡고 놀리지 않는다. 손이 가는 일은 각자 서브에이전트(fable은 Sonnet 전용 `.claude/agents/`, astra는 Codex Terra `.codex/agents`)에 맡기고 판단·지시·결과 검토만 직접 한다.
