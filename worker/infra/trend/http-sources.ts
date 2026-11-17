@@ -1,12 +1,14 @@
 import {
+  TREND_GO_MODELS_URL,
   TREND_MODELS_DEV_URL,
   TREND_OPENROUTER_MODELS_URL,
   TREND_SOURCE_MODELS_DEV,
+  TREND_SOURCE_OPENCODE_GO,
   TREND_SOURCE_OPENCODE_ZEN,
   TREND_SOURCE_OPENROUTER,
   TREND_ZEN_MODELS_URL,
 } from '../../../shared/trend-contract'
-import { decodeModelsDev, decodeOpenRouterModels, decodeZenModels } from '../../domain/trend/sources'
+import { decodeGoModels, decodeModelsDev, decodeOpenRouterModels, decodeZenModels } from '../../domain/trend/sources'
 import type { DecodeModelsDevResult, TrendSource, TrendSourceFailure } from '../../domain/trend/sources'
 
 /** §3.1 메모리 게이트: 6.7MB 원문 + 파싱 트리를 20MB 이하 응답으로 제한한다. 로컬 측정은 결과 문서 참조. */
@@ -168,6 +170,17 @@ export function createOpenRouterSource(options: HttpSourceOptions = {}): TrendSo
     decode: decodeOpenRouterModels,
     fetchImpl: options.fetchImpl,
     maxBytes: options.maxBytes ?? OPENROUTER_MAX_BYTES,
+    timeoutMs: options.timeoutMs ?? MODELS_DEV_TIMEOUT_MS,
+  })
+}
+
+export function createGoModelsSource(options: HttpSourceOptions = {}): TrendSource {
+  return createJsonSource({
+    id: TREND_SOURCE_OPENCODE_GO,
+    url: TREND_GO_MODELS_URL,
+    decode: decodeGoModels,
+    fetchImpl: options.fetchImpl,
+    maxBytes: options.maxBytes ?? ZEN_MAX_BYTES,
     timeoutMs: options.timeoutMs ?? MODELS_DEV_TIMEOUT_MS,
   })
 }

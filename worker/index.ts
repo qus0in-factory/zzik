@@ -15,7 +15,7 @@ import { D1BucketStore, D1BucketWriterStore } from './infra/usage/d1-bucket-stor
 import { resolveUsageReadStore } from './infra/usage/read-store'
 import { USAGE_HISTORY_SCAN_VERSION } from '../shared/usage-history-contract'
 import { D1TrendStore } from './infra/trend/d1-trend-store'
-import { createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
+import { createGoModelsSource, createModelsDevSource, createOpenRouterSource, createZenSource } from './infra/trend/http-sources'
 import { refreshTrendSections } from './app/trend/refresh-trend'
 import { refreshPlanModels } from './app/trend/refresh-plan-models'
 import { D1PlanStore } from './infra/trend/d1-plan-store'
@@ -99,6 +99,7 @@ export function createWorker(deps: {
             sources: [
               createModelsDevSource({ fetchImpl }),
               createZenSource({ fetchImpl }),
+              createGoModelsSource({ fetchImpl }),
               createOpenRouterSource({ fetchImpl }),
             ],
             nowMs,
