@@ -7,7 +7,9 @@ import ky from 'ky'
 import { parseFixtureUsageName } from '@domain/usage/fixture-name'
 import { BrowserRouter } from 'react-router'
 import { TrendGatewayProvider } from '@app/trend/TrendGatewayContext'
+import { AaTrendGatewayProvider } from '@app/trend/AaTrendContext'
 import { createHttpTrendGateway } from '@infra/trend/http-trend-gateway'
+import { createHttpAaTrendGateway } from '@infra/trend/http-aa-trend-gateway'
 import { AppRoutes } from '@ui/AppRoutes'
 import { createAppQueryClient } from '@app/query-client'
 import { USAGE_QUERY_KEY_ROOT } from '@app/usage/usage-query'
@@ -51,6 +53,14 @@ async function createTrendGateway() {
     return fixture.createFixtureTrendGateway()
   }
   return createHttpTrendGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 }), '/pub/trend')
+}
+
+async function createAaTrendGateway() {
+  if (devFixtureRequested) {
+    const fixture = await import('@infra/trend/fixture-aa-trend-gateway')
+    return fixture.createFixtureAaTrendGateway()
+  }
+  return createHttpAaTrendGateway(ky.create({ retry: 0, throwHttpErrors: false, redirect: 'manual', timeout: 10_000 }))
 }
 
 async function createUsageDeps(): Promise<UsageDeps> {
@@ -115,7 +125,9 @@ if (devFixtureRequested) {
 }
 
 async function start(): Promise<void> {
-  const [historyDeps, usageDeps, trendGateway] = await Promise.all([loadHistoryDeps(), createUsageDeps(), createTrendGateway()])
+  const [historyDeps, usageDeps, trendGateway, aaTrendGateway] = await Promise.all([
+    loadHistoryDeps(), createUsageDeps(), createTrendGateway(), createAaTrendGateway(),
+  ])
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
@@ -124,9 +136,11 @@ async function start(): Promise<void> {
             <ViewModeProvider store={viewModeStore}>
               <HistoryDepsProvider deps={historyDeps}>
                 <TrendGatewayProvider deps={{ gateway: trendGateway, enabled: true }}>
-                  <BrowserRouter>
-                    <AppRoutes />
-                  </BrowserRouter>
+                  <AaTrendGatewayProvider deps={{ gateway: aaTrendGateway, enabled: true }}>
+                    <BrowserRouter>
+                      <AppRoutes />
+                    </BrowserRouter>
+                  </AaTrendGatewayProvider>
                 </TrendGatewayProvider>
               </HistoryDepsProvider>
             </ViewModeProvider>

@@ -1,4 +1,5 @@
 import {
+  TREND_AA_SNAPSHOT_TOP_N,
   TREND_METRICS_RULE,
   TREND_OR_LICENSE_NAME,
   TREND_OR_LICENSE_URL,
@@ -104,7 +105,7 @@ export async function refreshMetrics(input: {
       const aa = await aaSource.fetch(nowMs)
       if (aa.ok) {
         try {
-          const top = rankAa(aa.snapshot.entries).slice(0, 2).map(({ entry }) => entry)
+          const top = rankAa(aa.snapshot.entries).slice(0, TREND_AA_SNAPSHOT_TOP_N).map(({ entry }) => entry)
           await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
           aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }, day) ?? undefined
           if (aaCitation === undefined) {

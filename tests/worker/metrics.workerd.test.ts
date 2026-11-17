@@ -9,10 +9,11 @@ import { METRICS_CRON } from '../../worker/domain/usage/export'
 const migration1 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0001_d1_storage.sql', import.meta.url)), 'utf8')
 const migration2 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0002_trend.sql', import.meta.url)), 'utf8')
 const migration4 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0004_metrics.sql', import.meta.url)), 'utf8')
+const migration5 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0005_aa_speed.sql', import.meta.url)), 'utf8')
 const NOW = Date.parse('2026-11-17T05:00:00.000Z')
 
 async function applyMigrations(db: Awaited<ReturnType<Miniflare['getD1Database']>>): Promise<void> {
-  for (const migration of [migration1, migration2, migration4]) {
+  for (const migration of [migration1, migration2, migration4, migration5]) {
     for (const statement of migration.replace(/^--.*$/gm, '').split(';').map((sql) => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }
@@ -111,9 +112,9 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
     await worker.scheduled({ cron: METRICS_CRON, scheduledTime: NOW })
 
     const aa = await db.prepare('SELECT COUNT(*) AS count FROM trend_aa_snapshot').all<{ count: number }>()
-    expect(Number(aa.results[0]?.count)).toBe(2)
+    expect(Number(aa.results[0]?.count)).toBe(3)
     const aaRows = await db.prepare('SELECT slug FROM trend_aa_snapshot ORDER BY slug').all<{ slug: string }>()
-    expect(aaRows.results.map((row: { slug: string }) => row.slug)).toEqual(['a/x', 'b/x'])
+    expect(aaRows.results.map((row: { slug: string }) => row.slug)).toEqual(['a/x', 'b/x', 'c/x'])
     const or = await db.prepare('SELECT model_permaslug AS id, total_tokens AS tokens FROM trend_or_ranking WHERE day = ? ORDER BY model_permaslug').bind('2026-11-17').all<{ id: string; tokens: string }>()
     expect(or.results).toEqual([{ id: 'a/x', tokens: '600' }, { id: 'other', tokens: '400' }])
 

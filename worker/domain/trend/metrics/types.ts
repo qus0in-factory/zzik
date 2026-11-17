@@ -27,6 +27,8 @@ export interface AaModelEntry {
   intelligenceIndex: number
   priceIn: number | null
   priceOut: number | null
+  outputTokensPerSecond?: number | null
+  timeToFirstTokenSeconds?: number | null
   /** 분야별 지수(0~100). 저장만 하고 공개 응답에는 넣지 않는다. */
   domains: Record<string, number>
 }
@@ -80,6 +82,8 @@ export interface AaSnapshotRow {
   domains: Record<string, number>
   priceIn: number | null
   priceOut: number | null
+  outputTokensPerSecond?: number | null
+  timeToFirstTokenSeconds?: number | null
   releaseDate: string | null
   indexVersion: string
 }

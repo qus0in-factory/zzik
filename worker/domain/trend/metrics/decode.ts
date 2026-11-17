@@ -61,6 +61,8 @@ function decodeAaEntry(raw: Record<string, unknown>): AaModelEntry | null {
     intelligenceIndex,
     priceIn: numberOrNull(pricing.price_1m_input_tokens),
     priceOut: numberOrNull(pricing.price_1m_output_tokens),
+    outputTokensPerSecond: numberOrNull(raw.median_output_tokens_per_second),
+    timeToFirstTokenSeconds: numberOrNull(raw.median_time_to_first_token_seconds),
     domains,
   }
 }

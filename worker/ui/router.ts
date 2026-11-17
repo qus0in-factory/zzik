@@ -8,6 +8,8 @@ import type { SnapshotStore } from '../domain/usage/store'
 import { respond } from './respond'
 import { createUsageRoute } from './usage/usage-route'
 import { createTrendRoute } from './trend/trend-route'
+import { createAaTrendRoute } from './trend/aa-trend-route'
+import type { AaTrendStore } from '../app/trend/get-aa-trend'
 import type { TrendStore } from '../domain/trend/store'
 export interface RouterDependencies {
   config: ConfigResult
@@ -16,6 +18,7 @@ export interface RouterDependencies {
   buckets?: BucketStore | null
   store: SnapshotStore
   trend?: TrendStore | null
+  aaTrend?: AaTrendStore | null
   now?: () => number
   assets: { fetch(request: Request): Promise<Response> }
 }
@@ -35,6 +38,7 @@ export function createRouter(deps: RouterDependencies) {
     await next()
   })
   app.route('/pub/trend', createTrendRoute(deps.trend ?? null, deps.now))
+  app.route('/api/trend/aa', createAaTrendRoute(deps.aaTrend ?? null))
   if(deps.history) app.route('/api/usage-history', createUsageHistoryRoute(deps.history, deps.buckets ?? null))
   app.route('/api/usage', createUsageRoute(deps.store))
   app.notFound(() => respond({ error: 'not_found' }, 404))
