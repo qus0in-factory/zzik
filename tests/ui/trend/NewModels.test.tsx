@@ -45,7 +45,7 @@ describe('Given the recent new-models section on /trend', () => {
     expect(section.getAllByText('출시 2026-11-16')).toHaveLength(2)
     expect(section.getAllByText('제공 2곳')).toHaveLength(2)
     expect(section.getByText(/출처 models\.dev · OpenRouter · 갱신/)).toBeTruthy()
-    expect(screen.getByText('참고 링크')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '참고 링크' })).toBeTruthy()
     const links = screen.getByRole('list', { name: '트렌드 참고 링크' })
     expect(within(links).getAllByRole('link')).toHaveLength(5)
     expect(fetchSpy).not.toHaveBeenCalled()

@@ -19,7 +19,7 @@ describe('Given the AA notable-model citation', () => {
       entry('f', 'GPT-6.1 Sol (Max)', 85, 'OpenAI'),
       entry('g', 'Gemini 4 Hydrogen (Xhigh)', 84, 'Google'),
     ]))
-    expect(text).toBe('요즘 주목받는 모델로는 Claude Fable, Claude Opus, Gemini Carbon, Gemini Hydrogen, GPT Astra이(가) 있습니다.')
+    expect(text).toBe('요즘 주목받는 모델은 Claude Fable, Claude Opus, Gemini Carbon, Gemini Hydrogen, GPT Astra 등입니다.')
   })
 
   it('When the sentence is built Then it has no rank word, no number and no index name', () => {
@@ -29,8 +29,8 @@ describe('Given the AA notable-model citation', () => {
     ]))!
     expect(text).not.toMatch(/\d/)
     expect(text).not.toMatch(/1위|순위|지수|점수|Intelligence Index/)
-    expect(text).toMatch(/^요즘 주목받는 모델로는 /)
-    expect(text.endsWith('이(가) 있습니다.')).toBe(true)
+    expect(text).toMatch(/^요즘 주목받는 모델은 /)
+    expect(text.endsWith(' 등입니다.')).toBe(true)
   })
 
   it('When families have equal scores Then output order is alphabetical, not score order', () => {
@@ -39,7 +39,7 @@ describe('Given the AA notable-model citation', () => {
       entry('b', 'Alpha 3 Prime (High)', 99, 'Maker B'),
       entry('c', 'Mid 2 Core (High)', 99, 'Maker C'),
     ]))!
-    expect(text).toBe('요즘 주목받는 모델로는 Alpha Prime, Mid Core, Zeta Fusion이(가) 있습니다.')
+    expect(text).toBe('요즘 주목받는 모델은 Alpha Prime, Mid Core, Zeta Fusion 등입니다.')
   })
 
   it('When duplicate families exist Then only one representative per family is listed', () => {
@@ -48,7 +48,7 @@ describe('Given the AA notable-model citation', () => {
       entry('b', 'Claude Fable 5.1 (High)', 89),
       entry('c', 'Claude Fable 4.5 (Low)', 88),
     ]))!
-    expect(text).toBe('요즘 주목받는 모델로는 Claude Fable이(가) 있습니다.')
+    expect(text).toBe('요즘 주목받는 모델은 Claude Fable 등입니다.')
   })
 
   it('When no entries exist Then no citation is produced', () => {
@@ -60,16 +60,16 @@ describe('Given the AA notable-model citation', () => {
   })
 
   it('When a valid notable sentence round-trips Then projection validation keeps it', () => {
-    const text = '요즘 주목받는 모델로는 Claude Fable, GPT Sol이(가) 있습니다.'
+    const text = '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.'
     expect(validatedAaCitation(text)).toBe(text)
   })
 
   it.each([
-    ['numbers', '요즘 주목받는 모델로는 GPT-6.1 Sol이(가) 있습니다.'],
-    ['rank word', '요즘 주목받는 모델로는 1위 Sol이(가) 있습니다.'],
-    ['unsorted', '요즘 주목받는 모델로는 Zeta, Alpha이(가) 있습니다.'],
-    ['two sentences', '요즘 주목받는 모델로는 Alpha입니다. 둘째 문장이(가) 있습니다.'],
-    ['bracketed name', '요즘 주목받는 모델로는 [Alpha]이(가) 있습니다.'],
+    ['numbers', '요즘 주목받는 모델은 GPT-6.1 Sol 등입니다.'],
+    ['rank word', '요즘 주목받는 모델은 1위 Sol 등입니다.'],
+    ['unsorted', '요즘 주목받는 모델은 Zeta, Alpha 등입니다.'],
+    ['two sentences', '요즘 주목받는 모델은 Alpha입니다. 둘째 문장 등입니다.'],
+    ['bracketed name', '요즘 주목받는 모델은 [Alpha] 등입니다.'],
   ])('When a stored citation contains %s Then it is rejected', (_name, text) => {
     expect(validatedAaCitation(text)).toBeNull()
   })

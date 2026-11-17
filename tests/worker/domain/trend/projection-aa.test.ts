@@ -10,11 +10,11 @@ describe('Given the public projection of the AA citation', () => {
   it('When the payload has a complete sentence Then it is exposed as one string, not structured fields', () => {
     const projected = projectSectionPayload({
       ...base,
-      aaCitation: '요즘 주목받는 모델로는 Claude Fable, GPT Sol이(가) 있습니다.',
+      aaCitation: '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.',
       blocks: [],
     }, 'metrics')
     expect(projected).not.toBeNull()
-    expect((projected as { aaCitation?: unknown }).aaCitation).toBe('요즘 주목받는 모델로는 Claude Fable, GPT Sol이(가) 있습니다.')
+    expect((projected as { aaCitation?: unknown }).aaCitation).toBe('요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.')
   })
 
   it('When a legacy AA block carries scores and model ids Then the projection drops the whole block', () => {
@@ -44,11 +44,11 @@ describe('Given the public projection of the AA citation', () => {
 
   it.each([
     ['old rank sentence', 'Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)'],
-    ['two sentences', '요즘 주목받는 모델로는 Model A입니다. 둘째 문장이(가) 있습니다.'],
+    ['two sentences', '요즘 주목받는 모델은 Model A입니다. 둘째 문장 등입니다.'],
     ['serialized array', '[{"id":"model-a","score":90}]'],
     ['serialized object', '{"id":"model-a","score":90}'],
-    ['embedded newline', '요즘 주목받는 모델로는 Model A\n이(가) 있습니다.'],
-    ['bracketed name', '요즘 주목받는 모델로는 [Model A]이(가) 있습니다.'],
+    ['embedded newline', '요즘 주목받는 모델은 Model A\n 등입니다.'],
+    ['bracketed name', '요즘 주목받는 모델은 [Model A] 등입니다.'],
   ])('When a legacy citation contains %s Then the citation is dropped but the section survives', (_name, citation) => {
     const projected = projectSectionPayload({ ...base, aaCitation: citation, blocks: [] }, 'metrics')
     expect(projected).not.toBeNull()
@@ -58,7 +58,7 @@ describe('Given the public projection of the AA citation', () => {
   })
 
   it('When a stored citation matches the validated template Then it is kept', () => {
-    const citation = '요즘 주목받는 모델로는 Claude Opus, GPT Sol이(가) 있습니다.'
+    const citation = '요즘 주목받는 모델은 Claude Opus, GPT Sol 등입니다.'
     const projected = projectSectionPayload({ ...base, aaCitation: citation, blocks: [] }, 'metrics')
     expect((projected as { aaCitation?: unknown }).aaCitation).toBe(citation)
   })

@@ -6,9 +6,9 @@
 const MAX_NAME_LENGTH = 80
 const MAX_MODELS = 5
 const MAX_CITATION_LENGTH = 500
-const PREFIX = '요즘 주목받는 모델로는 '
-const SUFFIX = '이(가) 있습니다.'
-const CITATION_RE = /^요즘 주목받는 모델로는 (.+)이\(가\) 있습니다\.$/
+const PREFIX = '요즘 주목받는 모델은 '
+const SUFFIX = ' 등입니다.'
+const CITATION_RE = /^요즘 주목받는 모델은 (.+) 등입니다\.$/
 const RANK_WORD_RE = /1위|2위|3위|순위|지수|점수|rank|score|index/i
 
 /** 모델 표시명: 버전 점과 "(high)" 같은 괄호 수식은 허용, 개행·추가 문장·직렬화 기호는 거부. */

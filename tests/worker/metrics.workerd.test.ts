@@ -135,7 +135,7 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
       blocks: Array<{ id: string; status: string; entries: Array<Record<string, unknown>>; attribution: string }>
       aaCitation?: string
     }
-    expect(body.aaCitation).toBe('요즘 주목받는 모델로는 A X, B X, C X이(가) 있습니다.')
+    expect(body.aaCitation).toBe('요즘 주목받는 모델은 A X, B X, C X 등입니다.')
     expect(text).not.toMatch(/1위|90|Intelligence Index/)
     expect(body.section).toBe('metrics')
     expect(body.items).toEqual([])

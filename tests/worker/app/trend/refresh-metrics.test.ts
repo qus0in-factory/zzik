@@ -162,7 +162,7 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
     expect(result.aa).toMatchObject({ status: 'ok' })
     expect(store.aa.map((row) => row.slug)).toEqual(['a', 'b', 'c'])
     const payload = metricsPayload(store)
-    expect(payload.aaCitation).toBe('요즘 주목받는 모델로는 Model A, Model B, Model C이(가) 있습니다.')
+    expect(payload.aaCitation).toBe('요즘 주목받는 모델은 Model A, Model B, Model C 등입니다.')
     expect(payload.blocks.map((block) => block.id)).toEqual(['or-usage'])
     expect(JSON.stringify(payload)).not.toContain('"index"')
   })
@@ -174,7 +174,7 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
     expect(result.aa).toMatchObject({ status: 'ok' })
     expect(store.writes).toEqual(['metrics'])
     const payload = metricsPayload(store)
-    expect(payload.aaCitation).toBe('요즘 주목받는 모델로는 Model A, Model B, Model C이(가) 있습니다.')
+    expect(payload.aaCitation).toBe('요즘 주목받는 모델은 Model A, Model B, Model C 등입니다.')
   })
 
   it('When AA succeeds but OR fails on the first run Then the citation still creates the section', async () => {
