@@ -16,13 +16,19 @@ function validateStatement({ sql, params }) {
 }
 export function createDatabasePort({ apply, local, remote }) {
   let writes = 0, seenWrites = 0, writeRequests = 0
-  let pending = [], failed = false
+  let pending = [], failed = false, failedRequest = null
   function validate(statement) {
     try { validateStatement(statement) } catch { failed = true; throw Error('d1_statement_limit') }
   }
   async function send(statements) {
     for (const statement of statements) validate(statement)
-    try { return await remote(statements) } catch { failed = true; throw Error('d1_query_failed') }
+    try { return await remote(statements) } catch {
+      failed = true
+      const kinds = [['trend_model_seen', 'seen'], ['trend_plan_observation', 'plan'], ['trend_aa_snapshot', 'aa'], ['trend_or_ranking', 'or'], ['trend_section', 'section'], ['trend_source_state', 'source']]
+      const kind = kinds.find(([table]) => statements.every(s => s.sql.includes(table)))?.[1] ?? 'other'
+      failedRequest = { kind, statements: statements.length, maxBindings: Math.max(...statements.map(s => s.params.length)), maxSqlBytes: Math.max(...statements.map(s => Buffer.byteLength(s.sql))), maxStringBytes: Math.max(0, ...statements.flatMap(s => s.params.filter(v => typeof v === 'string').map(v => Buffer.byteLength(v)))) }
+      throw Error('d1_query_failed')
+    }
   }
   async function flush() {
     if (!apply) return
@@ -64,7 +70,7 @@ export function createDatabasePort({ apply, local, remote }) {
     await flush()
     writeRequests++; const result = await send(statements.map(s => s.statement)); writes += statements.length
     return result
-  }, async flush() { await flush(); if (failed) throw Error('d1_query_failed') }, remoteWrites: () => writes, seenWrites: () => seenWrites, writeRequests: () => writeRequests }
+  }, async flush() { await flush(); if (failed) throw Error('d1_query_failed') }, remoteWrites: () => writes, seenWrites: () => seenWrites, writeRequests: () => writeRequests, failedRequest: () => failedRequest }
 }
 
 function sqlitePort(db) {
@@ -119,4 +125,4 @@ async function main() {
   await port.flush()
   process.stdout.write(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', initialPlanObservations, ...result, remoteWrites: port.remoteWrites(), seenWrites: port.seenWrites(), seenWriteRequestsEstimate: Math.ceil(port.seenWrites() / 100), writeRequests: port.writeRequests() }) + '\n')
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(() => { process.stderr.write(JSON.stringify({ error: 'trend_refresh_failed', stage, remoteWrites: activePort?.remoteWrites() ?? 0, writeRequests: activePort?.writeRequests() ?? 0 }) + '\n'); process.exitCode = 1 })
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(() => { process.stderr.write(JSON.stringify({ error: 'trend_refresh_failed', stage, remoteWrites: activePort?.remoteWrites() ?? 0, writeRequests: activePort?.writeRequests() ?? 0, failedRequest: activePort?.failedRequest() ?? null }) + '\n'); process.exitCode = 1 })

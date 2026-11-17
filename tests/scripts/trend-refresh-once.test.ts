@@ -42,6 +42,7 @@ describe('Given a dry-run database port', () => {
     const db = createDatabasePort({ apply: true, local: null, remote: async () => { throw Error('failed') } })
     await db.prepare('INSERT INTO trend_model_seen VALUES (?)').bind(1).run()
     await expect(db.prepare('SELECT * FROM trend_section').bind().all()).rejects.toThrow('failed')
+    expect(db.failedRequest()).toEqual({ kind: 'seen', statements: 1, maxBindings: 1, maxSqlBytes: 39, maxStringBytes: 0 })
   })
 
 })
