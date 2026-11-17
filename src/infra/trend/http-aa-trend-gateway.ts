@@ -12,7 +12,7 @@ function isAaTrendResponse(value: unknown): value is AaTrendResponse {
     typeof body.attribution === 'string' &&
     Array.isArray(body.intelligenceTop) &&
     Array.isArray(body.priceLowest) &&
-    Array.isArray(body.priceHighest) &&
+    Array.isArray(body.costLowest) &&
     Array.isArray(body.speedHighest) &&
     Array.isArray(body.latencyLowest)
   )

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { LayoutGrid, Table } from 'lucide-react'
 import { t } from '@shared/messages'
 import { TREND_AA_LEADERBOARD_URL } from '@shared/trend-contract'
+import { parseNotableCitation } from '@shared/trend-citation'
 import type { TrendMetricsBlock, TrendMetricsEntry } from '@shared/trend-contract'
 import { useTrendDeps } from '@app/trend/TrendGatewayContext'
 import { TrendLoadError, useTrendSection } from '@app/trend/useTrendSection'
@@ -284,7 +285,24 @@ function MetricsSectionContent(): ReactNode {
 
       {data?.aaCitation !== undefined && data.aaCitation !== '' && (
         <div className="mt-3 rounded-lg border border-border bg-card p-3">
-          <p data-testid="trend-metrics-aa-citation" className="text-sm leading-6">{data.aaCitation}</p>
+          <p data-testid="trend-metrics-aa-citation" className="text-sm leading-6">
+            {(() => {
+              const parsed = parseNotableCitation(data.aaCitation)
+              if (parsed === null) return data.aaCitation
+              return (
+                <>
+                  {parsed.prefix}
+                  {parsed.names.map((name, index) => (
+                    <span key={name}>
+                      {index > 0 && ', '}
+                      <strong className="font-semibold">{name}</strong>
+                    </span>
+                  ))}
+                  {parsed.suffix}
+                </>
+              )
+            })()}
+          </p>
           <a
             href={TREND_AA_LEADERBOARD_URL}
             target="_blank"

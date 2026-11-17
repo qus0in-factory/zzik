@@ -19,8 +19,13 @@ export async function refresh(db: any, keys: { aa: string; or: string }, nowMs: 
     counts[row.section] = row.section === 'plan-models' ? payload.plans.reduce((n: number, group: any) => n + (group.items?.length ?? 0), 0) : row.section === 'metrics' ? payload.blocks.reduce((n: number, block: any) => n + block.entries.length, 0) : payload.items.length
   }
   const observations = await db.prepare('SELECT baseline, COUNT(*) AS count FROM trend_plan_observation GROUP BY baseline').bind().all()
+  const aaRows = await new D1MetricsStore(db).readAaSnapshot(new Date(nowMs).toISOString().slice(0, 10))
+  const aaSpeedFilled = aaRows.filter((row) => row.outputTokensPerSecond !== null && row.outputTokensPerSecond > 0).length
+  const aaTtftFilled = aaRows.filter((row) => row.timeToFirstTokenSeconds !== null && row.timeToFirstTokenSeconds > 0).length
+  const aaCostFilled = aaRows.filter((row) => row.costPerTask !== null && row.costPerTask > 0).length
   return {
     counts, planObservations: observations.results, catalogCount: trend.catalog?.length ?? 0,
+    aaSnapshotRows: aaRows.length, aaSpeedFilled, aaTtftFilled, aaCostFilled,
     sources: trend.sources, planSources: plan.sources,
     metricBlocks: metrics.blocks, metricReasons: metrics.reasons,
     aaStatus: aaStatusToken(metrics.aa), aaReason: metrics.aa.reason, aaCitation: metrics.aaCitation ?? null,

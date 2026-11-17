@@ -29,6 +29,8 @@ export interface AaModelEntry {
   priceOut: number | null
   outputTokensPerSecond?: number | null
   timeToFirstTokenSeconds?: number | null
+  /** intelligence_index_cost.cost_per_task. 작업 1회 비용. */
+  costPerTask?: number | null
   /** 분야별 지수(0~100). 저장만 하고 공개 응답에는 넣지 않는다. */
   domains: Record<string, number>
 }
@@ -84,6 +86,7 @@ export interface AaSnapshotRow {
   priceOut: number | null
   outputTokensPerSecond?: number | null
   timeToFirstTokenSeconds?: number | null
+  costPerTask?: number | null
   releaseDate: string | null
   indexVersion: string
 }

@@ -6,6 +6,7 @@ import { t } from '@shared/messages'
 import type { AaTrendModelItem } from '@shared/trend-contract'
 
 type AaTab = 'intelligence' | 'price' | 'speed'
+type TableMode = AaTab | 'cost'
 
 const PANEL_ID = 'usage-aa-trend-panel'
 
@@ -21,7 +22,7 @@ function AaModelTable({
 }: {
   caption: string
   rows: readonly AaTrendModelItem[]
-  mode: AaTab
+  mode: TableMode
 }): ReactNode {
   return (
     <div className="w-full overflow-x-auto rounded-lg border border-border">
@@ -42,6 +43,13 @@ function AaModelTable({
             {mode === 'price' && (
               <>
                 <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceIn')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceOut')}</th>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.intelligence')}</th>
+              </>
+            )}
+            {mode === 'cost' && (
+              <>
+                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.costPerTask')}</th>
                 <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceOut')}</th>
                 <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.intelligence')}</th>
               </>
@@ -77,6 +85,13 @@ function AaModelTable({
                 <>
                   <td className="whitespace-nowrap px-2.5 py-2 text-right font-medium tabular-nums sm:px-3">{formatNum(item.priceIn)}</td>
                   <td className="whitespace-nowrap px-2.5 py-2 text-right font-medium tabular-nums sm:px-3">{formatNum(item.priceOut)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right tabular-nums text-muted-foreground sm:px-3">{formatNum(item.intelligenceIndex, 1)}</td>
+                </>
+              )}
+              {mode === 'cost' && (
+                <>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right font-medium tabular-nums sm:px-3">{formatNum(item.costPerTask, 2)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-right tabular-nums text-muted-foreground sm:px-3">{formatNum(item.priceOut)}</td>
                   <td className="whitespace-nowrap px-2.5 py-2 text-right tabular-nums text-muted-foreground sm:px-3">{formatNum(item.intelligenceIndex, 1)}</td>
                 </>
               )}
@@ -175,8 +190,8 @@ export function AaTrendPanel(): ReactNode {
                     <AaModelTable caption={t('usage.trend.group.priceLowest')} rows={data.priceLowest} mode="price" />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground">{t('usage.trend.group.priceHighest')}</h3>
-                    <AaModelTable caption={t('usage.trend.group.priceHighest')} rows={data.priceHighest} mode="price" />
+                    <h3 className="text-xs font-semibold text-muted-foreground">{t('usage.trend.group.costLowest')}</h3>
+                    <AaModelTable caption={t('usage.trend.group.costLowest')} rows={data.costLowest} mode="cost" />
                   </div>
                 </div>
               )}

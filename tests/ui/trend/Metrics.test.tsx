@@ -63,6 +63,20 @@ describe('Given the metrics section on /trend', () => {
     expect(section.getByTestId('trend-metrics-view-table').getAttribute('aria-pressed')).toBe('false')
   })
 
+  it('When a citation is present Then only the model names are bold; invalid text stays plain', async () => {
+    const citation = '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.'
+    renderPage(async (section) => ({ ok: true, value: section === 'metrics' ? { ...metrics, aaCitation: citation } : metrics }))
+    const node = await screen.findByTestId('trend-metrics-aa-citation')
+    expect(Array.from(node.querySelectorAll('strong')).map((item) => item.textContent)).toEqual(['Claude Fable', 'GPT Sol'])
+    expect(node.textContent).toBe(citation)
+    cleanup()
+
+    renderPage(async (section) => ({ ok: true, value: section === 'metrics' ? { ...metrics, aaCitation: '자유 형식 문장입니다.' } : metrics }))
+    const plain = await screen.findByTestId('trend-metrics-aa-citation')
+    expect(plain.textContent).toBe('자유 형식 문장입니다.')
+    expect(plain.querySelector('strong')).toBeNull()
+  })
+
   it('When the table toggle is clicked Then switches to the table, persists, and switches back', async () => {
     renderPage(bySection)
     const section = within(screen.getByTestId('trend-metrics'))
@@ -144,8 +158,8 @@ describe('Given the metrics section on /trend', () => {
       },
     }))
     const section = within(screen.getByTestId('trend-metrics'))
-    expect(await section.findByTestId('trend-metrics-aa-citation')).toBeTruthy()
-    expect(section.getByText('요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.')).toBeTruthy()
+    const citationNode = await section.findByTestId('trend-metrics-aa-citation')
+    expect(citationNode.textContent).toBe('요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.')
     const source = section.getByRole('link', { name: 'Source: Artificial Analysis (artificialanalysis.ai)' })
     expect(source.getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
     expect(section.queryByRole('table')).toBeNull()

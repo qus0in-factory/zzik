@@ -33,6 +33,14 @@ function numberOrNull(value: unknown): number | null {
   return null
 }
 
+function firstNumber(...values: readonly unknown[]): number | null {
+  for (const value of values) {
+    const parsed = numberOrNull(value)
+    if (parsed !== null) return parsed
+  }
+  return null
+}
+
 function decodeAaEntry(raw: Record<string, unknown>): AaModelEntry | null {
   const slug = typeof raw.slug === 'string' && raw.slug !== '' ? raw.slug : typeof raw.id === 'string' && raw.id !== '' ? raw.id : ''
   if (slug === '') return null
@@ -47,6 +55,11 @@ function decodeAaEntry(raw: Record<string, unknown>): AaModelEntry | null {
   const intelligenceIndex = numberOrNull(evaluations.artificial_analysis_intelligence_index)
   if (intelligenceIndex === null) return null
   const pricing = isRecord(raw.pricing) ? raw.pricing : {}
+  // 실제 AA 응답은 performance.*(median) 아래에 속도가 있다. performance_v3(mean)과
+  // 예전 최상위 필드는 폴백으로만 읽는다. TTFT는 end-to-end 시간이 아니다.
+  const performance = isRecord(raw.performance) ? raw.performance : {}
+  const performanceV3 = isRecord(raw.performance_v3) ? raw.performance_v3 : {}
+  const intelligenceCost = isRecord(raw.artificial_analysis_intelligence_index_cost) ? raw.artificial_analysis_intelligence_index_cost : {}
   const releaseDate = typeof raw.release_date === 'string' && raw.release_date !== '' ? raw.release_date : null
   const domains: Record<string, number> = {}
   for (const key of DOMAIN_KEYS) {
@@ -61,8 +74,20 @@ function decodeAaEntry(raw: Record<string, unknown>): AaModelEntry | null {
     intelligenceIndex,
     priceIn: numberOrNull(pricing.price_1m_input_tokens),
     priceOut: numberOrNull(pricing.price_1m_output_tokens),
-    outputTokensPerSecond: numberOrNull(raw.median_output_tokens_per_second),
-    timeToFirstTokenSeconds: numberOrNull(raw.median_time_to_first_token_seconds),
+    outputTokensPerSecond: firstNumber(
+      performance.median_output_tokens_per_second,
+      performanceV3.mean_output_tokens_per_second,
+      raw.median_output_tokens_per_second,
+    ),
+    timeToFirstTokenSeconds: firstNumber(
+      performance.median_time_to_first_token_seconds,
+      performanceV3.mean_time_to_first_token_seconds,
+      raw.median_time_to_first_token_seconds,
+    ),
+    costPerTask: firstNumber(
+      isRecord(intelligenceCost.cost_per_task) ? intelligenceCost.cost_per_task.total_cost : intelligenceCost.cost_per_task,
+      intelligenceCost.total_cost,
+    ),
     domains,
   }
 }

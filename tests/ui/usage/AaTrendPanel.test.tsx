@@ -16,19 +16,19 @@ const SAMPLE: AaTrendResponse = {
   indexVersion: '5.0',
   attribution: 'Source: Artificial Analysis (artificialanalysis.ai)',
   intelligenceTop: [
-    { slug: 'claude-fable-5', name: 'Claude Fable 5', creator: 'Anthropic', intelligenceIndex: 89, priceIn: 3, priceOut: 15, outputTokensPerSecond: 85.4, timeToFirstTokenSeconds: 0.92, releaseDate: '2026-11-09' },
+    { slug: 'claude-fable-5', name: 'Claude Fable 5', creator: 'Anthropic', intelligenceIndex: 89, priceIn: 3, priceOut: 15, outputTokensPerSecond: 85.4, timeToFirstTokenSeconds: 0.92, costPerTask: 0.8, releaseDate: '2026-11-09' },
   ],
   priceLowest: [
-    { slug: 'nano-model', name: 'Nano Model', creator: 'OpenAI', intelligenceIndex: 62, priceIn: 0.1, priceOut: 0.4, outputTokensPerSecond: 140, timeToFirstTokenSeconds: 0.45, releaseDate: '2026-11-10' },
+    { slug: 'nano-model', name: 'Nano Model', creator: 'OpenAI', intelligenceIndex: 62, priceIn: 0.1, priceOut: 0.4, outputTokensPerSecond: 140, timeToFirstTokenSeconds: 0.45, costPerTask: 0.2, releaseDate: '2026-11-10' },
   ],
-  priceHighest: [
-    { slug: 'ultra-model', name: 'Ultra Model', creator: 'Anthropic', intelligenceIndex: 88, priceIn: 15, priceOut: 75, outputTokensPerSecond: 40, timeToFirstTokenSeconds: 1.8, releaseDate: '2026-11-01' },
+  costLowest: [
+    { slug: 'ultra-model', name: 'Ultra Model', creator: 'Anthropic', intelligenceIndex: 88, priceIn: 15, priceOut: 75, outputTokensPerSecond: 40, timeToFirstTokenSeconds: 1.8, costPerTask: 0.5, releaseDate: '2026-11-01' },
   ],
   speedHighest: [
-    { slug: 'fast-model', name: 'Fast Model', creator: 'Groq', intelligenceIndex: 70, priceIn: 0.2, priceOut: 0.8, outputTokensPerSecond: 320.5, timeToFirstTokenSeconds: 0.35, releaseDate: '2026-11-12' },
+    { slug: 'fast-model', name: 'Fast Model', creator: 'Groq', intelligenceIndex: 70, priceIn: 0.2, priceOut: 0.8, outputTokensPerSecond: 320.5, timeToFirstTokenSeconds: 0.35, costPerTask: 0.3, releaseDate: '2026-11-12' },
   ],
   latencyLowest: [
-    { slug: 'instant-model', name: 'Instant Model', creator: 'Google', intelligenceIndex: 74, priceIn: 0.15, priceOut: 0.6, outputTokensPerSecond: 210, timeToFirstTokenSeconds: 0.22, releaseDate: '2026-11-11' },
+    { slug: 'instant-model', name: 'Instant Model', creator: 'Google', intelligenceIndex: 74, priceIn: 0.15, priceOut: 0.6, outputTokensPerSecond: 210, timeToFirstTokenSeconds: 0.22, costPerTask: 0.4, releaseDate: '2026-11-11' },
   ],
 }
 
@@ -67,10 +67,21 @@ describe('Given the AA Trend panel inside /usage', () => {
     fireEvent.click(screen.getByRole('tab', { name: '가격' }))
     expect(screen.getByText('Nano Model')).toBeTruthy()
     expect(screen.getByText('Ultra Model')).toBeTruthy()
+    expect(screen.getAllByText('작업당 비용 최저 20 ($)').length).toBeGreaterThan(0)
+    expect(screen.getByText('작업당 비용 ($)')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('tab', { name: '속도' }))
     expect(screen.getByText('Fast Model')).toBeTruthy()
     expect(screen.getByText('Instant Model')).toBeTruthy()
+  })
+
+  it('When the speed tab is open Then the latency label names TTFT, not end-to-end response time', async () => {
+    renderPanel(async () => ({ ok: true, value: SAMPLE }))
+    fireEvent.click(screen.getByRole('button', { name: /트렌드/ }))
+    await screen.findByText('Claude Fable 5')
+    fireEvent.click(screen.getByRole('tab', { name: '속도' }))
+    expect(screen.getAllByText('첫 토큰 시간(TTFT) 하위 10 (초)').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/응답 시간\(TTFT\)/)).toBeNull()
   })
 
   it('When /api/trend/aa fails Then shows an error with retry; not_ready shows empty message', async () => {
