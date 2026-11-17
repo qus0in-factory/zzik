@@ -25,7 +25,7 @@ describe('Given the DEV trend fixture gateway', () => {
     expect(newest.items.every((item) => item.registeredIn?.includes('openrouter'))).toBe(true)
 
     const free = TREND_FIXTURE_SECTIONS['free-models']
-    expect(new Set(free.items.map((item) => item.freeKind))).toEqual(new Set(['opencode-go', 'ollama-cloud']))
+    expect(new Set(free.items.map((item) => item.freeKind))).toEqual(new Set(['opencode-go']))
     expect(free.items.every((item) => item.free)).toBe(true)
 
     const plan = TREND_FIXTURE_SECTIONS['plan-models']
