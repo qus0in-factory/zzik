@@ -29,7 +29,8 @@ export function nextOffpeakEvents(schedule,fromMs,excluded=[]){
 function kstEnd(event,nowMs){
  const date=new Date(event.endMs+9*3600000)
  const clock=`${String(date.getUTCHours()).padStart(2,'0')}:${String(date.getUTCMinutes()).padStart(2,'0')}(KST)`
- return Math.floor((event.endMs+9*3600000)/DAY)!==Math.floor((nowMs+9*3600000)/DAY)?`${date.getUTCMonth()+1}/${date.getUTCDate()}(${ '일월화수목금토'[date.getUTCDay()]}) ${clock}`:clock
+ const days=Math.floor((event.endMs+9*3600000)/DAY)-Math.floor((nowMs+9*3600000)/DAY)
+ return days===0?clock:days===1?`내일 ${clock}`:`${date.getUTCMonth()+1}/${date.getUTCDate()}(${ '일월화수목금토'[date.getUTCDay()]}) ${clock}`
 }
 /** Public schedule data only; same dashboard and bounded content convention as usage alerts.
  * @param {readonly OffpeakEvent[]} events @param {number} [nowMs] */
