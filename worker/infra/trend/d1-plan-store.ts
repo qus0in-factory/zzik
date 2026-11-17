@@ -82,14 +82,14 @@ export class D1PlanStore implements PlanStore {
     nowMs: number,
   ): Promise<void> {
     if (observations.length === 0) return
-    const rows = observations.map(() => 'SELECT ? AS model_id, ? AS display_name, ? AS confidence').join(' UNION ALL ')
-    const params: unknown[] = [plan, plan, source, nowMs, nowMs]
-    for (const observation of observations) params.push(observation.modelId, observation.displayName, observation.confidence)
+    const rows = JSON.stringify(observations.map(({ modelId, displayName, confidence }) => [modelId, displayName, confidence]))
+    if (new TextEncoder().encode(rows).length > 2_000_000) throw new Error('plan_observations_too_large')
+    const params: unknown[] = [plan, plan, source, nowMs, nowMs, rows]
     const statement = this.db.prepare(
       `WITH initial AS MATERIALIZED (SELECT NOT EXISTS (SELECT 1 FROM trend_plan_observation WHERE plan = ?) AS baseline)
        INSERT INTO trend_plan_observation (plan, model_id, display_name, source, confidence, first_seen_at, last_seen_at, baseline)
-       SELECT ?, models.model_id, models.display_name, ?, models.confidence, ?, ?, initial.baseline
-       FROM (${rows}) AS models
+       SELECT ?, json_extract(models.value, '$[0]'), json_extract(models.value, '$[1]'), ?, json_extract(models.value, '$[2]'), ?, ?, initial.baseline
+       FROM json_each(?) AS models
        CROSS JOIN initial
        WHERE true
        ON CONFLICT(plan, model_id) DO UPDATE SET last_seen_at = excluded.last_seen_at`,

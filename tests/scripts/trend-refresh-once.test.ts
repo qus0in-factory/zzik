@@ -3,6 +3,18 @@ import { describe, it, expect } from 'vitest'
 import { createDatabasePort } from '../../scripts/trend-refresh-once.mjs'
 
 describe('Given a dry-run database port', () => {
+  it('When a statement exceeds D1 parameter limits Then dry-run rejects it without sending', async () => {
+    const local = { prepare: () => ({ bind: () => ({ run: async () => ({ success: true }) }) }) }
+    const db = createDatabasePort({ apply: false, local, remote: async () => { throw Error('unexpected') } })
+    await expect(db.prepare('INSERT INTO x VALUES (?)').bind(...Array(101).fill(1)).run()).rejects.toThrow('d1_statement_limit')
+  })
+  it('When SQL or a string binding exceeds D1 byte limits Then dry-run rejects it', async () => {
+    const local = { prepare: () => ({ bind: () => ({ run: async () => ({ success: true }) }) }) }
+    for (const [sql, value] of [['x'.repeat(100_001), 'x'], ['x', '한'.repeat(666_667)]]) {
+      const db = createDatabasePort({ apply: false, local, remote: async () => { throw Error('unexpected') } })
+      await expect(db.prepare(sql).bind(value).run()).rejects.toThrow('d1_statement_limit')
+    }
+  })
   it('When writes and batches run Then no remote write is sent', async () => {
     const calls: unknown[] = []
     const local = { prepare: () => ({ bind: () => ({ run: async () => ({ success: true }), all: async () => ({ success: true, results: [] }) }) }) }

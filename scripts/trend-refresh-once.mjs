@@ -11,10 +11,17 @@ import { createD1RestClient } from '../collector/infra/usage/d1-rest-client.mjs'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const tables = ['trend_section', 'trend_source_state', 'trend_model_seen', 'trend_plan_observation', 'trend_aa_snapshot', 'trend_or_ranking']
 
+function validateStatement({ sql, params }) {
+  if (Buffer.byteLength(sql) > 100_000 || params.length > 100 || params.some(value => typeof value === 'string' && Buffer.byteLength(value) > 2_000_000)) throw Error('d1_statement_limit')
+}
 export function createDatabasePort({ apply, local, remote }) {
   let writes = 0, seenWrites = 0, writeRequests = 0
   let pending = [], failed = false
+  function validate(statement) {
+    try { validateStatement(statement) } catch { failed = true; throw Error('d1_statement_limit') }
+  }
   async function send(statements) {
+    for (const statement of statements) validate(statement)
     try { return await remote(statements) } catch { failed = true; throw Error('d1_query_failed') }
   }
   async function flush() {
@@ -31,11 +38,13 @@ export function createDatabasePort({ apply, local, remote }) {
     return { bind(...params) {
       const statement = { sql, params }
       return { statement, async all() {
+        validate(statement)
         if (!/^\s*SELECT\b/i.test(sql)) throw Error('read_only_query_required')
         if (!apply) return local.prepare(sql).bind(...params).all()
         await flush()
         const result = await send([statement]); return result[0]
       }, async run() {
+        validate(statement)
         const seen = /^\s*INSERT\s+INTO\s+trend_model_seen\b/i.test(sql)
         if (seen) seenWrites++
         if (!apply) return local.prepare(sql).bind(...params).run()
@@ -86,7 +95,7 @@ async function main() {
   const clock = { now: () => Date.now() }
   const credentials = createWranglerOAuthCredentials({ file: createWranglerOAuthFile({ path: defaultWranglerOAuthPath('zzik-collector') }), refresh: createWranglerOAuthRefresh({ profile: 'zzik-collector' }), clock })
   const client = createD1RestClient({ mode: 'd1', dryRun: false, accountId: env.ZZIK_D1_ACCOUNT_ID, databaseId: env.ZZIK_D1_DATABASE_ID, credentials, clock, control: { read: () => ({ ok: true, value: state }), write: next => { state = next; return { ok: true } } }, wait: ms => new Promise(resolve => setTimeout(resolve, ms)), fetch: globalThis.fetch })
-  const remote = async statements => { const result = await client.query(statements); if (!result.ok) { stage = 'd1_' + result.reason + (result.status ?? ''); throw Error('d1_query_failed') } return result.value }
+  const remote = async statements => { for (const statement of statements) validateStatement(statement); const result = await client.query(statements); if (!result.ok) { stage = 'd1_' + result.reason + (result.status ?? ''); throw Error('d1_query_failed') } return result.value }
   let local = null, initialPlanObservations = null
   if (!apply) {
     const db = new DatabaseSync(':memory:')
