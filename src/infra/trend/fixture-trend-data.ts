@@ -12,6 +12,7 @@ import {
   TREND_SCHEMA_VERSION,
 } from '@shared/trend-contract'
 import type { TrendSectionPayload } from '@shared/trend-contract'
+import { t } from '@shared/messages'
 
 const GENERATED_AT = '2026-11-14T03:00:00.000Z'
 const SOURCE_AT = '2026-11-14T02:00:00.000Z'
@@ -52,30 +53,28 @@ const FREE_MODELS = {
   schemaVersion: TREND_SCHEMA_VERSION,
   generatedAt: GENERATED_AT,
   rule: TREND_FREE_MODELS_RULE,
-  sources: [
-    { id: 'go-models', fetchedAt: GENERATED_AT, status: 'ok' },
-    { id: 'ollama-tags', fetchedAt: GENERATED_AT, status: 'ok' },
-  ],
+  sources: [{ id: 'go-models', fetchedAt: GENERATED_AT, status: 'ok' }],
   items: [
     {
       id: 'deepseek/deepseek-v4.1-flash-1017', name: 'DeepSeek V4.1 Flash 1017', creator: 'deepseek',
       releaseDate: '2026-10-17', precision: 'day', price: { input: 0, output: 0 },
-      free: true, openWeights: true, providers: ['opencode-go'], links: {}, freeKind: 'opencode-go',
+      free: true, openWeights: true, providers: ['go-models'],
+      links: { opencode: 'https://opencode.ai/docs/console/go/#pricing' },
+      freeKind: 'opencode-go', recentlyAdded: true, limitedTime: true, limitedRegions: false,
     },
     {
       id: 'zhipuai/glm-5.3', name: 'GLM 5.3', creator: 'zhipuai',
       releaseDate: '2026-08-14', precision: 'day', price: { input: 0, output: 0 },
-      free: true, openWeights: true, providers: ['opencode-go'], links: {}, freeKind: 'opencode-go',
-    },
-    {
-      id: 'zhipuai/glm-5.3', name: 'GLM 5.3', creator: 'zhipuai',
-      releaseDate: '2026-08-14', precision: 'day', price: { input: 0, output: 0 },
-      free: true, openWeights: true, providers: ['ollama-cloud'], links: {}, freeKind: 'ollama-cloud',
+      free: true, openWeights: true, providers: ['go-models'],
+      links: { opencode: 'https://opencode.ai/docs/console/go/#pricing' },
+      freeKind: 'opencode-go', recentlyAdded: false, limitedTime: false, limitedRegions: true,
     },
     {
       id: 'qwen/qwen4-max', name: 'Qwen4 Max', creator: 'qwen',
       releaseDate: '2026-11-05', precision: 'day', price: { input: 0, output: 0 },
-      free: true, openWeights: true, providers: ['ollama-cloud'], links: {}, freeKind: 'ollama-cloud',
+      free: true, openWeights: true, providers: ['go-models'],
+      links: { opencode: 'https://opencode.ai/docs/console/go/#pricing' },
+      freeKind: 'opencode-go', recentlyAdded: true, limitedTime: true, limitedRegions: true,
     },
   ],
 } satisfies TrendSectionPayload
@@ -87,6 +86,7 @@ const METRICS = {
   rule: TREND_METRICS_RULE,
   sources: [{ id: 'openrouter-rankings', fetchedAt: GENERATED_AT, status: 'ok' }],
   items: [],
+  aaCitation: t('trend.fixture.aaCitation'),
   blocks: [{
     id: 'or-usage', status: 'ok', asOf: SOURCE_AT, asOfKind: 'source',
     entries: [
