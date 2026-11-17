@@ -1,19 +1,20 @@
 import type { AaTrendGateway } from '@domain/trend/aa-gateway'
 import type { AaTrendModelItem, AaTrendResponse } from '@shared/trend-contract'
 
+/** DEV 전용 명백한 합성 AA 표본(?fixture=normal). 실제 AA 수치·모델 조합을 쓰지 않는다. */
 const FIXTURE_ITEMS: AaTrendModelItem[] = [
-  { slug: 'claude-fable-5-2', name: 'Claude Fable 5.2', creator: 'Anthropic', intelligenceIndex: 89.4, priceIn: 3.0, priceOut: 15.0, outputTokensPerSecond: 78.2, timeToFirstTokenSeconds: 1.05, releaseDate: '2026-11-12' },
-  { slug: 'gpt-5-4-pro', name: 'GPT-5.4 Pro', creator: 'OpenAI', intelligenceIndex: 88.1, priceIn: 5.0, priceOut: 20.0, outputTokensPerSecond: 64.0, timeToFirstTokenSeconds: 1.42, releaseDate: '2026-11-05' },
-  { slug: 'gemini-3-5-pro', name: 'Gemini 3.5 Pro', creator: 'Google', intelligenceIndex: 86.7, priceIn: 1.25, priceOut: 5.0, outputTokensPerSecond: 112.4, timeToFirstTokenSeconds: 0.78, releaseDate: '2026-11-01' },
-  { slug: 'deepseek-v4-1', name: 'DeepSeek V4.1', creator: 'DeepSeek', intelligenceIndex: 84.9, priceIn: 0.27, priceOut: 1.1, outputTokensPerSecond: 94.5, timeToFirstTokenSeconds: 0.91, releaseDate: '2026-10-28' },
-  { slug: 'qwen4-max', name: 'Qwen4 Max', creator: 'Qwen', intelligenceIndex: 83.2, priceIn: 0.15, priceOut: 0.6, outputTokensPerSecond: 128.0, timeToFirstTokenSeconds: 0.68, releaseDate: '2026-11-12' },
-  { slug: 'claude-fable-5-sonnet', name: 'Claude Fable 5 Sonnet', creator: 'Anthropic', intelligenceIndex: 82.0, priceIn: 1.5, priceOut: 7.5, outputTokensPerSecond: 98.3, timeToFirstTokenSeconds: 0.74, releaseDate: '2026-10-15' },
-  { slug: 'grok-4-2', name: 'Grok 4.2', creator: 'xAI', intelligenceIndex: 80.5, priceIn: 2.0, priceOut: 10.0, outputTokensPerSecond: 88.7, timeToFirstTokenSeconds: 0.96, releaseDate: '2026-10-20' },
-  { slug: 'glm-5-3', name: 'GLM 5.3', creator: 'Zhipu AI', intelligenceIndex: 78.6, priceIn: 0.2, priceOut: 0.8, outputTokensPerSecond: 136.2, timeToFirstTokenSeconds: 0.62, releaseDate: '2026-10-10' },
-  { slug: 'gemini-3-5-flash', name: 'Gemini 3.5 Flash', creator: 'Google', intelligenceIndex: 76.4, priceIn: 0.08, priceOut: 0.3, outputTokensPerSecond: 245.8, timeToFirstTokenSeconds: 0.31, releaseDate: '2026-11-04' },
-  { slug: 'gpt-5-4-mini', name: 'GPT-5.4 Mini', creator: 'OpenAI', intelligenceIndex: 75.1, priceIn: 0.12, priceOut: 0.48, outputTokensPerSecond: 192.4, timeToFirstTokenSeconds: 0.42, releaseDate: '2026-11-02' },
-  { slug: 'hy4-flash', name: 'HY4 Flash', creator: 'Tencent', intelligenceIndex: 72.3, priceIn: 0.1, priceOut: 0.4, outputTokensPerSecond: 274.1, timeToFirstTokenSeconds: 0.28, releaseDate: '2026-11-11' },
-  { slug: 'llama-5-8b', name: 'Llama 5 8B', creator: 'Meta', intelligenceIndex: 66.8, priceIn: 0.05, priceOut: 0.2, outputTokensPerSecond: 340.6, timeToFirstTokenSeconds: 0.21, releaseDate: '2026-11-08' },
+  { slug: 'fixture-alpha-1', name: 'Fixture Alpha 1', creator: 'Synthetic Lab', intelligenceIndex: 90.0, priceIn: 10.0, priceOut: 30.0, outputTokensPerSecond: 100.0, timeToFirstTokenSeconds: 1.0, releaseDate: '2026-11-01' },
+  { slug: 'fixture-beta-2', name: 'Fixture Beta 2', creator: 'Synthetic Lab', intelligenceIndex: 88.0, priceIn: 8.0, priceOut: 24.0, outputTokensPerSecond: 120.0, timeToFirstTokenSeconds: 0.9, releaseDate: '2026-11-02' },
+  { slug: 'fixture-gamma-3', name: 'Fixture Gamma 3', creator: 'Demo Org', intelligenceIndex: 86.0, priceIn: 6.0, priceOut: 18.0, outputTokensPerSecond: 140.0, timeToFirstTokenSeconds: 0.8, releaseDate: '2026-11-03' },
+  { slug: 'fixture-delta-4', name: 'Fixture Delta 4', creator: 'Demo Org', intelligenceIndex: 84.0, priceIn: 5.0, priceOut: 15.0, outputTokensPerSecond: 160.0, timeToFirstTokenSeconds: 0.7, releaseDate: '2026-11-04' },
+  { slug: 'fixture-epsilon-5', name: 'Fixture Epsilon 5', creator: 'Sample AI', intelligenceIndex: 82.0, priceIn: 4.0, priceOut: 12.0, outputTokensPerSecond: 180.0, timeToFirstTokenSeconds: 0.6, releaseDate: '2026-11-05' },
+  { slug: 'fixture-zeta-6', name: 'Fixture Zeta 6', creator: 'Sample AI', intelligenceIndex: 80.0, priceIn: 3.0, priceOut: 9.0, outputTokensPerSecond: 200.0, timeToFirstTokenSeconds: 0.5, releaseDate: '2026-11-06' },
+  { slug: 'fixture-eta-7', name: 'Fixture Eta 7', creator: 'Mock Works', intelligenceIndex: 78.0, priceIn: 2.0, priceOut: 6.0, outputTokensPerSecond: 220.0, timeToFirstTokenSeconds: 0.45, releaseDate: '2026-11-07' },
+  { slug: 'fixture-theta-8', name: 'Fixture Theta 8', creator: 'Mock Works', intelligenceIndex: 76.0, priceIn: 1.5, priceOut: 4.5, outputTokensPerSecond: 240.0, timeToFirstTokenSeconds: 0.4, releaseDate: '2026-11-08' },
+  { slug: 'fixture-iota-9', name: 'Fixture Iota 9', creator: 'Test Studio', intelligenceIndex: 74.0, priceIn: 1.0, priceOut: 3.0, outputTokensPerSecond: 260.0, timeToFirstTokenSeconds: 0.35, releaseDate: '2026-11-09' },
+  { slug: 'fixture-kappa-10', name: 'Fixture Kappa 10', creator: 'Test Studio', intelligenceIndex: 72.0, priceIn: 0.5, priceOut: 1.5, outputTokensPerSecond: 280.0, timeToFirstTokenSeconds: 0.3, releaseDate: '2026-11-10' },
+  { slug: 'fixture-lambda-11', name: 'Fixture Lambda 11', creator: 'Fixture Co', intelligenceIndex: 70.0, priceIn: 0.25, priceOut: 0.75, outputTokensPerSecond: 300.0, timeToFirstTokenSeconds: 0.25, releaseDate: '2026-11-11' },
+  { slug: 'fixture-mu-12', name: 'Fixture Mu 12', creator: 'Fixture Co', intelligenceIndex: 68.0, priceIn: 0.1, priceOut: 0.3, outputTokensPerSecond: 320.0, timeToFirstTokenSeconds: 0.2, releaseDate: '2026-11-12' },
 ]
 
 export const AA_TREND_FIXTURE: AaTrendResponse = {
