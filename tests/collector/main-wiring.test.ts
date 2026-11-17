@@ -15,7 +15,7 @@ describe('Given a Grok Build credentials override', () => {
       }))
       const result = spawnSync(process.execPath, ['collector/main.mjs', '--once', '--dry-run', '--provider', 'grok', '--credentials-file', credentials], {
         encoding: 'utf8', timeout: 10_000,
-        env: { ...process.env, ZZIK_STORE: 'postgres', ZZIK_STATE_DIR: dir, ZZIK_LOG_PATH: join(dir, 'log'), ZZIK_PROVIDERS: 'grok' },
+        env: { ...process.env, ZZIK_STORE: 'd1', ZZIK_STATE_DIR: dir, ZZIK_LOG_PATH: join(dir, 'log'), ZZIK_PROVIDERS: 'grok' },
       })
       expect(result.stdout).toContain('status=token_expired')
       expect(result.stdout).toContain('called=0')
@@ -27,29 +27,13 @@ describe('Given a Grok Build credentials override', () => {
   })
 })
 
-describe('Given PostgreSQL-only storage configuration', () => {
-  it('When PG writes request sub-900 global or provider intervals Then rejects before opening a database', () => {
-    for(const env of [{ZZIK_INTERVAL_SEC:'180'},{ZZIK_INTERVAL_SEC_OLLAMA:'180'}])expect(readStorageConfig({DB_URL:'postgres://fake',...env}).ok).toBe(false)
-  })
-  it('When mode is missing Then uses PostgreSQL with the 900 second and 30 day defaults', () => {
-    expect(readStorageConfig({DB_URL:'postgres://fake'})).toEqual({ok:true,mode:'postgres',intervalSec:900,retentionDays:30})
-  })
-  it('When PostgreSQL is explicit Then accepts the tracked ecosystem mode', () => {
-    expect(readStorageConfig({ZZIK_STORE:'postgres',DB_URL:'postgres://fake'})).toMatchObject({ok:true,mode:'postgres'})
-  })
-  it.each(['kv','both','unknown'])('When the obsolete mode %s is configured Then fails closed', mode => {
-    expect(readStorageConfig({ZZIK_STORE:mode,DB_URL:'postgres://fake'})).toEqual({ok:false,reason:'InvalidStoreMode'})
-  })
-  it('When DB credentials are absent Then fails closed even for a previous KV configuration', () => {
-    expect(readStorageConfig({})).toEqual({ok:false,reason:'MissingDatabaseConfiguration'})
-    expect(readStorageConfig({ZZIK_STORE:'kv'})).toEqual({ok:false,reason:'InvalidStoreMode'})
-  })
-  it('When dry-running Then requires no DB access but still rejects obsolete write modes', () => {
-    expect(readStorageConfig({}, {dryRun:true})).toMatchObject({ok:true,mode:'postgres'})
-    expect(readStorageConfig({ZZIK_STORE:'both'}, {dryRun:true})).toEqual({ok:false,reason:'InvalidStoreMode'})
-  })
+describe('Given D1-only configuration',()=>{
+ it('When credentials are absent Then fails closed; dry-run needs no remote credentials',()=>{
+  expect(readStorageConfig({})).toEqual({ok:false,reason:'MissingD1Configuration'})
+  expect(readStorageConfig({}, {dryRun:true})).toMatchObject({ok:true,mode:'d1'})
+  for(const mode of ['postgres','kv','both','unknown'])expect(readStorageConfig({ZZIK_STORE:mode},{dryRun:true})).toEqual({ok:false,reason:'InvalidStoreMode'})
+ })
 })
-
 describe('Given an explicit local interval capability and synthetic expired credentials',()=>{
  it('When D1 dry-run validates 180/179 without remote access Then accepts only the valid capability and leaves the state directory untouched',()=>{
   const dir=mkdtempSync(join(tmpdir(),'zzik-b3-capability-'))
@@ -72,7 +56,7 @@ describe('Given an explicit local interval capability and synthetic expired cred
 describe('Given an explicit quarantine resume operator flag',()=>{
  it('When the default store is postgres Then refuses before opening a DB',()=>{
   const result=spawnSync(process.execPath,['collector/main.mjs','--resume-without-quarantine','claude'],{encoding:'utf8',timeout:10000,env:{...process.env,ZZIK_STORE:'postgres',DB_URL:'postgres://synthetic-unused',ZZIK_INTERVAL_SEC:'900'}})
-  expect(result.status).toBe(78);expect(result.stderr).toContain('ResumeCommandRequiresD1');expect(result.stderr).not.toContain('synthetic-unused')
+  expect(result.status).toBe(78);expect(result.stderr).toContain('InvalidStoreMode');expect(result.stderr).not.toContain('synthetic-unused')
  })
 })
 
@@ -83,7 +67,7 @@ describe('Given an explicit D1 authentication selector',()=>{
   expect(readStorageConfig({...d1,ZZIK_D1_ACCOUNT_ID:''}).ok).toBe(false)
   expect(readStorageConfig({...d1,ZZIK_D1_AUTH:'unknown'})).toMatchObject({ok:false})
   expect(readStorageConfig({...d1,ZZIK_D1_AUTH:'api-token'}).ok).toBe(false)
-  expect(readStorageConfig({DB_URL:'synthetic',ZZIK_D1_AUTH:'unknown'})).toMatchObject({ok:true,mode:'postgres'})
+  expect(readStorageConfig({ZZIK_D1_AUTH:'unknown'})).toMatchObject({ok:false})
  })
 })
 
@@ -93,6 +77,6 @@ describe('Given isolated collector OAuth profile selection',()=>{
   expect(readStorageConfig(d1)).toMatchObject({ok:true,oauthProfile:'zzik-collector'})
   expect(readStorageConfig({...d1,ZZIK_D1_OAUTH_PROFILE:'zzik-secondary'})).toMatchObject({ok:true,oauthProfile:'zzik-secondary'})
   for(const profile of ['default','staging','../default',''])expect(readStorageConfig({...d1,ZZIK_D1_OAUTH_PROFILE:profile})).toMatchObject({ok:false,reason:'InvalidD1OAuthProfile'})
-  expect(readStorageConfig({DB_URL:'synthetic',ZZIK_D1_OAUTH_PROFILE:'../default'})).toMatchObject({ok:true,mode:'postgres'})
+  expect(readStorageConfig({ZZIK_D1_AUTH:'wrangler-oauth',ZZIK_D1_ACCOUNT_ID:'synthetic',ZZIK_D1_DATABASE_ID:'synthetic',ZZIK_D1_OAUTH_PROFILE:'../default'})).toMatchObject({ok:false})
  })
 })

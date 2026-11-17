@@ -2,15 +2,10 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Miniflare, Log, LogLevel } from 'miniflare'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createTestDb } from '../../../fakes/pglite-db'
-import { usageEvent } from '../../../../shared/db/schema'
 import { runBucketWriter } from '../../../../worker/app/usage/bucket-writer'
 import { bucketStartMs } from '../../../../worker/domain/usage/bucket'
 import { D1BucketStore, D1BucketWriterStore } from '../../../../worker/infra/usage/d1-bucket-store'
 import type { BucketEvent } from '../../../../worker/domain/usage/bucket-store'
-import { PostgresBucketStore } from '../../../../worker/infra/usage/postgres-bucket-store'
-import { PostgresHistoryStore } from '../../../../worker/infra/usage/postgres-history-store'
-import type { SnapshotDatabase } from '../../../../worker/infra/usage/postgres-snapshot-store'
 import { USAGE_HISTORY_SCAN_VERSION } from '../../../../shared/usage-history-contract'
 import type { UsageEnvelope } from '../../../../shared/usage-contract'
 import type { UsageHistorySample } from '../../../../shared/usage-history-contract'
@@ -280,27 +275,6 @@ describe('Given the D1 bucket writer and reader inside actual workerd', () => {
     if (!page.ok) throw new Error('unreachable')
     const actual = page.value.samples.map(item => [item.runAt, item.values === null ? null : item.values[0]?.usedPercent])
 
-    // PG fallback reads raw rows with run_at >= from; D1 must return the same representative.
-    const pg = await createTestDb()
-    try {
-      for (const atMs of [T0 + 6 * 60_000, T0 + 10 * 60_000]) {
-        await pg.db.insert(usageEvent).values({
-          provider,
-          status: 'ok',
-          runAt: new Date(atMs),
-          envelope: JSON.parse(envelope('claude', {
-            fetchedAt: new Date(atMs).toISOString(),
-            rawText: JSON.stringify({ five_hour: { utilization: 10 } }),
-          })) as UsageEnvelope,
-        })
-      }
-      const pgPage = await new PostgresBucketStore(new PostgresHistoryStore(pg.db as SnapshotDatabase))
-        .readBuckets(provider, { from, until, bucketSec: 900 })
-      if (!pgPage.ok) throw new Error('unreachable')
-      expect(actual).toEqual(pgPage.value.samples.map(item => [item.runAt, item.values === null ? null : item.values[0]?.usedPercent]))
-    } finally {
-      await pg.close()
-    }
     expect(actual).toEqual([[new Date(T0 + 10 * 60_000).toISOString(), 10]])
   })
 

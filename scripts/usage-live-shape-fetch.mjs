@@ -1,21 +1,10 @@
 #!/usr/bin/env node
-/** DB envelope fetch for the shell shape masker. Never logs driver details. */
-import postgres from 'postgres'
-import { USAGE_PROVIDERS } from '../collector/domain/usage/providers.mjs'
-
-const provider = process.argv[2] ?? 'claude'
-if (!USAGE_PROVIDERS.includes(provider) || !process.env.DB_URL) {
-  process.stderr.write('Usage shape configuration error\n')
-  process.exit(78)
-}
-let client
-try {
-  client = postgres(process.env.DB_URL, {max:1,prepare:false,connect_timeout:10,onnotice:()=>{}})
-  const rows = await client.unsafe('SELECT envelope::text AS value FROM usage_snapshot WHERE provider = $1 LIMIT 1',[provider])
-  process.stdout.write(rows[0]?.value ?? 'null')
-} catch {
-  process.stderr.write('Usage shape database read failed\n')
-  process.exitCode = 1
-} finally {
-  await client?.end({timeout:1})
-}
+/** D1 envelope fetch for the shell masker. Raw output is only for the masking pipe. */
+import {tmpdir} from 'node:os'
+import {createWranglerD1Query} from '../collector/infra/usage/wrangler-d1-query.mjs'
+import {USAGE_PROVIDERS} from '../collector/domain/usage/providers.mjs'
+const provider=process.argv[2]??'claude'
+if(!USAGE_PROVIDERS.includes(provider)){process.stderr.write('Usage shape configuration error\n');process.exit(78)}
+const query=createWranglerD1Query({directory:tmpdir(),database:process.env.ZZIK_D1_DATABASE_NAME??'zzik-usage'})
+const result=await query.query([{sql:'SELECT envelope AS value FROM usage_snapshot WHERE provider=? LIMIT 1',params:[provider]}])
+if(!result.ok){process.stderr.write('Usage shape D1 read failed\n');process.exitCode=1}else process.stdout.write(result.value[0]?.results[0]?.value??'null')

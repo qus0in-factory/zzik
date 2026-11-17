@@ -1,3 +1,5 @@
+> G1 현재 상태: D1 단독 런타임이다. 아래 단계별 구현 기록 중 PG/꺼진 경로/PG복귀 설명은 당시 이력이며 현재 운영 명령은 docs/d1-d-cutover.md를 따른다. 기본 PM2 env가 D1이며 PostgreSQL 드라이버/백필 도구는 제거됐다.
+
 # B2 sender 계약
 
 ADR 0.10 §3·§5·§11 B2의 꺼진 모듈이다. main/runCycle/env/PM2/PG 경로는 변경하지 않는다. A·B1 파일은 수정하지 않았다.

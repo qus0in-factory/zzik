@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
-const VALID_STORES = new Set(['postgres', 'd1'])
+const VALID_STORES = new Set(['d1'])
 const DEFAULT_TIMEOUT_MS = 5_000
 
 /**
@@ -45,9 +45,9 @@ async function withNodeTimeout(promise, timeoutMs) {
  * @param {{
  *   stateDir: string,
  *   expectedPm2Status?: 'stopped' | 'online' | 'any',
- *   expectedZzikStore?: 'postgres' | 'd1',
+ *   expectedZzikStore?: 'd1',
  *   expectedLedgerExists?: boolean,
- *   expectedReadStore?: 'postgres' | 'd1',
+ *   expectedReadStore?: 'd1',
  *   timeoutMs?: number,
  * }} options
  */
@@ -58,7 +58,6 @@ export async function runD1Preflight(ports, options) {
 
   /** @type {Array<{name: string, status: 'PASS' | 'FAIL', reason?: string}>} */
   const checks = []
-  let initialPostgresProcess = false
 
   // 1-2. PM2 process status & ZZIK_STORE
   const pm2Call = await withNodeTimeout(ports.pm2.readProcess(), timeoutMs)
@@ -73,7 +72,6 @@ export async function runD1Preflight(ports, options) {
 
     const storeValid = typeof zzikStore === 'string' && VALID_STORES.has(zzikStore)
     const storeMatches = options.expectedZzikStore === undefined ? storeValid : zzikStore === options.expectedZzikStore
-    initialPostgresProcess = statusOk && zzikStore === 'postgres' && options.expectedZzikStore === 'postgres' && options.expectedReadStore === 'postgres'
     checks.push(storeMatches ? { name: 'zzik_store', status: 'PASS' } : { name: 'zzik_store', status: 'FAIL', reason: 'invalid_zzik_store' })
   }
 
@@ -85,14 +83,12 @@ export async function runD1Preflight(ports, options) {
     checks.push({ name: 'ledger_outbox_zero', status: 'FAIL', reason })
   } else {
     const { exists, marker, outboxCount } = ledgerCall.value.value
-    // PG has no D1 ledger before the first cutover. Never create one to satisfy
-    // this read-only gate, and never excuse an existing marker or damaged DB.
-    const initialPostgres = initialPostgresProcess && options.expectedLedgerExists === undefined && exists === false && marker === null && outboxCount === 0
-    const existsOk = exists === expectedLedgerExists || initialPostgres
-    checks.push(existsOk ? { name: 'ledger_exists', status: 'PASS', ...(initialPostgres ? {reason:'initial_postgres_no_ledger'} : {}) } : { name: 'ledger_exists', status: 'FAIL', reason: 'ledger_missing' })
+    // A missing/corrupt D1 ledger always fails this read-only gate.
+    const existsOk = exists === expectedLedgerExists
+    checks.push(existsOk ? { name: 'ledger_exists', status: 'PASS' } : { name: 'ledger_exists', status: 'FAIL', reason: 'ledger_missing' })
 
-    const outboxOk = initialPostgres || exists === true && Number.isSafeInteger(outboxCount) && outboxCount === 0
-    checks.push(outboxOk ? { name: 'ledger_outbox_zero', status: 'PASS', ...(initialPostgres ? {reason:'initial_postgres_no_ledger'} : {}) } : { name: 'ledger_outbox_zero', status: 'FAIL', reason: exists === true ? 'ledger_outbox_non_empty' : 'ledger_missing' })
+    const outboxOk = exists === true && Number.isSafeInteger(outboxCount) && outboxCount === 0
+    checks.push(outboxOk ? { name: 'ledger_outbox_zero', status: 'PASS' } : { name: 'ledger_outbox_zero', status: 'FAIL', reason: exists === true ? 'ledger_outbox_non_empty' : 'ledger_missing' })
   }
 
   // 5-6. Worker export/bucket deployment & USAGE_READ_STORE
@@ -147,8 +143,8 @@ async function main() {
   if (args.includes('--help')) {
     process.stdout.write(
       'node scripts/d1-preflight.mjs --state-dir <directory> [--evidence <json-path>]\n' +
-      '  [--expected-pm2-status online|stopped|any] [--expected-zzik-store postgres|d1] [--expected-read-store postgres|d1]\n' +
-      'Defaults: --expected-pm2-status online --expected-zzik-store postgres --expected-read-store postgres (pre-cutover).\n' +
+      '  [--expected-pm2-status online|stopped|any] [--expected-zzik-store d1] [--expected-read-store d1]\n' +
+      'Defaults: --expected-pm2-status online --expected-zzik-store d1 --expected-read-store d1 (D1-only).\n' +
       'Dry-run only: never calls live PM2/wrangler/DB/D1 and never prints secrets.\n',
     )
     return
@@ -156,10 +152,10 @@ async function main() {
   let stateDir = null
   let evidencePath = null
   let expectedPm2Status = 'online'
-  let expectedZzikStore = 'postgres'
-  let expectedReadStore = 'postgres'
+  let expectedZzikStore = 'd1'
+  let expectedReadStore = 'd1'
   const pm2Statuses = new Set(['online', 'stopped', 'any'])
-  const stores = new Set(['postgres', 'd1'])
+  const stores = new Set(['d1'])
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--state-dir' && args[i + 1]) stateDir = resolve(args[++i])
     else if (args[i] === '--evidence' && args[i + 1]) evidencePath = resolve(args[++i])

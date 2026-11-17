@@ -24,45 +24,9 @@ export interface D1WriteReceipt {
 export interface D1MigrationRow {
   readonly id: string | null
   readonly provider: UsageProvider
-  /** Preserve original PG sub-ms precision until checkMigrationTimeOrder has passed. */
+  /** Preserve original source sub-ms precision until checkMigrationTimeOrder has passed. */
   readonly runAt: string
   readonly status: UsageStatus
   readonly rawSha256: string | null
   readonly envelopeJson: string
 }
-export interface D1OperationFacts {
-  readonly operation: CollectorD1WriteV1
-  readonly outboxPresent: boolean
-  /** null means confirmed absent at a quiesced read, never a failed query. */
-  readonly receipt: D1WriteReceipt | null
-  readonly receiptUnavailable?: boolean
-  /** expected is the explicit D1 export target, not a guess from provider/runAt alone. */
-  readonly pgRow?: { readonly expected: D1ComparableMigrationRow; readonly actual: D1ComparableMigrationRow | null }
-}
-export interface D1OperationClassification {
-  readonly operationId: string
-  readonly delivery: 'acknowledged' | 'response_lost' | 'unsent'
-  readonly action: 'none' | 'acknowledge_local' | 'replay_same_operation' | 'clear_after_pg_commit'
-  readonly pg: 'not_checked' | 'missing' | 'matching' | 'snapshot_replace'
-}
-
-/** Structural transport compatibility with z-ds PG rollback tools; validated before use. */
-export interface PgRollbackEventRow {
-  readonly id: string
-  readonly provider: string
-  readonly runAtMs: number
-  readonly status: string
-  readonly rawSha256: string | null
-  readonly envelope: string
-}
-export interface PgRollbackSnapshotRow {
-  readonly provider: string
-  readonly runAtMs: number
-  readonly fetchedAtMs: number | null
-  readonly status: string
-  readonly rawSha256: string | null
-  readonly envelope: string
-  readonly collectorVersion: string
-  readonly updatedAtMs: number
-}
-export type D1ComparableMigrationRow = D1MigrationRow | PgRollbackEventRow | PgRollbackSnapshotRow

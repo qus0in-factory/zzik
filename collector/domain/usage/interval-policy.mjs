@@ -1,5 +1,5 @@
 import { USAGE_PROVIDERS } from './providers.mjs'
-/** @param {Record<string,string|undefined>} env @param {{mode:'postgres'|'d1',capability:unknown}} options
+/** @param {Record<string,string|undefined>} env @param {{mode:string,capability:unknown}} options
  * @returns {{ok:true,value:Record<string,number>}|{ok:false,reason:string,exitCode:78}} */
 export function readIntervalPolicy(env,{mode,capability}){
  const cap=/** @type {{v?:unknown,readStore?:unknown,bucketRoute?:unknown}|null} */(capability)
