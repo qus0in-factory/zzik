@@ -59,3 +59,12 @@
 | `collector/` | — | 실행 | `done` |
 | `shared/` | 실행 | 실행 | `done` (`src/` 동반 시 `verify`) |
 | 그 외 (`docs/` 등) | 생략 | 생략 | `done` |
+
+## 공개 트렌드 (#116 2단계)
+
+- 공개 경로: `/pub/trend`, `/pub/trend/new-models`. Access 앱에 넣지 않는다.
+- 수집 cron: `7 */2 * * *` (`TREND_CRON`). Worker가 models.dev `api.json`을 `If-None-Match` 조건부 GET으로 읽고, 304면 섹션 재계산을 생략한다.
+- 저장: D1 `trend_section`(섹션당 1행), `trend_source_state`(ETag·상태), `trend_model_seen`(canonical id·first_seen). 마이그레이션 `0002_trend.sql`.
+- 메모리 게이트: 응답 20MiB 상한. 로컬 Node 측정(2026-11-17)은 `api.json` 6,687,479 bytes → 문자열 12.75MiB + 파싱 11.83MiB = 약 24.6MiB heap으로 128MiB 한도 안이다. workerd 통합 테스트는 작은 고정 응답으로 경로를 검증하며, 실제 6.7MiB 원문의 workerd 피크를 측정한 것은 아니다.
+- 2단계에서는 `new-models`만 실데이터다. `free-models`·`frontier`는 아직 `not_ready`(503)다.
+- 원격 반영 순서(opus): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다.
