@@ -4,7 +4,7 @@ import { createD1Maintenance } from './d1-maintenance.mjs'
 import { runLedgerMaintenance } from './run-ledger-maintenance.mjs'
 import { runD1Provider } from './run-d1-provider.mjs'
 import { createQuiescer } from './quiesce.mjs'
-/** @param {{ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,query:import('../../domain/usage/d1-sender-types.ts').D1QueryPort,timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,clock:{now():number},random:()=>number,operationId:()=>string,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort,notifyAlerts:(alerts:unknown[])=>Promise<void>,providers:Array<{id:string,ports:import('../../domain/usage/ports.mjs').CollectorPorts,runOptions?:object}>,intervals:Record<string,number>,retentionDays:number,collectorVersion:string,once?:boolean}} options */
+/** @param {{ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,query:import('../../domain/usage/d1-sender-types.ts').D1QueryPort,timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,clock:{now():number},random:()=>number,operationId:()=>string,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort,notifyAlerts:(alerts:unknown[])=>Promise<void>,providers:Array<{id:string,ports:import('../../domain/usage/ports.mjs').CollectorPorts,runOptions?:object}>,intervals:Record<string,number>,retentionDays:number,collectorVersion:string,once?:boolean,shutdownPending?:()=>Promise<unknown>[]}} options */
 export function createD1Resident(options){
  let stopping=false,started=false
  /** @type {()=>void} */let cancel=()=>{}
@@ -26,7 +26,7 @@ export function createD1Resident(options){
   if(sending===null)sending=sender.tick().catch(()=>{}).finally(()=>{sending=null})
   if(maintaining===null)maintaining=runLedgerMaintenance({ledger:options.ledger,maintenance,clock:options.clock,notice:options.notice,retentionDays:options.retentionDays}).catch(()=>{}).finally(()=>{maintaining=null})
  }
- const quiesce=createQuiescer({timer:options.timer,stop:()=>{stopping=true;cancel();scheduler.stop()},pending:()=>[...scheduler.pending(),...(sending?[sending]:[]),...(maintaining?[maintaining]:[])],close:async()=>{options.ledger.close()}})
+ const quiesce=createQuiescer({timer:options.timer,stop:()=>{stopping=true;cancel();scheduler.stop()},pending:()=>[...scheduler.pending(),...(sending?[sending]:[]),...(maintaining?[maintaining]:[]),...(options.shutdownPending?.()??[])],close:async()=>{options.ledger.close()}})
  const loop=()=>{if(!stopping){pump();cancel=options.timer.schedule(250,loop)}}
  return {canRequest:()=>!stopping,start:()=>{started=true;loop()},pump,
   /** Operator-only pre-start action. The process lock and receipt probe belong to main.
