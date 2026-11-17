@@ -60,7 +60,7 @@ async function waitForTrend(page) {
   for (let i = 0; i < 60; i += 1) {
     const ready = await page.evaluate(`(() => {
       const has = (id) => document.querySelector('[data-testid="' + id + '"]') !== null
-      return has('trend-metrics-entry') && has('trend-new-model') && has('trend-free-model')
+      return has('trend-treemap-cell') && has('trend-new-model') && has('trend-free-model')
     })()`)
     if (ready) break
     await sleep(100)

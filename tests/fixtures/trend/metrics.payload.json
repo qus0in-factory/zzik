@@ -25,7 +25,8 @@
           "rank": 1,
           "rankDelta": null,
           "kind": "steady",
-          "share7d": 0.6
+          "share7d": 0.6,
+          "shareDelta": 0.02
         },
         {
           "id": "qwen/qwen4-max",
@@ -34,7 +35,8 @@
           "rank": 2,
           "rankDelta": null,
           "kind": "steady",
-          "share7d": 0.25
+          "share7d": 0.25,
+          "shareDelta": -0.01
         }
       ],
       "attribution": "Source: OpenRouter (openrouter.ai/rankings), as of 2026-11-17T04:00:00Z. Licensed under CC BY 4.0.",
