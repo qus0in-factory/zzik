@@ -5,9 +5,8 @@ import { useTrendDeps } from '@app/trend/TrendGatewayContext'
 import { TrendLoadError, useTrendSection } from '@app/trend/useTrendSection'
 
 const SOURCE_LABELS: Record<string, string> = {
-  'models.dev': 'models.dev',
-  'opencode-zen': 'OpenCode Zen',
-  openrouter: 'OpenRouter',
+  'go-models': 'OpenCode Go',
+  'ollama-tags': 'Ollama Cloud',
 }
 
 function formatTime(iso: string): string {
@@ -35,14 +34,11 @@ function ItemCard({ item }: { item: TrendItem }): ReactNode {
           <p className="mt-0.5 text-xs text-muted-foreground">{item.creator}</p>
         </div>
         <div className="flex flex-wrap gap-1">
-          {item.free && badge(t('trend.freeModels.free'))}
-          {item.freeKind === 'local' && badge(t('trend.freeModels.localBadge'), 'accent')}
-          {item.openWeights && badge(t('trend.newModels.openWeights'))}
+          {item.free && badge(t('trend.freeModels.included'))}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span>{item.releaseDate === null ? t('trend.freeModels.releaseUnknown') : t('trend.freeModels.release', { date: item.releaseDate })}</span>
-        <span>{t('trend.freeModels.providers', { count: item.providers.length })}</span>
       </div>
     </li>
   )
@@ -54,13 +50,13 @@ function Group({ title, items }: { title: string; items: readonly TrendItem[] })
     <div className="mt-4">
       <h3 className="text-sm font-semibold">{title}</h3>
       <ul className="mt-2 grid gap-3 sm:grid-cols-2">
-        {items.map((item) => <ItemCard key={`${item.freeKind ?? 'hosted'}:${item.id}`} item={item} />)}
+        {items.map((item) => <ItemCard key={`${item.freeKind ?? 'plan'}:${item.id}`} item={item} />)}
       </ul>
     </div>
   )
 }
 
-/** `/pub/trend/free-models`의 무료 모델 섹션. 호스팅 무료와 로컬 실행 가능을 나눠 보여 준다. */
+/** `/pub/trend/free-models`의 무료 모델 섹션. OpenCode Go와 Ollama Cloud 두 그룹을 보여 준다. */
 export function FreeModelsSection(): ReactNode {
   const deps = useTrendDeps()
   if (!deps.enabled) return null
@@ -71,8 +67,8 @@ function FreeModelsSectionContent(): ReactNode {
   const query = useTrendSection('free-models')
   const { data, error, isError, isPending, refetch } = query
   const notReady = error instanceof TrendLoadError && error.reason === 'not_ready'
-  const hosted = data?.items.filter((item) => item.freeKind !== 'local') ?? []
-  const local = data?.items.filter((item) => item.freeKind === 'local') ?? []
+  const opencodeGo = data?.items.filter((item) => item.freeKind === 'opencode-go') ?? []
+  const ollamaCloud = data?.items.filter((item) => item.freeKind === 'ollama-cloud') ?? []
   const stale = data?.sources.some((source) => source.status === 'stale') ?? false
 
   return (
@@ -96,8 +92,8 @@ function FreeModelsSectionContent(): ReactNode {
       )}
       {data !== undefined && data.items.length > 0 && (
         <>
-          <Group title={t('trend.freeModels.hosted')} items={hosted} />
-          <Group title={t('trend.freeModels.local')} items={local} />
+          <Group title={t('trend.freeModels.group.opencodeGo')} items={opencodeGo} />
+          <Group title={t('trend.freeModels.group.ollamaCloud')} items={ollamaCloud} />
         </>
       )}
       {data !== undefined && (

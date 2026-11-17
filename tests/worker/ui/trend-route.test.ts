@@ -19,14 +19,9 @@ const metricsPayload: TrendSectionPayload = {
   schemaVersion: 1,
   generatedAt: '2026-11-17T05:00:00.000Z',
   rule: TREND_METRICS_RULE,
-  sources: [{ id: 'artificial-analysis', fetchedAt: '2026-11-17T05:00:00.000Z', status: 'ok' }],
+  sources: [{ id: 'openrouter-rankings', fetchedAt: '2026-11-17T05:00:00.000Z', status: 'ok' }],
   items: [],
   blocks: [
-    {
-      id: 'aa-intelligence', status: 'ok', asOf: '2026-11-17', version: '3.0',
-      entries: [{ id: 'a/x', name: 'A X', creator: 'A', rank: 1, rankDelta: null, kind: 'steady', index: 90 }],
-      attribution: 'Artificial Analysis — artificialanalysis.ai (Intelligence Index v3.0, 2026-11-17)',
-    },
     {
       id: 'or-usage', status: 'ok', asOf: '2026-11-17T04:00:00Z', asOfKind: 'source',
       entries: [], attribution: 'Source: OpenRouter (openrouter.ai/rankings), as of 2026-11-17T04:00:00Z. Licensed under CC BY 4.0.',
@@ -60,10 +55,10 @@ class FakeTrendStore implements TrendStore {
   async upsertSeen(_rows: readonly TrendSeenRow[]): Promise<void> {}
 }
 
-function setup(options: { trendAaPublic?: boolean } = {}) {
+function setup() {
   const verifier = new FakeVerifier(), store = new FakeStore(), assets = { calls: 0, async fetch() { this.calls++; return new Response('SPA') } }
   const trend = new FakeTrendStore()
-  return { verifier, store, assets, trend, app: createRouter({ config, verifier, store, trend, assets, trendAaPublic: options.trendAaPublic }) }
+  return { verifier, store, assets, trend, app: createRouter({ config, verifier, store, trend, assets }) }
 }
 
 describe('Given public trend routes with a ready D1 store', () => {
@@ -120,26 +115,27 @@ describe('Given public trend routes with a ready D1 store', () => {
     expect(await res.json()).toEqual({ error: 'internal_error' })
   })
 
-  it('When AA public is enabled Then /pub/trend/metrics exposes AA scores', async () => {
-    const s = setup({ trendAaPublic: true })
-    const res = await s.app.request('/pub/trend/metrics')
-    expect(res.status).toBe(200)
-    const body = await res.json() as { blocks: Array<{ id: string; status: string; entries: unknown[] }> }
-    const aa = body.blocks.find((block) => block.id === 'aa-intelligence')!
-    expect(aa.status).toBe('ok')
-    expect(aa.entries).toHaveLength(1)
-  })
-
-  it('When AA public is not enabled Then the AA block is hidden as under_review with no scores', async () => {
+  it('When a legacy stored metrics payload has an AA block Then the public projection returns only OpenRouter', async () => {
     const s = setup()
+    const legacy = {
+      ...metricsPayload,
+      blocks: [
+        {
+          id: 'aa-intelligence', status: 'ok', asOf: '2026-11-17', version: '3.0',
+          entries: [{ id: 'a/x', name: 'A X', creator: 'A', rank: 1, rankDelta: null, kind: 'steady', index: 90 }],
+          attribution: 'Artificial Analysis — artificialanalysis.ai (Intelligence Index v3.0, 2026-11-17)',
+        },
+        ...metricsPayload.blocks!,
+      ],
+    }
+    ;(s.trend as unknown as { metricsStored: string }).metricsStored = JSON.stringify(legacy)
     const res = await s.app.request('/pub/trend/metrics')
     expect(res.status).toBe(200)
     const text = await res.text()
+    expect(text).not.toContain('aa-intelligence')
     expect(text).not.toContain('\"index\":90')
-    const body = JSON.parse(text) as { blocks: Array<{ id: string; status: string; note?: string; entries: unknown[] }> }
-    const aa = body.blocks.find((block) => block.id === 'aa-intelligence')!
-    expect(aa).toMatchObject({ status: 'under_review', note: 'terms_review', entries: [] })
-    expect(body.blocks.find((block) => block.id === 'or-usage')).toMatchObject({ status: 'ok' })
+    const body = JSON.parse(text) as { blocks: Array<{ id: string }> }
+    expect(body.blocks.map((block) => block.id)).toEqual(['or-usage'])
   })
 
   it('When a valid section has no row Then 503 no-store; unknown section 404; POST 405; deep path 404', async () => {

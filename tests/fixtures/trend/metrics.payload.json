@@ -2,13 +2,8 @@
   "section": "metrics",
   "schemaVersion": 1,
   "generatedAt": "2026-11-17T05:00:00.000Z",
-  "rule": "aa-intelligence-and-or-usage-v1",
+  "rule": "openrouter-usage-v1",
   "sources": [
-    {
-      "id": "artificial-analysis",
-      "fetchedAt": "2026-11-17T05:00:00.000Z",
-      "status": "ok"
-    },
     {
       "id": "openrouter-rankings",
       "fetchedAt": "2026-11-17T05:00:00.000Z",
@@ -17,42 +12,6 @@
   ],
   "items": [],
   "blocks": [
-    {
-      "id": "aa-intelligence",
-      "status": "ok",
-      "asOf": "2026-11-17",
-      "version": "3.0",
-      "entries": [
-        {
-          "id": "anthropic/claude-fable-5",
-          "name": "Claude Fable 5",
-          "creator": "Anthropic",
-          "rank": 1,
-          "rankDelta": 2,
-          "kind": "moved",
-          "index": 72
-        },
-        {
-          "id": "openai/gpt-6.1-sol",
-          "name": "GPT-6.1 Sol",
-          "creator": "OpenAI",
-          "rank": 2,
-          "rankDelta": null,
-          "kind": "new-top",
-          "index": 70
-        },
-        {
-          "id": "google/gemini-4-argon",
-          "name": "Gemini 4 Argon",
-          "creator": "Google",
-          "rank": 3,
-          "rankDelta": -1,
-          "kind": "moved",
-          "index": 69
-        }
-      ],
-      "attribution": "Artificial Analysis — artificialanalysis.ai (Intelligence Index v3.0, 2026-11-17)"
-    },
     {
       "id": "or-usage",
       "status": "stale",

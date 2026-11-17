@@ -16,12 +16,13 @@ APP_TEXT="Hello Young-In"
 pass() { printf 'PASS  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 
-CHECK_PUBLIC=false
+CHECK_PUBLIC=true
 WORKER_ARG=""
 for arg in "$@"; do
   case "$arg" in
     --check-public) CHECK_PUBLIC=true ;;
-    -*) printf '사용법: %s [--check-public] [workers.dev 서브도메인|URL]\n' "$0" >&2; exit 2 ;;
+    --no-check-public) CHECK_PUBLIC=false ;;
+    -*) printf '사용법: %s [--check-public|--no-check-public] [workers.dev 서브도메인|URL]\n' "$0" >&2; exit 2 ;;
     *)
       if [ -n "$WORKER_ARG" ]; then
         printf '사용법: %s [--check-public] [workers.dev 서브도메인|URL]\n' "$0" >&2
@@ -51,29 +52,33 @@ fetch() {
   head -n1 "$hdr_file" | awk '{print $2}'
 }
 
-# ── Verification 2: 미인증 차단 ────────────────────────────────────────────
-echo "== Verification 2: 미인증 차단 ($APP_URL)"
-status=$(fetch "$APP_URL")
-location=$(grep -i '^location:' "$hdr_file" | head -n1 | tr -d '\r' | cut -d' ' -f2-) || location=""
+# ── Verification 2: 미인증 차단 (/usage·/api/usage) 및 공개 SPA (/·/trend) ─
+echo "== Verification 2: 미인증 차단 ($APP_URL/usage, $APP_URL/api/usage)"
+for protected_path in /usage /api/usage; do
+  status=$(fetch "$APP_URL$protected_path")
+  location=$(grep -i '^location:' "$hdr_file" | head -n1 | tr -d '\r' | cut -d' ' -f2-) || location=""
+  if [ "$status" != "302" ]; then
+    fail "$protected_path 상태 코드가 302가 아니다(실제: ${status:-알 수 없음}) — Access 앱이 보호하지 않고 있다"
+  fi
+  if ! grep -q 'cdn-cgi/access/login' <<<"${location:-}"; then
+    fail "$protected_path Location 에 cdn-cgi/access/login 이 없다: '${location:-없음}'"
+  fi
+  if grep -qF "$APP_TEXT" "$body_file"; then
+    fail "$protected_path 응답 본문에 '$APP_TEXT' 가 보인다"
+  fi
+done
+pass "보호 경로(/usage·/api/usage)가 Access 로그인(302)으로 차단된다"
 
-if [ "$status" != "302" ]; then
-  fail "상태 코드가 302가 아니다(실제: ${status:-알 수 없음}) — Access 앱이 이 도메인을 가리고 있지 않다"
-fi
-if [ -n "$location" ]; then
-  printf '      Location: %s\n' "$location"
-fi
-if ! grep -q 'cdn-cgi/access/login' <<<"${location:-}"; then
-  fail "Location 에 cdn-cgi/access/login 이 없다: '${location:-없음}' — Access 로그인 페이지로 돌려보내는 게 아니다"
-fi
-if grep -qi 'cloudflareaccess.com' <<<"${location:-}"; then
-  echo "참고  Location 이 cloudflareaccess.com 임(참고용 출력)"
-else
-  echo "참고  Location 에 cloudflareaccess.com 이 없다(참고용 출력, 판정과 무관)"
-fi
-if grep -qF "$APP_TEXT" "$body_file"; then
-  fail "응답 본문에 '$APP_TEXT' 가 보인다 — Access 없이 앱이 공개된 상태다"
-fi
-pass "미인증 요청이 Access 로그인(302)으로 차단되고 본문에 앱 콘텐츠가 없다"
+for spa_path in / /trend; do
+  spa_status=$(fetch "$APP_URL$spa_path")
+  if [ "$spa_status" != "200" ]; then
+    fail "$spa_path 상태 코드가 200이 아니다(실제: ${spa_status:-알 수 없음})"
+  fi
+  if grep -qE 'qus0in@gmail\.com|usedPercent|"snapshot"' "$body_file"; then
+    fail "$spa_path 공개 본문에 사용량 데이터 또는 이메일이 노출됐다"
+  fi
+done
+pass "공개 SPA 경로(/·/trend)가 200으로 응답하고 사용량·이메일이 없다"
 
 # ── Verification 3: workers.dev 우회 차단 ──────────────────────────────────
 if [ -n "$WORKER_URL" ]; then

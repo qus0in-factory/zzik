@@ -1,5 +1,6 @@
 import { TREND_SECTION_MAX_BYTES } from '../../../shared/trend-contract'
 import type { TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
+import type { PlanObservationRow } from '../../domain/trend/plan/types'
 import type { D1DatabaseLike } from '../usage/d1-history-store'
 import type { TrendSectionRow, TrendSeenRow, TrendSourceStateRow, TrendStore } from '../../domain/trend/store'
 
@@ -32,6 +33,16 @@ interface SeenDbRow {
   first_seen_at: number
   release_date: string | null
   source: string
+}
+interface PlanObservationDbRow {
+  plan: string
+  model_id: string
+  display_name: string | null
+  source: string
+  confidence: string
+  first_seen_at: number
+  last_seen_at: number
+  baseline: number
 }
 
 export class D1TrendStore implements TrendStore {
@@ -82,6 +93,24 @@ export class D1TrendStore implements TrendStore {
   async readSeen(): Promise<TrendSeenRow[]> {
     const rows = await all<SeenDbRow>(this.db, 'SELECT canonical_id, first_seen_at, release_date, source FROM trend_model_seen', [])
     return rows.map((row) => ({ canonicalId: row.canonical_id, firstSeenAt: Number(row.first_seen_at), releaseDate: row.release_date, source: row.source }))
+  }
+
+  async readPlanObservations(): Promise<PlanObservationRow[]> {
+    const rows = await all<PlanObservationDbRow>(
+      this.db,
+      'SELECT plan, model_id, display_name, source, confidence, first_seen_at, last_seen_at, baseline FROM trend_plan_observation ORDER BY plan ASC, first_seen_at DESC',
+      [],
+    )
+    return rows.map((row) => ({
+      plan: row.plan,
+      modelId: row.model_id,
+      displayName: row.display_name,
+      source: row.source,
+      confidence: row.confidence === 'account' || row.confidence === 'doc' || row.confidence === 'partial' ? row.confidence : 'catalog',
+      firstSeenAt: Number(row.first_seen_at),
+      lastSeenAt: Number(row.last_seen_at),
+      baseline: row.baseline === 1,
+    }))
   }
 
   async upsertSeen(rows: readonly TrendSeenRow[]): Promise<void> {

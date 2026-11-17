@@ -1,143 +1,113 @@
 import { describe, expect, it } from 'vitest'
-import {
-  TREND_FREE_MODELS_RULE,
-  TREND_SOURCE_MODELS_DEV,
-  TREND_SOURCE_OPENCODE_ZEN,
-  TREND_SOURCE_OPENROUTER,
-} from '../../../../shared/trend-contract'
+import type { TrendSectionPayload } from '../../../../shared/trend-contract'
+import { TREND_FREE_MODELS_RULE } from '../../../../shared/trend-contract'
 import { buildFreeModels } from '../../../../worker/domain/trend/sections/free-models'
-import type { FreeModelsSourceData } from '../../../../worker/domain/trend/sections/free-models'
+import type { PlanObservationRow } from '../../../../worker/domain/trend/plan/types'
 import type { TrendModelRecord } from '../../../../worker/domain/trend/sources'
 
-const NOW = Date.UTC(2026, 10, 17, 0, 0, 0)
+const NOW = Date.UTC(2026, 10, 17, 5, 0, 0)
+const HOUR = 3_600_000
 const DAY = 86_400_000
+
+function observation(overrides: Partial<PlanObservationRow> = {}): PlanObservationRow {
+  return {
+    plan: 'opencode-go',
+    modelId: 'deepseek/deepseek-v4.1-flash-1017',
+    displayName: 'DeepSeek V4.1 Flash 1017',
+    source: 'go-models',
+    confidence: 'catalog',
+    firstSeenAt: NOW - DAY,
+    lastSeenAt: NOW - HOUR,
+    baseline: false,
+    ...overrides,
+  }
+}
 
 function record(overrides: Partial<TrendModelRecord> = {}): TrendModelRecord {
   return {
-    canonicalId: 'tencent/hy4-flash',
-    provider: 'openrouter',
-    modelId: 'tencent/hy4-flash:free',
-    name: 'Hy4 Flash',
-    creator: 'tencent',
-    releaseDate: '2026-11-16',
+    canonicalId: 'deepseek/deepseek-v4.1-flash-1017',
+    provider: 'opencode-go',
+    modelId: 'deepseek-v4.1-flash',
+    name: 'DeepSeek V4.1 Flash 1017',
+    creator: 'deepseek',
+    releaseDate: '2026-10-17',
     releasePrecision: 'day',
-    releaseMs: NOW - DAY,
-    price: { input: 0, output: 0 },
-    free: true,
-    openWeights: false,
+    releaseMs: Date.UTC(2026, 9, 17),
+    price: { input: 0.15, output: 0.6 },
+    free: false,
+    openWeights: true,
     status: null,
     expiresAtMs: null,
     ...overrides,
   }
 }
 
-const zen = (records: readonly TrendModelRecord[] | null, overrides: Partial<FreeModelsSourceData> = {}): FreeModelsSourceData => ({
-  id: TREND_SOURCE_OPENCODE_ZEN, kind: 'hosted', status: 'ok', fetchedAt: new Date(NOW).toISOString(), records, carried: [], ...overrides,
-})
-const or = (records: readonly TrendModelRecord[] | null, overrides: Partial<FreeModelsSourceData> = {}): FreeModelsSourceData => ({
-  id: TREND_SOURCE_OPENROUTER, kind: 'hosted', status: 'ok', fetchedAt: new Date(NOW).toISOString(), records, carried: [], ...overrides,
-})
-const md = (records: readonly TrendModelRecord[] | null, overrides: Partial<FreeModelsSourceData> = {}): FreeModelsSourceData => ({
-  id: TREND_SOURCE_MODELS_DEV, kind: 'local', status: 'ok', fetchedAt: new Date(NOW).toISOString(), records, carried: [], ...overrides,
-})
+function build(input: {
+  observations?: PlanObservationRow[]
+  catalog?: TrendModelRecord[] | null
+  previous?: TrendSectionPayload | null
+}) {
+  return buildFreeModels({
+    observations: input.observations ?? [],
+    catalog: input.catalog ?? null,
+    previous: input.previous ?? null,
+    nowMs: NOW,
+  })
+}
 
-describe('Given the free-models builder', () => {
-  it('When hosted records sit on the 30-day boundary Then keeps the inclusive day and drops older/future/deprecated/expired', () => {
-    const payload = buildFreeModels([
-      zen([
-        record({ canonicalId: 'boundary-in', modelId: 'boundary-in:free', releaseDate: '2026-10-18', releaseMs: NOW - 30 * DAY }),
-        record({ canonicalId: 'boundary-out', modelId: 'boundary-out:free', releaseDate: '2026-10-17', releaseMs: NOW - 31 * DAY }),
-        record({ canonicalId: 'future', modelId: 'future:free', releaseMs: NOW + DAY }),
-        record({ canonicalId: 'deprecated', modelId: 'deprecated:free', status: 'deprecated' }),
-        record({ canonicalId: 'expired', modelId: 'expired:free', expiresAtMs: NOW - DAY }),
-      ]),
-      or([]),
-      md([]),
-    ], NOW)
-    expect(payload.section).toBe('free-models')
+describe('Given the plan-included free-models builder', () => {
+  it('When Go and Ollama observations exist Then emits two groups with metadata and plan-included pricing', () => {
+    const payload = build({
+      observations: [
+        observation(),
+        observation({ plan: 'ollama-cloud', modelId: 'glm-5.3', displayName: 'glm-5.3', source: 'ollama-tags' }),
+      ],
+      catalog: [
+        record(),
+        record({ canonicalId: 'zhipuai/glm-5.3', provider: 'ollama-cloud', modelId: 'glm-5.3', name: 'GLM 5.3', creator: 'zhipuai', releaseDate: '2026-08-14', releaseMs: Date.UTC(2026, 7, 14), price: null }),
+      ],
+    })
     expect(payload.rule).toBe(TREND_FREE_MODELS_RULE)
-    expect(payload.items.map((item) => item.id)).toEqual(['boundary-in'])
-    expect(payload.items[0]).toMatchObject({ freeKind: 'hosted', free: true, price: { input: 0, output: 0 } })
-  })
-
-  it('When both hosted sources list the same canonical model Then merges providers and keeps the Zen vendor release', () => {
-    const payload = buildFreeModels([
-      zen([record({ provider: 'opencode', modelId: 'hy4-flash-free', name: 'Hy4 Flash Free', releaseDate: '2026-11-16', releaseMs: NOW - DAY })]),
-      or([record({ provider: 'openrouter', name: 'Tencent: Hy4 flash', releaseDate: '2026-11-15', releaseMs: NOW - 2 * DAY })]),
-      md([]),
-    ], NOW)
-    expect(payload.items).toHaveLength(1)
+    expect(payload.items.map((item) => item.freeKind)).toEqual(['opencode-go', 'ollama-cloud'])
     expect(payload.items[0]).toMatchObject({
-      id: 'tencent/hy4-flash', name: 'Hy4 Flash Free', releaseDate: '2026-11-16',
-      providers: ['opencode', 'openrouter'], freeKind: 'hosted',
+      id: 'deepseek/deepseek-v4.1-flash-1017', name: 'DeepSeek V4.1 Flash 1017', creator: 'deepseek',
+      price: { input: 0, output: 0 }, free: true, openWeights: true, freeKind: 'opencode-go',
     })
+    expect(payload.items[1]).toMatchObject({ id: 'zhipuai/glm-5.3', name: 'GLM 5.3', freeKind: 'ollama-cloud' })
+    expect(payload.sources).toEqual([
+      { id: 'go-models', fetchedAt: new Date(NOW - HOUR).toISOString(), status: 'ok' },
+      { id: 'ollama-tags', fetchedAt: new Date(NOW - HOUR).toISOString(), status: 'ok' },
+    ])
   })
 
-  it('When a local model is also hosted free Then hosted wins and the local provider is merged', () => {
-    const payload = buildFreeModels([
-      zen([record({ provider: 'opencode', canonicalId: 'xiaomi/mimo-v2.6-flash', modelId: 'mimo-v2.6-flash-free' })]),
-      or([]),
-      md([record({
-        canonicalId: 'xiaomi/mimo-v2.6-flash', provider: 'ollama-cloud', modelId: 'mimo-v2.6-flash',
-        name: 'MiMo V2.6 Flash', free: false, price: null, openWeights: true,
-      })]),
-    ], NOW)
+  it('When an observation has no models.dev match Then keeps the display name and empty creator', () => {
+    const payload = build({ observations: [observation({ modelId: 'new/model-x', displayName: 'Model X' })] })
+    expect(payload.items[0]).toMatchObject({ id: 'new/model-x', name: 'Model X', creator: '', releaseDate: null, precision: 'unknown', freeKind: 'opencode-go' })
+  })
+
+  it('When the last observation is older than 12 hours Then keeps items but marks the source stale', () => {
+    const payload = build({ observations: [observation({ lastSeenAt: NOW - 13 * HOUR })] })
     expect(payload.items).toHaveLength(1)
-    expect(payload.items[0]).toMatchObject({
-      id: 'xiaomi/mimo-v2.6-flash', freeKind: 'hosted', openWeights: true,
-      providers: ['ollama-cloud', 'opencode'],
-    })
-    expect(payload.sourceItems[TREND_SOURCE_MODELS_DEV]).toHaveLength(1)
+    expect(payload.sources.find((source) => source.id === 'go-models')?.status).toBe('stale')
   })
 
-  it('When local models are open-weight ollama-cloud entries Then lists them after hosted items with no price', () => {
-    const payload = buildFreeModels([
-      zen([]),
-      or([]),
-      md([
-        record({ canonicalId: 'qwen/qwen4-max', provider: 'ollama-cloud', modelId: 'qwen4-max', name: 'Qwen4 Max', free: false, price: null, openWeights: true, releaseMs: NOW - 2 * DAY }),
-        record({ canonicalId: 'cloud-only', provider: 'ollama-cloud', modelId: 'cloud-only', name: 'Cloud Only', free: false, price: null, openWeights: false }),
-        record({ canonicalId: 'reseller', provider: 'openrouter', modelId: 'reseller', openWeights: true }),
-      ]),
-    ], NOW)
-    expect(payload.items.map((item) => item.id)).toEqual(['qwen/qwen4-max'])
-    expect(payload.items[0]).toMatchObject({ freeKind: 'local', free: false, price: null, openWeights: true, providers: ['ollama-cloud'] })
+  it('When a plan has no current observations Then carries the previous group items', () => {
+    const previous = build({ observations: [observation()] })
+    const payload = build({ observations: [], previous })
+    expect(payload.items.map((item) => item.freeKind)).toEqual(['opencode-go'])
+    expect(payload.sources.find((source) => source.id === 'go-models')?.status).toBe('stale')
   })
 
-  it('When a source returns 304 Then reuses carried items and re-applies the 30-day window', () => {
-    const built = buildFreeModels([
-      zen([record({ canonicalId: 'kept' })]),
-      or([record({ canonicalId: 'expires', releaseMs: NOW - 29 * DAY, releaseDate: '2026-10-19' })]),
-      md([]),
-    ], NOW)
-    const payload = buildFreeModels([
-      zen(null, { carried: built.sourceItems[TREND_SOURCE_OPENCODE_ZEN] ?? [] }),
-      or(null, { carried: built.sourceItems[TREND_SOURCE_OPENROUTER] ?? [] }),
-      md(null),
-    ], NOW + 2 * DAY)
-    expect(payload.items.map((item) => item.id)).toEqual(['kept'])
-    expect(payload.sources.every((source) => source.status === 'ok')).toBe(true)
-  })
-
-  it('When a source fails Then keeps its carried items and marks only that source stale', () => {
-    const built = buildFreeModels([
-      zen([record({ canonicalId: 'zen-item' })]),
-      or([record({ canonicalId: 'or-item', provider: 'openrouter', modelId: 'or-item:free' })]),
-      md([]),
-    ], NOW)
-    const payload = buildFreeModels([
-      zen(null, { status: 'stale', carried: built.sourceItems[TREND_SOURCE_OPENCODE_ZEN] ?? [] }),
-      or([record({ canonicalId: 'or-item', provider: 'openrouter', modelId: 'or-item:free' })]),
-      md([]),
-    ], NOW)
-    expect(payload.items.map((item) => item.id).sort()).toEqual(['or-item', 'zen-item'])
-    expect(payload.sources.find((source) => source.id === TREND_SOURCE_OPENCODE_ZEN)?.status).toBe('stale')
-    expect(payload.sources.find((source) => source.id === TREND_SOURCE_OPENROUTER)?.status).toBe('ok')
-  })
-
-  it('When every source returns 200 with no free items Then writes a valid empty list, not a failure', () => {
-    const payload = buildFreeModels([zen([]), or([]), md([])], NOW)
+  it('When an observation is older than the 7-day window Then excludes it', () => {
+    const payload = build({ observations: [observation({ lastSeenAt: NOW - 8 * DAY })] })
     expect(payload.items).toEqual([])
-    expect(payload.sources).toHaveLength(3)
+  })
+
+  it('When there is no data Then returns two stale sources and no items', () => {
+    const payload = build({})
+    expect(payload.items).toEqual([])
+    expect(payload.sources.map((source) => [source.id, source.status])).toEqual([
+      ['go-models', 'stale'], ['ollama-tags', 'stale'],
+    ])
   })
 })

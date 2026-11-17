@@ -72,6 +72,7 @@ describe('Given the public landing page', () => {
     expect(screen.getByRole('link', { name: '트렌드' })).toBeTruthy()
     expect(screen.getByTestId('home-link').getAttribute('href')).toBe('/')
     expect(screen.queryByTestId(/^usage-section-/)).toBeNull()
+    expect(screen.getByTestId('app-version').textContent).toBe(`v${__APP_VERSION__}`)
     expect(usageGateway.calls).toBe(0)
     expect(history.gateway.queries).toHaveLength(0)
     expect(history.gateway.summaryCalls).toBe(0)

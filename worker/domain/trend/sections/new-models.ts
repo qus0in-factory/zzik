@@ -1,19 +1,37 @@
-/** `new-models` 섹션: 최근 7일 출시 또는 이 대시보드에서 처음 본 모델. 순수 함수. */
+/**
+ * `new-models` 섹션: 최근 7일 안에 OpenRouter에 새로 등록된 모델.
+ * OpenRouter `/models`의 `created`를 등록 시각으로 쓰고, models.dev는 이름·제작사·가격 등
+ * 메타 보강에만 쓴다. Artificial Analysis 데이터는 공개 재배포가 불가해 사용하지 않는다.
+ */
 import {
-  TREND_NEW_MODELS_RELEASE_MAX_MS,
   TREND_NEW_MODELS_RULE,
   TREND_NEW_MODELS_WINDOW_MS,
   TREND_SCHEMA_VERSION,
-  TREND_SOURCE_MODELS_DEV,
 } from '../../../../shared/trend-contract'
-import type { TrendItem, TrendPrice, TrendSectionPayload } from '../../../../shared/trend-contract'
+import type { TrendItem, TrendPrice, TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
 import type { TrendModelRecord } from '../sources'
 
 const MAX_ITEMS = 50
 const DEPRECATED = new Set(['deprecated', 'retired'])
 
+export interface NewModelsInput {
+  /** models.dev 200 응답. 메타 보강용이며 304·실패면 null이다. */
+  modelsDev: readonly TrendModelRecord[] | null
+  /** OpenRouter 200 응답. 304·실패면 null이고 이전 OpenRouter 항목을 재사용한다. */
+  openrouter: readonly TrendModelRecord[] | null
+  previous: TrendSectionPayload | null
+  sources: readonly TrendSourceState[]
+  nowMs: number
+}
+
+function normalizeName(value: string): string {
+  return value.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLowerCase()
+}
+
 function pickRelease(group: readonly TrendModelRecord[]): Pick<TrendItem, 'releaseDate' | 'precision'> {
-  const day = group.filter((record) => record.releasePrecision === 'day' && record.releaseMs !== null).sort((a, b) => (b.releaseMs ?? 0) - (a.releaseMs ?? 0))[0]
+  const day = group
+    .filter((record) => record.releasePrecision === 'day' && record.releaseMs !== null)
+    .sort((a, b) => (b.releaseMs ?? 0) - (a.releaseMs ?? 0))[0]
   if (day !== undefined) return { releaseDate: day.releaseDate, precision: 'day' }
   const month = group.find((record) => record.releasePrecision === 'month')
   if (month !== undefined) return { releaseDate: month.releaseDate, precision: 'month' }
@@ -24,75 +42,115 @@ function representative(group: readonly TrendModelRecord[]): TrendModelRecord {
   return group.find((record) => record.price !== null) ?? group[0]!
 }
 
-function priceOf(record: TrendModelRecord): TrendPrice | null {
-  return record.price
+function inWindow(ms: number | null, nowMs: number): boolean {
+  return ms !== null && ms >= nowMs - TREND_NEW_MODELS_WINDOW_MS && ms <= nowMs
 }
 
-function eligible(releaseMs: number | null, precision: TrendModelRecord['releasePrecision'], firstSeenAt: number, nowMs: number): boolean {
-  const windowStart = nowMs - TREND_NEW_MODELS_WINDOW_MS
-  const releaseMaxStart = nowMs - TREND_NEW_MODELS_RELEASE_MAX_MS
-  const releaseRecent = precision === 'day' && releaseMs !== null && releaseMs >= windowStart && releaseMs <= nowMs
-  const firstSeenRecent = firstSeenAt >= windowStart && firstSeenAt <= nowMs
-  const releaseWithin30 = releaseMs !== null && releaseMs >= releaseMaxStart && releaseMs <= nowMs
-  return releaseRecent || (firstSeenRecent && releaseWithin30)
-}
-
-/** @param seen canonical id → first_seen epoch ms. 새 모델은 now로 간주한다. */
-export function buildNewModels(records: readonly TrendModelRecord[], seen: ReadonlyMap<string, number>, nowMs: number): TrendSectionPayload {
+function groupByCanonical(records: readonly TrendModelRecord[]): Map<string, TrendModelRecord[]> {
   const groups = new Map<string, TrendModelRecord[]>()
   for (const record of records) {
     if (record.status !== null && DEPRECATED.has(record.status)) continue
-    const firstSeen = seen.get(record.canonicalId) ?? nowMs
-    if (!eligible(record.releaseMs, record.releasePrecision, firstSeen, nowMs)) continue
     const group = groups.get(record.canonicalId)
     if (group === undefined) groups.set(record.canonicalId, [record])
     else group.push(record)
   }
+  return groups
+}
 
-  const items: Array<TrendItem & { sortMs: number }> = []
-  for (const [id, group] of groups) {
-    const chosen = representative(group)
-    const release = pickRelease(group)
-    const providers = [...new Set(group.map((record) => record.provider))].sort()
-    const price = priceOf(chosen)
-    const sortMs = group.reduce((max, record) => Math.max(max, record.releaseMs ?? 0), 0)
-    items.push({
-      id,
-      name: chosen.name,
-      creator: chosen.creator,
-      releaseDate: release.releaseDate,
-      precision: release.precision,
-      price,
-      free: price !== null && price.input === 0 && price.output === 0,
-      openWeights: group.some((record) => record.openWeights),
-      providers,
-      links: {},
-      extra: { firstSeenAt: seen.get(id) ?? nowMs, releaseMs: sortMs },
-      sortMs,
-    })
+function catalogIndex(groups: Map<string, TrendModelRecord[]>): {
+  byName: Map<string, string>
+  byModelId: Map<string, string>
+} {
+  const byName = new Map<string, string>()
+  const byModelId = new Map<string, string>()
+  for (const [canonicalId, group] of groups) {
+    for (const record of group) {
+      if (!byName.has(normalizeName(record.name))) byName.set(normalizeName(record.name), canonicalId)
+      if (!byModelId.has(normalizeName(record.modelId))) byModelId.set(normalizeName(record.modelId), canonicalId)
+    }
   }
-  items.sort((a, b) => b.sortMs - a.sortMs || a.name.localeCompare(b.name))
-  const limited = items.slice(0, MAX_ITEMS).map(({ sortMs: _sortMs, ...item }) => item)
-  const generated= new Date(nowMs).toISOString()
+  return { byName, byModelId }
+}
+
+function matchCanonical(record: TrendModelRecord, groups: Map<string, TrendModelRecord[]>, index: { byName: Map<string, string>; byModelId: Map<string, string> }): string | null {
+  if (groups.has(record.canonicalId)) return record.canonicalId
+  return index.byName.get(normalizeName(record.name)) ?? index.byModelId.get(normalizeName(record.modelId)) ?? null
+}
+
+function makeItem(input: {
+  metadata: readonly TrendModelRecord[]
+  orMs: number
+}): TrendItem & { sortMs: number } {
+  const chosen = representative(input.metadata)
+  const release = pickRelease(input.metadata)
+  const providers = [...new Set(input.metadata.map((record) => record.provider))].sort()
+  const price: TrendPrice | null = chosen.price
   return {
-    section: 'new-models',
-    schemaVersion: TREND_SCHEMA_VERSION,
-    generatedAt: generated,
-    rule: TREND_NEW_MODELS_RULE,
-    sources: [{ id: TREND_SOURCE_MODELS_DEV, fetchedAt: generated, status: 'ok' }],
-    items: limited,
+    id: chosen.canonicalId,
+    name: chosen.name,
+    creator: chosen.creator,
+    releaseDate: release.releaseDate,
+    precision: release.precision,
+    price,
+    free: price !== null && price.input === 0 && price.output === 0,
+    openWeights: input.metadata.some((record) => record.openWeights),
+    providers,
+    links: {},
+    registeredIn: ['openrouter'],
+    extra: { orMs: input.orMs },
+    sortMs: input.orMs,
   }
 }
 
-/** 304 재검증: 저장된 canonical item과 first_seen/releaseMs만으로 7일 창을 다시 적용한다. */
-export function reevaluateNewModels(payload: TrendSectionPayload, nowMs: number): TrendSectionPayload | null {
-  if (payload.section !== 'new-models' || !Array.isArray(payload.items)) return null
-  const items: TrendItem[] = []
-  for (const item of payload.items) {
-    const releaseMs = item.extra?.releaseMs
-    const firstSeenAt = item.extra?.firstSeenAt
-    if (typeof releaseMs !== 'number' || typeof firstSeenAt !== 'number') return null
-    if (eligible(releaseMs, item.precision, firstSeenAt, nowMs)) items.push(item)
+function carriedItems(previous: TrendSectionPayload | null, nowMs: number): Array<TrendItem & { sortMs: number }> {
+  if (previous === null) return []
+  const items: Array<TrendItem & { sortMs: number }> = []
+  for (const item of previous.items) {
+    if (!Array.isArray(item.registeredIn) || !item.registeredIn.includes('openrouter')) continue
+    const orMs = typeof item.extra?.orMs === 'number' ? item.extra.orMs : 0
+    if (!inWindow(orMs, nowMs)) continue
+    items.push({ ...item, registeredIn: ['openrouter'], extra: { ...item.extra, orMs }, sortMs: orMs })
   }
-  return { ...payload, generatedAt: new Date(nowMs).toISOString(), items }
+  return items
+}
+
+/** OpenRouter 등록 후보만 canonical id로 합치고 models.dev 메타로 보강한다. */
+export function buildNewModels(input: NewModelsInput): TrendSectionPayload {
+  const { nowMs } = input
+  const devGroups = groupByCanonical(input.modelsDev ?? [])
+  const index = catalogIndex(devGroups)
+  const orGroups = groupByCanonical(input.openrouter ?? [])
+
+  const fresh = new Map<string, TrendItem & { sortMs: number }>()
+  if (input.openrouter !== null) {
+    for (const [orId, group] of orGroups) {
+      const createdMs = group.reduce((max, record) => Math.max(max, record.releaseMs ?? 0), 0)
+      if (!inWindow(createdMs, nowMs)) continue
+      const matched = matchCanonical(group[0]!, devGroups, index)
+      const metadata = matched === null ? group : devGroups.get(matched) ?? group
+      const item = makeItem({ metadata, orMs: createdMs })
+      fresh.set(item.id === '' ? orId : item.id, item)
+    }
+  }
+
+  const merged = new Map<string, TrendItem & { sortMs?: number }>(fresh)
+  if (input.openrouter === null) {
+    for (const item of carriedItems(input.previous, nowMs)) {
+      if (!merged.has(item.id)) merged.set(item.id, item)
+    }
+  }
+
+  const items = [...merged.values()]
+    .sort((a, b) => (b.sortMs ?? 0) - (a.sortMs ?? 0) || a.name.localeCompare(b.name))
+    .slice(0, MAX_ITEMS)
+    .map(({ sortMs: _sortMs, ...item }) => item)
+
+  return {
+    section: 'new-models',
+    schemaVersion: TREND_SCHEMA_VERSION,
+    generatedAt: new Date(nowMs).toISOString(),
+    rule: TREND_NEW_MODELS_RULE,
+    sources: [...input.sources],
+    items,
+  }
 }

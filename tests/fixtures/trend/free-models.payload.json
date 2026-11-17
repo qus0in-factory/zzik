@@ -2,38 +2,73 @@
   "section": "free-models",
   "schemaVersion": 1,
   "generatedAt": "2026-11-17T00:00:00.000Z",
-  "rule": "hosted-free-or-local-30d",
+  "rule": "plan-included-opencode-go-ollama-cloud",
   "sources": [
-    { "id": "models.dev", "fetchedAt": "2026-11-17T00:00:00.000Z", "status": "ok" },
-    { "id": "opencode-zen", "fetchedAt": "2026-11-17T00:00:00.000Z", "status": "stale" },
-    { "id": "openrouter", "fetchedAt": "2026-11-17T00:00:00.000Z", "status": "ok" }
+    {
+      "id": "go-models",
+      "fetchedAt": "2026-11-17T00:00:00.000Z",
+      "status": "ok"
+    },
+    {
+      "id": "ollama-tags",
+      "fetchedAt": "2026-11-17T00:00:00.000Z",
+      "status": "ok"
+    }
   ],
   "items": [
     {
-      "id": "tencent/hy4-flash",
-      "name": "Hy4 Flash Free",
-      "creator": "tencent",
-      "releaseDate": "2026-11-16",
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "name": "DeepSeek V4.1 Flash 1017",
+      "creator": "deepseek",
+      "releaseDate": "2026-10-17",
       "precision": "day",
-      "price": { "input": 0, "output": 0 },
-      "free": true,
-      "openWeights": false,
-      "providers": ["opencode", "openrouter"],
-      "links": {},
-      "freeKind": "hosted"
-    },
-    {
-      "id": "xiaomi/mimo-v2.6-flash",
-      "name": "MiMo V2.6 Flash Free",
-      "creator": "xiaomi",
-      "releaseDate": "2026-09-22",
-      "precision": "day",
-      "price": { "input": 0, "output": 0 },
+      "price": {
+        "input": 0,
+        "output": 0
+      },
       "free": true,
       "openWeights": true,
-      "providers": ["ollama-cloud", "opencode"],
+      "providers": [
+        "opencode-go"
+      ],
       "links": {},
-      "freeKind": "hosted"
+      "freeKind": "opencode-go"
+    },
+    {
+      "id": "zhipuai/glm-5.3",
+      "name": "GLM 5.3",
+      "creator": "zhipuai",
+      "releaseDate": "2026-08-14",
+      "precision": "day",
+      "price": {
+        "input": 0,
+        "output": 0
+      },
+      "free": true,
+      "openWeights": true,
+      "providers": [
+        "opencode-go"
+      ],
+      "links": {},
+      "freeKind": "opencode-go"
+    },
+    {
+      "id": "zhipuai/glm-5.3",
+      "name": "GLM 5.3",
+      "creator": "zhipuai",
+      "releaseDate": "2026-08-14",
+      "precision": "day",
+      "price": {
+        "input": 0,
+        "output": 0
+      },
+      "free": true,
+      "openWeights": true,
+      "providers": [
+        "ollama-cloud"
+      ],
+      "links": {},
+      "freeKind": "ollama-cloud"
     },
     {
       "id": "qwen/qwen4-max",
@@ -41,12 +76,17 @@
       "creator": "qwen",
       "releaseDate": "2026-11-05",
       "precision": "day",
-      "price": null,
-      "free": false,
+      "price": {
+        "input": 0,
+        "output": 0
+      },
+      "free": true,
       "openWeights": true,
-      "providers": ["ollama-cloud"],
+      "providers": [
+        "ollama-cloud"
+      ],
       "links": {},
-      "freeKind": "local"
+      "freeKind": "ollama-cloud"
     }
   ]
 }

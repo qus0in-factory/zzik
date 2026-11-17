@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // @ts-expect-error scripts/deploy-verify.mjs is plain ESM checked by vitest
-import { classifyScope, runDeployVerify, UNAUTH_PATHS, validateShape } from '../../scripts/deploy-verify.mjs'
+import { classifyScope, PUBLIC_PATHS, PUBLIC_SPA_PATHS, runDeployVerify, UNAUTH_PATHS, validateShape } from '../../scripts/deploy-verify.mjs'
 
 interface ExecResult {
   exitCode: number
@@ -84,6 +84,9 @@ function successHandler(overrides: Handler = () => undefined): Handler {
     if (command === 'git' && args[0] === 'diff') return { stdout: SCOPE_FILES }
     if (command === 'node') return { stdout: 'Tests 3 passed (3)\n' }
     if (command === 'curl') {
+      const url = args.at(-1) ?? ''
+      if (url.endsWith('/pub/trend')) return { stdout: '{"error":"not_ready","sections":[]}\n503\n' }
+      if (url.endsWith('/trend') || /^https?:\/\/[^/]+\/$/.test(url)) return { stdout: '<html><title>Zzik</title></html>\n200\n' }
       if (args.includes('-o')) return { stdout: '302\nhttps://team.cloudflareaccess.com/cdn-cgi/access/login?x\n' }
       return { stdout: '<html>login</html>\n302\n' }
     }
@@ -116,7 +119,7 @@ describe('Given the deploy verification script', () => {
       expect(result.steps.find((step) => step.name === 'unauthenticated_302')).toMatchObject({ status: 'PASS' })
       expect(result.steps.find((step) => step.name === 'usage_live_shape')).toMatchObject({ status: 'PASS' })
       expect(calls.some((call) => call.command === 'pnpm' && call.args[0] === 'run')).toBe(false)
-      expect(calls.filter((call) => call.command === 'curl')).toHaveLength(UNAUTH_PATHS.length * 2)
+      expect(calls.filter((call) => call.command === 'curl')).toHaveLength(UNAUTH_PATHS.length * 2 + PUBLIC_SPA_PATHS.length + PUBLIC_PATHS.length)
       expect(calls.filter((call) => call.command === 'bash' && call.args[0] === 'scripts/usage-live-shape.sh')).toHaveLength(6)
       expect(calls.every((call) => call.cwd === undefined || call.cwd === release)).toBe(true)
     } finally {
@@ -273,31 +276,45 @@ describe('Given the deploy verification CLI branches', () => {
   })
 })
 
-describe('Given optional public path checks after Access change (--check-public)', () => {
-  it('When checkPublic is omitted Then public_paths step is skipped by default', async () => {
+describe('Given public path checks after Access change (--check-public default on)', () => {
+  it('When checkPublic is omitted Then public_paths runs by default and passes for / 200, /trend 200, /pub/trend 503', async () => {
     const res = await verifyWith(successHandler())
     expect(res.ok).toBe(true)
-    expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'SKIP', reason: 'flag_not_set' })
+    expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'PASS' })
+    expect(UNAUTH_PATHS).toContain('/usage')
+    expect(UNAUTH_PATHS).not.toContain('/')
   })
 
-  it('When checkPublic is true and /pub/trend returns 503 without 302 Then public_paths passes', async () => {
+  it('When checkPublic is false Then public_paths step is skipped', async () => {
     const release = makeRelease()
     try {
-      const { execute } = makeExecutor(successHandler((command, args) => {
-        if (command === 'curl' && args.some((a) => a.endsWith('/pub/trend'))) {
-          return { stdout: '{"error":"not_ready","sections":[]}\n503\n' }
-        }
-        return undefined
-      }))
-      const res = (await runDeployVerify({ releaseDir: release, execute, checkPublic: true })) as DeployResult
+      const { execute } = makeExecutor(successHandler())
+      const res = (await runDeployVerify({ releaseDir: release, execute, checkPublic: false })) as DeployResult
       expect(res.ok).toBe(true)
-      expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'PASS' })
+      expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'SKIP', reason: 'flag_not_set' })
     } finally {
       rmSync(release, { recursive: true, force: true })
     }
   })
 
-  it('When checkPublic is true and /pub/trend returns 302 Then public_paths fails', async () => {
+  it('When /trend leaks usage data or email Then public_paths fails', async () => {
+    const release = makeRelease()
+    try {
+      const { execute } = makeExecutor(successHandler((command, args) => {
+        if (command === 'curl' && args.some((a) => a.endsWith('/trend'))) {
+          return { stdout: '<html>qus0in@gmail.com usedPercent:80</html>\n200\n' }
+        }
+        return undefined
+      }))
+      const res = (await runDeployVerify({ releaseDir: release, execute })) as DeployResult
+      expect(res.ok).toBe(false)
+      expect(res.steps.find((s) => s.name === 'public_paths')).toMatchObject({ status: 'FAIL', reason: 'public_path_failed' })
+    } finally {
+      rmSync(release, { recursive: true, force: true })
+    }
+  })
+
+  it('When /pub/trend returns 302 Then public_paths fails', async () => {
     const release = makeRelease()
     try {
       const { execute } = makeExecutor(successHandler((command, args) => {

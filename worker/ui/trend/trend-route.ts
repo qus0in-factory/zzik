@@ -17,7 +17,7 @@ function notModified(etag: string): Response {
 }
 
 /** 공개 `/pub/trend`: 인증·사용량 저장소와 무관하게 트렌드 섹션만 읽는다. */
-export function createTrendRoute(store: TrendStore | null, options: { aaPublic?: boolean } = {}) {
+export function createTrendRoute(store: TrendStore | null) {
   const app = new Hono({ strict: true })
   const notReadyIndex = () => respondPublic({ error: 'not_ready', sections: [] }, { status: 503, noStore: true })
   const notReadySection = () => respondPublic({ error: 'not_ready' }, { status: 503, noStore: true })
@@ -41,7 +41,7 @@ export function createTrendRoute(store: TrendStore | null, options: { aaPublic?:
     if (!(TREND_SECTIONS as readonly string[]).includes(section)) return respondPublic({ error: 'not_found' }, { status: 404, noStore: true })
     if (store === null) return notReadySection()
     try {
-      const result = await getPublicTrendSection(store, section as TrendSection, { aaPublic: options.aaPublic })
+      const result = await getPublicTrendSection(store, section as TrendSection)
       if (!result.ok) {
         return result.reason === 'not_ready'
           ? notReadySection()

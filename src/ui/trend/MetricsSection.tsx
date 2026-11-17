@@ -27,19 +27,13 @@ function badge(text: string, tone: 'default' | 'warn' = 'default'): ReactNode {
   )
 }
 
-function rankDeltaLabel(delta: number | null): string | null {
-  if (delta === null) return null
-  if (delta === 0) return t('trend.metrics.delta.same')
-  return delta > 0 ? t('trend.metrics.delta.up', { value: delta }) : t('trend.metrics.delta.down', { value: -delta })
-}
-
 function shareDeltaLabel(delta: number | null): string | null {
   if (delta === null || Math.abs(delta) < 0.0005) return null
   const value = (Math.abs(delta) * 100).toFixed(1)
   return delta > 0 ? t('trend.metrics.share.up', { value }) : t('trend.metrics.share.down', { value })
 }
 
-function EntryRow({ block, entry }: { block: TrendMetricsBlock; entry: TrendMetricsEntry }): ReactNode {
+function EntryRow({ entry }: { entry: TrendMetricsEntry }): ReactNode {
   const kind = entry.kind === 'new-top' ? t('trend.metrics.kind.newTop') : entry.kind === 'moved' ? t('trend.metrics.kind.moved') : null
   return (
     <li data-testid="trend-metrics-entry" className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
@@ -50,16 +44,10 @@ function EntryRow({ block, entry }: { block: TrendMetricsBlock; entry: TrendMetr
         {kind !== null && badge(kind)}
       </span>
       <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-        {block.id === 'aa-intelligence' && entry.index !== undefined && (
-          <span className="tabular-nums">{t('trend.metrics.aa.index', { index: entry.index })}</span>
-        )}
-        {block.id === 'or-usage' && entry.share7d !== undefined && (
+        {entry.share7d !== undefined && (
           <span className="tabular-nums">{t('trend.metrics.or.share', { share: (entry.share7d * 100).toFixed(1) })}</span>
         )}
-        {block.id === 'aa-intelligence' && rankDeltaLabel(entry.rankDelta) !== null && (
-          <span className="tabular-nums text-foreground/80">{rankDeltaLabel(entry.rankDelta)}</span>
-        )}
-        {block.id === 'or-usage' && shareDeltaLabel(entry.shareDelta ?? null) !== null && (
+        {shareDeltaLabel(entry.shareDelta ?? null) !== null && (
           <span className="tabular-nums text-foreground/80">{shareDeltaLabel(entry.shareDelta ?? null)}</span>
         )}
       </span>
@@ -68,26 +56,20 @@ function EntryRow({ block, entry }: { block: TrendMetricsBlock; entry: TrendMetr
 }
 
 function Block({ block }: { block: TrendMetricsBlock }): ReactNode {
-  const title = block.id === 'aa-intelligence' ? t('trend.metrics.aa.title') : t('trend.metrics.or.title')
-  const attribution = block.id === 'aa-intelligence'
-    ? t('trend.metrics.attribution.aa', { version: block.version ?? '-', day: block.asOf })
-    : block.asOfKind === 'fetched'
-      ? t('trend.metrics.attribution.orFetched', { asOf: block.asOf })
-      : t('trend.metrics.attribution.or', { asOf: block.asOf })
+  const attribution = block.asOfKind === 'fetched'
+    ? t('trend.metrics.attribution.orFetched', { asOf: block.asOf })
+    : t('trend.metrics.attribution.or', { asOf: block.asOf })
   const note = block.note === 'baseline'
     ? t('trend.metrics.baseline')
-    : block.note === 'version_changed'
-      ? t('trend.metrics.versionChanged')
-      : block.note === 'source_failed'
-        ? t('trend.metrics.sourceFailed')
-        : null
+    : block.note === 'source_failed'
+      ? t('trend.metrics.sourceFailed')
+      : null
 
   return (
-    <div data-testid={`trend-metrics-${block.id}`} className="mt-5 first:mt-4">
+    <div data-testid="trend-metrics-or-usage" className="mt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold">{title}</h3>
+        <h3 className="text-sm font-semibold">{t('trend.metrics.or.title')}</h3>
         <div className="flex flex-wrap items-center gap-1">
-          {block.version !== undefined && <span className="text-xs text-muted-foreground">v{block.version}</span>}
           <span className="text-xs text-muted-foreground">
             {block.asOfKind === 'fetched' && `${t('trend.metrics.fetchedAtLabel')} `}
             {displayAsOf(block.asOf)}
@@ -95,21 +77,19 @@ function Block({ block }: { block: TrendMetricsBlock }): ReactNode {
           {block.status === 'stale' && badge(t('trend.metrics.stale'), 'warn')}
         </div>
       </div>
-      {block.status === 'under_review' ? (
-        <p className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{t('trend.metrics.aaUnderReview')}</p>
-      ) : block.status === 'not_configured' ? (
+      {block.status === 'not_configured' ? (
         <p className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{t('trend.metrics.notConfigured')}</p>
       ) : (
         <>
           {note !== null && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
-          {block.id === 'or-usage' && block.asOfKind === 'fetched' && (
+          {block.asOfKind === 'fetched' && (
             <p className="mt-1 text-xs text-muted-foreground">{t('trend.metrics.fetchedAtNotice')}</p>
           )}
           {block.entries.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">{t('trend.metrics.empty')}</p>
           ) : (
             <ol className="mt-2 flex flex-col divide-y divide-border rounded-lg border border-border bg-card px-3 py-1">
-              {block.entries.map((entry) => <EntryRow key={`${block.id}:${entry.id}`} block={block} entry={entry} />)}
+              {block.entries.map((entry) => <EntryRow key={entry.id} entry={entry} />)}
             </ol>
           )}
           <p className="mt-2 text-xs text-muted-foreground">{attribution}</p>
@@ -130,7 +110,7 @@ function Block({ block }: { block: TrendMetricsBlock }): ReactNode {
   )
 }
 
-/** `/pub/trend/metrics`의 성능 지표 섹션. AA와 OpenRouter 블록을 각각 격리해 보여 준다. */
+/** `/pub/trend/metrics`의 성능 지표 섹션. AA 데이터는 공개 불가라 OpenRouter 블록만 보여 준다. */
 export function MetricsSection(): ReactNode {
   const deps = useTrendDeps()
   if (!deps.enabled) return null
@@ -141,7 +121,7 @@ function MetricsSectionContent(): ReactNode {
   const query = useTrendSection('metrics')
   const { data, error, isError, isPending, refetch } = query
   const notReady = error instanceof TrendLoadError && error.reason === 'not_ready'
-  const blocks = data?.blocks ?? []
+  const blocks = (data?.blocks ?? []).filter((block) => block.id === 'or-usage')
 
   return (
     <section aria-labelledby="trend-metrics" className="mb-8" data-testid="trend-metrics">

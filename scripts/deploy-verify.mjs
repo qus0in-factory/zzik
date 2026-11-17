@@ -16,7 +16,7 @@ import { executeCommand } from './lib/exec-command.mjs'
 /** @typedef {{collector:boolean,ecosystem:boolean,wrangler:boolean,lockfile:boolean}} Scope */
 
 export const UNAUTH_PATHS = Object.freeze([
-  '/',
+  '/usage',
   '/api/usage',
   '/api/usage/claude',
   '/api/usage/codex',
@@ -26,12 +26,18 @@ export const UNAUTH_PATHS = Object.freeze([
   '/api/usage/ollama',
 ])
 
+export const PUBLIC_SPA_PATHS = Object.freeze(['/', '/trend'])
 export const PUBLIC_PATHS = Object.freeze(['/pub/trend'])
 
 export const PROVIDERS = Object.freeze(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
 
 const APP_BODY_MARKER = 'Hello Young-In'
 const DB_WORKERD_TEST = 'tests/worker/read-wiring.workerd.test.ts'
+
+/** @param {string} body */
+function hasSensitiveLeak(body) {
+  return body.includes(APP_BODY_MARKER) || body.includes('qus0in@gmail.com') || body.includes('usedPercent') || body.includes('"snapshot"')
+}
 
 /** @param {readonly string[]} files @returns {Scope} */
 export function classifyScope(files) {
@@ -121,7 +127,7 @@ export async function runDeployVerify(options = {}) {
   const execute = options.execute ?? executeCommand
   const deployRequested = options.deploy === true
   const dryRun = options.dryRun === true
-  const checkPublic = options.checkPublic === true
+  const checkPublic = options.checkPublic !== false
   const origin = (options.origin ?? 'https://zzik.qus0in.dev').replace(/\/+$/, '')
   const workersSubdomain = options.workersSubdomain ?? 'qus0in'
   const base = options.base ?? 'HEAD^'
@@ -162,7 +168,7 @@ export async function runDeployVerify(options = {}) {
       { name: 'change_scope', status: 'PLAN' },
       { name: 'db_workerd', status: 'PLAN' },
       { name: 'unauthenticated_302', status: 'PLAN', details: { paths: [...UNAUTH_PATHS] } },
-      { name: 'public_paths', status: checkPublic ? 'PLAN' : 'SKIP', ...(checkPublic ? { details: { paths: [...PUBLIC_PATHS] } } : { reason: 'flag_not_set' }) },
+      { name: 'public_paths', status: checkPublic ? 'PLAN' : 'SKIP', ...(checkPublic ? { details: { spaPaths: [...PUBLIC_SPA_PATHS], paths: [...PUBLIC_PATHS] } } : { reason: 'flag_not_set' }) },
       { name: 'verify_zzik', status: 'PLAN' },
       { name: 'usage_live_shape', status: 'PLAN', details: { providers: [...PROVIDERS] } },
     )
@@ -266,6 +272,29 @@ export async function runDeployVerify(options = {}) {
     steps.push({ name: 'public_paths', status: 'SKIP', reason: 'flag_not_set' })
   } else {
     const publicResults = []
+    for (const path of PUBLIC_SPA_PATHS) {
+      const url = `${origin}${path}`
+      const res = await execute('curl', ['-sS', '--max-time', '30', '-w', '\n%{http_code}\n', url], { timeoutMs: 60_000 })
+      if (res.exitCode !== 0) {
+        publicResults.push({ path, status: 'FAIL', reason: 'request_failed' })
+        continue
+      }
+      const parsedBody = parseCurlBody(res.stdout)
+      if (!parsedBody.ok) {
+        publicResults.push({ path, status: 'FAIL', reason: parsedBody.reason })
+        continue
+      }
+      const code = parsedBody.value.httpStatus
+      if (code !== 200) {
+        publicResults.push({ path, status: 'FAIL', httpStatus: code, reason: code === 302 ? 'unexpected_302' : 'unexpected_status' })
+        continue
+      }
+      if (hasSensitiveLeak(parsedBody.value.body)) {
+        publicResults.push({ path, status: 'FAIL', httpStatus: code, reason: 'sensitive_body_visible' })
+        continue
+      }
+      publicResults.push({ path, status: 'PASS', httpStatus: code })
+    }
     for (const path of PUBLIC_PATHS) {
       const url = `${origin}${path}`
       const res = await execute('curl', ['-sS', '--max-time', '30', '-w', '\n%{http_code}\n', url], { timeoutMs: 60_000 })
@@ -283,7 +312,7 @@ export async function runDeployVerify(options = {}) {
         publicResults.push({ path, status: 'FAIL', httpStatus: code, reason: code === 302 ? 'unexpected_302' : 'unexpected_status' })
         continue
       }
-      if (parsedBody.value.body.includes(APP_BODY_MARKER)) {
+      if (hasSensitiveLeak(parsedBody.value.body)) {
         publicResults.push({ path, status: 'FAIL', httpStatus: code, reason: 'app_body_visible' })
         continue
       }
@@ -350,7 +379,7 @@ async function main() {
   }
   let deploy = false
   let dryRun = false
-  let checkPublic = false
+  let checkPublic = true
   let releaseDir = resolve(process.cwd(), '.worktree/release')
   let origin = 'https://zzik.qus0in.dev'
   let workersSubdomain = 'qus0in'
@@ -359,6 +388,7 @@ async function main() {
     if (args[i] === '--deploy') deploy = true
     else if (args[i] === '--dry-run') dryRun = true
     else if (args[i] === '--check-public') checkPublic = true
+    else if (args[i] === '--no-check-public') checkPublic = false
     else if (args[i] === '--release' && args[i + 1] && !args[i + 1].startsWith('--')) releaseDir = resolve(args[++i])
     else if (args[i] === '--origin' && args[i + 1] && !args[i + 1].startsWith('--')) origin = args[++i]
     else if (args[i] === '--workers-subdomain' && args[i + 1] && !args[i + 1].startsWith('--')) workersSubdomain = args[++i]

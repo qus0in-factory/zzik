@@ -11,7 +11,8 @@ import type {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const isPrecision = (value: unknown): value is TrendItem['precision'] => value === 'day' || value === 'month' || value === 'unknown'
 const isStatus = (value: unknown): value is TrendSourceState['status'] => value === 'ok' || value === 'stale'
-const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'hosted' || value === 'local'
+const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value === 'opencode-go' || value === 'ollama-cloud'
+const isRegisteredIn = (value: unknown): value is 'aa' | 'openrouter' => value === 'aa' || value === 'openrouter'
 const isBlockStatus = (value: unknown): value is TrendMetricsBlock['status'] => value === 'ok' || value === 'stale' || value === 'not_configured' || value === 'under_review'
 const isMetricsKind = (value: unknown): value is TrendMetricsEntry['kind'] => value === 'new-top' || value === 'moved' || value === 'steady'
 const isMetricsNote = (value: unknown): value is TrendMetricsNote => value === 'baseline' || value === 'version_changed' || value === 'source_failed' || value === 'terms_review'
@@ -52,9 +53,12 @@ function projectItem(value: unknown): TrendItem | null {
   if (links === null) return null
   const freeKind = value.freeKind
   if (freeKind !== undefined && !isFreeKind(freeKind)) return null
+  const registeredIn = value.registeredIn
+  if (registeredIn !== undefined && (!Array.isArray(registeredIn) || !registeredIn.every(isRegisteredIn))) return null
   return {
     id, name, creator, releaseDate, precision, price, free, openWeights, providers: [...providers], links,
     ...(freeKind === undefined ? {} : { freeKind }),
+    ...(registeredIn === undefined ? {} : { registeredIn: [...registeredIn] }),
   }
 }
 
