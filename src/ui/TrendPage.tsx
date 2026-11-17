@@ -6,18 +6,16 @@ import { TREND_LINKS } from './trend-links'
 import { FreeModelsSection } from './trend/FreeModelsSection'
 import { MetricsSection } from './trend/MetricsSection'
 import { NewModelsSection } from './trend/NewModelsSection'
-import { PlanModelsSection } from './trend/PlanModelsSection'
 
-/** 트렌드 화면: 요금제 추가 → 최신 → free → 성능 → 참고 링크 순서. */
+/** 트렌드 화면: 성능 지표 → 신규 모델 → 무료 모델 → 참고 링크 순서. */
 export function TrendPage(): ReactNode {
   return (
     <div className="flex min-h-svh flex-col">
       <SiteHeader />
       <main className="mx-auto w-full flex-1 max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        <PlanModelsSection />
+        <MetricsSection />
         <NewModelsSection />
         <FreeModelsSection />
-        <MetricsSection />
         <section aria-labelledby="trend-links">
           <h2 id="trend-links" className="text-xl font-semibold tracking-tight">{t('trend.links.title')}</h2>
           <ul aria-label={t('trend.links.aria')} className="mt-3 flex flex-col gap-2">
@@ -32,6 +30,7 @@ export function TrendPage(): ReactNode {
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="font-medium">{t(link.nameKey)}</span>
                     <span className="text-xs text-muted-foreground">{t(link.domainKey)}</span>
+                    <span className="text-xs leading-5 text-muted-foreground">{t(link.descriptionKey)}</span>
                   </span>
                   <ExternalLink className="size-[14px] shrink-0 text-muted-foreground" aria-hidden="true" />
                 </a>

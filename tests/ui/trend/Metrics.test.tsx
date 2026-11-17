@@ -137,6 +137,6 @@ describe('Given the metrics section on /trend', () => {
     renderPage(bySection)
     await screen.findByText('Claude Fable 5')
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
-    expect(headings).toEqual(['요금제 추가', '최근 7일 새 모델', '무료로 쓸 수 있는 모델', '성능 지표', '참고 링크'])
+    expect(headings).toEqual(['성능 지표', '신규 모델', '무료 모델', '참고 링크'])
   })
 })

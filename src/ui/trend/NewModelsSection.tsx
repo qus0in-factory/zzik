@@ -13,6 +13,12 @@ function badge(text: string): ReactNode {
   return <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">{text}</span>
 }
 
+function sourceLabel(source: string): string {
+  if (source === 'models.dev') return 'models.dev'
+  if (source === 'openrouter') return 'OpenRouter'
+  return source
+}
+
 /** `/pub/trend/new-models`의 최근 7일 새 모델 섹션. 데이터가 없거나 실패해도 링크 목록은 아래에 남는다. */
 export function NewModelsSection(): ReactNode {
   const deps = useTrendDeps()
@@ -53,11 +59,12 @@ function NewModelsSectionContent(): ReactNode {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="break-words text-base font-semibold">{item.name}</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{item.creator}</p>
+                  {item.creator !== '' && <p className="mt-0.5 text-xs text-muted-foreground">{item.creator}</p>}
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {item.free && badge(t('trend.newModels.free'))}
-                  {item.openWeights && badge(t('trend.newModels.openWeights'))}
+                  {(item.registeredIn ?? []).map((source) => (
+                    badge(source === 'aa' ? t('trend.newModels.source.aa') : t('trend.newModels.source.openrouter'))
+                  ))}
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -70,7 +77,10 @@ function NewModelsSectionContent(): ReactNode {
         </ul>
       )}
       {data !== undefined && (
-        <p className="mt-3 text-xs text-muted-foreground">{t('trend.newModels.source', { source: 'models.dev', time: formatTime(data.generatedAt) })}</p>
+        <p className="mt-3 text-xs text-muted-foreground">{t('trend.newModels.source', {
+          sources: data.sources.map((source) => sourceLabel(source.id)).join(' · '),
+          time: formatTime(data.generatedAt),
+        })}</p>
       )}
     </section>
   )
