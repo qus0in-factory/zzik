@@ -4,5 +4,6 @@ export interface ScheduledProvider {
  id:UsageProvider
  intervalSec:number
  degrade?:{intervalSec:number}
+ afterRun?():Promise<unknown> | void
  run(context:{markStarted():boolean;isStopping():boolean}):Promise<{reason?:string}|void>
 }
