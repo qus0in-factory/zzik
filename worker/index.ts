@@ -28,6 +28,15 @@ import type { MetricsSourceFailureReason } from './domain/trend/metrics/types'
 const createVerifier = (config: Pick<AccessConfig, 'issuer' | 'audience'>): AccessTokenVerifier =>
   new JoseAccessVerifier(config, remoteAccessKeys(config.issuer))
 
+/** Exception messages and arbitrary names may contain sensitive data. */
+function safeTrendErrorClass(error: unknown): string {
+  if (error instanceof TypeError) return 'TypeError'
+  if (error instanceof RangeError) return 'RangeError'
+  if (error instanceof SyntaxError) return 'SyntaxError'
+  if (error instanceof Error) return 'Error'
+  return 'unknown'
+}
+
 /** Worker 로그에는 키·본문 없이 상태만 남긴다. */
 function metricsLogStatus(reason: MetricsSourceFailureReason | null): string {
   if (reason === null) return 'ok'
@@ -115,8 +124,8 @@ export function createWorker(deps: {
             console.error('trend_plan_failed:unexpected')
           }
           logTrend('trend_refresh:complete')
-        } catch {
-          console.error('trend_refresh_failed:unexpected')
+        } catch (error) {
+          logTrend(`trend_refresh_failed:unexpected:${safeTrendErrorClass(error)}`)
         }
         return
       }

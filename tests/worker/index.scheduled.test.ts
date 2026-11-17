@@ -31,6 +31,15 @@ describe('Given the Worker scheduled entrypoint', () => {
     expect(entries).toEqual(['trend_refresh:start', 'trend_refresh_failed:missing_db'])
   })
 
+  it('When the trend database fails Then logs only a safe exception class', async () => {
+    const entries: string[] = []
+    const db = { prepare() { throw new TypeError('sensitive error detail') } }
+    const worker = createWorker({ logTrend: (message) => entries.push(message) })
+    await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW }, { ...env, DB: db })
+    expect(entries).toEqual(['trend_refresh:start', 'trend_refresh_failed:unexpected:TypeError'])
+    expect(entries.join(' ')).not.toContain('sensitive')
+  })
+
   it('When the export cron runs with injected bindings Then it writes and logs without touching fetch', async () => {
     const source = new FakeExportSource()
     source.events = [event]
