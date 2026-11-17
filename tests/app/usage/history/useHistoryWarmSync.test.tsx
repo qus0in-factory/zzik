@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, renderHook, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import type { ReactNode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
@@ -15,7 +16,7 @@ import type { UsageProvider } from '@domain/usage/providers'
 import { USAGE_PROVIDERS } from '@domain/usage/providers'
 import normalRaw from '../../../fixtures/claude-usage.normal.json'
 import { createFakeHistoryCache, createFakeHistoryGateway, createFakeHistoryServer, createMemoryKeyValue, syntheticEvents } from '../../../fakes/history-ports'
-import { createFakeUsageClock, createFakeUsageGateway, createFakeUsageScheduler } from '../../../fakes/usage-ports'
+import { createDeferred, createFakeUsageClock, createFakeUsageGateway, createFakeUsageScheduler } from '../../../fakes/usage-ports'
 import { createTestQueryClient } from '../../../helpers/query'
 
 afterEach(() => {
@@ -34,8 +35,8 @@ function record(provider: UsageProvider, events: ReturnType<typeof syntheticEven
   return withSync(base, syncedThrough, new Date(NOW).toISOString())
 }
 
-function harness(providersWithRecords: UsageProvider[], syncedThrough: string | null = '2026-11-14T11:30:00.000Z') {
-  const events = syntheticEvents(8, new Date(NOW - 5 * 3_600_000).toISOString())
+function harness(providersWithRecords: UsageProvider[], syncedThrough: string | null = '2026-11-14T11:30:00.000Z', eventCount = 8) {
+  const events = syntheticEvents(eventCount, new Date(NOW - 5 * 3_600_000).toISOString())
   const servers = Object.fromEntries(USAGE_PROVIDERS.map((provider) => [provider, createFakeHistoryServer(provider, events)]))
   const gateway = createFakeHistoryGateway(servers)
   const cache = createFakeHistoryCache(providersWithRecords.map((provider) => record(provider, events.slice(0, 4), syncedThrough)))
@@ -91,6 +92,51 @@ describe('Given the background warm sync (워밍)', () => {
     expect(h.gateway.queries).toHaveLength(0)
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(h.cache.records.get('claude')?.syncedThroughRunAt).toBe(RUN_AT))
+  })
+  it('When the component unmounts while cache.read is pending Then no history request starts', async () => {
+    const h = harness(['claude'])
+    const gate = createDeferred<void>()
+    const originalRead = h.cache.read
+    let started = false
+    h.cache.read = async (provider) => {
+      started = true
+      await gate.promise
+      return originalRead(provider)
+    }
+    const { unmount } = renderHook(() => useHistoryWarmSync(), { wrapper: h.wrapper })
+    await waitFor(() => expect(started).toBe(true))
+    unmount()
+    gate.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(h.gateway.queries).toHaveLength(0)
+  })
+
+  it('When the component unmounts while a page is in flight Then no later page is requested', async () => {
+    const h = harness(['claude'], '2026-11-14T11:30:00.000Z', 120)
+    const gate = createDeferred<void>()
+    let started = false
+    h.gateway.onBeforeFetch = async () => {
+      started = true
+      await gate.promise
+    }
+    const { unmount } = renderHook(() => useHistoryWarmSync(), { wrapper: h.wrapper })
+    await waitFor(() => expect(started).toBe(true))
+    unmount()
+    gate.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(h.gateway.queries).toHaveLength(1)
+  })
+
+  it('When StrictMode remounts the effect Then the surviving run still syncs', async () => {
+    const h = harness(['claude'])
+    const Wrapper = h.wrapper
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <StrictMode>
+        <Wrapper>{children}</Wrapper>
+      </StrictMode>
+    )
+    renderHook(() => useHistoryWarmSync(), { wrapper })
     await waitFor(() => expect(h.cache.records.get('claude')?.syncedThroughRunAt).toBe(RUN_AT))
   })
 })

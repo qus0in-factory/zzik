@@ -116,7 +116,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
     staleTime: Infinity,
     gcTime: HISTORY_DATA_GC_MS,
     refetchOnWindowFocus: false,
-    queryFn: async (): Promise<HistoryCacheRecord> => {
+    queryFn: async ({ signal }): Promise<HistoryCacheRecord> => {
       const outcome = await runDedupedSync(
         deps.inflight,
         {
@@ -128,6 +128,7 @@ export function useUsageHistoryPanel(provider: UsageProvider): UsageHistoryPanel
         },
         // 동기화 범위 계산(wantFromMs)은 표시용 공유 클록(usageState.nowIso)과 분리해 저장/동기화 시계(deps.nowMs)를 쓴다.
         { provider, snapshotRunAt: runAt, wantFromMs: deps.nowMs() - RANGE_MS[range] },
+        signal,
       )
       if (outcome.record !== null) {
         const labeled = withLabels(outcome.record, latest.current.cardLabels)

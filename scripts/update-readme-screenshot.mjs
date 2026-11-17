@@ -45,7 +45,7 @@ try {
       window.Date = FixedDate
     })()`,
   })
-  await page.send('Page.navigate', { url: `${base}/?fixture=normal` })
+  await page.send('Page.navigate', { url: `${base}/usage?fixture=normal` })
   await sleep(200)
   const pageNow = await page.evaluate('Date.now()')
   if (pageNow !== FIXED_NOW_MS) throw new Error(`페이지 시각 고정 실패: ${pageNow}`)

@@ -60,6 +60,8 @@ export interface SyncDeps {
   onRecord?: (record: HistoryCacheRecord) => void
   /** 백필 진행(끝난 조각 수, 전체 조각 수). */
   onProgress?: (done: number, total: number) => void
+  /** true면 다음 HTTP 페이지를 시작하지 않는다(소비자가 모두 사라졌을 때). */
+  shouldStop?: () => boolean
 }
 
 export interface SyncArgs {
@@ -73,7 +75,7 @@ export interface SyncArgs {
 export type SyncOutcome =
   | { ok: true; record: HistoryCacheRecord; skipped: boolean; persisted: boolean; /** 표본 상한·31일 보존 경계에 닿아 백필을 마쳤다(더 과거는 보존하지 않는다) */ backfillComplete?: boolean }
   | { ok: false; reason: 'gateway'; failure: UsageHistoryGatewayFailure; record: HistoryCacheRecord | null }
-  | { ok: false; reason: 'version_mismatch' | 'budget' | 'conflict'; record: HistoryCacheRecord | null }
+  | { ok: false; reason: 'version_mismatch' | 'budget' | 'conflict' | 'cancelled'; record: HistoryCacheRecord | null }
 
 type Fetched = { ok: true; page: UsageHistoryPage } | { ok: false; outcome: SyncOutcome }
 
@@ -82,8 +84,10 @@ export async function syncHistory(deps: SyncDeps, args: SyncArgs): Promise<SyncO
   const limit = deps.pageLimit ?? USAGE_HISTORY_PAGE_LIMIT
   const take = deps.budget.begin(provider)
   const iso = (ms: number): string => new Date(ms).toISOString()
+  const stopped = (): boolean => deps.shouldStop?.() === true
   let persisted = true
   let latest: HistoryCacheRecord | null = null
+  if (stopped()) return { ok: false, reason: 'cancelled', record: null }
 
   const readCurrent = async (): Promise<HistoryCacheRecord | null> => {
     const fromMemory = deps.memory.get(provider)
@@ -122,6 +126,7 @@ export async function syncHistory(deps: SyncDeps, args: SyncArgs): Promise<SyncO
   const readCurrentForMemory = async (): Promise<HistoryCacheRecord | null> => deps.memory.get(provider) ?? (await deps.cache.read(provider).catch(() => null))
 
   const fetchPage = async (query: UsageHistoryQuery): Promise<Fetched> => {
+    if (stopped()) return { ok: false, outcome: { ok: false, reason: 'cancelled', record: latest } }
     if (!take()) return { ok: false, outcome: { ok: false, reason: 'budget', record: latest } }
     const result = await deps.gateway.fetchSamples(provider, query)
     if (result.ok) return { ok: true, page: result.page }
@@ -137,6 +142,7 @@ export async function syncHistory(deps: SyncDeps, args: SyncArgs): Promise<SyncO
 
   let record = await readCurrent()
   latest = record
+  if (stopped()) return { ok: false, reason: 'cancelled', record }
   const snapshotKnown = args.snapshotRunAt !== null
   const unchanged = record !== null && (snapshotKnown ? record.syncedThroughRunAt === args.snapshotRunAt : deps.nowMs() - Date.parse(record.syncedAt) < NO_SNAPSHOT_MIN_INTERVAL_MS)
 
