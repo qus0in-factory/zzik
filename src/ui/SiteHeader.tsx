@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router'
+import { NavLink, useLocation } from 'react-router'
 import type { ReactNode } from 'react'
 import { t } from '@shared/messages'
 import { HomeLink } from './components/HomeLink'
@@ -29,19 +29,15 @@ export function SiteHeader(): ReactNode {
           </HomeLink>
         </h1>
         <nav aria-label={t('nav.aria')} className="flex items-center gap-1 whitespace-nowrap">
-          {NAV_ITEMS.map((item) => {
-            const active = location.pathname === item.to
-            return (
-              <Link
-                key={item.to}
-                to={{ pathname: item.to, search: location.search }}
-                aria-current={active ? 'page' : undefined}
-                className={navLinkClassName(active)}
-              >
-                {t(item.label)}
-              </Link>
-            )
-          })}
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={{ pathname: item.to, search: location.search }}
+              className={({ isActive }) => navLinkClassName(isActive)}
+            >
+              {t(item.label)}
+            </NavLink>
+          ))}
         </nav>
       </div>
     </header>
