@@ -1,4 +1,5 @@
 import {
+  TREND_AA_SNAPSHOT_TOP_N,
   TREND_METRICS_RULE,
   TREND_OR_LICENSE_NAME,
   TREND_OR_LICENSE_URL,
@@ -36,6 +37,15 @@ export interface MetricsRefreshResult {
   blocks: { or: TrendMetricsBlockStatus }
   reasons: { or: MetricsSourceFailureReason | null }
   aa: { status: 'ok' | 'stale' | 'not_configured'; reason: MetricsSourceFailureReason | null }
+  aaCitation?: string
+}
+
+/** 진단 출력용 고정 토큰. 키·응답 원문은 포함하지 않는다. */
+export function aaStatusToken(aa: MetricsRefreshResult['aa']): string {
+  if (aa.status === 'ok') return 'ok'
+  if (aa.status === 'not_configured') return 'not_configured'
+  if (aa.reason === null) return 'error'
+  return aa.reason === 'rate_limited' ? '429' : aa.reason
 }
 
 function parsePayload(text: string): MetricsPayload | null {
@@ -95,12 +105,13 @@ export async function refreshMetrics(input: {
       const aa = await aaSource.fetch(nowMs)
       if (aa.ok) {
         try {
-          const top = rankAa(aa.snapshot.entries).slice(0, 2).map(({ entry }) => entry)
+          // 내부 패널용으로 상위 50개를 저장하고, 공개 문장은 buildAaCitation이 상위 일부만 본다.
+          const top = rankAa(aa.snapshot.entries).slice(0, TREND_AA_SNAPSHOT_TOP_N).map(({ entry }) => entry)
           await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
-          aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }, day) ?? undefined
+          aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }) ?? undefined
           if (aaCitation === undefined) {
             aaStatus = 'stale'
-            aaReason = 'invalid'
+            aaReason = 'rejected'
           } else {
             aaStatus = 'ok'
             aaReason = null
@@ -182,15 +193,16 @@ export async function refreshMetrics(input: {
   const anyOk = orStatus === 'ok' || aaOk
   const allNotConfigured = orStatus === 'not_configured' && aaStatus === 'not_configured'
   const aa = { status: aaStatus, reason: aaReason }
+  const citation = aaCitation === undefined ? {} : { aaCitation }
   if (!anyOk && previous === null && !allNotConfigured) {
-    return { ok: false, written: false, notConfigured: false, blocks: { or: orStatus }, reasons: { or: orReason }, aa }
+    return { ok: false, written: false, notConfigured: false, blocks: { or: orStatus }, reasons: { or: orReason }, aa, ...citation }
   }
   if (allNotConfigured && previous === null) {
-    return { ok: false, written: false, notConfigured: true, blocks: { or: orStatus }, reasons: { or: orReason }, aa }
+    return { ok: false, written: false, notConfigured: true, blocks: { or: orStatus }, reasons: { or: orReason }, aa, ...citation }
   }
 
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
   await writeSectionChecked(store, 'metrics', nowMs)
-  return { ok: anyOk, written: !unchanged, notConfigured: allNotConfigured, blocks: { or: orStatus }, reasons: { or: orReason }, aa }
+  return { ok: anyOk, written: !unchanged, notConfigured: allNotConfigured, blocks: { or: orStatus }, reasons: { or: orReason }, aa, ...citation }
 }

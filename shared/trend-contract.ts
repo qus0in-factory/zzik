@@ -184,3 +184,34 @@ export interface TrendIndex {
   generatedAt: string
   sections: TrendIndexSection[]
 }
+
+/**
+ * 내부 전용(/api/trend/aa, Access JWT 뒤) AA 표 계약.
+ * 약관(§2.3(a), §5.1)상 Internal Use에만 허용되며 /pub/* 경로에는 절대 노출하지 않는다.
+ */
+export const TREND_AA_API_PATH = '/api/trend/aa'
+export const TREND_AA_SNAPSHOT_TOP_N = 50
+export const TREND_AA_PANEL_LIMIT = 10
+
+export interface AaTrendModelItem {
+  slug: string
+  name: string
+  creator: string
+  intelligenceIndex: number
+  priceIn: number | null
+  priceOut: number | null
+  outputTokensPerSecond: number | null
+  timeToFirstTokenSeconds: number | null
+  releaseDate: string | null
+}
+
+export interface AaTrendResponse {
+  day: string
+  indexVersion: string
+  attribution: string
+  intelligenceTop: AaTrendModelItem[]
+  priceLowest: AaTrendModelItem[]
+  priceHighest: AaTrendModelItem[]
+  speedHighest: AaTrendModelItem[]
+  latencyLowest: AaTrendModelItem[]
+}

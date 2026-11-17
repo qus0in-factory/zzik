@@ -6,7 +6,7 @@ import { createOpenCodeGoSource, createOllamaTagsSource } from '../worker/infra/
 import { createAaSource, createOrRankingSource } from '../worker/infra/trend/metrics-sources'
 import { refreshTrendSections } from '../worker/app/trend/refresh-trend'
 import { refreshPlanModels } from '../worker/app/trend/refresh-plan-models'
-import { refreshMetrics } from '../worker/app/trend/refresh-metrics'
+import { aaStatusToken, refreshMetrics } from '../worker/app/trend/refresh-metrics'
 
 export async function refresh(db: any, keys: { aa: string; or: string }, nowMs: number, fetchImpl: typeof fetch) {
   const trend = await refreshTrendSections({ store: new D1TrendStore(db), sources: [createModelsDevSource({ fetchImpl }), createGoModelsSource({ fetchImpl }), createOpenRouterSource({ fetchImpl })], nowMs })
@@ -19,5 +19,10 @@ export async function refresh(db: any, keys: { aa: string; or: string }, nowMs: 
     counts[row.section] = row.section === 'plan-models' ? payload.plans.reduce((n: number, group: any) => n + (group.items?.length ?? 0), 0) : row.section === 'metrics' ? payload.blocks.reduce((n: number, block: any) => n + block.entries.length, 0) : payload.items.length
   }
   const observations = await db.prepare('SELECT baseline, COUNT(*) AS count FROM trend_plan_observation GROUP BY baseline').bind().all()
-  return { counts, planObservations: observations.results, catalogCount: trend.catalog?.length ?? 0, sources: trend.sources, planSources: plan.sources, metricBlocks: metrics.blocks, metricReasons: metrics.reasons }
+  return {
+    counts, planObservations: observations.results, catalogCount: trend.catalog?.length ?? 0,
+    sources: trend.sources, planSources: plan.sources,
+    metricBlocks: metrics.blocks, metricReasons: metrics.reasons,
+    aaStatus: aaStatusToken(metrics.aa), aaReason: metrics.aa.reason, aaCitation: metrics.aaCitation ?? null,
+  }
 }

@@ -152,7 +152,7 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
     expect(store.writes).toEqual([])
   })
 
-  it('When AA succeeds Then stores only its top two internally and exposes only one citation sentence', async () => {
+  it('When AA succeeds Then stores top candidates internally and exposes one notable-model sentence', async () => {
     const store = new FakeMetricsStore()
     const result = await refreshMetrics({
       store, nowMs: NOW,
@@ -160,11 +160,41 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
       aaSource: aaSource(aaOk),
     })
     expect(result.aa).toMatchObject({ status: 'ok' })
-    expect(store.aa.map((row) => row.slug)).toEqual(['a', 'b'])
+    expect(store.aa.map((row) => row.slug)).toEqual(['a', 'b', 'c'])
     const payload = metricsPayload(store)
-    expect(payload.aaCitation).toBe('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')
+    expect(payload.aaCitation).toBe('요즘 주목받는 모델은 Model A, Model B, Model C 등입니다.')
     expect(payload.blocks.map((block) => block.id)).toEqual(['or-usage'])
     expect(JSON.stringify(payload)).not.toContain('"index"')
+  })
+
+  it('When AA succeeds with 55 entries Then stores top 50 internally and exposes only one citation sentence publicly', async () => {
+    const store = new FakeMetricsStore()
+    const entries = Array.from({ length: 55 }, (_, i) => ({
+      slug: `model-${String(i + 1).padStart(2, '0')}`,
+      name: `Model ${i + 1}`,
+      creator: 'Org',
+      releaseDate: '2026-11-10',
+      intelligenceIndex: 99 - i,
+      priceIn: 1,
+      priceOut: 3,
+      outputTokensPerSecond: 80,
+      timeToFirstTokenSeconds: 0.9,
+      domains: {},
+    }))
+    const result = await refreshMetrics({
+      store,
+      nowMs: NOW,
+      orSource: orSource(orOk([rows(0, 'a/x', '100')])),
+      aaSource: aaSource({ ok: true, snapshot: { version: '5.0', entries } }),
+    })
+    expect(result.aa).toMatchObject({ status: 'ok' })
+    expect(store.aa).toHaveLength(50)
+    expect(store.aa[0]?.slug).toBe('model-01')
+    expect(store.aa[49]?.slug).toBe('model-50')
+    const payload = metricsPayload(store)
+    expect(payload.aaCitation).toMatch(/^요즘 주목받는 모델은 .+ 등입니다\.$/)
+    expect(payload.aaCitation).not.toMatch(/\d/)
+    expect(JSON.stringify(payload)).not.toContain('model-02')
   })
 
   it('When AA succeeds but OR has no key on the first run Then the citation-only section is written', async () => {
@@ -174,7 +204,7 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
     expect(result.aa).toMatchObject({ status: 'ok' })
     expect(store.writes).toEqual(['metrics'])
     const payload = metricsPayload(store)
-    expect(payload.aaCitation).toBe('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')
+    expect(payload.aaCitation).toBe('요즘 주목받는 모델은 Model A, Model B, Model C 등입니다.')
   })
 
   it('When AA succeeds but OR fails on the first run Then the citation still creates the section', async () => {

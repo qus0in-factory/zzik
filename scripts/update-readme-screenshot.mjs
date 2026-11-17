@@ -49,6 +49,8 @@ async function waitForUsage(page) {
     if (sections >= 6) break
     await sleep(100)
   }
+  // /usage 내부 전용 트렌드 패널은 촬영 시 펼치지 않고 화면에서도 제외한다.
+  await page.evaluate(`document.querySelector('[data-testid="usage-aa-trend"]')?.setAttribute('hidden', '')`)
   // 진입 애니메이션(페이드인·막대·저빌)이 끝난 뒤에 찍는다.
   await sleep(1600)
 }
@@ -58,7 +60,7 @@ async function waitForTrend(page) {
   for (let i = 0; i < 60; i += 1) {
     const ready = await page.evaluate(`(() => {
       const has = (id) => document.querySelector('[data-testid="' + id + '"]') !== null
-      return has('trend-metrics-entry') && has('trend-new-model') && has('trend-free-model')
+      return has('trend-treemap-cell') && has('trend-new-model') && has('trend-free-model')
     })()`)
     if (ready) break
     await sleep(100)

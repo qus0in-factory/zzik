@@ -20,6 +20,8 @@ describe('Given an Artificial Analysis models page', () => {
           artificial_analysis_economics_index: 55,
         },
         pricing: { price_1m_input_tokens: 3, price_1m_output_tokens: 15 },
+        median_output_tokens_per_second: 84.5,
+        median_time_to_first_token_seconds: 1.12,
       }],
     })
     expect(decoded.ok).toBe(true)
@@ -28,6 +30,7 @@ describe('Given an Artificial Analysis models page', () => {
     expect(decoded.entries[0]).toMatchObject({
       slug: 'claude-fable-5', name: 'Claude Fable 5', creator: 'Anthropic',
       releaseDate: '2026-11-09', intelligenceIndex: 72, priceIn: 3, priceOut: 15,
+      outputTokensPerSecond: 84.5, timeToFirstTokenSeconds: 1.12,
       domains: { engineering: 61, economics: 55 },
     })
     expect(decoded.entries[0]?.domains).not.toHaveProperty('coding')

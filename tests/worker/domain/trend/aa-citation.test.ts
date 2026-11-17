@@ -1,42 +1,76 @@
 import { describe, expect, it } from 'vitest'
 import { buildAaCitation } from '../../../../worker/domain/trend/metrics/aa'
+import { validatedAaCitation } from '../../../../worker/domain/trend/metrics/citation'
 import type { AaModelEntry, AaSnapshot } from '../../../../worker/domain/trend/metrics/types'
 
-const entry = (slug: string, name: string, index: number): AaModelEntry => ({
-  slug, name, creator: '', releaseDate: null, intelligenceIndex: index, priceIn: null, priceOut: null, domains: {},
+const entry = (slug: string, name: string, index: number, creator = 'Maker'): AaModelEntry => ({
+  slug, name, creator, releaseDate: null, intelligenceIndex: index, priceIn: null, priceOut: null, domains: {},
 })
 const snapshot = (entries: AaModelEntry[]): AaSnapshot => ({ version: '5', entries })
 
-describe('Given the Artificial Analysis brief citation', () => {
-  it('When scores exist Then it is one Korean sentence naming only the first place with the reference day', () => {
-    const text = buildAaCitation(snapshot([entry('b', 'Model B', 80), entry('a', 'Model A', 90)]), '2026-11-17')
-    expect(text).toBe('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')
-    expect(text).not.toContain('Model B')
-    expect(text).not.toContain('80')
+describe('Given the AA notable-model citation', () => {
+  it('When real-style ranked variants exist Then the sentence lists five normalized families in alphabetical order', () => {
+    const text = buildAaCitation(snapshot([
+      entry('a', 'Claude Fable 5.2 (Max, Default Fallback)', 90, 'Anthropic'),
+      entry('b', 'Claude Fable 5.2 (Xhigh, Default Fallback)', 89, 'Anthropic'),
+      entry('c', 'Gemini 4 Carbon (High)', 88, 'Google'),
+      entry('d', 'Claude Opus 5.5 (Max, Default Fallback)', 87, 'Anthropic'),
+      entry('e', 'GPT-6 Astra (Max)', 86, 'OpenAI'),
+      entry('f', 'GPT-6.1 Sol (Max)', 85, 'OpenAI'),
+      entry('g', 'Gemini 4 Hydrogen (Xhigh)', 84, 'Google'),
+    ]))
+    expect(text).toBe('요즘 주목받는 모델은 Claude Fable, Claude Opus, Gemini Carbon, Gemini Hydrogen, GPT Astra 등입니다.')
   })
 
-  it('When no scored entry exists Then no citation is produced', () => {
-    expect(buildAaCitation(snapshot([]), '2026-11-17')).toBeNull()
+  it('When the sentence is built Then it has no rank word, no number and no index name', () => {
+    const text = buildAaCitation(snapshot([
+      entry('a', 'GPT-6.1 Sol (Max)', 99, 'OpenAI'),
+      entry('b', 'Claude Fable 5.2 (High)', 98, 'Anthropic'),
+    ]))!
+    expect(text).not.toMatch(/\d/)
+    expect(text).not.toMatch(/1위|순위|지수|점수|Intelligence Index/)
+    expect(text).toMatch(/^요즘 주목받는 모델은 /)
+    expect(text.endsWith(' 등입니다.')).toBe(true)
   })
 
-  it('When scores are decimals Then the value is rendered with one decimal place', () => {
-    expect(buildAaCitation(snapshot([entry('a', 'Model A', 92.5)]), '2026-11-17'))
-      .toBe('Artificial Analysis Intelligence Index 1위는 Model A (92.5)입니다. (2026-11-17 기준)')
+  it('When families have equal scores Then output order is alphabetical, not score order', () => {
+    const text = buildAaCitation(snapshot([
+      entry('a', 'Zeta 4 Fusion (High)', 99, 'Maker A'),
+      entry('b', 'Alpha 3 Prime (High)', 99, 'Maker B'),
+      entry('c', 'Mid 2 Core (High)', 99, 'Maker C'),
+    ]))!
+    expect(text).toBe('요즘 주목받는 모델은 Alpha Prime, Mid Core, Zeta Fusion 등입니다.')
   })
 
-  it('When the model name keeps a version dot Then it is preserved', () => {
-    expect(buildAaCitation(snapshot([entry('a', 'GPT-5.4', 92)]), '2026-11-17'))
-      .toBe('Artificial Analysis Intelligence Index 1위는 GPT-5.4 (92)입니다. (2026-11-17 기준)')
+  it('When duplicate families exist Then only one representative per family is listed', () => {
+    const text = buildAaCitation(snapshot([
+      entry('a', 'Claude Fable 5.2 (Max)', 90),
+      entry('b', 'Claude Fable 5.1 (High)', 89),
+      entry('c', 'Claude Fable 4.5 (Low)', 88),
+    ]))!
+    expect(text).toBe('요즘 주목받는 모델은 Claude Fable 등입니다.')
+  })
+
+  it('When no entries exist Then no citation is produced', () => {
+    expect(buildAaCitation(snapshot([]))).toBeNull()
+  })
+
+  it('When a legacy rank-and-score sentence is revalidated Then it is rejected', () => {
+    expect(validatedAaCitation('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')).toBeNull()
+  })
+
+  it('When a valid notable sentence round-trips Then projection validation keeps it', () => {
+    const text = '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.'
+    expect(validatedAaCitation(text)).toBe(text)
   })
 
   it.each([
-    ['newline', 'Model A\n둘째 문장입니다.'],
-    ['extra sentence', 'Model A입니다. 둘째 문장입니다.'],
-    ['serialized array', '[{"id":"a","score":42}]'],
-    ['serialized object', '{"id":"a","score":42}'],
-    ['brackets', 'Model [A]'],
-    ['too long', 'x'.repeat(81)],
-  ])('When the model name contains %s Then no citation is produced', (_name, model) => {
-    expect(buildAaCitation(snapshot([entry('a', model, 90)]), '2026-11-17')).toBeNull()
+    ['numbers', '요즘 주목받는 모델은 GPT-6.1 Sol 등입니다.'],
+    ['rank word', '요즘 주목받는 모델은 1위 Sol 등입니다.'],
+    ['unsorted', '요즘 주목받는 모델은 Zeta, Alpha 등입니다.'],
+    ['two sentences', '요즘 주목받는 모델은 Alpha입니다. 둘째 문장 등입니다.'],
+    ['bracketed name', '요즘 주목받는 모델은 [Alpha] 등입니다.'],
+  ])('When a stored citation contains %s Then it is rejected', (_name, text) => {
+    expect(validatedAaCitation(text)).toBeNull()
   })
 })

@@ -7,5 +7,13 @@ describe('Given the README screenshot pipeline', () => {
     expect(source).toContain('/trend?fixture=normal')
     expect(source).toContain('waitForTrend(page)')
     expect(source).toContain("data-testid=\"' + id + '\"")
+    expect(source).toContain("has('trend-treemap-cell')")
+  })
+
+  it('When it captures /usage Then it never expands the internal AA trend panel and hides it from screenshots', () => {
+    const source = readFileSync('scripts/update-readme-screenshot.mjs', 'utf8')
+    expect(source).not.toContain('트렌드 펼치기')
+    expect(source).not.toContain('usage-aa-trend-panel')
+    expect(source).toContain('[data-testid="usage-aa-trend"]')
   })
 })

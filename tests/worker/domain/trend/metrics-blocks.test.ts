@@ -30,7 +30,8 @@ describe('Given Artificial Analysis Intelligence Index ranking', () => {
     const today = snapshot('3.0', [aa('a/x', 90)])
     const rows = toAaRows(today, '2026-11-17')
     expect(rows[0]).toMatchObject({ day: '2026-11-17', slug: 'a/x', indexVersion: '3.0' })
-    expect(fromAaRows(rows, '3.0')).toEqual(today)
+    // 내부 패널용 속도 필드는 저장 시 없으면 null로 채워진다.
+    expect(fromAaRows(rows, '3.0')).toEqual({ ...today, entries: today.entries.map((entry) => ({ outputTokensPerSecond: null, timeToFirstTokenSeconds: null, ...entry })) })
   })
 })
 

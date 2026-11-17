@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router'
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { t } from '@shared/messages'
 import { HomeLink } from './components/HomeLink'
 
@@ -19,8 +19,19 @@ function navLinkClassName(active: boolean): string {
 /** 사이트 공통 헤더: 로고·제목과 사용량/트렌드 상단 nav. */
 export function SiteHeader(): ReactNode {
   const location = useLocation()
+  const headerRef = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const update = () => document.documentElement.style.setProperty('--site-header-height', `${header.getBoundingClientRect().height}px`)
+    update()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(header)
+    window.addEventListener('resize', update)
+    return () => { observer?.disconnect(); window.removeEventListener('resize', update); document.documentElement.style.removeProperty('--site-header-height') }
+  }, [])
   return (
-    <header className="border-b bg-card">
+    <header ref={headerRef} className="sticky top-0 z-40 border-b bg-card">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
         <h1 className="text-xl font-semibold tracking-tight">
           <HomeLink>

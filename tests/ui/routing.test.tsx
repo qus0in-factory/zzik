@@ -81,7 +81,7 @@ describe('Given the usage/trend router', () => {
     ])
     expect(screen.queryAllByTestId(/^usage-section-/)).toHaveLength(0)
     expect(screen.getByTestId('app-version').textContent).toBe(`v${__APP_VERSION__}`)
-    expect(screen.queryByTestId('back-to-top-shell')).toBeNull()
+    expect(screen.getByTestId('back-to-top-shell')).toBeTruthy()
     expect(gateway.calls).toBe(0)
   })
 
