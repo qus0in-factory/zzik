@@ -1,5 +1,6 @@
 import {mergedOffpeakIntervals} from '../../../shared/offpeak.ts'
 /** @typedef {import('../../../shared/offpeak.ts').OffpeakSchedule} Schedule */
+/** @typedef {{v:1,keys:Record<string,number>}} OffpeakNoticeState */
 /** @typedef {{key:string,provider:import('../../../shared/usage-contract.ts').UsageProvider,kind:'started'|'ending',atMs:number,startMs:number,endMs:number,effect?:import('../../../shared/offpeak.ts').OffpeakEffect}} OffpeakEvent */
 const DAY=86400000,MINUTE=60000
 /** Next simultaneous batch after the inclusive lower bound; weekly windows merge first.
