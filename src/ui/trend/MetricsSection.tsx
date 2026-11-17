@@ -71,7 +71,9 @@ function Block({ block }: { block: TrendMetricsBlock }): ReactNode {
   const title = block.id === 'aa-intelligence' ? t('trend.metrics.aa.title') : t('trend.metrics.or.title')
   const attribution = block.id === 'aa-intelligence'
     ? t('trend.metrics.attribution.aa', { version: block.version ?? '-', day: block.asOf })
-    : t('trend.metrics.attribution.or', { asOf: block.asOf })
+    : block.asOfKind === 'fetched'
+      ? t('trend.metrics.attribution.orFetched', { asOf: block.asOf })
+      : t('trend.metrics.attribution.or', { asOf: block.asOf })
   const note = block.note === 'baseline'
     ? t('trend.metrics.baseline')
     : block.note === 'version_changed'
@@ -86,15 +88,23 @@ function Block({ block }: { block: TrendMetricsBlock }): ReactNode {
         <h3 className="text-sm font-semibold">{title}</h3>
         <div className="flex flex-wrap items-center gap-1">
           {block.version !== undefined && <span className="text-xs text-muted-foreground">v{block.version}</span>}
-          <span className="text-xs text-muted-foreground">{displayAsOf(block.asOf)}</span>
+          <span className="text-xs text-muted-foreground">
+            {block.asOfKind === 'fetched' && `${t('trend.metrics.fetchedAtLabel')} `}
+            {displayAsOf(block.asOf)}
+          </span>
           {block.status === 'stale' && badge(t('trend.metrics.stale'), 'warn')}
         </div>
       </div>
-      {block.status === 'not_configured' ? (
+      {block.status === 'under_review' ? (
+        <p className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{t('trend.metrics.aaUnderReview')}</p>
+      ) : block.status === 'not_configured' ? (
         <p className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{t('trend.metrics.notConfigured')}</p>
       ) : (
         <>
           {note !== null && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
+          {block.id === 'or-usage' && block.asOfKind === 'fetched' && (
+            <p className="mt-1 text-xs text-muted-foreground">{t('trend.metrics.fetchedAtNotice')}</p>
+          )}
           {block.entries.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">{t('trend.metrics.empty')}</p>
           ) : (
@@ -103,6 +113,17 @@ function Block({ block }: { block: TrendMetricsBlock }): ReactNode {
             </ol>
           )}
           <p className="mt-2 text-xs text-muted-foreground">{attribution}</p>
+          {block.processed === true && (
+            <p className="mt-1 text-xs text-muted-foreground">{t('trend.metrics.processed')}</p>
+          )}
+          {block.license !== undefined && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('trend.metrics.licenseLabel')}{' '}
+              <a href={block.license.url} target="_blank" rel="license noopener noreferrer" className="underline underline-offset-2">
+                {block.license.name}
+              </a>
+            </p>
+          )}
         </>
       )}
     </div>

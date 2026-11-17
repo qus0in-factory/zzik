@@ -53,6 +53,9 @@ describe('Given the metrics section on /trend', () => {
     expect(section.getByText('7일 스냅샷이 쌓이면 순위·점유율 변동을 표시합니다.')).toBeTruthy()
     expect(section.getByText(/출처: Artificial Analysis — artificialanalysis\.ai \(Intelligence Index v3\.0, 2026-11-17 기준\)/)).toBeTruthy()
     expect(section.getByText(/출처: OpenRouter \(openrouter\.ai\/rankings\), 2026-11-17T04:00:00Z 기준 · CC BY 4\.0/)).toBeTruthy()
+    expect(section.getByText('OpenRouter 일별 순위를 최근·직전 7일로 집계·가공한 요약입니다.')).toBeTruthy()
+    const license = section.getByRole('link', { name: 'CC BY 4.0' })
+    expect(license.getAttribute('href')).toBe('https://creativecommons.org/licenses/by/4.0/')
     expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(5)
   })
 
@@ -67,6 +70,43 @@ describe('Given the metrics section on /trend', () => {
     const section = within(screen.getByTestId('trend-metrics'))
     expect(await section.findByText('이 출처는 아직 설정되지 않았습니다.')).toBeTruthy()
     expect(section.queryByTestId('trend-metrics-entry')).toBeNull()
+  })
+
+  it('When AA is hidden for terms review Then shows the notice without scores', async () => {
+    renderPage(async () => ({
+      ok: true,
+      value: {
+        ...metrics,
+        blocks: [
+          { id: 'aa-intelligence', status: 'under_review', asOf: '2026-11-17', version: '3.0', note: 'terms_review', entries: [], attribution: '' },
+          metrics.blocks!.find((block) => block.id === 'or-usage')!,
+        ],
+      },
+    }))
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByText('출처 약관 확인 중입니다. 확인 전에는 점수를 공개하지 않습니다.')).toBeTruthy()
+    expect(section.queryByText('지수 72')).toBeNull()
+    expect(section.getAllByTestId('trend-metrics-entry')).toHaveLength(2)
+  })
+
+  it('When OpenRouter meta.as_of is missing Then labels the time as fetched time', async () => {
+    const or = metrics.blocks!.find((block) => block.id === 'or-usage')!
+    renderPage(async () => ({
+      ok: true,
+      value: {
+        ...metrics,
+        blocks: [{
+          ...or,
+          asOf: '2026-11-17T06:00:00.000Z',
+          asOfKind: 'fetched',
+          meta: undefined,
+        }],
+      },
+    }))
+    const section = within(screen.getByTestId('trend-metrics'))
+    expect(await section.findByText('출처 기준 시각(meta.as_of)이 없어 조회 시각으로 표시합니다.')).toBeTruthy()
+    expect(section.getAllByText(/조회 시각/).length).toBeGreaterThanOrEqual(2)
+    expect(section.getByText(/출처: OpenRouter \(openrouter\.ai\/rankings\), 조회 시각/)).toBeTruthy()
   })
 
   it('When the section is loading Then shows the loading state', async () => {
