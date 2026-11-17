@@ -17,7 +17,7 @@ function notModified(etag: string): Response {
 }
 
 /** 공개 `/pub/trend`: 인증·사용량 저장소와 무관하게 트렌드 섹션만 읽는다. */
-export function createTrendRoute(store: TrendStore | null) {
+export function createTrendRoute(store: TrendStore | null, now: () => number = () => Date.now()) {
   const app = new Hono({ strict: true })
   const notReadyIndex = () => respondPublic({ error: 'not_ready', sections: [] }, { status: 503, noStore: true })
   const notReadySection = () => respondPublic({ error: 'not_ready' }, { status: 503, noStore: true })
@@ -25,7 +25,7 @@ export function createTrendRoute(store: TrendStore | null) {
   app.on(['GET', 'HEAD'], '/', async (c: Context) => {
     if (store === null) return notReadyIndex()
     try {
-      const index = await getTrendIndex(store)
+      const index = await getTrendIndex(store, now())
       if (index === null) return notReadyIndex()
       const body = JSON.stringify(index)
       const etag = `"${await sha256Hex(body)}"`

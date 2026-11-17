@@ -147,45 +147,6 @@ export interface TrendSource {
   fetch(etag: string | null): Promise<TrendSourceFetchResult | TrendSourceFailure>
 }
 
-
-/**
- * OpenCode Zen `/zen/v1/models`: `{object:'list', data:[...]}`.
- * 무료 판정은 `cost.text.input.price == 0 && output.price == 0`이다.
- */
-export function decodeZenModels(input: unknown): DecodeModelsDevResult {
-  if (!isRecord(input) || !Array.isArray(input.data)) return { ok: false, reason: 'invalid_source' }
-  const records: TrendModelRecord[] = []
-  for (const raw of input.data) {
-    if (!isRecord(raw)) continue
-    const modelId = typeof raw.id === 'string' && raw.id !== '' ? raw.id : ''
-    if (modelId === '') continue
-    const canonical = typeof raw.canonical_id === 'string' && raw.canonical_id !== '' ? raw.canonical_id : modelId
-    const release = parseRelease(raw.release_date)
-    const cost = isRecord(raw.cost) && isRecord(raw.cost.text) ? raw.cost.text : null
-    // Zen 가격은 이미 USD/1M 토큰 단위다.
-    const inputPrice = cost !== null && isRecord(cost.input) ? parseNumber(cost.input.price) : null
-    const outputPrice = cost !== null && isRecord(cost.output) ? parseNumber(cost.output.price) : null
-    const price = inputPrice !== null && outputPrice !== null ? { input: inputPrice, output: outputPrice } : null
-    records.push({
-      canonicalId: canonical,
-      provider: 'opencode',
-      modelId,
-      name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : modelId,
-      creator: creatorOf(canonical, 'opencode'),
-      releaseDate: release.date,
-      releasePrecision: release.precision,
-      releaseMs: release.ms,
-      price,
-      free: price !== null && price.input === 0 && price.output === 0,
-      openWeights: raw.open_weights === true,
-      status: raw.deprecated === true ? 'deprecated' : null,
-      expiresAtMs: null,
-    })
-  }
-  if (input.data.length > 0 && records.length === 0) return { ok: false, reason: 'invalid_source' }
-  return { ok: true, value: records }
-}
-
 /**
  * OpenRouter `/api/v1/models`: `{data:[...]}`. 무료 판정은 `:free` 접미 또는 가격 0이다.
  * `created`는 출시일이 아니라 OpenRouter 등록일이므로 그대로 precision:'day'로 쓴다.

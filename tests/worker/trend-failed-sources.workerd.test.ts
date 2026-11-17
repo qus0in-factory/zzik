@@ -24,9 +24,11 @@ describe('Given the actual trend cron and existing collector observations', () =
       await db.prepare(`INSERT INTO trend_plan_observation (plan, model_id, display_name, source, confidence, first_seen_at, last_seen_at, baseline) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`).bind('antigravity', 'test-model', 'Test', 'agy-cli', 'account', now, now).run()
       const worker = await mf.getWorker() as unknown as { scheduled(options: { cron: string; scheduledTime: number }): Promise<void> }
       await worker.scheduled({ cron: TREND_CRON, scheduledTime: now })
-      const states = await db.prepare('SELECT source, ok, http_status FROM trend_source_state ORDER BY source').all<{ source: string; ok: number; http_status: number }>()
-      expect(states.results).toHaveLength(4)
+      const states = await db.prepare("SELECT source, ok, http_status FROM trend_source_state WHERE source NOT LIKE 'section:%' ORDER BY source").all<{ source: string; ok: number; http_status: number }>()
+      expect(states.results).toHaveLength(3)
       expect(states.results.every((row: { ok: number; http_status: number }) => row.ok === 0 && row.http_status === 500)).toBe(true)
+      const sectionStates = await db.prepare('SELECT source, ok FROM trend_source_state WHERE source LIKE ?').bind('section:%').all<{ source: string; ok: number }>()
+      expect(sectionStates.results).toEqual([{ source: 'section:plan-models', ok: 1 }])
       const sections = await db.prepare('SELECT section, generated_at, payload FROM trend_section ORDER BY section').all<{ section: string; generated_at: number; payload: string }>()
       expect(sections.results.map((row: { section: string }) => row.section)).toEqual(['plan-models'])
       expect(sections.results.every((row: { generated_at: number }) => row.generated_at === now)).toBe(true)

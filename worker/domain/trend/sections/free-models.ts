@@ -11,6 +11,7 @@ import {
 import type { TrendItem, TrendSectionPayload, TrendSourceState } from '../../../../shared/trend-contract'
 import type { TrendModelRecord } from '../sources'
 import { normalizePlanName } from '../plan/build'
+import { carryEnrichment } from './carry-metadata'
 
 const MAX_ITEMS = 50
 
@@ -90,12 +91,21 @@ function dedupeSorted(items: readonly TrendItem[]): TrendItem[] {
 /** OpenCode Go 무료 행을 반환한다. 출처가 실패/304면 직전 값을 유지한다. */
 export function buildFreeModels(input: FreeModelsInput): TrendSectionPayload {
   const index = buildCatalogIndex(input.catalog)
+  const prevById = new Map((input.previous?.items ?? []).map((item) => [item.id, item]))
   const items = input.goModels === null
     ? [...(input.previous?.items ?? [])]
     : dedupeSorted(
         input.goModels
           .filter((record) => record.free && record.status !== 'deprecated')
-          .map((record) => itemFromGo(record, index, input.nowMs)),
+          .map((record) => {
+            const built = itemFromGo(record, index, input.nowMs)
+            const carried = input.catalog === null ? carryEnrichment(built, prevById.get(built.id)) : built
+            if (input.catalog !== null || carried.recentlyAdded || carried.releaseDate === null) return carried
+            const parsed = Date.parse(carried.releaseDate)
+            return Number.isNaN(parsed)
+              ? carried
+              : { ...carried, recentlyAdded: parsed >= input.nowMs - TREND_FREE_MODELS_WINDOW_MS }
+          }),
       )
 
   return {

@@ -7,25 +7,39 @@ import type { TrendSection, TrendSectionPayload, TrendSourceState } from '../../
 import { buildFreeModels } from '../../domain/trend/sections/free-models'
 import { buildNewModels } from '../../domain/trend/sections/new-models'
 import type { TrendModelRecord, TrendSource, TrendSourceFailure, TrendSourceFetchResult } from '../../domain/trend/sources'
+import { sectionStateSourceId } from '../../domain/trend/store'
 import type { TrendSourceStateRow, TrendStore } from '../../domain/trend/store'
 
 export type TrendRefreshResult =
-  | { ok: true; skipped: boolean; written: boolean; count: number }
-  | { ok: false; reason: 'source_failed' }
+  | { ok: true; skipped: boolean; written: boolean; count: number; status?: 'written' | 'unchanged' }
+  | { ok: false; reason: 'source_failed' | 'section_error'; status?: 'skipped' | 'error'; errorClass?: string }
 
 export interface TrendSectionOutcome {
   ok: boolean
   written: boolean
   count: number
   stale: boolean
+  status?: 'written' | 'unchanged' | 'skipped' | 'error'
+  reason?: string
+  errorClass?: string
 }
+
+export type SourceHttpSummary = '200' | '304' | 'fail'
 
 export interface TrendRefreshAllResult {
   newModels: TrendRefreshResult
   freeModels: TrendSectionOutcome
   sources: Record<string, 'ok' | 'stale'>
+  sourceStatuses: Record<string, SourceHttpSummary>
   /** models.dev 200일 때 plan-models 메타 매칭에 재사용한다. 304·실패면 null. */
   catalog: readonly TrendModelRecord[] | null
+}
+
+function safeErrorClass(error: unknown): string {
+  if (error instanceof TypeError) return 'TypeError'
+  if (error instanceof RangeError) return 'RangeError'
+  if (error instanceof SyntaxError) return 'SyntaxError'
+  return 'Error'
 }
 
 interface FetchedSource {
@@ -56,10 +70,37 @@ function isFresh(fetched: TrendSourceFetchResult | TrendSourceFailure): fetched 
   return fetched.ok && !fetched.notModified
 }
 
+export async function safeWriteSourceState(
+  store: { writeSourceState?: (row: TrendSourceStateRow) => Promise<void> },
+  row: TrendSourceStateRow,
+): Promise<void> {
+  if (store.writeSourceState === undefined) return
+  try {
+    await store.writeSourceState(row)
+  } catch {
+    // D1 일시 오류로 다른 출처나 섹션 전체가 중단되지 않도록 격리한다.
+  }
+}
+
+/** 섹션 평가가 written/unchanged로 끝났을 때만 가상 source 'section:<id>'에 성공 시각을 남긴다. */
+export async function writeSectionChecked(
+  store: { writeSourceState?: (row: TrendSourceStateRow) => Promise<void> },
+  section: TrendSection,
+  nowMs: number,
+): Promise<void> {
+  await safeWriteSourceState(store, {
+    source: sectionStateSourceId(section),
+    etag: null,
+    fetchedAt: nowMs,
+    ok: true,
+    httpStatus: null,
+  })
+}
+
 async function fetchOnce(store: TrendStore, source: TrendSource, etag: string | null, nowMs: number): Promise<FetchedSource> {
   const fetched = await source.fetch(etag)
   if (!fetched.ok) {
-    await store.writeSourceState({
+    await safeWriteSourceState(store, {
       source: source.id,
       etag,
       fetchedAt: nowMs,
@@ -67,7 +108,7 @@ async function fetchOnce(store: TrendStore, source: TrendSource, etag: string | 
       httpStatus: fetched.httpStatus,
     })
   } else if (fetched.notModified) {
-    await store.writeSourceState({
+    await safeWriteSourceState(store, {
       source: source.id,
       etag: fetched.etag ?? etag,
       fetchedAt: nowMs,
@@ -75,7 +116,7 @@ async function fetchOnce(store: TrendStore, source: TrendSource, etag: string | 
       httpStatus: 304,
     })
   } else {
-    await store.writeSourceState({
+    await safeWriteSourceState(store, {
       source: source.id,
       etag: fetched.etag,
       fetchedAt: nowMs,
@@ -87,8 +128,18 @@ async function fetchOnce(store: TrendStore, source: TrendSource, etag: string | 
 }
 
 async function fetchSource(store: TrendStore, source: TrendSource, nowMs: number): Promise<FetchedSource> {
-  const state = await store.readSourceState(source.id)
-  return fetchOnce(store, source, state?.etag ?? null, nowMs)
+  let etag: string | null = null
+  try {
+    const state = await store.readSourceState(source.id)
+    etag = state?.etag ?? null
+  } catch {
+    etag = null
+  }
+  try {
+    return await fetchOnce(store, source, etag, nowMs)
+  } catch {
+    return { source, fetched: { ok: false, reason: 'network', httpStatus: null } }
+  }
 }
 
 function sourceState(
@@ -122,12 +173,13 @@ async function applyNewModels(
   const openrouterRecords = openrouter !== undefined && isFresh(openrouter.fetched) ? openrouter.fetched.models ?? [] : null
   // 첫 실행부터 두 출처가 모두 실패하면 빈 섹션을 만들지 않는다.
   if (modelsDevRecords === null && openrouterRecords === null && previous === null) {
-    return { ok: false, reason: 'source_failed' }
+    return { ok: false, reason: 'source_failed', status: 'skipped' }
   }
   const payload = buildNewModels({ modelsDev: modelsDevRecords, openrouter: openrouterRecords, previous, sources, nowMs })
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
-  return { ok: true, skipped: false, written: !unchanged, count: payload.items.length }
+  await writeSectionChecked(store, 'new-models', nowMs)
+  return { ok: true, skipped: false, written: !unchanged, count: payload.items.length, status: unchanged ? 'unchanged' : 'written' }
 }
 
 async function applyFreeModels(
@@ -143,17 +195,18 @@ async function applyFreeModels(
     .filter((source): source is TrendSourceState => source !== null)
   const goRecords = goModels !== undefined && isFresh(goModels.fetched) ? goModels.fetched.models ?? [] : null
   if (goRecords === null && previous === null) {
-    return { ok: false, written: false, count: 0, stale: true }
+    return { ok: false, written: false, count: 0, stale: true, status: 'skipped', reason: 'source_failed' }
   }
   const catalog = modelsDev !== undefined && isFresh(modelsDev.fetched) ? modelsDev.fetched.models ?? [] : null
   const payload = buildFreeModels({ goModels: goRecords, catalog, previous, sources, nowMs })
   const stale = payload.sources.some((source) => source.status === 'stale')
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
-  return { ok: !stale, written: !unchanged, count: payload.items.length, stale }
+  await writeSectionChecked(store, 'free-models', nowMs)
+  return { ok: !stale, written: !unchanged, count: payload.items.length, stale, status: unchanged ? 'unchanged' : 'written' }
 }
 
-/** cron 경로: 출처별로 격리해 new-models와 free-models를 함께 갱신한다. */
+/** cron 경로: 출처·섹션별로 격리해 new-models와 free-models를 갱신한다. */
 export async function refreshTrendSections(input: {
   store: TrendStore
   sources: readonly TrendSource[]
@@ -163,10 +216,24 @@ export async function refreshTrendSections(input: {
   const modelsDev = fetched.find((entry) => entry.source.id === TREND_SOURCE_MODELS_DEV)
   const goModels = fetched.find((entry) => entry.source.id === TREND_SOURCE_OPENCODE_GO)
   const openrouter = fetched.find((entry) => entry.source.id === TREND_SOURCE_OPENROUTER)
-  const newModels = await applyNewModels(input.store, modelsDev, openrouter, input.nowMs)
-  const freeModels = await applyFreeModels(input.store, goModels, modelsDev, input.nowMs)
+  let newModels: TrendRefreshResult
+  try {
+    newModels = await applyNewModels(input.store, modelsDev, openrouter, input.nowMs)
+  } catch (error) {
+    newModels = { ok: false, reason: 'section_error', status: 'error', errorClass: safeErrorClass(error) }
+  }
+  let freeModels: TrendSectionOutcome
+  try {
+    freeModels = await applyFreeModels(input.store, goModels, modelsDev, input.nowMs)
+  } catch (error) {
+    freeModels = { ok: false, written: false, count: 0, stale: true, status: 'error', errorClass: safeErrorClass(error) }
+  }
   const sources: Record<string, 'ok' | 'stale'> = {}
-  for (const entry of fetched) sources[entry.source.id] = entry.fetched.ok ? 'ok' : 'stale'
+  const sourceStatuses: Record<string, SourceHttpSummary> = {}
+  for (const entry of fetched) {
+    sources[entry.source.id] = entry.fetched.ok ? 'ok' : 'stale'
+    sourceStatuses[entry.source.id] = !entry.fetched.ok ? 'fail' : entry.fetched.notModified ? '304' : '200'
+  }
   const catalog = modelsDev !== undefined && isFresh(modelsDev.fetched) ? modelsDev.fetched.models ?? [] : null
-  return { newModels, freeModels, sources, catalog }
+  return { newModels, freeModels, sources, sourceStatuses, catalog }
 }

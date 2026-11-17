@@ -39,6 +39,15 @@ interface PlanObservationDbRow {
   baseline: number
 }
 
+export async function writeTrendSourceState(db: D1DatabaseLike, row: TrendSourceStateRow): Promise<void> {
+  await db.prepare(
+    `INSERT INTO trend_source_state (source, etag, fetched_at, ok, http_status)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(source) DO UPDATE SET
+       etag = excluded.etag, fetched_at = excluded.fetched_at, ok = excluded.ok, http_status = excluded.http_status`,
+  ).bind(row.source, row.etag, row.fetchedAt, row.ok ? 1 : 0, row.httpStatus).run()
+}
+
 export class D1TrendStore implements TrendStore {
   constructor(private readonly db: D1DatabaseLike) {}
 
@@ -75,13 +84,13 @@ export class D1TrendStore implements TrendStore {
     return row === undefined ? null : { source: row.source, etag: row.etag, fetchedAt: Number(row.fetched_at), ok: row.ok === 1, httpStatus: row.http_status === null ? null : Number(row.http_status) }
   }
 
+  async readSourceStates(): Promise<TrendSourceStateRow[]> {
+    const rows = await all<SourceDbRow>(this.db, 'SELECT source, etag, fetched_at, ok, http_status FROM trend_source_state', [])
+    return rows.map((row) => ({ source: row.source, etag: row.etag, fetchedAt: Number(row.fetched_at), ok: row.ok === 1, httpStatus: row.http_status === null ? null : Number(row.http_status) }))
+  }
+
   async writeSourceState(row: TrendSourceStateRow): Promise<void> {
-    await this.db.prepare(
-      `INSERT INTO trend_source_state (source, etag, fetched_at, ok, http_status)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(source) DO UPDATE SET
-         etag = excluded.etag, fetched_at = excluded.fetched_at, ok = excluded.ok, http_status = excluded.http_status`,
-    ).bind(row.source, row.etag, row.fetchedAt, row.ok ? 1 : 0, row.httpStatus).run()
+    await writeTrendSourceState(this.db, row)
   }
 
   async readPlanObservations(): Promise<PlanObservationRow[]> {

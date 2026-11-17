@@ -143,6 +143,13 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
     expect(body.blocks.map((block) => block.id)).toEqual(['or-usage'])
     const orBlock = body.blocks[0]!
     expect(orBlock.entries[0]).toMatchObject({ id: 'a/x', rank: 1, share7d: 0.6, kind: 'moved' })
+
+    const index = await mf.dispatchFetch('http://localhost/pub/trend')
+    expect(index.status).toBe(200)
+    const indexBody = await index.json() as { sections: Array<{ id: string; checkedAt?: string; status: string }> }
+    expect(indexBody.sections).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'metrics', checkedAt: new Date(NOW).toISOString(), status: 'ok' }),
+    ]))
     expect(orBlock.attribution).toContain('Licensed under CC BY 4.0')
 
     const notModified = await mf.dispatchFetch('http://localhost/pub/trend/metrics', { headers: { 'If-None-Match': etag! } })
