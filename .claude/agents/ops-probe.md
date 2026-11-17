@@ -19,6 +19,7 @@ maxTurns: 30
 - HTTP: `curl -sS -D - -o <본문파일>`로 `https://zzik.qus0in.dev`의 `/`, `/trend`, `/pub/trend*`, `/usage`, `/api/*`(미인증 302 확인용)와 공개 출처 API(models.dev·OpenRouter 무인증·OpenCode·Ollama). 인증 쿠키·토큰을 붙이지 않는다. 본문은 `jq`로 구조·키·건수만 요약한다.
 - 스크립트: `bash scripts/verify-zzik.sh`, `node scripts/d1-status.mjs`, `scripts/usage-live-shape.sh <provider>`(마스킹 출력), `node scripts/trend-refresh-once.mjs`(인자 없는 dry-run만; `--apply` 금지), `node scripts/deploy-verify.mjs --dry-run`. 각 스크립트의 헤더 주석을 먼저 읽고, 부모가 사용자 읽기 전용 위임을 명시한 경우에만 D1을 읽는 스크립트를 실행한다.
 - SQL은 `wrangler d1 execute ... --remote`로 직접 실행하지 않는다(스크립트 경유만).
+- 트렌드 섹션 개수는 `scripts/trend-refresh-once.mjs` dry-run의 `counts` 기준으로 보고한다(공개 응답 `items` 길이와 혼용 금지).
 
 ## 보고 형식
 - 경로별 상태코드·Cache-Control·ETag 앞 8자·Content-Length (헤더 전문 금지)
