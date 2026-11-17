@@ -1,0 +1,95 @@
+{
+  "section": "plan-models",
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-17T05:00:00.000Z",
+  "rule": "plan-observation-14d",
+  "sources": [
+    { "id": "go-models", "fetchedAt": "2026-11-17T05:00:00.000Z", "status": "ok" },
+    { "id": "ollama-tags", "fetchedAt": "2026-11-17T05:00:00.000Z", "status": "ok" }
+  ],
+  "items": [],
+  "plans": [
+    {
+      "id": "opencode-go",
+      "status": "ok",
+      "items": [
+        {
+          "id": "deepseek/deepseek-v4.1-flash-1017",
+          "name": "DeepSeek V4.1 Flash 1017",
+          "creator": "deepseek",
+          "releaseDate": "2026-10-17",
+          "precision": "day",
+          "firstSeenAt": "2026-11-17T03:00:00.000Z",
+          "confidence": "catalog",
+          "source": "go-models",
+          "matched": true
+        },
+        {
+          "id": "new/go-model",
+          "name": "New Go Model",
+          "creator": null,
+          "releaseDate": null,
+          "precision": "unknown",
+          "firstSeenAt": "2026-11-17T04:00:00.000Z",
+          "confidence": "catalog",
+          "source": "go-models",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "id": "ollama-cloud",
+      "status": "ok",
+      "items": [
+        {
+          "id": "zhipuai/glm-5.3",
+          "name": "GLM 5.3",
+          "creator": "zhipuai",
+          "releaseDate": "2026-08-14",
+          "precision": "day",
+          "firstSeenAt": "2026-11-16T03:00:00.000Z",
+          "confidence": "catalog",
+          "source": "ollama-tags",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "id": "antigravity",
+      "status": "ok",
+      "items": [
+        {
+          "id": "gemini-4-argon",
+          "name": "Gemini 4 Argon",
+          "creator": null,
+          "releaseDate": null,
+          "precision": "unknown",
+          "firstSeenAt": "2026-11-15T03:00:00.000Z",
+          "confidence": "account",
+          "source": "agy-cli",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "id": "claude-max",
+      "status": "partial",
+      "note": "partial_judgement",
+      "items": [
+        {
+          "id": "anthropic/claude-fable-5",
+          "name": "Claude Fable 5",
+          "creator": "anthropic",
+          "releaseDate": "2026-11-09",
+          "precision": "day",
+          "firstSeenAt": "2026-11-16T03:00:00.000Z",
+          "confidence": "partial",
+          "source": "usage-keys",
+          "matched": true
+        }
+      ]
+    },
+    { "id": "grok", "status": "unavailable", "note": "unverified", "items": [] },
+    { "id": "codex", "status": "unavailable", "note": "not_implemented", "items": [] }
+  ]
+}
