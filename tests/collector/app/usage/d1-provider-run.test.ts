@@ -15,3 +15,12 @@ describe('Given a staged provider observation and the D1 ledger',()=>{
   expect(result.reason).toBe('clock_skew');expect(successValue(h.ledger.read('claude'))).toEqual(before)
  })
 })
+describe('Given an active Claude degradation',()=>{
+ it('When collecting Then writes the effective interval into the envelope',async()=>{
+  const h=senderFixture({initialLedgerState,acceptObservation})
+  h.ledger.update('claude',data=>({ok:true,value:{...data,state:{...data.state,rateLimitedAtMs:[h.clock.now()]}}}))
+  const result=await runD1Provider({provider:'claude',ledger:h.ledger,clock:h.clock,intervalSec:300,degrade:{intervalSec:900},operationId:()=>D1_OPERATION_ID,context:{markStarted:()=>true,isStopping:()=>false},ports:{clock:h.clock,credentials:{readAll:async()=>[{source:'fake',token:'fake',expiresAt:null}]},usage:{fetchUsage:async()=>({ok:true,bodyText:'{"five_hour":{"utilization":37}}',httpStatus:200,retryAfterSec:null})},store:{write:async()=>({ok:true})},state:{read:async()=>null,write:async()=>{}},logger:{write:async()=>{}}}})
+  expect(result.reason).toBe('queued')
+  expect(JSON.parse(h.data.get('claude')!.rows[0].operation.envelopeJson).intervalSec).toBe(900)
+ })
+})

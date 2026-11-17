@@ -28,6 +28,7 @@ module.exports = {
         ZZIK_OFFPEAK_NOTIFY: '1',
         ZZIK_D1_AUTH: 'wrangler-oauth',
         ZZIK_D1_OAUTH_PROFILE: 'zzik-collector',
+        ZZIK_INTERVAL_SEC_CLAUDE: '300',
         ZZIK_INTERVAL_SEC_CODEX: '180',
         ZZIK_INTERVAL_SEC_ANTIGRAVITY: '180',
         ZZIK_INTERVAL_SEC_OPENCODE: '180',
