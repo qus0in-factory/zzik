@@ -4,8 +4,8 @@
  */
 import { TREND_SECTIONS } from '../../../shared/trend-contract'
 import type {
-  TrendItem, TrendMetricsBlock, TrendMetricsEntry, TrendMetricsLicense, TrendMetricsMeta, TrendMetricsNote, TrendPrice,
-  TrendSection, TrendSectionPayload, TrendSourceState,
+  TrendItem, TrendMetricsBlock, TrendMetricsEntry, TrendMetricsLicense, TrendMetricsMeta, TrendMetricsNote, TrendPlanConfidence,
+  TrendPlanGroup, TrendPlanItem, TrendPlanNote, TrendPrice, TrendSection, TrendSectionPayload, TrendSourceState,
 } from '../../../shared/trend-contract'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -15,6 +15,9 @@ const isFreeKind = (value: unknown): value is TrendItem['freeKind'] => value ===
 const isBlockStatus = (value: unknown): value is TrendMetricsBlock['status'] => value === 'ok' || value === 'stale' || value === 'not_configured' || value === 'under_review'
 const isMetricsKind = (value: unknown): value is TrendMetricsEntry['kind'] => value === 'new-top' || value === 'moved' || value === 'steady'
 const isMetricsNote = (value: unknown): value is TrendMetricsNote => value === 'baseline' || value === 'version_changed' || value === 'source_failed' || value === 'terms_review'
+const isPlanStatus = (value: unknown): value is TrendPlanGroup['status'] => value === 'ok' || value === 'partial' || value === 'unavailable'
+const isPlanConfidence = (value: unknown): value is TrendPlanConfidence => value === 'account' || value === 'catalog' || value === 'doc' || value === 'partial'
+const isPlanNote = (value: unknown): value is TrendPlanNote => value === 'partial_judgement' || value === 'source_failed' || value === 'unverified' || value === 'not_implemented'
 
 /** @returns 유효하면 가격, 없으면 null, 구조가 잘못됐으면 undefined */
 function projectPrice(value: unknown): TrendPrice | null | undefined {
@@ -165,10 +168,48 @@ function projectMetricsBlocks(value: unknown): TrendMetricsBlock[] | null {
   return blocks
 }
 
+function projectPlanItem(value: unknown): TrendPlanItem | null {
+  if (!isRecord(value)) return null
+  const { id, name, creator, releaseDate, precision, firstSeenAt, confidence, source, matched } = value
+  if (typeof id !== 'string' || id === '' || typeof name !== 'string' || typeof source !== 'string' || source === '') return null
+  if (creator !== null && typeof creator !== 'string') return null
+  if (releaseDate !== null && typeof releaseDate !== 'string') return null
+  if (!isPrecision(precision) || typeof firstSeenAt !== 'string' || !isPlanConfidence(confidence) || typeof matched !== 'boolean') return null
+  return { id, name, creator, releaseDate, precision, firstSeenAt, confidence, source, matched }
+}
+
+function projectPlanGroup(value: unknown): TrendPlanGroup | null {
+  if (!isRecord(value)) return null
+  const { id, status, items } = value
+  if (typeof id !== 'string' || id === '' || !isPlanStatus(status) || !Array.isArray(items)) return null
+  const group: TrendPlanGroup = { id, status, items: [] }
+  if (value.note !== undefined) {
+    if (!isPlanNote(value.note)) return null
+    group.note = value.note
+  }
+  for (const item of items) {
+    const projected = projectPlanItem(item)
+    if (projected === null) return null
+    group.items.push(projected)
+  }
+  return group
+}
+
+function projectPlanGroups(value: unknown): TrendPlanGroup[] | null {
+  if (!Array.isArray(value)) return null
+  const groups: TrendPlanGroup[] = []
+  for (const group of value) {
+    const projected = projectPlanGroup(group)
+    if (projected === null) return null
+    groups.push(projected)
+  }
+  return groups
+}
+
 /** 계약을 만족하지 않으면 null(호출자가 500으로 변환). */
 export function projectSectionPayload(value: unknown, expected: TrendSection): TrendSectionPayload | null {
   if (!isRecord(value)) return null
-  const { section, schemaVersion, generatedAt, rule, sources, items, blocks } = value
+  const { section, schemaVersion, generatedAt, rule, sources, items, blocks, plans } = value
   if (typeof section !== 'string' || !(TREND_SECTIONS as readonly string[]).includes(section) || section !== expected) return null
   if (typeof schemaVersion !== 'number' || !Number.isInteger(schemaVersion) || schemaVersion <= 0) return null
   if (typeof generatedAt !== 'string' || typeof rule !== 'string' || !Array.isArray(items)) return null
@@ -182,6 +223,8 @@ export function projectSectionPayload(value: unknown, expected: TrendSection): T
   }
   const projectedBlocks = blocks === undefined ? undefined : projectMetricsBlocks(blocks)
   if (projectedBlocks === null) return null
+  const projectedPlans = plans === undefined ? undefined : projectPlanGroups(plans)
+  if (projectedPlans === null) return null
   return {
     section: section as TrendSection,
     schemaVersion,
@@ -190,5 +233,6 @@ export function projectSectionPayload(value: unknown, expected: TrendSection): T
     sources: projectedSources,
     items: projectedItems,
     ...(projectedBlocks === undefined ? {} : { blocks: projectedBlocks }),
+    ...(projectedPlans === undefined ? {} : { plans: projectedPlans }),
   }
 }

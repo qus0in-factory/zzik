@@ -1,6 +1,6 @@
 /** #116 공개 트렌드 계약. Worker 섹션 payload와 UI가 같은 타입을 쓴다. */
 export const TREND_PUBLIC_PATH = '/pub/trend'
-export const TREND_SECTIONS = ['new-models', 'free-models', 'frontier', 'metrics'] as const
+export const TREND_SECTIONS = ['plan-models', 'new-models', 'free-models', 'frontier', 'metrics'] as const
 export type TrendSection = (typeof TREND_SECTIONS)[number]
 export const TREND_SCHEMA_VERSION = 1
 export const TREND_SECTION_MAX_BYTES = 100_000
@@ -9,14 +9,20 @@ export const TREND_NEW_MODELS_RELEASE_MAX_MS = 30 * 86_400_000
 export const TREND_NEW_MODELS_RULE = 'release-or-first-seen-7d'
 export const TREND_FREE_MODELS_WINDOW_MS = 30 * 86_400_000
 export const TREND_FREE_MODELS_RULE = 'hosted-free-or-local-30d'
+export const TREND_PLAN_WINDOW_MS = 14 * 86_400_000
+export const TREND_PLAN_MODELS_RULE = 'plan-observation-14d'
 export const TREND_SOURCE_MODELS_DEV = 'models.dev'
 export const TREND_SOURCE_OPENCODE_ZEN = 'opencode-zen'
 export const TREND_SOURCE_OPENROUTER = 'openrouter'
+export const TREND_SOURCE_OPENCODE_GO = 'go-models'
+export const TREND_SOURCE_OLLAMA_TAGS = 'ollama-tags'
 export const TREND_SOURCE_ARTIFICIAL_ANALYSIS = 'artificial-analysis'
 export const TREND_SOURCE_OPENROUTER_RANKINGS = 'openrouter-rankings'
 export const TREND_MODELS_DEV_URL = 'https://models.dev/api.json'
 export const TREND_ZEN_MODELS_URL = 'https://opencode.ai/zen/v1/models'
 export const TREND_OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
+export const TREND_GO_MODELS_URL = 'https://opencode.ai/inference/go/v1/models'
+export const TREND_OLLAMA_TAGS_URL = 'https://ollama.com/api/tags'
 export const TREND_AA_URL = 'https://artificialanalysis.ai/api/v2/language/models/free'
 export const TREND_OR_RANKINGS_URL = 'https://openrouter.ai/api/v1/datasets/rankings-daily'
 export const TREND_METRICS_RULE = 'aa-intelligence-and-or-usage-v1'
@@ -113,6 +119,31 @@ export interface TrendMetricsBlock {
   processed?: boolean
 }
 
+export type TrendPlanStatus = 'ok' | 'partial' | 'unavailable'
+export type TrendPlanConfidence = 'account' | 'catalog' | 'doc' | 'partial'
+export type TrendPlanNote = 'partial_judgement' | 'source_failed' | 'unverified' | 'not_implemented'
+
+export interface TrendPlanItem {
+  id: string
+  name: string
+  creator: string | null
+  releaseDate: string | null
+  precision: TrendPrecision
+  firstSeenAt: string
+  confidence: TrendPlanConfidence
+  source: string
+  /** models.dev 메타와 매칭되었는지. 실패하면 표시명만 보여 준다. */
+  matched: boolean
+  extra?: Record<string, string | number | boolean>
+}
+
+export interface TrendPlanGroup {
+  id: string
+  status: TrendPlanStatus
+  items: TrendPlanItem[]
+  note?: TrendPlanNote
+}
+
 export interface TrendSectionPayload {
   section: TrendSection
   schemaVersion: number
@@ -122,6 +153,8 @@ export interface TrendSectionPayload {
   items: TrendItem[]
   /** metrics 섹션 전용. 다른 섹션 payload에는 없다. */
   blocks?: TrendMetricsBlock[]
+  /** plan-models 섹션 전용. 다른 섹션 payload에는 없다. */
+  plans?: TrendPlanGroup[]
 }
 
 export interface TrendIndexSection {
