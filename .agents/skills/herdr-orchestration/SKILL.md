@@ -39,6 +39,7 @@ herdr pane read w2J:pN --source recent-unwrapped --lines 200 # pane ID를 아는
 - 응답이 길면 "결과를 /tmp/<이름>.md에 쓰고 경로만 답하라"고 요청한다.
 - `blocked`면 `agent read`로 확인하고 승인 여부는 사용자에게 묻는다. timeout은 전송 실패를 뜻하지 않으므로 같은 프롬프트를 바로 재전송하지 않는다.
 - 이름이 안 잡히면 `herdr-label-models` 스킬로 라벨부터 정리한다.
+- 결과 파일 mtime 또는 에이전트 idle/done 대기는 `scripts/herdr-wait-result.mjs`(`--max-wait-ms`).
 - **운영 팁**: macOS에는 `timeout` 명령이 없으므로 쓰지 않는다. `herdr pane run`은 대기할 수 있으므로 새 패널에서 CLI 실행은 `herdr pane send-text <pane> "<cmd>"` + `herdr pane send-keys <pane> enter`로 보낸다. 새 패널을 띄운 뒤에는 `herdr agent rename <pane> <이름>`으로 이름을 지정한다.
 
 ## 프롬프트 작성
@@ -59,6 +60,7 @@ herdr agent prompt sol "$PROMPT"
   `git worktree add .worktree/<트랙> -b <버전>/<트랙> dev` (예: `.worktree/usage`, 브랜치 `0.2/usage`)
 - 작업 경로 `.worktree/<트랙>`을 명시하고 그 안에서 `pnpm install`부터 실행한다.
 - 끝난 워크트리는 `git worktree remove .worktree/<트랙>`으로 정리한다.
+- 생성·dev `--no-ff` 병합·제거는 `scripts/worktree-track.mjs`(기본 dry-run, `--apply`만 실행). 사용법은 `--help`.
 
 ## 브랜치·통합
 - 원격: `main`(보호: PR 필수, 직접·강제 push·삭제 금지), `dev`(통합, 기본 브랜치).
