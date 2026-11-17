@@ -73,7 +73,7 @@ export async function runShip(options = {}) {
       { name: 'release_prep', status: 'PLAN', command: ['node', 'scripts/release-prep.mjs', '--apply'] },
       { name: 'pr_merge', status: 'PLAN', command: ['gh', 'pr', 'merge', '--merge'] },
       { name: 'release_sync', status: 'PLAN', command: ['git', 'pull', '--ff-only'] },
-      ...(scope.deployWorker ? [{ name: 'deploy_worker', status: /** @type {'PLAN'} */ ('PLAN'), command: ['node', 'scripts/deploy-verify.mjs', '--deploy'] }] : []),
+      ...(scope.deployWorker ? [{ name: 'deploy_worker', status: /** @type {'PLAN'} */ ('PLAN'), command: ['node', 'scripts/deploy-verify.mjs', '--deploy', '--release', '<release>'] }] : []),
       ...(scope.applyCollector ? [{ name: 'apply_collector', status: /** @type {'PLAN'} */ ('PLAN'), command: ['node', 'scripts/collector-apply.mjs', '--apply'] }] : []),
       { name: 'verify_request', status: 'PLAN' },
       { name: 'notify_discord', status: 'PLAN', command: ['scripts/notify-discord.sh'] },
@@ -123,7 +123,7 @@ export async function runShip(options = {}) {
   steps.push({ name: 'scope', status: 'PASS' })
 
   if (scope.deployWorker) {
-    const deploy = await execute('node', ['scripts/deploy-verify.mjs', '--deploy'], { cwd: releaseDir, timeoutMs: 600_000 })
+    const deploy = await execute('node', ['scripts/deploy-verify.mjs', '--deploy', '--release', releaseDir], { cwd: releaseDir, timeoutMs: 600_000 })
     if (deploy.exitCode !== 0) return fail('deploy_worker')
     steps.push({ name: 'deploy_worker', status: 'PASS' })
     autoChecks.push('deploy-verify --deploy 통과')
