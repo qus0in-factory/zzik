@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // @ts-expect-error scripts/check-hangul-spacing.mjs is plain ESM checked by vitest
-import { findLongHangulRuns } from '../../scripts/check-hangul-spacing.mjs'
+import { findLongHangulRuns, changedMarkdownFiles } from '../../scripts/check-hangul-spacing.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/check-hangul-spacing.mjs', import.meta.url))
 const run = (args: string[]) => spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' })
@@ -71,6 +71,14 @@ describe('Given the Korean spacing checker', () => {
     const files = execFileSync('git', ['ls-files', '*.md'], { encoding: 'utf8' }).split('\n').filter((file) => file !== '')
     const result = run(files)
     expect(result.status).toBe(0)
+  })
+
+  it('When no base is given Then changedMarkdownFiles compares against origin/main', () => {
+    const files = changedMarkdownFiles()
+    const expected = execFileSync('git', ['diff', '--name-only', '--diff-filter=d', 'origin/main...HEAD'], { encoding: 'utf8' })
+      .split(/\r?\n/)
+      .filter((file) => file !== '' && file.endsWith('.md'))
+    expect(files).toEqual(expected)
   })
 
   it('When --help is requested Then prints usage and exits 0', () => {
