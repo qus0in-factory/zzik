@@ -42,6 +42,7 @@ describe('Given /trend?fixture=normal', () => {
     expect(newest.getByRole('button', { name: '더보기 (3개 남음)' })).toBeTruthy()
 
     expect(await screen.findAllByTestId('trend-free-model')).toHaveLength(3)
+    expect(within(screen.getByRole('navigation', { name: '트렌드 섹션' })).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/trend?fixture=normal#metrics', '/trend?fixture=normal#new-models', '/trend?fixture=normal#free-models', '/trend?fixture=normal#links'])
     const free = within(screen.getByTestId('trend-free-models'))
     expect(free.getByRole('heading', { name: 'OpenCode Go 무료' })).toBeTruthy()
     expect(free.queryByRole('heading', { name: 'Ollama Cloud' })).toBeNull()
