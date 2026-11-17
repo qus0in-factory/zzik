@@ -64,12 +64,12 @@
 
 - 공개 경로: `/pub/trend`, `/pub/trend/plan-models`, `/pub/trend/new-models`, `/pub/trend/free-models`, `/pub/trend/metrics`. Access 앱에 넣지 않는다.
 - 수집 cron: `7 */2 * * *` (`TREND_CRON`). 한 번에 세 출처를 조건부 GET한다: models.dev `api.json`, OpenCode Zen `/zen/v1/models`, OpenRouter `/api/v1/models`. 이어서 `plan-models` 공개 출처 OpenCode Go `/inference/go/v1/models`와 Ollama `/api/tags`를 읽는다. 출처별 실패는 격리한다(한 출처 실패가 다른 출처·섹션을 지우지 않고 해당 source만 `stale`).
-- `plan-models`: 수집기(0003)가 쓰는 `trend_plan_observation`에 Worker 공개 출처도 관측을 추가한다. `plan`별 첫 관측은 `baseline=1`로 저장해 첫 배포의 대량 신규를 막고, 이후 새 모델만 `first_seen_at` 최근 14일·baseline 아님 조건으로 노출한다. `opencode-go`·`ollama-cloud`는 catalog, Antigravity/Claude/Grok은 수집기의 account/partial 관측을 쓴다. `claude-display:<정규화 표시명>` 키는 models.dev 이름 매칭으로 표시명·제작사·출시일을 보강하고, 매칭 실패 시 표시명만 보여 준다. partial 항목 또는 출처 실패 그룹은 `partial`(부분 판정), Codex(4c 미구현)·Grok 미관측은 `unavailable`(판정 불가)로 표시한다.
+- `plan-models`: 수집기(0003)가 쓰는 `trend_plan_observation`에 Worker 공개 출처도 관측을 추가한다. `plan`별 첫 관측은 `baseline=1`로 저장해 첫 배포의 대량 신규를 막고, 이후 새 모델만 `first_seen_at` 최근 14일·baseline 아님 조건으로 노출한다. `opencode-go`·`ollama-cloud`는 catalog, Antigravity/Claude/Grok은 수집기의 account/partial 관측을 쓴다. `claude-display:<정규화 표시명>` 키는 models.dev 이름 매칭으로 표시명·제작사·출시일을 보강하고, 매칭 실패 시 표시명만 보여 준다. partial 항목 또는 출처 실패 그룹은 `partial`(부분 판정), Codex(4c 미구현)·Grok 미관측은 `unavailable`(판정 불가)로 표시한다. **화면에서는 제거했고 Worker 수집·`/pub/trend/plan-models` API는 유지한다.**
 - `plan-models` 저장은 0003 테이블을 그대로 쓰며 새 마이그레이션이 없다. 관측 upsert는 plan별 baseline CTE 1문을 D1 batch로 실행하고, 섹션은 `trend_section`에 저장한다.
-- `new-models`: models.dev 304면 저장된 `firstSeenAt`·`releaseMs`로 7일 창을 재평가하고 출처 상태를 `ok`로 회복한다.
-- `free-models`: 호스팅 무료(Zen `price 0` ∪ OpenRouter `:free`/가격 0)와 로컬 실행 가능(models.dev `ollama-cloud` + `open_weights`)을 최근 30일 창으로 고른다. deprecated·`expiration_date` 만료는 제외하고 canonical id로 중복 제거한다. 출처별 마지막 items를 저장 payload의 `sourceItems`에 보관해 실패/304 시 재사용하며, 공개 응답에서는 projection이 제거한다. 로컬 섹션은 호스팅 무료와 겹치는 모델을 호스팅 쪽 provider로 합친다.
+- `new-models`: 최근 7일 안에 **AA 또는 OpenRouter에 새로 등록된** 모델. AA는 models.dev `release_date`(일 단위)를 등록 시점 proxy로, OpenRouter는 `/api/v1/models`의 `created`를 쓴다. models.dev는 이름·제작사·가격 보강에만 쓴다. 항목에 `registeredIn: ['aa'|'openrouter']` 배지를 붙이고, 304/실패 시 이전 항목을 배지별로 재사용한다.
+- `free-models`: OpenCode Go `/inference/go/v1/models`와 Ollama Cloud `/api/tags` 목록에 포함된 모델을 `opencode-go`·`ollama-cloud` 두 그룹으로 보여 준다. 판정은 `trend_plan_observation`의 최근 7일 `last_seen_at` 목록을 쓰고, 추가 비용 없이 쓸 수 있는 모델로 표시한다. 같은 cron에서 plan 관측 갱신이 free 빌드보다 뒤에 실행되므로 목록 반영은 다음 실행(최대 2시간)까지 한 주기 늦을 수 있다.
 - 구조 검증: `{}`, `{error}`, 데이터 배열/컨테이너가 없는 응답은 수집 실패로 분류해 기존 섹션 items를 보존하고 source를 `stale`로 표시한다. 구조는 정상이고 필터 결과만 0개인 경우는 정상 빈 목록으로 저장한다.
-- 저장: D1 `trend_section`(섹션당 1행), `trend_source_state`(ETag·상태), `trend_model_seen`(canonical id·first_seen). 마이그레이션 `0002_trend.sql`. 200 응답에 ETag가 없으면 이전 값을 재사용하지 않고 `null`을 저장한다(현재 Zen·OpenRouter는 ETag를 보내지 않는다).
+- 저장: D1 `trend_section`(섹션당 1행), `trend_source_state`(ETag·상태), `trend_plan_observation`(요금제 관측). `trend_model_seen`은 기존 데이터로 남겨 두되 new-models 판정에는 쓰지 않는다. 마이그레이션 `0002_trend.sql`·`0003`·`0004`. 200 응답에 ETag가 없으면 이전 값을 재사용하지 않고 `null`을 저장한다(현재 Zen·OpenRouter는 ETag를 보내지 않는다).
 - 공개 응답은 `worker/domain/trend/projection.ts`로 계약 필드만 투영한다(`extra` 등 제거). ETag는 저장 해시가 아니라 투영된 응답 본문의 SHA-256이다.
 - 메모리 게이트: 본문을 스트림으로 읽어 누적 20MiB 초과 시 중단하고, 20초 타이머는 본문 읽기 완료까지 유지한다. 로컬 Node 측정(2026-11-17)은 `api.json` 6,687,479 bytes → 문자열 12.75MiB + 파싱 11.83MiB = 약 24.6MiB heap으로 128MiB 한도 안이다. workerd 통합 테스트는 작은 고정 응답으로 경로를 검증하며, 실제 6.7MiB 원문의 workerd 피크를 측정한 것은 아니다.
 - 5단계 `metrics`는 일 1회 `37 4 * * *` (`METRICS_CRON`)에 갱신한다. Artificial Analysis `GET /api/v2/language/models/free?page=N`(헤더 `x-api-key`)와 OpenRouter Data API `GET /api/v1/datasets/rankings-daily?start_date=…&end_date=…`(`Authorization: Bearer …`)를 읽는다.
@@ -81,6 +81,6 @@
   - 저장: `trend_aa_snapshot`(일·slug, 90일 보존), `trend_or_ranking`(일·permaslug, 60일 보존, meta 컬럼 포함). 스냅샷 교체는 D1 `batch`로 원자화하고, 저장소 예외는 해당 출처만 stale로 낮춰 다른 출처 갱신을 막지 않는다. 마이그레이션 `0004_metrics.sql`(0003은 plan-models용으로 비워 둔다).
   - AA 공개는 기본 비활성이다. `TREND_AA_PUBLIC='0'`(기본)이면 AA 수집·스냅샷 저장은 계속하되 공개 projection/UI에서 AA 블록을 `under_review`('출처 약관 확인 중')로 숨긴다. `='1'`일 때만 Intelligence Index 점수를 공개한다.
   - AA 약관상 재배포 조건(Terms PDF) 확인 전에는 `TREND_AA_PUBLIC`을 켜지 않는다.
-- UI는 `요금제 추가`(준비 중) → 최신 → free → 성능 지표 → 참고 링크 순서다. `frontier`는 아직 준비 중이다.
+- UI 순서는 **성능 지표 → 신규 모델 → 무료 모델 → 참고 링크**다. 참고 링크 카드마다 해당 사이트의 지표를 한 줄로 설명한다. 요금제 추가 섹션은 화면에서 제거했다.
 - section/seen/source-state 갱신은 개별 D1 쓰기라 원자적이지 않다. 중간 실패 시 다음 실행에서 다시 계산한다.
 - 원격 반영 순서(opus): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다. `AA_API_KEY`·`OR_API_KEY`는 이미 운영 secret에 등록되어 있다고 가정한다.
