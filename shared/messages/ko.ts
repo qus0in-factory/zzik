@@ -35,6 +35,7 @@ export const ko = {
   'trend.metrics.processed': 'OpenRouter 일별 순위를 최근·직전 7일로 집계·가공한 요약입니다.',
   'trend.metrics.licenseLabel': '라이선스:',
   'trend.metrics.updated': '갱신 {time}',
+  'trend.sections.aria': '트렌드 섹션',
   'trend.links.title': '참고 링크',
   'trend.links.aria': '트렌드 참고 링크',
   'trend.newModels.title': '신규 모델',
