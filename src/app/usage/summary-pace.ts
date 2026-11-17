@@ -1,5 +1,7 @@
 import type { UsageProvider } from '@domain/usage/providers'
 import type { UsageWindow } from '@domain/usage/types'
+import { barLevelOf } from '@domain/usage/bar-level'
+import type { BarLevel } from '@domain/usage/bar-level'
 
 import { summaryWindowOf, summaryUnitOf } from '@domain/usage/summary-window'
 
@@ -10,6 +12,8 @@ export interface SummaryPace {
   elapsedPercent: number
   /** 사용률이 예상을 넘었는가(경고 톤) */
   overPace: boolean
+  /** 막대·배지와 동일한 4단계 판정 */
+  barLevel: BarLevel
 }
 
 /**
@@ -21,5 +25,11 @@ export function summaryPaceOf(windows: readonly UsageWindow[], provider?: UsageP
   if (best === null) return null
   const { usedPercent, elapsedPercent } = best
   if (usedPercent === null || elapsedPercent === null) return null
-  return { unit: summaryUnitOf(best)!, usedPercent, elapsedPercent, overPace: usedPercent > elapsedPercent }
+  return {
+    unit: summaryUnitOf(best)!,
+    usedPercent,
+    elapsedPercent,
+    overPace: usedPercent > elapsedPercent,
+    barLevel: barLevelOf(usedPercent, elapsedPercent, best.cycleSeconds),
+  }
 }

@@ -25,7 +25,7 @@ const win = (over: Partial<UsageWindow>): UsageWindow => ({
 describe('Given the summary pace picker (가장 긴 주기 한도 하나)', () => {
   it('When a monthly window exists Then monthly wins over weekly (OpenCode 실데이터 형상)', () => {
     const report = buildOpencodeUsageView(opencode, { now })
-    expect(summaryPaceOf(report.windows)).toEqual({ unit: 'month', usedPercent: 10, elapsedPercent: expect.closeTo(35, 5), overPace: false })
+    expect(summaryPaceOf(report.windows)).toEqual({ unit: 'month', usedPercent: 10, elapsedPercent: expect.closeTo(35, 5), overPace: false, barLevel: 'ok' })
   })
   it('When only weekly exists Then weekly (Claude 5시간 한도는 제외)', () => {
     const picked = summaryPaceOf(buildUsageView(claude, { now }).windows)
@@ -79,5 +79,15 @@ describe('Given the summary pace picker (가장 긴 주기 한도 하나)', () =
   })
   it('When the monthly window lacks elapsedPercent but weekly has it Then null, not a fallback to weekly', () => {
     expect(summaryPaceOf([win({ elapsedPercent: null }), win({ cycleSeconds: 7 * DAY })])).toBeNull()
+  })
+  it.each([
+    ['월간 95% 이상이면 danger', 95, 98, 30 * DAY, 'danger'],
+    ['월간 92%이고 경과 초과 4%p면 caution', 92, 88, 30 * DAY, 'caution'],
+    ['주간 경과 초과 5%p면 danger', 55, 50, 7 * DAY, 'danger'],
+    ['주간 경과 초과 4%p면 caution', 54, 50, 7 * DAY, 'caution'],
+    ['주간 90% 이상이면 danger', 90, 95, 7 * DAY, 'danger'],
+    ['사용률이 경과 이하이면 ok', 20, 50, 7 * DAY, 'ok'],
+  ] as const)('When %s Then barLevel is %s', (_name, used, elapsed, cycleSeconds, expected) => {
+    expect(summaryPaceOf([win({ usedPercent: used, elapsedPercent: elapsed, cycleSeconds })])?.barLevel).toBe(expected)
   })
 })
