@@ -5,6 +5,7 @@ import { BackToTop } from '@ui/components/BackToTop'
 import { SiteHeader } from '@ui/SiteHeader'
 import { Footer } from '@ui/components/Footer'
 import { PaceChips } from '@ui/usage/PaceChips'
+import { UsageSectionNav } from '@ui/usage/UsageSectionNav'
 import { AaTrendPanel } from '@ui/usage/AaTrendPanel'
 import { UsageSection } from '@ui/usage/UsageSection'
 
@@ -62,12 +63,15 @@ export default function App() {
   return (
     <div className="flex min-h-svh flex-col">
       <SiteHeader />
+      <UsageSectionNav />
       <main ref={mainRef} className="mx-auto w-full flex-1 max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <PaceChips onBeforeMove={captureTops} />
         {order.map((provider) => (
           <UsageSection key={provider} provider={provider} />
         ))}
-        <AaTrendPanel />
+        <div id="trend" className="scroll-mt-[var(--section-nav-offset,7rem)]">
+          <AaTrendPanel />
+        </div>
       </main>
       <Footer />
       <BackToTop />

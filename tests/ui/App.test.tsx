@@ -41,6 +41,25 @@ function renderApp(client = createTestQueryClient()) {
 }
 
 describe('Given the dashboard with six providers', () => {
+  it('When it renders Then a sticky section nav sits below the header with provider and trend anchors', () => {
+    renderApp()
+    const nav = screen.getByRole('navigation', { name: '사용량 섹션' })
+    expect(nav.className).toContain('sticky')
+    expect(nav.previousElementSibling?.tagName).toBe('HEADER')
+    const links = within(nav).getAllByRole('link')
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/usage#usage-claude',
+      '/usage#usage-codex',
+      '/usage#usage-antigravity',
+      '/usage#usage-opencode',
+      '/usage#usage-grok',
+      '/usage#usage-ollama',
+    ])
+    for (const provider of ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama']) {
+      expect(document.getElementById(`usage-${provider}`)).toBeTruthy()
+    }
+  })
+
   it('When it renders Then the header h1 is the dashboard title with the gerbil logo, and no filler copy remains', () => {
     renderApp()
     // 링크가 aria-label로 이름을 덮지 않으므로 h1의 접근 이름은 제목 텍스트다(홈 링크는 title로 설명)
