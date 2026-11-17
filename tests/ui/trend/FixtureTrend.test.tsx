@@ -31,13 +31,17 @@ describe('Given /trend?fixture=normal', () => {
     expect(screen.getByRole('heading', { name: '참고 링크' })).toBeTruthy()
 
     const cells = await screen.findAllByTestId('trend-treemap-cell')
-    expect(cells).toHaveLength(12)
-    expect(cells.filter((cell) => cell.getAttribute('data-label-visible') === 'false').length).toBeGreaterThan(0)
-    expect(cells.filter((cell) => cell.getAttribute('data-step') === 'other')).toHaveLength(1)
-    expect(cells.every((cell) => (cell as HTMLElement).style.backgroundColor !== '')).toBe(true)
+    expect(cells).toHaveLength(17)
+    expect(cells.some((cell) => ['share', 'none'].includes(cell.getAttribute('data-stage') ?? ''))).toBe(true)
+    const other = cells.filter((cell) => cell.getAttribute('data-step') === 'other')
+    expect(other).toHaveLength(1)
+    expect(other[0]!.children[1]?.getAttribute('fill')).toBe('var(--muted)')
+    const dated = cells.find((cell) => cell.getAttribute('data-entry-id') === 'deepseek/deepseek-v4.1-flash-20261017')!
+    expect(dated.getAttribute('aria-label')).toContain('deepseek/deepseek-v4.1-flash-20261017')
+    expect(dated.textContent).not.toContain('20261017')
     const metrics = within(screen.getByTestId('trend-metrics'))
     expect(metrics.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
-    expect(metrics.getByTestId('trend-metrics-aa-citation').textContent).toContain('요즘 주목받는 모델은 Claude Opus, Gemini Carbon, GPT Sol')
+    expect(metrics.getByTestId('trend-metrics-aa-citation').textContent).toContain('요즘 주목받는 모델은 Claude Fable, Claude Opus, Claude Sonnet, Gemini Carbon, Gemini Hydrogen, GPT Astra, GPT Sol')
     expect(metrics.getByRole('link', { name: /Artificial Analysis/ }).getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
 
     expect(await screen.findAllByTestId('trend-new-model')).toHaveLength(6)

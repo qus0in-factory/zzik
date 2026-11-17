@@ -17,7 +17,7 @@ export function respondPublic(body: unknown, options: PublicResponseOptions = {}
   const noStore = options.noStore ?? status >= 400
   const headers: Record<string, string> = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': noStore ? 'no-store' : `public, max-age=${options.maxAge ?? 300}, stale-while-revalidate=3600`,
+    'Cache-Control': noStore ? 'no-store' : `public, max-age=${options.maxAge ?? 60}, stale-while-revalidate=300`,
     'X-Content-Type-Options': 'nosniff',
   }
   if (!noStore && options.etag) headers.ETag = options.etag

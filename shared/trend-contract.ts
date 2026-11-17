@@ -192,6 +192,8 @@ export interface TrendIndex {
 export const TREND_AA_API_PATH = '/api/trend/aa'
 export const TREND_AA_SNAPSHOT_TOP_N = 50
 export const TREND_AA_PANEL_LIMIT = 10
+export const TREND_AA_INTELLIGENCE_LIMIT = 20
+export const TREND_AA_COST_LIMIT = 20
 
 export interface AaTrendModelItem {
   slug: string
@@ -202,6 +204,7 @@ export interface AaTrendModelItem {
   priceOut: number | null
   outputTokensPerSecond: number | null
   timeToFirstTokenSeconds: number | null
+  costPerTask: number | null
   releaseDate: string | null
 }
 
@@ -211,7 +214,7 @@ export interface AaTrendResponse {
   attribution: string
   intelligenceTop: AaTrendModelItem[]
   priceLowest: AaTrendModelItem[]
-  priceHighest: AaTrendModelItem[]
+  costLowest: AaTrendModelItem[]
   speedHighest: AaTrendModelItem[]
   latencyLowest: AaTrendModelItem[]
 }

@@ -10,10 +10,11 @@ const migration1 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0
 const migration2 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0002_trend.sql', import.meta.url)), 'utf8')
 const migration4 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0004_metrics.sql', import.meta.url)), 'utf8')
 const migration5 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0005_aa_speed.sql', import.meta.url)), 'utf8')
+const migration6 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0006_aa_cost.sql', import.meta.url)), 'utf8')
 const NOW = Date.parse('2026-11-17T05:00:00.000Z')
 
 async function applyMigrations(db: Awaited<ReturnType<Miniflare['getD1Database']>>): Promise<void> {
-  for (const migration of [migration1, migration2, migration4, migration5]) {
+  for (const migration of [migration1, migration2, migration4, migration5, migration6]) {
     for (const statement of migration.replace(/^--.*$/gm, '').split(';').map((sql) => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }
@@ -120,7 +121,7 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
 
     const response = await mf.dispatchFetch('http://localhost/pub/trend/metrics')
     expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('public, max-age=300, stale-while-revalidate=3600')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=60, stale-while-revalidate=300')
     const etag = response.headers.get('ETag')
     expect(etag).toMatch(/^"[0-9a-f]{64}"$/)
     const text = await response.text()

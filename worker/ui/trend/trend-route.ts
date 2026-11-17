@@ -5,7 +5,7 @@ import { getPublicTrendSection, getTrendIndex } from '../../app/trend/get-trend'
 import type { TrendStore } from '../../domain/trend/store'
 import { respondPublic } from '../respond'
 
-const CACHE_CONTROL = 'public, max-age=300, stale-while-revalidate=3600'
+const CACHE_CONTROL = 'public, max-age=60, stale-while-revalidate=300'
 
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))

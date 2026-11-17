@@ -1,4 +1,4 @@
-import { TREND_AA_PANEL_LIMIT } from '../../../../shared/trend-contract'
+import { TREND_AA_COST_LIMIT, TREND_AA_INTELLIGENCE_LIMIT, TREND_AA_PANEL_LIMIT } from '../../../../shared/trend-contract'
 import type { AaTrendModelItem, AaTrendResponse } from '../../../../shared/trend-contract'
 import { composeNotableCitation, notableFamilyName } from './citation'
 import type { AaModelEntry, AaSnapshot, AaSnapshotRow } from './types'
@@ -52,20 +52,30 @@ export function buildAaCitation(snapshot: AaSnapshot): string | null {
   }
   const creators = [...byCreator.keys()]
   const picked: Family[] = []
-  for (let round = 0; picked.length < 5; round += 1) {
+  const target = Math.min(7, families.size)
+  for (let round = 0; picked.length < target; round += 1) {
     let advanced = false
     for (const creator of creators) {
       const list = byCreator.get(creator)!
       if (round >= list.length) continue
       picked.push(list[round]!)
       advanced = true
-      if (picked.length === 5) break
+      if (picked.length === target) break
     }
     if (!advanced) break
   }
 
-  const names = picked.map((family) => family.name).sort((a, b) => a.localeCompare(b))
-  return composeNotableCitation(names)
+  // 한 제작사가 과반이면 이름 수를 줄여 균형을 맞춘다(7개면 4개 이상이 과반).
+  // 이름이 너무 길어 문장 상한을 넘어도 같은 방식으로 한 건씩 줄인다.
+  for (let count = picked.length; count >= 1; count -= 1) {
+    const counts = new Map<string, number>()
+    for (const family of picked.slice(0, count)) counts.set(family.creator, (counts.get(family.creator) ?? 0) + 1)
+    if (count > 1 && [...counts.values()].some((value) => value > Math.floor(count / 2))) continue
+    const names = picked.slice(0, count).map((family) => family.name).sort((a, b) => a.localeCompare(b))
+    const citation = composeNotableCitation(names)
+    if (citation !== null) return citation
+  }
+  return null
 }
 
 export function toAaRows(snapshot: AaSnapshot, day: string): AaSnapshotRow[] {
@@ -80,6 +90,7 @@ export function toAaRows(snapshot: AaSnapshot, day: string): AaSnapshotRow[] {
     priceOut: entry.priceOut,
     outputTokensPerSecond: entry.outputTokensPerSecond ?? null,
     timeToFirstTokenSeconds: entry.timeToFirstTokenSeconds ?? null,
+    costPerTask: entry.costPerTask ?? null,
     releaseDate: entry.releaseDate,
     indexVersion: snapshot.version,
   }))
@@ -98,6 +109,7 @@ export function fromAaRows(rows: readonly AaSnapshotRow[], version: string): AaS
       priceOut: row.priceOut,
       outputTokensPerSecond: row.outputTokensPerSecond ?? null,
       timeToFirstTokenSeconds: row.timeToFirstTokenSeconds ?? null,
+      costPerTask: row.costPerTask ?? null,
       domains: row.domains,
     })),
   }
@@ -113,13 +125,14 @@ function toTrendItem(row: AaSnapshotRow): AaTrendModelItem {
     priceOut: row.priceOut,
     outputTokensPerSecond: row.outputTokensPerSecond ?? null,
     timeToFirstTokenSeconds: row.timeToFirstTokenSeconds ?? null,
+    costPerTask: row.costPerTask ?? null,
     releaseDate: row.releaseDate,
   }
 }
 
 /**
  * 내부 전용(/api/trend/aa, Access JWT 뒤) AA 표 데이터 구성.
- * 우리가 만든 종합 점수 없이 AA 원시 필드만으로 정렬해 상위/하위 10을 뽑는다.
+ * 우리가 만든 종합 점수 없이 AA 원시 필드만으로 정렬한다(지능·작업당 비용 20, 단가·속도·TTFT 10).
  */
 export function buildAaTrendResponse(rows: readonly AaSnapshotRow[]): AaTrendResponse | null {
   if (rows.length === 0) return null
@@ -127,16 +140,18 @@ export function buildAaTrendResponse(rows: readonly AaSnapshotRow[]): AaTrendRes
   const items = rows.map(toTrendItem)
   const byIntelligence = [...items]
     .sort((a, b) => b.intelligenceIndex - a.intelligenceIndex || a.slug.localeCompare(b.slug))
-    .slice(0, TREND_AA_PANEL_LIMIT)
+    .slice(0, TREND_AA_INTELLIGENCE_LIMIT)
 
   const priced = items.filter((item): item is AaTrendModelItem & { priceIn: number; priceOut: number } =>
     item.priceIn !== null && item.priceOut !== null)
   const priceLowest = [...priced]
     .sort((a, b) => a.priceOut - b.priceOut || a.priceIn - b.priceIn || a.slug.localeCompare(b.slug))
     .slice(0, TREND_AA_PANEL_LIMIT)
-  const priceHighest = [...priced]
-    .sort((a, b) => b.priceOut - a.priceOut || b.priceIn - a.priceIn || a.slug.localeCompare(b.slug))
-    .slice(0, TREND_AA_PANEL_LIMIT)
+  const costLowest = items
+    .filter((item): item is AaTrendModelItem & { costPerTask: number } =>
+      item.costPerTask !== null && item.costPerTask > 0)
+    .sort((a, b) => a.costPerTask - b.costPerTask || a.slug.localeCompare(b.slug))
+    .slice(0, TREND_AA_COST_LIMIT)
 
   const speedHighest = items
     .filter((item): item is AaTrendModelItem & { outputTokensPerSecond: number } =>
@@ -156,7 +171,7 @@ export function buildAaTrendResponse(rows: readonly AaSnapshotRow[]): AaTrendRes
     attribution: 'Source: Artificial Analysis (artificialanalysis.ai)',
     intelligenceTop: byIntelligence,
     priceLowest,
-    priceHighest,
+    costLowest,
     speedHighest,
     latencyLowest,
   }

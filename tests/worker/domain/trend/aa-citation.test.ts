@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { buildAaCitation } from '../../../../worker/domain/trend/metrics/aa'
-import { validatedAaCitation } from '../../../../worker/domain/trend/metrics/citation'
+import { parseNotableCitation, validatedAaCitation } from '../../../../worker/domain/trend/metrics/citation'
 import type { AaModelEntry, AaSnapshot } from '../../../../worker/domain/trend/metrics/types'
 
 const entry = (slug: string, name: string, index: number, creator = 'Maker'): AaModelEntry => ({
   slug, name, creator, releaseDate: null, intelligenceIndex: index, priceIn: null, priceOut: null, domains: {},
 })
 const snapshot = (entries: AaModelEntry[]): AaSnapshot => ({ version: '5', entries })
+const PREFIX = '요즘 주목받는 모델은 '
+const SUFFIX = ' 등입니다.'
 
 describe('Given the AA notable-model citation', () => {
-  it('When real-style ranked variants exist Then the sentence lists five normalized families in alphabetical order', () => {
+  it('When real-style ranked variants exist Then the sentence lists seven normalized families in alphabetical order', () => {
     const text = buildAaCitation(snapshot([
       entry('a', 'Claude Fable 5.2 (Max, Default Fallback)', 90, 'Anthropic'),
       entry('b', 'Claude Fable 5.2 (Xhigh, Default Fallback)', 89, 'Anthropic'),
@@ -18,8 +20,19 @@ describe('Given the AA notable-model citation', () => {
       entry('e', 'GPT-6 Astra (Max)', 86, 'OpenAI'),
       entry('f', 'GPT-6.1 Sol (Max)', 85, 'OpenAI'),
       entry('g', 'Gemini 4 Hydrogen (Xhigh)', 84, 'Google'),
+      entry('h', 'Claude Sonnet 5.5 (High)', 83, 'Anthropic'),
+      entry('i', 'GPT-6.1 Terra (Max)', 82, 'OpenAI'),
+      entry('j', 'Gemini 4 Carbon (Low)', 81, 'Google'),
     ]))
-    expect(text).toBe('요즘 주목받는 모델은 Claude Fable, Claude Opus, Gemini Carbon, Gemini Hydrogen, GPT Astra 등입니다.')
+    expect(text).toBe(PREFIX + 'Claude Fable, Claude Opus, Claude Sonnet, Gemini Carbon, Gemini Hydrogen, GPT Astra, GPT Sol' + SUFFIX)
+    const parsed = parseNotableCitation(text!)!
+    const creators: Record<string, number> = { Anthropic: 0, Google: 0, OpenAI: 0 }
+    for (const name of parsed.names) {
+      if (name.startsWith('Claude')) creators.Anthropic += 1
+      else if (name.startsWith('Gemini')) creators.Google += 1
+      else creators.OpenAI += 1
+    }
+    expect(Math.max(...Object.values(creators))).toBeLessThanOrEqual(3)
   })
 
   it('When the sentence is built Then it has no rank word, no number and no index name', () => {
@@ -28,9 +41,9 @@ describe('Given the AA notable-model citation', () => {
       entry('b', 'Claude Fable 5.2 (High)', 98, 'Anthropic'),
     ]))!
     expect(text).not.toMatch(/\d/)
-    expect(text).not.toMatch(/1위|순위|지수|점수|Intelligence Index/)
-    expect(text).toMatch(/^요즘 주목받는 모델은 /)
-    expect(text.endsWith(' 등입니다.')).toBe(true)
+    expect(text).not.toMatch(/1위|순위|지수|점수|등입니다\s*\(/)
+    expect(text.startsWith(PREFIX)).toBe(true)
+    expect(text.endsWith(SUFFIX)).toBe(true)
   })
 
   it('When families have equal scores Then output order is alphabetical, not score order', () => {
@@ -39,7 +52,7 @@ describe('Given the AA notable-model citation', () => {
       entry('b', 'Alpha 3 Prime (High)', 99, 'Maker B'),
       entry('c', 'Mid 2 Core (High)', 99, 'Maker C'),
     ]))!
-    expect(text).toBe('요즘 주목받는 모델은 Alpha Prime, Mid Core, Zeta Fusion 등입니다.')
+    expect(text).toBe(PREFIX + 'Alpha Prime, Mid Core, Zeta Fusion' + SUFFIX)
   })
 
   it('When duplicate families exist Then only one representative per family is listed', () => {
@@ -48,7 +61,7 @@ describe('Given the AA notable-model citation', () => {
       entry('b', 'Claude Fable 5.1 (High)', 89),
       entry('c', 'Claude Fable 4.5 (Low)', 88),
     ]))!
-    expect(text).toBe('요즘 주목받는 모델은 Claude Fable 등입니다.')
+    expect(text).toBe(PREFIX + 'Claude Fable' + SUFFIX)
   })
 
   it('When no entries exist Then no citation is produced', () => {
@@ -59,18 +72,28 @@ describe('Given the AA notable-model citation', () => {
     expect(validatedAaCitation('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')).toBeNull()
   })
 
-  it('When a valid notable sentence round-trips Then projection validation keeps it', () => {
-    const text = '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.'
+  it('When a valid seven-name sentence round-trips Then parser and validation agree', () => {
+    const text = PREFIX + 'Able, Baker, Charlie, Delta, Echo, Foxtrot, Golf' + SUFFIX
     expect(validatedAaCitation(text)).toBe(text)
+    expect(parseNotableCitation(text)?.names).toEqual(['Able', 'Baker', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf'])
+    expect(parseNotableCitation(text)?.prefix).toBe(PREFIX)
+  })
+
+  it('When the citation would exceed the length cap Then it is rejected', () => {
+    const long = 'x'.repeat(80)
+    const names = Array.from({ length: 7 }, (_, index) => `${long} ${index + 1}`)
+    expect(validatedAaCitation(PREFIX + 'A, B' + SUFFIX)).not.toBeNull()
+    expect(validatedAaCitation(PREFIX + names.join(', ') + SUFFIX)).toBeNull()
   })
 
   it.each([
-    ['numbers', '요즘 주목받는 모델은 GPT-6.1 Sol 등입니다.'],
-    ['rank word', '요즘 주목받는 모델은 1위 Sol 등입니다.'],
-    ['unsorted', '요즘 주목받는 모델은 Zeta, Alpha 등입니다.'],
-    ['two sentences', '요즘 주목받는 모델은 Alpha입니다. 둘째 문장 등입니다.'],
-    ['bracketed name', '요즘 주목받는 모델은 [Alpha] 등입니다.'],
+    ['numbers', PREFIX + 'GPT-6.1 Sol' + SUFFIX],
+    ['rank word', PREFIX + '1위 Sol' + SUFFIX],
+    ['unsorted', PREFIX + 'Zeta, Alpha' + SUFFIX],
+    ['two sentences', PREFIX + 'Alpha입니다. 둘째 문장' + SUFFIX],
+    ['bracketed name', PREFIX + '[Alpha]' + SUFFIX],
   ])('When a stored citation contains %s Then it is rejected', (_name, text) => {
     expect(validatedAaCitation(text)).toBeNull()
+    expect(parseNotableCitation(text)).toBeNull()
   })
 })

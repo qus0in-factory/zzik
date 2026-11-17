@@ -2,7 +2,7 @@ import type { AaTrendGateway } from '@domain/trend/aa-gateway'
 import type { AaTrendModelItem, AaTrendResponse } from '@shared/trend-contract'
 
 /** DEV 전용 명백한 합성 AA 표본(?fixture=normal). 실제 AA 수치·모델 조합을 쓰지 않는다. */
-const FIXTURE_ITEMS: AaTrendModelItem[] = [
+const FIXTURE_BASE: Omit<AaTrendModelItem, 'costPerTask'>[] = [
   { slug: 'fixture-alpha-1', name: 'Fixture Alpha 1', creator: 'Synthetic Lab', intelligenceIndex: 90.0, priceIn: 10.0, priceOut: 30.0, outputTokensPerSecond: 100.0, timeToFirstTokenSeconds: 1.0, releaseDate: '2026-11-01' },
   { slug: 'fixture-beta-2', name: 'Fixture Beta 2', creator: 'Synthetic Lab', intelligenceIndex: 88.0, priceIn: 8.0, priceOut: 24.0, outputTokensPerSecond: 120.0, timeToFirstTokenSeconds: 0.9, releaseDate: '2026-11-02' },
   { slug: 'fixture-gamma-3', name: 'Fixture Gamma 3', creator: 'Demo Org', intelligenceIndex: 86.0, priceIn: 6.0, priceOut: 18.0, outputTokensPerSecond: 140.0, timeToFirstTokenSeconds: 0.8, releaseDate: '2026-11-03' },
@@ -17,13 +17,18 @@ const FIXTURE_ITEMS: AaTrendModelItem[] = [
   { slug: 'fixture-mu-12', name: 'Fixture Mu 12', creator: 'Fixture Co', intelligenceIndex: 68.0, priceIn: 0.1, priceOut: 0.3, outputTokensPerSecond: 320.0, timeToFirstTokenSeconds: 0.2, releaseDate: '2026-11-12' },
 ]
 
+const FIXTURE_ITEMS: AaTrendModelItem[] = FIXTURE_BASE.map((item, index) => ({
+  ...item,
+  costPerTask: Number((0.05 + index * 0.05).toFixed(2)),
+}))
+
 export const AA_TREND_FIXTURE: AaTrendResponse = {
   day: '2026-11-14',
   indexVersion: '5.0',
   attribution: 'Source: Artificial Analysis (artificialanalysis.ai)',
-  intelligenceTop: [...FIXTURE_ITEMS].sort((a, b) => b.intelligenceIndex - a.intelligenceIndex).slice(0, 10),
+  intelligenceTop: [...FIXTURE_ITEMS].sort((a, b) => b.intelligenceIndex - a.intelligenceIndex).slice(0, 20),
   priceLowest: [...FIXTURE_ITEMS].sort((a, b) => (a.priceOut ?? 0) - (b.priceOut ?? 0)).slice(0, 10),
-  priceHighest: [...FIXTURE_ITEMS].sort((a, b) => (b.priceOut ?? 0) - (a.priceOut ?? 0)).slice(0, 10),
+  costLowest: [...FIXTURE_ITEMS].sort((a, b) => (a.costPerTask ?? 0) - (b.costPerTask ?? 0)).slice(0, 20),
   speedHighest: [...FIXTURE_ITEMS].sort((a, b) => (b.outputTokensPerSecond ?? 0) - (a.outputTokensPerSecond ?? 0)).slice(0, 10),
   latencyLowest: [...FIXTURE_ITEMS].sort((a, b) => (a.timeToFirstTokenSeconds ?? 0) - (b.timeToFirstTokenSeconds ?? 0)).slice(0, 10),
 }

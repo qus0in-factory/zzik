@@ -106,8 +106,13 @@ export async function refreshMetrics(input: {
       if (aa.ok) {
         try {
           // 내부 패널용으로 상위 50개를 저장하고, 공개 문장은 buildAaCitation이 상위 일부만 본다.
-          const top = rankAa(aa.snapshot.entries).slice(0, TREND_AA_SNAPSHOT_TOP_N).map(({ entry }) => entry)
-          await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
+          const ranked = rankAa(aa.snapshot.entries)
+          const top = ranked.slice(0, TREND_AA_SNAPSHOT_TOP_N).map(({ entry }) => entry)
+          // 작업당 비용은 상위 50개 밖에도 드물게 있다. 비용 표를 채우기 위해 해당 항목만 추가 저장한다.
+          const costBearing = ranked.slice(TREND_AA_SNAPSHOT_TOP_N)
+            .filter(({ entry }) => entry.costPerTask != null && entry.costPerTask > 0)
+            .map(({ entry }) => entry)
+          await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: [...top, ...costBearing] }, day))
           aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }) ?? undefined
           if (aaCitation === undefined) {
             aaStatus = 'stale'
