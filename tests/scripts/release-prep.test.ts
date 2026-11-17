@@ -33,6 +33,7 @@ interface ReleaseStep {
   status: string
   reason?: string
   command?: string[]
+  env?: Record<string, string>
 }
 
 interface ReleaseResult {
@@ -85,7 +86,12 @@ describe('Given the release preparation script', () => {
       expect(calls).toHaveLength(0)
       expect(JSON.parse(readFileSync(pkg.path, 'utf8')).version).toBe('1.2.3')
       expect(result.steps.find((step) => step.name === 'version_patch')).toMatchObject({ status: 'PLAN' })
-      expect(result.steps.find((step) => step.name === 'test_utc')).toMatchObject({ status: 'PLAN' })
+      expect(result.steps.find((step) => step.name === 'test_kst')).toMatchObject({ status: 'PLAN', env: { TZ: 'Asia/Seoul' } })
+      expect(result.steps.find((step) => step.name === 'check_hangul_spacing')).toMatchObject({ status: 'PLAN' })
+      expect(result.steps.find((step) => step.name === 'test_utc')).toBeUndefined()
+      expect(result.steps.find((step) => step.name === 'typecheck')).toBeUndefined()
+      expect(result.steps.find((step) => step.name === 'typecheck_collector')).toBeUndefined()
+      expect(result.steps.find((step) => step.name === 'build')).toBeUndefined()
       expect(result.steps.find((step) => step.name === 'ci_wait')).toMatchObject({ status: 'PLAN' })
     } finally {
       rmSync(pkg.directory, { recursive: true, force: true })
@@ -97,6 +103,7 @@ describe('Given the release preparation script', () => {
     const { calls, execute } = makeExecutor((command, args) => {
       if (command === 'git' && args[0] === 'rev-parse') return { stdout: 'dev\n' }
       if (command === 'git' && args[0] === 'status') return { stdout: '' }
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') return { stdout: '[]\n' }
       return { stdout: 'ok\n' }
     })
     try {
@@ -109,13 +116,13 @@ describe('Given the release preparation script', () => {
 
       const pnpm = (script: string) => calls.find((call) => call.command === 'pnpm' && call.args[0] === script)
       const kst = calls.filter((call) => call.command === 'pnpm' && call.args[0] === 'test')
-      expect(kst).toHaveLength(2)
-      expect(kst[0]?.env?.TZ).toBeUndefined()
-      expect(kst[1]?.env?.TZ).toBe('UTC')
+      expect(kst).toHaveLength(1)
+      expect(kst[0]?.env?.TZ).toBe('Asia/Seoul')
       expect(pnpm('screenshot:readme')).toBeDefined()
-      expect(pnpm('typecheck')).toBeDefined()
-      expect(pnpm('typecheck:collector')).toBeDefined()
-      expect(pnpm('build')).toBeDefined()
+      expect(pnpm('typecheck')).toBeUndefined()
+      expect(pnpm('typecheck:collector')).toBeUndefined()
+      expect(pnpm('build')).toBeUndefined()
+      expect(calls.find((call) => call.command === 'node' && call.args[0] === 'scripts/check-hangul-spacing.mjs')).toBeDefined()
 
       expect(calls.find((call) => call.command === 'git' && call.args[0] === 'add')?.args).toEqual([
         'add',
@@ -124,10 +131,48 @@ describe('Given the release preparation script', () => {
       ])
       expect(calls.find((call) => call.command === 'git' && call.args[0] === 'commit')?.args).toEqual(['commit', '-m', 'chore: release 1.2.4'])
       expect(calls.find((call) => call.command === 'git' && call.args[0] === 'push')?.args).toEqual(['push', 'origin', 'dev'])
+      expect(calls.find((call) => call.command === 'gh' && call.args[0] === 'pr' && call.args[1] === 'list')).toBeDefined()
       expect(calls.find((call) => call.command === 'gh' && call.args[0] === 'pr' && call.args[1] === 'create')?.args).toEqual(
         expect.arrayContaining(['-B', 'main', '-H', 'dev']),
       )
       expect(calls.find((call) => call.command === 'gh' && call.args[0] === 'pr' && call.args[1] === 'checks')?.args).toEqual(['pr', 'checks', '--watch'])
+    } finally {
+      rmSync(pkg.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('When an open dev PR already exists Then reuses it and still waits for checks', async () => {
+    const pkg = makePackage()
+    const { calls, execute } = makeExecutor((command, args) => {
+      if (command === 'git' && args[0] === 'rev-parse') return { stdout: 'dev\n' }
+      if (command === 'git' && args[0] === 'status') return { stdout: '' }
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') return { stdout: '[{"number":42}]\n' }
+      return { stdout: 'ok\n' }
+    })
+    try {
+      const result = (await runReleasePrep({ cwd: pkg.directory, apply: true, execute })) as ReleaseResult
+      expect(result.ok).toBe(true)
+      expect(result.steps.find((step) => step.name === 'pull_request')).toMatchObject({ status: 'PASS', reason: 'existing_pr_reused' })
+      expect(calls.some((call) => call.command === 'gh' && call.args[0] === 'pr' && call.args[1] === 'create')).toBe(false)
+      expect(calls.find((call) => call.command === 'gh' && call.args[0] === 'pr' && call.args[1] === 'checks')).toBeDefined()
+    } finally {
+      rmSync(pkg.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('When the open-PR lookup fails Then stops before creating a PR or waiting for checks', async () => {
+    const pkg = makePackage()
+    const { calls, execute } = makeExecutor((command, args) => {
+      if (command === 'git' && args[0] === 'rev-parse') return { stdout: 'dev\n' }
+      if (command === 'git' && args[0] === 'status') return { stdout: '' }
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'list') return { exitCode: 1, stderr: 'synthetic gh failure' }
+      return { stdout: 'ok\n' }
+    })
+    try {
+      const result = (await runReleasePrep({ cwd: pkg.directory, apply: true, execute })) as ReleaseResult
+      expect(result).toMatchObject({ ok: false, reason: 'command_failed', failedStep: 'pull_request_check' })
+      expect(calls.some((call) => call.command === 'gh' && call.args[0] === 'pr' && call.args[1] === 'create')).toBe(false)
+      expect(calls.some((call) => call.command === 'gh' && call.args[0] === 'pr' && call.args[1] === 'checks')).toBe(false)
     } finally {
       rmSync(pkg.directory, { recursive: true, force: true })
     }

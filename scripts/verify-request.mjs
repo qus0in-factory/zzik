@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url'
 const VERSION = /^\d+\.\d+(?:\.\d+)?$/
 
 /**
- * @param {{version?:string,summary?:string,checks?:readonly string[]}} input
+ * @param {{version?:string,summary?:string,checks?:readonly string[],done?:boolean,next?:string}} input
  * @returns {{ok:true,body:string}|{ok:false,reason:'invalid_version'|'summary_required'|'checks_required'}}
  */
 export function verifyRequestBody(input) {
@@ -18,6 +18,25 @@ export function verifyRequestBody(input) {
   if (!VERSION.test(version)) return { ok: false, reason: 'invalid_version' }
   if (summary === '') return { ok: false, reason: 'summary_required' }
   if (checks.length === 0 || checks.length !== (input.checks ?? []).length) return { ok: false, reason: 'checks_required' }
+  if (input.done === true) {
+    const next = (input.next ?? '').trim() || '추가 조치는 없습니다.'
+    return {
+      ok: true,
+      body: [
+        `버전: ${version}`,
+        '',
+        '바뀐 것',
+        summary,
+        '',
+        '검증',
+        ...checks.map((check) => `- ${check}`),
+        '',
+        '다음',
+        next,
+        '',
+      ].join('\n'),
+    }
+  }
   const body = [
     `버전: ${version}`,
     '',
@@ -39,8 +58,9 @@ export function verifyRequestBody(input) {
 
 function usage() {
   process.stderr.write(
-    'node scripts/verify-request.mjs --version <version> --summary <text> --check <item> [--check <item>...]\n' +
-      'Writes the confirmation body to stdout. It does not send Discord. Pipe stdout to scripts/notify-discord.sh.\n',
+    'node scripts/verify-request.mjs [--done [--next <text>]] --version <version> --summary <text> --check <item> [--check <item>...]\n' +
+      'Default: confirmation request (changed/verified/please-check/next). --done: completion notice (changed/verified/next).\n' +
+      'Writes only the body to stdout. It does not send Discord. Pipe stdout to scripts/notify-discord.sh.\n',
   )
 }
 
@@ -52,6 +72,8 @@ function main() {
   }
   let version = ''
   let summary = ''
+  let done = false
+  let next = ''
   /** @type {string[]} */
   const checks = []
   for (let i = 0; i < args.length; i += 1) {
@@ -59,13 +81,20 @@ function main() {
     if (arg === '--version' && args[i + 1] && !args[i + 1].startsWith('--')) version = args[++i]
     else if (arg === '--summary' && args[i + 1] && !args[i + 1].startsWith('--')) summary = args[++i]
     else if (arg === '--check' && args[i + 1] && !args[i + 1].startsWith('--')) checks.push(args[++i])
+    else if (arg === '--done') done = true
+    else if (arg === '--next' && args[i + 1] && !args[i + 1].startsWith('--')) next = args[++i]
     else {
       process.stderr.write('invalid_arguments\n')
       process.exitCode = 64
       return
     }
   }
-  const built = verifyRequestBody({ version, summary, checks })
+  if (!done && next !== '') {
+    process.stderr.write('invalid_arguments\n')
+    process.exitCode = 64
+    return
+  }
+  const built = verifyRequestBody({ version, summary, checks, done, next })
   if (!built.ok) {
     process.stderr.write(`${built.reason}\n`)
     process.exitCode = 64

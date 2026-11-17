@@ -35,6 +35,45 @@ describe('Given a deployment confirmation request', () => {
   })
 })
 
+describe('Given a deployment completion notice', () => {
+  it('When --done is selected Then the body has changed/verified/next and no confirmation section', () => {
+    const built = verifyRequestBody({
+      version: '0.6.29',
+      summary: '릴리스 절차를 줄였다.',
+      checks: ['tests/scripts 단위 테스트', 'pnpm typecheck'],
+      done: true,
+      next: '다음 릴리스에서 CI 대기만 확인한다.',
+    })
+    expect(built.ok).toBe(true)
+    const body = built.body as string
+    expect(body).toContain('버전: 0.6.29')
+    expect(body).toContain('바뀐 것\n릴리스 절차를 줄였다.')
+    expect(body).toContain('검증\n- tests/scripts 단위 테스트\n- pnpm typecheck')
+    expect(body).toContain('다음\n다음 릴리스에서 CI 대기만 확인한다.')
+    expect(body).not.toContain('확인 부탁')
+    expect(body).not.toContain('완료 보고가 아닙니다')
+    expect(body).not.toContain('배포 완료로 보고하지 않습니다')
+  })
+
+  it('When --done omits next Then uses a neutral next line', () => {
+    const built = verifyRequestBody({
+      version: '0.6.29',
+      summary: '변경',
+      checks: ['항목'],
+      done: true,
+    })
+    expect(built.ok).toBe(true)
+    expect(built.body as string).toContain('다음\n추가 조치는 없습니다.')
+    expect(built.body as string).not.toContain('확인 부탁')
+  })
+
+  it('When --done is used without a required field Then refuses the body', () => {
+    expect(verifyRequestBody({ version: '', summary: '변경', checks: ['항목'], done: true })).toMatchObject({ ok: false })
+    expect(verifyRequestBody({ version: '0.6.29', summary: '  ', checks: ['항목'], done: true })).toMatchObject({ ok: false })
+    expect(verifyRequestBody({ version: '0.6.29', summary: '변경', checks: [], done: true })).toMatchObject({ ok: false })
+  })
+})
+
 describe('Given the confirmation request CLI', () => {
   it('When invoked Then prints only the body and does not read a webhook from the environment', () => {
     const result = spawnSync(
@@ -50,6 +89,19 @@ describe('Given the confirmation request CLI', () => {
     expect(result.stdout).toContain('다음')
     expect(`${result.stdout}${result.stderr}`).not.toContain('synthetic-secret')
     expect(result.stdout).not.toContain('curl')
+  })
+
+  it('When --done is selected Then prints the completion body without the confirmation section', () => {
+    const result = spawnSync(
+      process.execPath,
+      [SCRIPT, '--done', '--version', '0.6.29', '--summary', '배포를 마쳤다.', '--check', '302 경로', '--next', '운영 로그를 본다.'],
+      { encoding: 'utf8' },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('바뀐 것\n배포를 마쳤다.')
+    expect(result.stdout).toContain('검증\n- 302 경로')
+    expect(result.stdout).toContain('다음\n운영 로그를 본다.')
+    expect(result.stdout).not.toContain('확인 부탁')
   })
 
   it('When checks are omitted Then exits 64 and writes nothing to stdout', () => {
