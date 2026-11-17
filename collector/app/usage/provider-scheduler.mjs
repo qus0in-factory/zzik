@@ -49,6 +49,7 @@ export function createProviderScheduler(options){
      else if(provider.id==='claude' && provider.degrade && effectiveIntervalSec(provider,state,now)<effectiveIntervalSec(provider,update.value.state,options.clock.now()))await notify('claude_rate_limited_degraded',provider.id)
      else if(skew)await notify(update.value.state.clockStopped?'clock_skew_stopped':'clock_skew',provider.id)
      else if(outcome?.reason==='queue_limit')await notify('queue_limit',provider.id)
+     if(update.ok && upstream && !stopping && provider.afterRun) { try { void Promise.resolve(provider.afterRun()).catch(()=>{}) } catch {} }
     }).catch(async()=>{
      // Provider-local failure: advance only this provider's due time. A local
      // ledger failure still stops the pump because the shared ledger is unusable.

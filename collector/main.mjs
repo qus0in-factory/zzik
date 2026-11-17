@@ -18,6 +18,9 @@
  * 원격 쓰기는 공용 D1 REST query lane에서 직렬 전송한다.
  */
 
+import {createPlanModelsProbe} from './app/trend/plan-models-probe.mjs'
+import {createGrokModelsClient} from './infra/trend/grok-models-client.mjs'
+import {createPlanProbeState} from './infra/trend/plan-probe-state.mjs'
 import {OFFPEAK_SCHEDULE} from '../shared/offpeak-schedule.ts'
 import {formatOffpeakMessage} from './domain/usage/offpeak-notification.mjs'
 import {createOffpeakScheduler} from './app/usage/offpeak-scheduler.mjs'
@@ -64,6 +67,9 @@ import { join } from 'node:path'
 const alertConfig = readAlertConfig(process.env)
 const alerts = createDiscordAlerts({ ...alertConfig, fetchImpl:globalThis.fetch, log:line => process.stdout.write(`${line}\n`) })
 const VERSION = USAGE_COLLECTOR_VERSION
+const agyOptions={path:process.env.ZZIK_AGY_CLI_PATH??'agy',enabled:process.env.ZZIK_AGY_CLI_ENABLED!=='0'}
+let quotaSequence=0,quotaClosed=false
+const runQuota=()=>{const sequence=++quotaSequence;quotaClosed=false;return runAgyQuotaCli({...agyOptions,onClose:()=>{if(sequence===quotaSequence)quotaClosed=true}})}
 /** @type {{mode:'d1',intervalSec:number,retentionDays:number,intervals?:Record<string,number>,oauthProfile?:string}} */
 let storageConfig = {mode:'d1',intervalSec:900,retentionDays:30}
 const STATE_DIR = process.env.ZZIK_STATE_DIR ?? join(homedir(), 'Library', 'Application Support', 'zzik')
@@ -156,7 +162,7 @@ function buildProviderPorts(provider, { credentialsPath, dryRun }) {
       : provider === 'ollama'
       ? createOllamaUsageClient({ fetchImpl: globalThis.fetch, host: OLLAMA_HOST })
       : provider === 'antigravity'
-      ? createAntigravityCliUsageClient({ runQuota: () => runAgyQuotaCli({ path: process.env.ZZIK_AGY_CLI_PATH ?? 'agy', enabled: process.env.ZZIK_AGY_CLI_ENABLED !== '0' }) })
+      ? createAntigravityCliUsageClient({ runQuota })
       : provider === 'codex'
       ? createCodexUsageClient({ fetchImpl: globalThis.fetch })
       : createClaudeUsageClient({ fetchImpl: globalThis.fetch })
@@ -253,6 +259,7 @@ async function startD1(flags){
   const notice=createCollectorNotice({...readAlertConfig(process.env),fetchImpl:globalThis.fetch,log:line=>process.stderr.write(line+'\n')})
   /** @type {ReturnType<typeof createD1Resident>|null} */let activeRuntime=null
   /** @type {ReturnType<typeof createOffpeakRuntime>} */let offpeak=null
+  /** @type {ReturnType<typeof createPlanModelsProbe>|null} */let planProbe=null
   /** @type {()=>boolean} */let startupStopped=()=>false
   const credentials=process.env.ZZIK_D1_AUTH==='wrangler-oauth'?createWranglerOAuthCredentials({file:createWranglerOAuthFile({path:defaultWranglerOAuthPath(storageConfig.oauthProfile)}),refresh:createWranglerOAuthRefresh({profile:storageConfig.oauthProfile}),clock}):undefined
   const query=createD1RestClient({credentials,mode:'d1',dryRun:false,control,clock,canRequest:()=>!startupStopped()&&(activeRuntime?.canRequest()??true),
@@ -263,7 +270,7 @@ async function startD1(flags){
   const gate=createStartupGate({timer:createCollectorTimer(),
     reconcile:stop=>{startupStopped=stop;return reconcileD1Startup({ledger,query,clock,providers:providers.map(bundle=>/** @type {import('../shared/usage-contract.ts').UsageProvider} */(bundle.id)),notifyAlerts})},
     closeStartup:async()=>{ledger.close()},
-    onReady:()=>{activeRuntime=createD1Resident({ledger,control,query,clock,notice,notifyAlerts,timer:createCollectorTimer(),random:Math.random,operationId:randomUUID,providers,intervals:storageConfig.intervals??{},retentionDays:storageConfig.retentionDays,collectorVersion:VERSION,once:flags.once,shutdownPending:()=>offpeak?[offpeak.stop()]:[]});return activeRuntime},
+    onReady:()=>{activeRuntime=createD1Resident({ledger,control,query,clock,notice,notifyAlerts,timer:createCollectorTimer(),random:Math.random,operationId:randomUUID,providers,intervals:storageConfig.intervals??{},retentionDays:storageConfig.retentionDays,collectorVersion:VERSION,once:flags.once,afterProviderRun:provider=>{if(provider==='antigravity')void planProbe?.afterAgyQuota(quotaClosed).catch(()=>{})},shutdownPending:()=>[...(offpeak?[offpeak.stop()]:[]),...(planProbe?[planProbe.shutdown()]:[])]});return activeRuntime},
   })
   bindShutdown({shutdown:()=>offpeak?offpeak.shutdownWith(gate,createCollectorTimer()):gate.shutdown()})
   const reconciled=/** @type {Awaited<ReturnType<typeof reconcileD1Startup>>} */(await gate.start())
@@ -274,6 +281,15 @@ async function startD1(flags){
     const result=await resumeQuarantinedProvider({mode:'d1',provider:/** @type {import('../shared/usage-contract.ts').UsageProvider} */(flags.resumeWithoutQuarantine),ledger,query,resume:(provider,facts)=>active.resumeWithoutQuarantine(provider,facts)})
     process.stdout.write(JSON.stringify({ok:result.ok,...(!result.ok?{reason:result.reason}:{})})+'\n')
     await active.shutdown();process.exit(result.ok?0:3);return
+  }
+  if(!flags.once){
+    planProbe=createPlanModelsProbe({providers:providers.map(provider=>provider.id),clock,timer:createCollectorTimer(),state:createPlanProbeState({path:join(STATE_DIR,'plan-probe.json')}),retryState:createPlanProbeState({path:join(STATE_DIR,'plan-probe-retry.json')}),
+      quotaTriggered:true,runAgy:()=>runAgyQuotaCli({...agyOptions,args:['models'],timeoutMs:5000}),
+      readClaude:()=>{const result=ledger.read('claude');return result.ok?result.value.state.previous?.rawText??null:null},
+      readGrok:()=>createGrokModelsClient({fetchImpl:globalThis.fetch,readCredentials:()=>readGrokBuildCredentials(flags.credentialsPath??undefined)}).read(),query,
+      claimNotice:(provider,at)=>{const result=ledger.claimMaintenanceNotice('plan_probe_failed_'+provider,at);return result.ok&&result.value},
+      notice:provider=>notice.notify({reason:'plan_probe_failed',provider:/** @type {'claude'|'antigravity'|'grok'} */(provider)})})
+    void planProbe.start()
   }
   active.start()
   offpeak=createOffpeakRuntime({once:flags.once,dryRun:flags.dryRun,resume:flags.resumeWithoutQuarantine!==null,enabled:process.env.ZZIK_OFFPEAK_NOTIFY!=='0'&&alertConfig.enabled,webhook:!!alertConfig.webhookUrl,create:()=>createOffpeakScheduler({schedule:OFFPEAK_SCHEDULE,clock,timer:createCollectorTimer(),state:createOffpeakState({path:join(STATE_DIR,'offpeak-notify.json')}),send:events=>alerts.sendMessage(formatOffpeakMessage(events,clock.now()),events.length),notifyStateFailure:()=>notice.notify({reason:'offpeak_state_failed'}),log:line=>process.stderr.write(`${line}\n`)})})

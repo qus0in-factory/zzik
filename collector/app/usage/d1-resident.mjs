@@ -4,7 +4,7 @@ import { createD1Maintenance } from './d1-maintenance.mjs'
 import { runLedgerMaintenance } from './run-ledger-maintenance.mjs'
 import { runD1Provider } from './run-d1-provider.mjs'
 import { createQuiescer } from './quiesce.mjs'
-/** @param {{ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,query:import('../../domain/usage/d1-sender-types.ts').D1QueryPort,timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,clock:{now():number},random:()=>number,operationId:()=>string,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort,notifyAlerts:(alerts:unknown[])=>Promise<void>,providers:Array<{id:string,ports:import('../../domain/usage/ports.mjs').CollectorPorts,runOptions?:object}>,intervals:Record<string,number>,retentionDays:number,collectorVersion:string,once?:boolean,shutdownPending?:()=>Promise<unknown>[]}} options */
+/** @param {{ledger:import('../../domain/usage/d1-ledger-types.ts').LedgerPort,control:import('../../domain/usage/d1-sender-types.ts').D1ControlPort,query:import('../../domain/usage/d1-sender-types.ts').D1QueryPort,timer:import('../../domain/usage/scheduler-types.ts').CollectorTimer,clock:{now():number},random:()=>number,operationId:()=>string,notice:import('../../domain/usage/d1-sender-types.ts').D1NoticePort,notifyAlerts:(alerts:unknown[])=>Promise<void>,providers:Array<{id:string,ports:import('../../domain/usage/ports.mjs').CollectorPorts,runOptions?:object}>,intervals:Record<string,number>,retentionDays:number,collectorVersion:string,once?:boolean,shutdownPending?:()=>Promise<unknown>[],afterProviderRun?:(provider:string)=>void}} options */
 export function createD1Resident(options){
  let stopping=false,started=false
  /** @type {()=>void} */let cancel=()=>{}
@@ -15,6 +15,7 @@ export function createD1Resident(options){
  const maintenance=createD1Maintenance({...options,mode:'d1',dryRun:false,noticeState:{claim:(reason,atMs)=>options.ledger.claimMaintenanceNotice(reason,atMs)}})
  const scheduler=createProviderScheduler({...options,mode:'d1',canCollect:provider=>sender.canCollect(provider)&&(!options.once||!completed.has(provider)),providers:options.providers.map(bundle=>({
   id:/** @type {import('../../../shared/usage-contract.ts').UsageProvider} */(bundle.id),intervalSec:options.intervals[bundle.id],degrade:bundle.id==='claude'?{intervalSec:900}:undefined,
+  afterRun:()=>options.afterProviderRun?.(bundle.id),
   run:async context=>{const result=await runD1Provider({...options,provider:/** @type {import('../../../shared/usage-contract.ts').UsageProvider} */(bundle.id),intervalSec:options.intervals[bundle.id],degrade:bundle.id==='claude'?{intervalSec:900}:undefined,ports:bundle.ports,runOptions:bundle.runOptions,context});completed.add(bundle.id);return result},
  }))})
  const pump=()=>{
