@@ -11,7 +11,7 @@ import type {
   TrendSourceState,
   TrendSectionPayload,
 } from '../../../shared/trend-contract'
-import { buildAaCitation, rankAa, toAaRows } from '../../domain/trend/metrics/aa'
+import { AA_NOTABLE_SCAN_N, buildAaCitation, rankAa, toAaRows } from '../../domain/trend/metrics/aa'
 import { buildOrBlock, orAttribution } from '../../domain/trend/metrics/or'
 import { addDays, utcDay } from '../../domain/trend/metrics/types'
 import { writeSectionChecked } from './refresh-trend'
@@ -104,9 +104,9 @@ export async function refreshMetrics(input: {
       const aa = await aaSource.fetch(nowMs)
       if (aa.ok) {
         try {
-          const top = rankAa(aa.snapshot.entries).slice(0, 2).map(({ entry }) => entry)
+          const top = rankAa(aa.snapshot.entries).slice(0, AA_NOTABLE_SCAN_N).map(({ entry }) => entry)
           await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
-          aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }, day) ?? undefined
+          aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }) ?? undefined
           if (aaCitation === undefined) {
             aaStatus = 'stale'
             aaReason = 'rejected'
