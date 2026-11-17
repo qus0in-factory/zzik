@@ -41,12 +41,10 @@ function noteText(group: TrendPlanGroup): string | null {
   }
 }
 
-function badge(text: string, tone: 'default' | 'warn' | 'muted' = 'default'): ReactNode {
-  const classes = tone === 'warn'
-    ? 'border-destructive/30 bg-destructive/10 text-destructive'
-    : tone === 'muted'
-      ? 'border-border text-muted-foreground'
-      : 'border-primary/30 bg-primary/10 text-primary'
+function badge(text: string, tone: 'default' | 'muted' = 'default'): ReactNode {
+  const classes = tone === 'muted'
+    ? 'border-border text-muted-foreground'
+    : 'border-primary/30 bg-primary/10 text-primary'
   return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${classes}`}>{text}</span>
 }
 
@@ -62,7 +60,7 @@ function ItemRow({ item }: { item: TrendPlanItem }): ReactNode {
         </span>
       </span>
       <span className="flex shrink-0 items-center gap-1">
-        {badge(confidenceLabel(item.confidence), item.confidence === 'partial' ? 'warn' : 'muted')}
+        {badge(confidenceLabel(item.confidence), 'muted')}
       </span>
     </li>
   )
@@ -74,7 +72,7 @@ function PlanCard({ group }: { group: TrendPlanGroup }): ReactNode {
     <div data-testid={`trend-plan-${group.id}`} className="rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{planTitle(group.id)}</h3>
-        {group.status === 'partial' && badge(t('trend.planModels.partial'), 'warn')}
+        {group.status === 'partial' && badge(t('trend.planModels.partial'), 'muted')}
         {group.status === 'unavailable' && badge(t('trend.planModels.unavailable'), 'muted')}
       </div>
       {note !== null && <p className="mt-1 text-xs leading-5 text-muted-foreground">{note}</p>}
