@@ -5,7 +5,7 @@ import type {
   TrendSection,
   TrendSectionPayload,
 } from '../../../../shared/trend-contract'
-import type { TrendSectionRow } from '../store'
+import type { TrendSectionRow, TrendSourceStateRow } from '../store'
 
 export type PlanSourceFailureReason = 'http' | 'network' | 'invalid' | 'too_large'
 
@@ -52,4 +52,5 @@ export interface PlanStore {
   readObservations(): Promise<PlanObservationRow[]>
   /** plan 단위 첫 관측이면 baseline=1, 이후 관측은 기존 first_seen_at/baseline을 유지한다. */
   upsertObservations(plan: string, source: string, observations: readonly PlanObservation[], nowMs: number): Promise<void>
+  writeSourceState?(row: TrendSourceStateRow): Promise<void>
 }

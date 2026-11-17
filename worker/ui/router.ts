@@ -16,6 +16,7 @@ export interface RouterDependencies {
   buckets?: BucketStore | null
   store: SnapshotStore
   trend?: TrendStore | null
+  now?: () => number
   assets: { fetch(request: Request): Promise<Response> }
 }
 export function createRouter(deps: RouterDependencies) {
@@ -33,7 +34,7 @@ export function createRouter(deps: RouterDependencies) {
     if (!auth.ok) return respond({ error: auth.reason === 'unavailable' ? 'jwks_unavailable' : 'unauthorized' }, auth.reason === 'unavailable' ? 503 : 401)
     await next()
   })
-  app.route('/pub/trend', createTrendRoute(deps.trend ?? null))
+  app.route('/pub/trend', createTrendRoute(deps.trend ?? null, deps.now))
   if(deps.history) app.route('/api/usage-history', createUsageHistoryRoute(deps.history, deps.buckets ?? null))
   app.route('/api/usage', createUsageRoute(deps.store))
   app.notFound(() => respond({ error: 'not_found' }, 404))

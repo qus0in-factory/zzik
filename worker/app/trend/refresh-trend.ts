@@ -7,6 +7,7 @@ import type { TrendSection, TrendSectionPayload, TrendSourceState } from '../../
 import { buildFreeModels } from '../../domain/trend/sections/free-models'
 import { buildNewModels } from '../../domain/trend/sections/new-models'
 import type { TrendModelRecord, TrendSource, TrendSourceFailure, TrendSourceFetchResult } from '../../domain/trend/sources'
+import { sectionStateSourceId } from '../../domain/trend/store'
 import type { TrendSourceStateRow, TrendStore } from '../../domain/trend/store'
 
 export type TrendRefreshResult =
@@ -69,12 +70,31 @@ function isFresh(fetched: TrendSourceFetchResult | TrendSourceFailure): fetched 
   return fetched.ok && !fetched.notModified
 }
 
-async function safeWriteSourceState(store: TrendStore, row: TrendSourceStateRow): Promise<void> {
+export async function safeWriteSourceState(
+  store: { writeSourceState?: (row: TrendSourceStateRow) => Promise<void> },
+  row: TrendSourceStateRow,
+): Promise<void> {
+  if (store.writeSourceState === undefined) return
   try {
     await store.writeSourceState(row)
   } catch {
     // D1 일시 오류로 다른 출처나 섹션 전체가 중단되지 않도록 격리한다.
   }
+}
+
+/** 섹션 평가가 written/unchanged로 끝났을 때만 가상 source 'section:<id>'에 성공 시각을 남긴다. */
+export async function writeSectionChecked(
+  store: { writeSourceState?: (row: TrendSourceStateRow) => Promise<void> },
+  section: TrendSection,
+  nowMs: number,
+): Promise<void> {
+  await safeWriteSourceState(store, {
+    source: sectionStateSourceId(section),
+    etag: null,
+    fetchedAt: nowMs,
+    ok: true,
+    httpStatus: null,
+  })
 }
 
 async function fetchOnce(store: TrendStore, source: TrendSource, etag: string | null, nowMs: number): Promise<FetchedSource> {
@@ -158,6 +178,7 @@ async function applyNewModels(
   const payload = buildNewModels({ modelsDev: modelsDevRecords, openrouter: openrouterRecords, previous, sources, nowMs })
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
+  await writeSectionChecked(store, 'new-models', nowMs)
   return { ok: true, skipped: false, written: !unchanged, count: payload.items.length, status: unchanged ? 'unchanged' : 'written' }
 }
 
@@ -181,6 +202,7 @@ async function applyFreeModels(
   const stale = payload.sources.some((source) => source.status === 'stale')
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
+  await writeSectionChecked(store, 'free-models', nowMs)
   return { ok: !stale, written: !unchanged, count: payload.items.length, stale, status: unchanged ? 'unchanged' : 'written' }
 }
 

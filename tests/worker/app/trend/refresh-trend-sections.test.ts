@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   TREND_SOURCE_MODELS_DEV,
   TREND_SOURCE_OPENCODE_GO,
-  TREND_SOURCE_OPENCODE_ZEN,
   TREND_SOURCE_OPENROUTER,
 } from '../../../../shared/trend-contract'
 import type { TrendSection, TrendSectionPayload } from '../../../../shared/trend-contract'
@@ -96,7 +95,6 @@ describe('Given the multi-source trend refresh', () => {
       nowMs: NOW,
       sources: [
         scripted(TREND_SOURCE_MODELS_DEV, [ok([model()], '"md"')]),
-        scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([])]),
         scripted(TREND_SOURCE_OPENCODE_GO, [ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', price: { input: 0, output: 0 }, free: true, limitedTime: true })])]),
         scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')])]),
       ],
@@ -183,8 +181,8 @@ describe('Given the multi-source trend refresh', () => {
       ok([model({ canonicalId: 'tencent/hy4-flash', provider: 'opencode-go', modelId: 'hy4-flash-free', name: 'Hy4 flash Free', creator: '', releaseDate: null, releasePrecision: 'unknown', releaseMs: null, price: { input: 0, output: 0 }, free: true, openWeights: false })]),
     ])
     const router = scripted(TREND_SOURCE_OPENROUTER, [
-      ok([orModel('inclusionai/ling-3.2-flash')]),
-      ok([orModel('inclusionai/ling-3.2-flash')]),
+      ok([orModel('inclusionai/ling-3.2-flash', { name: 'Ling 3.2 Flash' })]),
+      ok([orModel('inclusionai/ling-3.2-flash', { name: 'Ling 3.2 Flash' })]),
     ])
     await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, router] })
     const freeBefore = section(store, 'free-models').items
@@ -201,10 +199,10 @@ describe('Given the multi-source trend refresh', () => {
     const store = new FakeStore()
     seedObservations(store)
     const modelsDev = scripted(TREND_SOURCE_MODELS_DEV, [ok([model()], '"md"'), notModified('"md"')])
-    const zen = scripted(TREND_SOURCE_OPENCODE_ZEN, [ok([]), notModified('"z"')])
+    const go = scripted(TREND_SOURCE_OPENCODE_GO, [ok([]), notModified('"g"')])
     const router = scripted(TREND_SOURCE_OPENROUTER, [ok([orModel('inclusionai/ling-3.2-flash')], '"o"'), notModified('"o"')])
-    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, zen, router] })
-    const result = await refreshTrendSections({ store, nowMs: NOW + 8 * DAY, sources: [modelsDev, zen, router] })
+    await refreshTrendSections({ store, nowMs: NOW, sources: [modelsDev, go, router] })
+    const result = await refreshTrendSections({ store, nowMs: NOW + 8 * DAY, sources: [modelsDev, go, router] })
     expect(result.newModels).toMatchObject({ count: 0, written: true })
     expect(section(store, 'new-models').items).toEqual([])
   })
@@ -216,7 +214,7 @@ describe('Given the multi-source trend refresh', () => {
       nowMs: NOW,
       sources: [
         scripted(TREND_SOURCE_MODELS_DEV, [failed]),
-        scripted(TREND_SOURCE_OPENCODE_ZEN, [failed]),
+        scripted(TREND_SOURCE_OPENCODE_GO, [failed]),
         scripted(TREND_SOURCE_OPENROUTER, [failed]),
       ],
     })

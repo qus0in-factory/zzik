@@ -9,7 +9,7 @@ import { TREND_CRON } from '../../worker/domain/usage/export'
 const migration1 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0001_d1_storage.sql', import.meta.url)), 'utf8')
 const migration2 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0002_trend.sql', import.meta.url)), 'utf8')
 const migration3 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0003-trend-plan-observation.sql', import.meta.url)), 'utf8')
-const NOW = Date.parse('2026-11-17T00:00:00.000Z')
+const NOW = Date.now()
 const models = {
   anthropic: {
     id: 'anthropic',
@@ -160,6 +160,9 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
       { source: 'go-models', etag: null, ok: 1, status: 200 },
       { source: 'models.dev', etag: '"v1"', ok: 1, status: 200 },
       { source: 'openrouter', etag: null, ok: 1, status: 200 },
+      { source: 'section:free-models', etag: null, ok: 1, status: null },
+      { source: 'section:new-models', etag: null, ok: 1, status: null },
+      { source: 'section:plan-models', etag: null, ok: 1, status: null },
     ])
 
     const response = await mf.dispatchFetch('http://localhost/pub/trend/new-models')
@@ -200,16 +203,23 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(freeNotModified.status).toBe(304)
   })
 
-  it('When the next trend cron gets 304 from models.dev Then keeps section hashes and records each source state', async () => {
+  it('When the next trend cron gets 304 from models.dev Then keeps section hashes and advances checkedAt', async () => {
     const worker = await mf.getWorker() as unknown as {
       scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
     }
     const before = await db.prepare('SELECT section, payload_sha256 AS sha FROM trend_section ORDER BY section').all<{ section: string; sha: string }>()
-    await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW + 7_200_000 })
+    const nextRun = NOW + 1_800_000
+    await worker.scheduled({ cron: TREND_CRON, scheduledTime: nextRun })
     const after = await db.prepare('SELECT section, payload_sha256 AS sha FROM trend_section ORDER BY section').all<{ section: string; sha: string }>()
     expect(after.results).toEqual(before.results)
     const state = await db.prepare('SELECT http_status AS status FROM trend_source_state WHERE source = ?').bind('models.dev').all<{ status: number }>()
     expect(state.results[0]?.status).toBe(304)
+    const index = await mf.dispatchFetch('http://localhost/pub/trend')
+    const indexBody = await index.json() as { sections: Array<{ id: string; generatedAt: string; checkedAt?: string }> }
+    expect(indexBody.sections.find((sec) => sec.id === 'new-models')).toMatchObject({
+      generatedAt: new Date(NOW).toISOString(),
+      checkedAt: new Date(nextRun).toISOString(),
+    })
   })
 
   it('When 8 days pass and models.dev still returns 304 Then re-evaluates both sections at the new time', async () => {
@@ -224,7 +234,7 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     expect(body.items).toEqual([])
     expect(body.generatedAt).toBe(new Date(NOW + 8 * 86_400_000).toISOString())
 
-    // free-models는 Zen 무료 목록을 유지한다.
+    // free-models는 OpenCode Go 무료 목록을 유지한다.
     const free = await mf.dispatchFetch('http://localhost/pub/trend/free-models')
     const freeBody = await free.json() as { items: unknown[] }
     expect(freeBody.items).toHaveLength(1)

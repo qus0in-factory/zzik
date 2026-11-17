@@ -69,9 +69,10 @@ describe('Given the Worker scheduled entrypoint', () => {
     expect(entries.at(-1)).toMatch(/^trend_refresh:complete /)
   })
 
-  it('When new-models write throws (stage 2) Then free-models (stage 3) and plan-models (stage 4) still run', async () => {
+  it('When new-models write throws (stage 2) Then free-models (stage 3) and plan-models (stage 4) still run and section:new-models stays unwritten', async () => {
     const entries: string[] = []
     const writtenSections: string[] = []
+    const writtenStates: string[] = []
     const db = {
       prepare(sql: string) {
         const makeStmt = (bound: unknown[] = []) => ({
@@ -81,6 +82,9 @@ describe('Given the Worker scheduled entrypoint', () => {
             if (sql.includes('INSERT INTO trend_section')) {
               if (bound[0] === 'new-models') throw new Error('trend_section_too_large')
               writtenSections.push(String(bound[0]))
+            }
+            if (sql.includes('INSERT INTO trend_source_state')) {
+              writtenStates.push(String(bound[0]))
             }
             return { success: true, results: [] }
           },
@@ -104,8 +108,46 @@ describe('Given the Worker scheduled entrypoint', () => {
     await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW }, { ...env, DB: db })
     expect(writtenSections).toContain('free-models')
     expect(writtenSections).toContain('plan-models')
+    expect(writtenStates).not.toContain('section:new-models')
+    expect(writtenStates).toContain('section:free-models')
+    expect(writtenStates).toContain('section:plan-models')
     expect(entries.at(-1)).toContain('new=error:Error')
     expect(entries.at(-1)).toContain('free=written')
+  })
+
+  it.each([
+    ['free-models', /free=error:Error/],
+    ['plan-models', /plan=error:Error/],
+  ] as const)('When %s write throws Then logs %s token', async (failingSection, expectedToken) => {
+    const entries: string[] = []
+    const db = {
+      prepare(sql: string) {
+        const makeStmt = (bound: unknown[] = []) => ({
+          bind(...params: unknown[]) { return makeStmt(params) },
+          async all() { return { success: true, results: [] } },
+          async run() {
+            if (sql.includes('INSERT INTO trend_section') && bound[0] === failingSection) {
+              throw new Error('forced_section_error')
+            }
+            return { success: true, results: [] }
+          },
+        })
+        return makeStmt()
+      },
+      async batch() { return [] },
+    }
+    const fetchStub = async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('models.dev')) return new Response(JSON.stringify({}), { status: 200 })
+      if (url.includes('openrouter.ai')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      if (url.includes('opencode.ai/inference/go/v1/models')) {
+        return new Response(JSON.stringify({ object: 'list', data: [{ id: 'hy4-flash-free', name: 'Hy4 flash Free', cost: { text: { input: { price: 0 }, output: { price: 0 } } } }] }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ models: [] }), { status: 200 })
+    }
+    const worker = createWorker({ logTrend: (message) => entries.push(message), trendFetch: fetchStub })
+    await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW }, { ...env, DB: db })
+    expect(entries.at(-1)).toMatch(expectedToken)
   })
 
   it('When the export cron runs with injected bindings Then it writes and logs without touching fetch', async () => {

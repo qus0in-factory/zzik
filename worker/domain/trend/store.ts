@@ -16,6 +16,13 @@ export interface TrendSourceStateRow {
   httpStatus: number | null
 }
 
+export const TREND_SECTION_STATE_PREFIX = 'section:'
+
+/** 섹션 평가 성공 시각을 trend_source_state에 기록할 때 쓰는 가상 source id. */
+export function sectionStateSourceId(section: TrendSection): string {
+  return `${TREND_SECTION_STATE_PREFIX}${section}`
+}
+
 export interface TrendStore {
   readSection(section: TrendSection): Promise<TrendSectionRow | null>
   readSections(): Promise<TrendSectionRow[]>

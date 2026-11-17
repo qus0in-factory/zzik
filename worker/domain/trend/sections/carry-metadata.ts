@@ -5,7 +5,7 @@ export function carryEnrichment(item: TrendItem, prev: TrendItem | undefined): T
   if (prev === undefined) return item
   return {
     ...item,
-    name: prev.name !== '' ? prev.name : item.name,
+    name: item.name !== '' ? item.name : prev.name,
     creator: item.creator !== '' ? item.creator : prev.creator,
     releaseDate: item.releaseDate ?? prev.releaseDate,
     precision: item.releaseDate !== null ? item.precision : prev.precision,

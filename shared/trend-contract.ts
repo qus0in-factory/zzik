@@ -12,14 +12,12 @@ export const TREND_FREE_MODELS_RULE = 'opencode-go-free'
 export const TREND_PLAN_WINDOW_MS = 14 * 86_400_000
 export const TREND_PLAN_MODELS_RULE = 'plan-observation-14d'
 export const TREND_SOURCE_MODELS_DEV = 'models.dev'
-export const TREND_SOURCE_OPENCODE_ZEN = 'opencode-zen'
 export const TREND_SOURCE_OPENROUTER = 'openrouter'
 export const TREND_SOURCE_OPENCODE_GO = 'go-models'
 export const TREND_SOURCE_OLLAMA_TAGS = 'ollama-tags'
 export const TREND_SOURCE_ARTIFICIAL_ANALYSIS = 'artificial-analysis'
 export const TREND_SOURCE_OPENROUTER_RANKINGS = 'openrouter-rankings'
 export const TREND_MODELS_DEV_URL = 'https://models.dev/api.json'
-export const TREND_ZEN_MODELS_URL = 'https://opencode.ai/zen/v1/models'
 export const TREND_OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
 export const TREND_GO_MODELS_URL = 'https://opencode.ai/inference/go/v1/models'
 export const TREND_OLLAMA_TAGS_URL = 'https://ollama.com/api/tags'
@@ -165,10 +163,19 @@ export interface TrendSectionPayload {
   plans?: TrendPlanGroup[]
 }
 
+/** 인덱스 status 판정용 섹션별 최대 허용 경과(2×cron 주기: trend 4시간, metrics 48시간). */
+export const TREND_SECTION_STALE_MS: Record<TrendSection, number> = {
+  'plan-models': 4 * 60 * 60 * 1000,
+  'new-models': 4 * 60 * 60 * 1000,
+  'free-models': 4 * 60 * 60 * 1000,
+  metrics: 48 * 60 * 60 * 1000,
+}
+
 export interface TrendIndexSection {
   id: TrendSection
   count: number
   generatedAt: string
+  /** 마지막으로 섹션 평가가 성공한 시각(내용 변경 여부 무관). generatedAt은 내용이 바뀐 시각. */
   checkedAt?: string
   status: 'ok' | 'stale' | 'not_ready'
 }

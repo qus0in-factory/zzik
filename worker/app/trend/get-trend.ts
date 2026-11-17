@@ -1,5 +1,7 @@
+import { TREND_SECTION_STALE_MS } from '../../../shared/trend-contract'
 import type { TrendIndex, TrendIndexSection, TrendSection, TrendSectionPayload } from '../../../shared/trend-contract'
 import { projectSectionPayload } from '../../domain/trend/projection'
+import { sectionStateSourceId } from '../../domain/trend/store'
 import type { TrendSectionRow, TrendStore } from '../../domain/trend/store'
 
 function parsePayload(row: TrendSectionRow): TrendSectionPayload | null {
@@ -13,15 +15,7 @@ function parsePayload(row: TrendSectionRow): TrendSectionPayload | null {
   }
 }
 
-const SECTION_SOURCES: Record<TrendSection, readonly string[]> = {
-  'new-models': ['models.dev', 'openrouter'],
-  'free-models': ['go-models'],
-  'plan-models': ['go-models', 'ollama-tags'],
-  metrics: ['openrouter-rankings'],
-  frontier: [],
-}
-
-export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | null> {
+export async function getTrendIndex(store: TrendStore, nowMs = Date.now()): Promise<TrendIndex | null> {
   const rows = await store.readSections()
   let sourceStates: Awaited<ReturnType<NonNullable<TrendStore['readSourceStates']>>> = []
   try {
@@ -37,14 +31,17 @@ export async function getTrendIndex(store: TrendStore): Promise<TrendIndex | nul
     if (payload === null) continue
     const at = Date.parse(payload.generatedAt)
     if (Number.isFinite(at)) generatedAt = Math.max(generatedAt, at)
-    const checkedMs = SECTION_SOURCES[row.section].reduce((max, id) => Math.max(max, bySource.get(id) ?? 0), 0)
+    const checkedMs = bySource.get(sectionStateSourceId(row.section))
+    const hasChecked = checkedMs !== undefined && checkedMs > 0
+    const staleByAge = !hasChecked || nowMs - checkedMs > TREND_SECTION_STALE_MS[row.section]
+    const hasStaleSource = payload.sources.some((source) => source.status === 'stale')
     sections.push({
       id: row.section,
       // metrics는 items가 비어 있고 blocks.entries가 실질 항목이다.
       count: payload.items.length + (payload.blocks?.reduce((total, block) => total + block.entries.length, 0) ?? 0),
       generatedAt: payload.generatedAt,
-      checkedAt: checkedMs > 0 ? new Date(checkedMs).toISOString() : payload.generatedAt,
-      status: payload.sources.some((source) => source.status === 'stale') ? 'stale' : 'ok',
+      ...(hasChecked ? { checkedAt: new Date(checkedMs).toISOString() } : {}),
+      status: hasStaleSource || staleByAge ? 'stale' : 'ok',
     })
   }
   if (sections.length === 0) return null

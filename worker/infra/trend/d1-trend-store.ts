@@ -39,6 +39,15 @@ interface PlanObservationDbRow {
   baseline: number
 }
 
+export async function writeTrendSourceState(db: D1DatabaseLike, row: TrendSourceStateRow): Promise<void> {
+  await db.prepare(
+    `INSERT INTO trend_source_state (source, etag, fetched_at, ok, http_status)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(source) DO UPDATE SET
+       etag = excluded.etag, fetched_at = excluded.fetched_at, ok = excluded.ok, http_status = excluded.http_status`,
+  ).bind(row.source, row.etag, row.fetchedAt, row.ok ? 1 : 0, row.httpStatus).run()
+}
+
 export class D1TrendStore implements TrendStore {
   constructor(private readonly db: D1DatabaseLike) {}
 
@@ -81,12 +90,7 @@ export class D1TrendStore implements TrendStore {
   }
 
   async writeSourceState(row: TrendSourceStateRow): Promise<void> {
-    await this.db.prepare(
-      `INSERT INTO trend_source_state (source, etag, fetched_at, ok, http_status)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(source) DO UPDATE SET
-         etag = excluded.etag, fetched_at = excluded.fetched_at, ok = excluded.ok, http_status = excluded.http_status`,
-    ).bind(row.source, row.etag, row.fetchedAt, row.ok ? 1 : 0, row.httpStatus).run()
+    await writeTrendSourceState(this.db, row)
   }
 
   async readPlanObservations(): Promise<PlanObservationRow[]> {

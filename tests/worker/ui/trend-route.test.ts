@@ -35,6 +35,10 @@ class FakeTrendStore implements TrendStore {
   reads = 0
   stored = JSON.stringify(payload)
   metricsStored = JSON.stringify(metricsPayload)
+  sourceStates: TrendSourceStateRow[] = [
+    { source: 'section:new-models', etag: null, fetchedAt: Date.parse(payload.generatedAt), ok: true, httpStatus: null },
+    { source: 'section:metrics', etag: null, fetchedAt: Date.parse(metricsPayload.generatedAt), ok: true, httpStatus: null },
+  ]
   async readSection(section: TrendSection): Promise<TrendSectionRow | null> {
     this.reads += 1
     if (section === 'new-models') return { section, payload: this.stored, payloadSha256: sha, generatedAt: Date.parse(payload.generatedAt) }
@@ -50,13 +54,14 @@ class FakeTrendStore implements TrendStore {
   }
   async writeSection(_payload: TrendSectionPayload): Promise<string> { return sha }
   async readSourceState(_source: string): Promise<TrendSourceStateRow | null> { return null }
+  async readSourceStates(): Promise<TrendSourceStateRow[]> { return this.sourceStates }
   async writeSourceState(_row: TrendSourceStateRow): Promise<void> {}
 }
 
-function setup() {
+function setup(nowMs = Date.parse(payload.generatedAt)) {
   const verifier = new FakeVerifier(), store = new FakeStore(), assets = { calls: 0, async fetch() { this.calls++; return new Response('SPA') } }
   const trend = new FakeTrendStore()
-  return { verifier, store, assets, trend, app: createRouter({ config, verifier, store, trend, assets }) }
+  return { verifier, store, assets, trend, app: createRouter({ config, verifier, store, trend, now: () => nowMs, assets }) }
 }
 
 describe('Given public trend routes with a ready D1 store', () => {
@@ -67,10 +72,26 @@ describe('Given public trend routes with a ready D1 store', () => {
     expect(res.headers.get('Cache-Control')).toBe('public, max-age=300, stale-while-revalidate=3600')
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(res.headers.get('ETag')).toMatch(/^".+"$/)
-    expect((await res.json() as { sections: unknown[] }).sections).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'new-models', count: 1, status: 'ok' })]))
+    expect((await res.json() as { sections: unknown[] }).sections).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'new-models', count: 1, checkedAt: payload.generatedAt, status: 'ok' })]))
     expect(s.verifier.tokens).toEqual([])
     expect(s.store.reads).toBe(0)
     expect(s.assets.calls).toBe(0)
+  })
+
+  it('When section:<id> state is missing or expired Then index omits missing checkedAt and marks status stale', async () => {
+    const baseMs = Date.parse(payload.generatedAt)
+    const s = setup(baseMs + 5 * 60 * 60 * 1000)
+    s.trend.sourceStates = [
+      { source: 'section:new-models', etag: null, fetchedAt: baseMs, ok: true, httpStatus: null },
+    ]
+    const res = await s.app.request('/pub/trend')
+    expect(res.status).toBe(200)
+    const body = await res.json() as { sections: Array<{ id: string; checkedAt?: string; status: string }> }
+    const newSec = body.sections.find((sec) => sec.id === 'new-models')
+    const metricsSec = body.sections.find((sec) => sec.id === 'metrics')
+    expect(newSec).toMatchObject({ id: 'new-models', checkedAt: payload.generatedAt, status: 'stale' })
+    expect(metricsSec?.checkedAt).toBeUndefined()
+    expect(metricsSec?.status).toBe('stale')
   })
 
   it('When GET /pub/trend/new-models Then returns the section with cache and ETag; If-None-Match gets 304', async () => {

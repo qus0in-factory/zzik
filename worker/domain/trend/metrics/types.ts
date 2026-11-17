@@ -1,6 +1,6 @@
 /** metrics 섹션의 출처 포트·저장 타입. 순수 계산은 aa.ts / or.ts에 둔다. */
 import type { TrendMetricsBlockStatus, TrendMetricsNote, TrendSection, TrendSectionPayload } from '../../../../shared/trend-contract'
-import type { TrendSectionRow } from '../store'
+import type { TrendSectionRow, TrendSourceStateRow } from '../store'
 
 export type MetricsSourceFailureReason =
   | 'not_configured'
@@ -94,6 +94,7 @@ export interface MetricsStore {
   writeOrRanking(rows: readonly OrRankingRow[], asOf: string, meta: OrRankingMeta): Promise<void>
   /** 보존 기간이 지난 스냅샷을 지운다. */
   prune(beforeAaDay: string, beforeOrDay: string): Promise<void>
+  writeSourceState?(row: TrendSourceStateRow): Promise<void>
 }
 
 export interface MetricsBlockSummary {

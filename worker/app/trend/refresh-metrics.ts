@@ -14,6 +14,7 @@ import type {
 import { buildAaCitation, rankAa, toAaRows } from '../../domain/trend/metrics/aa'
 import { buildOrBlock, orAttribution } from '../../domain/trend/metrics/or'
 import { addDays, utcDay } from '../../domain/trend/metrics/types'
+import { writeSectionChecked } from './refresh-trend'
 import type {
   AaSource,
   MetricsSourceFailureReason,
@@ -190,5 +191,6 @@ export async function refreshMetrics(input: {
 
   const unchanged = previous !== null && sameContent(previous, payload)
   if (!unchanged) await store.writeSection(payload)
+  await writeSectionChecked(store, 'metrics', nowMs)
   return { ok: anyOk, written: !unchanged, notConfigured: allNotConfigured, blocks: { or: orStatus }, reasons: { or: orReason }, aa }
 }
