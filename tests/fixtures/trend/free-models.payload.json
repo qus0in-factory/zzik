@@ -1,0 +1,52 @@
+{
+  "section": "free-models",
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-17T00:00:00.000Z",
+  "rule": "hosted-free-or-local-30d",
+  "sources": [
+    { "id": "models.dev", "fetchedAt": "2026-11-17T00:00:00.000Z", "status": "ok" },
+    { "id": "opencode-zen", "fetchedAt": "2026-11-17T00:00:00.000Z", "status": "stale" },
+    { "id": "openrouter", "fetchedAt": "2026-11-17T00:00:00.000Z", "status": "ok" }
+  ],
+  "items": [
+    {
+      "id": "tencent/hy4-flash",
+      "name": "Hy4 Flash Free",
+      "creator": "tencent",
+      "releaseDate": "2026-11-16",
+      "precision": "day",
+      "price": { "input": 0, "output": 0 },
+      "free": true,
+      "openWeights": false,
+      "providers": ["opencode", "openrouter"],
+      "links": {},
+      "freeKind": "hosted"
+    },
+    {
+      "id": "xiaomi/mimo-v2.6-flash",
+      "name": "MiMo V2.6 Flash Free",
+      "creator": "xiaomi",
+      "releaseDate": "2026-09-22",
+      "precision": "day",
+      "price": { "input": 0, "output": 0 },
+      "free": true,
+      "openWeights": true,
+      "providers": ["ollama-cloud", "opencode"],
+      "links": {},
+      "freeKind": "hosted"
+    },
+    {
+      "id": "qwen/qwen4-max",
+      "name": "Qwen4 Max",
+      "creator": "qwen",
+      "releaseDate": "2026-11-05",
+      "precision": "day",
+      "price": null,
+      "free": false,
+      "openWeights": true,
+      "providers": ["ollama-cloud"],
+      "links": {},
+      "freeKind": "local"
+    }
+  ]
+}

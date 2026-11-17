@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeModelsDev } from '../../../../worker/domain/trend/sources'
+import { decodeModelsDev, decodeOpenRouterModels, decodeZenModels } from '../../../../worker/domain/trend/sources'
 
 describe('Given models.dev api.json', () => {
   it('When provider models have day/month dates and costs Then normalizes canonical ids, creators and free/open flags', () => {
@@ -40,5 +40,105 @@ describe('Given models.dev api.json', () => {
 
   it('When a structurally valid source has no models Then returns a valid empty result, not a failure', () => {
     expect(decodeModelsDev({ anthropic: { id: 'anthropic', models: {} } })).toEqual({ ok: true, value: [] })
+  })
+})
+
+describe('Given OpenCode Zen /zen/v1/models', () => {
+  it('When free and paid models arrive Then normalizes canonical ids and per-1M prices', () => {
+    const decoded = decodeZenModels({
+      object: 'list',
+      data: [
+        {
+          id: 'mimo-v2.6-flash-free',
+          name: 'MiMo V2.6 Flash Free',
+          canonical_id: 'xiaomi/mimo-v2.6-flash',
+          release_date: '2026-09-22',
+          open_weights: true,
+          cost: { text: { input: { price: 0 }, output: { price: 0 } } },
+        },
+        {
+          id: 'claude-fable-5',
+          name: 'Claude Fable 5',
+          release_date: '2026-11-09',
+          open_weights: false,
+          cost: { text: { input: { price: 10 }, output: { price: 50 } } },
+        },
+        { id: 'big-pickle', name: 'Big Pickle', release_date: '2026-11-01', cost: { text: { input: { price: 0 }, output: { price: 0 } } } },
+      ],
+    })
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.value).toHaveLength(3)
+    expect(decoded.value[0]).toMatchObject({
+      canonicalId: 'xiaomi/mimo-v2.6-flash', modelId: 'mimo-v2.6-flash-free', provider: 'opencode',
+      creator: 'xiaomi', free: true, price: { input: 0, output: 0 }, openWeights: true, releasePrecision: 'day',
+    })
+    expect(decoded.value[1]).toMatchObject({ provider: 'opencode', creator: 'opencode', free: false, price: { input: 10, output: 50 } })
+    expect(decoded.value[2]).toMatchObject({ canonicalId: 'big-pickle', free: true })
+  })
+
+  it.each([
+    ['empty object', {}],
+    ['missing data', { object: 'list' }],
+    ['non-array data', { data: 'nope' }],
+    ['garbage rows', { data: [1, 2, 3] }],
+  ])('When Zen returns a broken 200 (%s) Then classifies it as invalid_source', (_label, input) => {
+    expect(decodeZenModels(input)).toEqual({ ok: false, reason: 'invalid_source' })
+  })
+
+  it('When Zen has an empty list Then returns a valid empty result', () => {
+    expect(decodeZenModels({ object: 'list', data: [] })).toEqual({ ok: true, value: [] })
+  })
+})
+
+describe('Given OpenRouter /api/v1/models', () => {
+  it('When :free and zero-priced models arrive Then converts per-token prices and marks expiration', () => {
+    const decoded = decodeOpenRouterModels({
+      data: [
+        {
+          id: 'google/gemma-4-31b-it:free',
+          name: 'Google: Gemma 4 31B (free)',
+          created: 1794000000,
+          pricing: { prompt: '0', completion: '0' },
+          hugging_face_id: 'google/gemma-4-31b-it',
+          expiration_date: null,
+        },
+        {
+          id: 'tencent/hy4-flash',
+          name: 'Tencent: Hy4 flash',
+          created: 1794838706,
+          pricing: { prompt: '0.000000035', completion: '0.0000001405' },
+          hugging_face_id: null,
+          expiration_date: '2026-12-31',
+        },
+        {
+          id: 'inclusionai/ling-3.2-flash:free',
+          name: 'Ling 3.2 Flash (free)',
+          created: 1794500000,
+          pricing: { prompt: '0', completion: '0' },
+          expiration_date: '2026-11-16',
+        },
+      ],
+    })
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.value).toHaveLength(3)
+    expect(decoded.value[0]).toMatchObject({
+      canonicalId: 'google/gemma-4-31b-it', modelId: 'google/gemma-4-31b-it:free', provider: 'openrouter',
+      creator: 'google', free: true, price: { input: 0, output: 0 }, openWeights: true,
+      releaseDate: new Date(1794000000 * 1000).toISOString().slice(0, 10), releasePrecision: 'day',
+    })
+    expect(decoded.value[1]).toMatchObject({ canonicalId: 'tencent/hy4-flash', free: false, price: { input: 0.035, output: 0.1405 }, openWeights: false })
+    expect(decoded.value[1]?.expiresAtMs).toBe(Date.UTC(2026, 11, 31))
+    expect(decoded.value[2]).toMatchObject({ free: true, expiresAtMs: Date.UTC(2026, 10, 16) })
+  })
+
+  it.each([
+    ['empty object', {}],
+    ['missing data', { total_count: 0 }],
+    ['non-array data', { data: {} }],
+    ['garbage rows', { data: ['x'] }],
+  ])('When OpenRouter returns a broken 200 (%s) Then classifies it as invalid_source', (_label, input) => {
+    expect(decodeOpenRouterModels(input)).toEqual({ ok: false, reason: 'invalid_source' })
   })
 })
