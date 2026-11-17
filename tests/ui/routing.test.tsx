@@ -53,12 +53,20 @@ describe('Given the usage/trend router', () => {
     await screen.findByTestId('usage-section-claude')
   })
 
-  it('When /trend is requested Then renders only the nav and empty state without data calls', () => {
+  it('When /trend is requested Then renders only the nav and external links without data calls', () => {
     const { gateway } = renderAt('/trend')
     expect(screen.getByTestId('location').textContent).toBe('/trend')
     expect(screen.getByRole('link', { name: '트렌드' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('link', { name: '사용량' }).getAttribute('aria-current')).toBeNull()
-    expect(screen.getByText('트렌드 화면은 아직 준비 중입니다.')).toBeTruthy()
+    expect(screen.queryByText('트렌드 화면은 아직 준비 중입니다.')).toBeNull()
+    const links = within(screen.getByRole('list', { name: '트렌드 참고 링크' })).getAllByRole('link')
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      'https://artificialanalysis.ai/',
+      'https://cognition.com/frontiercode',
+      'https://arena.ai/leaderboard',
+      'https://openrouter.ai/rankings',
+      'https://opencode.ai/ko/data',
+    ])
     expect(screen.queryAllByTestId(/^usage-section-/)).toHaveLength(0)
     expect(screen.queryByTestId('app-version')).toBeNull()
     expect(screen.queryByTestId('back-to-top-shell')).toBeNull()
