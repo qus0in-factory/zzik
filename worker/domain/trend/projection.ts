@@ -3,6 +3,7 @@
  * 필드를 제거하고 계약 필드만 내보낸다. 저장 payload는 그대로 둔다.
  */
 import { TREND_SECTIONS } from '../../../shared/trend-contract'
+import { validatedAaCitation } from './metrics/citation'
 import type {
   TrendItem, TrendMetricsBlock, TrendMetricsEntry, TrendMetricsLicense, TrendMetricsMeta, TrendMetricsNote, TrendPlanConfidence,
   TrendPlanGroup, TrendPlanItem, TrendPlanNote, TrendPrice, TrendSection, TrendSectionPayload, TrendSourceState,
@@ -231,11 +232,8 @@ export function projectSectionPayload(value: unknown, expected: TrendSection): T
   if (projectedBlocks === null) return null
   const projectedPlans = plans === undefined ? undefined : projectPlanGroups(plans)
   if (projectedPlans === null) return null
-  let aaCitation: string | undefined
-  if (value.aaCitation !== undefined) {
-    if (typeof value.aaCitation !== 'string' || value.aaCitation.trim() === '' || value.aaCitation.length > 500) return null
-    aaCitation = value.aaCitation
-  }
+  // 저장 문자열을 그대로 신뢰하지 않고 같은 틀로 재검사한다. 실패하면 조용히 제외한다.
+  const aaCitation = validatedAaCitation(value.aaCitation) ?? undefined
   return {
     section: section as TrendSection,
     schemaVersion,

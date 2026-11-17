@@ -4,6 +4,7 @@ import {
   TREND_AA_TOP_N,
 } from '../../../../shared/trend-contract'
 import type { TrendMetricsBlock, TrendMetricsEntry } from '../../../../shared/trend-contract'
+import { composeAaCitation } from './citation'
 import type { AaModelEntry, AaSnapshot, AaSnapshotRow } from './types'
 
 interface Ranked {
@@ -35,10 +36,7 @@ export function aaAttribution(version: string, asOf: string): string {
 export function buildAaCitation(snapshot: AaSnapshot, day: string): string | null {
   const top = rankAa(snapshot.entries)[0]
   if (top === undefined) return null
-  const score = Number.isInteger(top.entry.intelligenceIndex)
-    ? String(top.entry.intelligenceIndex)
-    : top.entry.intelligenceIndex.toFixed(1)
-  return `Artificial Analysis Intelligence Index 1위는 ${top.entry.name} (${score})입니다. (${day} 기준)`
+  return composeAaCitation({ name: top.entry.name, score: top.entry.intelligenceIndex, day })
 }
 
 /**

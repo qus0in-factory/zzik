@@ -34,9 +34,31 @@ describe('Given the public projection of the AA citation', () => {
     expect(json).not.toContain('90')
   })
 
-  it('When aaCitation is an object or a list Then the projection rejects the payload', () => {
+  it('When aaCitation is an object or a list Then the citation is dropped and the section survives', () => {
     for (const bad of [{ score: 90 }, ['Model A'], 90, '', 'x'.repeat(501)]) {
-      expect(projectSectionPayload({ ...base, aaCitation: bad, blocks: [] }, 'metrics')).toBeNull()
+      const projected = projectSectionPayload({ ...base, aaCitation: bad, blocks: [] }, 'metrics')
+      expect(projected).not.toBeNull()
+      expect((projected as { aaCitation?: unknown }).aaCitation).toBeUndefined()
     }
+  })
+
+  it.each([
+    ['two sentences', 'Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. 둘째 문장입니다. (2026-11-17 기준)'],
+    ['serialized array', '[{"id":"model-a","score":90}]'],
+    ['serialized object', '{"id":"model-a","score":90}'],
+    ['embedded newline', 'Artificial Analysis Intelligence Index 1위는 Model A\n(90)입니다. (2026-11-17 기준)'],
+    ['bracketed name', 'Artificial Analysis Intelligence Index 1위는 [Model A] (90)입니다. (2026-11-17 기준)'],
+  ])('When a legacy citation contains %s Then the citation is dropped but the section survives', (_name, citation) => {
+    const projected = projectSectionPayload({ ...base, aaCitation: citation, blocks: [] }, 'metrics')
+    expect(projected).not.toBeNull()
+    expect((projected as { aaCitation?: unknown }).aaCitation).toBeUndefined()
+    expect(JSON.stringify(projected)).not.toContain('model-a')
+    expect(JSON.stringify(projected)).not.toContain('"score"')
+  })
+
+  it('When a legacy citation matches the validated template Then it is kept', () => {
+    const citation = 'Artificial Analysis Intelligence Index 1위는 GPT-5.4 (92)입니다. (2026-11-17 기준)'
+    const projected = projectSectionPayload({ ...base, aaCitation: citation, blocks: [] }, 'metrics')
+    expect((projected as { aaCitation?: unknown }).aaCitation).toBe(citation)
   })
 })

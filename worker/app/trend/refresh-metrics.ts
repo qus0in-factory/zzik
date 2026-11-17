@@ -90,21 +90,32 @@ export async function refreshMetrics(input: {
   let aaStatus: 'ok' | 'stale' | 'not_configured' = 'not_configured'
   let aaReason: MetricsSourceFailureReason | null = 'not_configured'
   if (aaSource !== undefined && aaSource !== null) {
-    const aa = await aaSource.fetch(nowMs)
-    if (aa.ok) {
-      try {
-        const top = rankAa(aa.snapshot.entries).slice(0, 2).map(({ entry }) => entry)
-        await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
-        aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }, day) ?? undefined
-        aaStatus = 'ok'
-        aaReason = null
-      } catch {
+    try {
+      const aa = await aaSource.fetch(nowMs)
+      if (aa.ok) {
+        try {
+          const top = rankAa(aa.snapshot.entries).slice(0, 2).map(({ entry }) => entry)
+          await store.writeAaSnapshot(day, toAaRows({ version: aa.snapshot.version, entries: top }, day))
+          aaCitation = buildAaCitation({ version: aa.snapshot.version, entries: top }, day) ?? undefined
+          if (aaCitation === undefined) {
+            aaStatus = 'stale'
+            aaReason = 'invalid'
+          } else {
+            aaStatus = 'ok'
+            aaReason = null
+          }
+        } catch {
+          aaStatus = 'stale'
+          aaReason = 'storage'
+        }
+      } else {
         aaStatus = 'stale'
-        aaReason = 'storage'
+        aaReason = aa.reason
       }
-    } else {
+    } catch {
+      // 계약 밖 포트 예외도 OpenRouter 갱신을 막지 않는다.
       aaStatus = 'stale'
-      aaReason = aa.reason
+      aaReason = 'network'
     }
   }
 
@@ -165,8 +176,10 @@ export async function refreshMetrics(input: {
     ...(aaCitation === undefined ? {} : { aaCitation }),
   }
 
-  const anyOk = orStatus === 'ok'
-  const allNotConfigured = orStatus === 'not_configured'
+  // AA 인용도 유효한 출처다. OR이 없어도 인용이 있으면 최초 섹션을 만든다.
+  const aaOk = aaStatus === 'ok' && aaCitation !== undefined
+  const anyOk = orStatus === 'ok' || aaOk
+  const allNotConfigured = orStatus === 'not_configured' && aaStatus === 'not_configured'
   const aa = { status: aaStatus, reason: aaReason }
   if (!anyOk && previous === null && !allNotConfigured) {
     return { ok: false, written: false, notConfigured: false, blocks: { or: orStatus }, reasons: { or: orReason }, aa }

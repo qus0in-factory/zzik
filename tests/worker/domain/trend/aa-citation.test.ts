@@ -23,4 +23,20 @@ describe('Given the Artificial Analysis brief citation', () => {
     expect(buildAaCitation(snapshot([entry('a', 'Model A', 92.5)]), '2026-11-17'))
       .toBe('Artificial Analysis Intelligence Index 1위는 Model A (92.5)입니다. (2026-11-17 기준)')
   })
+
+  it('When the model name keeps a version dot Then it is preserved', () => {
+    expect(buildAaCitation(snapshot([entry('a', 'GPT-5.4', 92)]), '2026-11-17'))
+      .toBe('Artificial Analysis Intelligence Index 1위는 GPT-5.4 (92)입니다. (2026-11-17 기준)')
+  })
+
+  it.each([
+    ['newline', 'Model A\n둘째 문장입니다.'],
+    ['extra sentence', 'Model A입니다. 둘째 문장입니다.'],
+    ['serialized array', '[{"id":"a","score":42}]'],
+    ['serialized object', '{"id":"a","score":42}'],
+    ['brackets', 'Model [A]'],
+    ['too long', 'x'.repeat(81)],
+  ])('When the model name contains %s Then no citation is produced', (_name, model) => {
+    expect(buildAaCitation(snapshot([entry('a', model, 90)]), '2026-11-17')).toBeNull()
+  })
 })

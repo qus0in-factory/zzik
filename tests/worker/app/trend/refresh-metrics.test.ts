@@ -167,6 +167,25 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
     expect(JSON.stringify(payload)).not.toContain('"index"')
   })
 
+  it('When AA succeeds but OR has no key on the first run Then the citation-only section is written', async () => {
+    const store = new FakeMetricsStore()
+    const result = await refreshMetrics({ store, nowMs: NOW, orSource: null, aaSource: aaSource(aaOk) })
+    expect(result).toMatchObject({ ok: true, written: true, notConfigured: false })
+    expect(result.aa).toMatchObject({ status: 'ok' })
+    expect(store.writes).toEqual(['metrics'])
+    const payload = metricsPayload(store)
+    expect(payload.aaCitation).toBe('Artificial Analysis Intelligence Index 1위는 Model A (90)입니다. (2026-11-17 기준)')
+  })
+
+  it('When AA succeeds but OR fails on the first run Then the citation still creates the section', async () => {
+    const store = new FakeMetricsStore()
+    const result = await refreshMetrics({
+      store, nowMs: NOW, orSource: orSource(orFail('unauthorized')), aaSource: aaSource(aaOk),
+    })
+    expect(result).toMatchObject({ ok: true, written: true, notConfigured: false })
+    expect(metricsPayload(store).aaCitation).toContain('Model A')
+  })
+
   it('When AA has no key or fails Then the citation is hidden', async () => {
     const store = new FakeMetricsStore()
     const withoutKey = await refreshMetrics({ store, nowMs: NOW, orSource: orSource(orOk([rows(0, 'a/x', '100')])), aaSource: null })
