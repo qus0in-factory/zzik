@@ -82,4 +82,10 @@
   - 저장: `trend_or_ranking`(일·permaslug, 60일 보존, meta 컬럼 포함). 스냅샷 교체는 D1 `batch`로 원자화한다. `trend_aa_snapshot`은 기존 데이터 정리용으로만 남고 새로 쓰지 않는다. 마이그레이션 `0004_metrics.sql`(0003은 plan-models용으로 비워 둔다).
 - UI 순서는 **성능 지표 → 신규 모델 → 무료 모델 → 참고 링크**다. 성능 지표는 OpenRouter 블록만, 신규 모델은 OpenRouter 등록 배지만 표시한다. 참고 링크 카드마다 해당 사이트의 지표를 한 줄로 설명하며, Artificial Analysis 링크는 `https://artificialanalysis.ai/leaderboards/models`다. 요금제 추가 섹션은 화면에서 제거했다.
 - section/seen/source-state 갱신은 개별 D1 쓰기라 원자적이지 않다. 중간 실패 시 다음 실행에서 다시 계산한다.
-- 원격 반영 순서(opus): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다. `OR_API_KEY`는 이미 운영 secret에 등록되어 있다고 가정하며, `AA_API_KEY`는 더 이상 읽지 않는다.
+- 원격 반영 순서(총괄 에이전트): `pnpm exec wrangler d1 migrations apply zzik-usage --remote` → Worker `wrangler deploy`(새 cron 포함). 원격 D1 마이그레이션은 이 작업에서 실행하지 않았다. `OR_API_KEY`는 이미 운영 secret에 등록되어 있다고 가정하며, `AA_API_KEY`는 더 이상 읽지 않는다.
+- **수동 채우기 (`scripts/trend-refresh-once.mjs`)**:
+  - 용도: Worker cron(2시간 `7 */2 * * *`, metrics 일 1회 `17 0 * * *` = `00:17 UTC`)을 기다리지 않고 원격 D1에 트렌드 데이터를 수동으로 채울 때 사용한다.
+  - 실행: `node scripts/trend-refresh-once.mjs` (기본 `dry-run`: 원격 D1 읽기 + 인메모리 SQLite 시뮬레이션, 원격 쓰기 0) → 결과 JSON 확인 후 `node scripts/trend-refresh-once.mjs --apply` (원격 D1 반영).
+  - 필요 설정: `.env`에 `ZZIK_D1_ACCOUNT_ID`, `ZZIK_D1_DATABASE_ID` (선택: `OR_API_KEY`, `AA_API_KEY`), Wrangler OAuth profile `zzik-collector`.
+  - 주의: D1 REST API 한도(요청당 statement 100개, SQL 100KB, params 100개, 문자열 2MB)를 검증하며 `trend_model_seen`은 100개씩 chunk flush한다. `--apply`는 운영 D1 `trend_*` 테이블에 직접 쓰므로 반드시 `dry-run`으로 `remoteWrites`/`seenWriteRequestsEstimate`/`failedRequest`를 먼저 확인한다.
+  - 수동 채우기 절차: (1) 원격 D1 마이그레이션 적용 확인 → (2) `node scripts/trend-refresh-once.mjs` dry-run 확인 → (3) `node scripts/trend-refresh-once.mjs --apply` 실행 → (4) `curl -sS https://zzik.qus0in.dev/pub/trend` 200 및 섹션 상태(`ok`) 확인.
