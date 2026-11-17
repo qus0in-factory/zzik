@@ -49,17 +49,21 @@
   3. `release_sync`: `.worktree/release`에서 `git pull --ff-only` → `pnpm install --frozen-lockfile` → clean 확인
   4. `scope`: 직전 `main`과 비교해 변경 범위 판정
   5. `deploy_worker`: 대상 변경 시 `node scripts/deploy-verify.mjs --deploy`
-  6. `apply_collector`: 대상 변경 시 `node scripts/collector-apply.mjs --apply`
-  7. `verify_request`: `verify-request.mjs` 형식으로 확인/완료 본문 생성 (`--kind verify|done`, `--summary`, `--check`, `--issues`)
-  8. `notify_discord`: `scripts/notify-discord.sh` 전송 (실패 시 `--notify-failure`가 있으면 실패 알림 전송)
+  6. `trend_refill`: 트렌드 대상 변경 시 `node scripts/trend-refresh-once.mjs --apply` (Worker 배포 성공 직후)
+  7. `apply_collector`: 대상 변경 시 `node scripts/collector-apply.mjs --apply`
+  8. `verify_request`: `verify-request.mjs` 형식으로 확인/완료 본문 생성 (`--kind verify|done`, `--summary`, `--check`, `--issues`)
+  9. `notify_discord`: `scripts/notify-discord.sh` 전송 (실패 시 `--notify-failure`가 있으면 실패 알림 전송)
 
-| 변경 경로 | Worker 배포 (`deploy-verify`) | 수집기 반영 (`collector-apply`) | 기본 `--kind` |
-|---|---|---|---|
-| `src/` | 실행 | — | `verify` (화면 확인 요청) |
-| `worker/`, `wrangler.jsonc` | 실행 | — | `done` |
-| `collector/` | — | 실행 | `done` |
-| `shared/` | 실행 | 실행 | `done` (`src/` 동반 시 `verify`) |
-| 그 외 (`docs/` 등) | 생략 | 생략 | `done` |
+| 변경 경로 | Worker 배포 (`deploy-verify`) | 트렌드 재적재 (`trend_refill`) | 수집기 반영 (`collector-apply`) | 기본 `--kind` |
+|---|---|---|---|---|
+| `worker/domain/trend/`, `worker/app/trend/`, `worker/infra/trend/`, `shared/trend-*.ts` | 실행 | 실행 | `shared/`만 실행 | `done` (`src/` 동반 시 `verify`) |
+| `src/` | 실행 | 생략 | — | `verify` (화면 확인 요청) |
+| 그 외 `worker/`, `wrangler.jsonc` | 실행 | 생략 | — | `done` |
+| `collector/` | — | 생략 | 실행 | `done` |
+| 그 외 `shared/` | 실행 | 생략 | 실행 | `done` (`src/` 동반 시 `verify`) |
+| 그 외 (`docs/` 등) | 생략 | 생략 | 생략 | `done` |
+
+위 트렌드 경로가 포함되면 Worker 배포 직후 재적재하고, 그 외에는 `trend_refill`을 `SKIP`한다. 재적재 실패 후 ship 재실행은 이미 동기화된 HEAD 때문에 변경을 감지하지 못할 수 있으므로 아래 수동 dry-run 확인 후 단독 `--apply`로 복구한다.
 
 ## 공개 트렌드 (#116 2~5·4a단계)
 
@@ -88,5 +92,5 @@
   - 용도: Worker cron(2시간 `7 */2 * * *`, metrics 일 1회 `17 0 * * *` = `00:17 UTC`)을 기다리지 않고 원격 D1에 트렌드 데이터를 수동으로 채울 때 사용한다.
   - 실행: `node scripts/trend-refresh-once.mjs` (기본 `dry-run`: 원격 D1 읽기 + 인메모리 SQLite 시뮬레이션, 원격 쓰기 0) → 결과 JSON 확인 후 `node scripts/trend-refresh-once.mjs --apply` (원격 D1 반영).
   - 필요 설정: `.env`에 `ZZIK_D1_ACCOUNT_ID`, `ZZIK_D1_DATABASE_ID` (선택: `OR_API_KEY`, `AA_API_KEY`), Wrangler OAuth profile `zzik-collector`.
-  - 주의: D1 REST API 한도(요청당 statement 100개, SQL 100KB, params 100개, 문자열 2MB)를 검증하며 `trend_model_seen`은 100개씩 chunk flush한다. `--apply`는 운영 D1 `trend_*` 테이블에 직접 쓰므로 반드시 `dry-run`으로 `remoteWrites`/`seenWriteRequestsEstimate`/`failedRequest`를 먼저 확인한다.
+  - 주의: D1 REST API 한도(요청당 statement 100개, SQL 100KB, params 100개, 문자열 2MB)를 검증하며 `trend_model_seen`은 100개씩 chunk flush한다. 수동 `--apply`는 운영 D1 `trend_*` 테이블에 직접 쓰므로 `dry-run`으로 `remoteWrites`/`seenWriteRequestsEstimate`/`failedRequest`를 먼저 확인한다.
   - 수동 채우기 절차: (1) 원격 D1 마이그레이션 적용 확인 → (2) `node scripts/trend-refresh-once.mjs` dry-run 확인 → (3) `node scripts/trend-refresh-once.mjs --apply` 실행 → (4) `curl -sS https://zzik.qus0in.dev/pub/trend` 200 및 섹션 상태(`ok`) 확인.

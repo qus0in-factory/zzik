@@ -11,16 +11,17 @@ import { executeCommand } from './lib/exec-command.mjs'
 import { verifyRequestBody } from './verify-request.mjs'
 
 /** @typedef {import('./lib/exec-command.mjs').Executor} Executor */
-/** @typedef {{deployWorker:boolean,applyCollector:boolean,hasUi:boolean,defaultKind:'verify'|'done'}} ShipScope */
-/** @typedef {{name:string,status:'PLAN'|'PASS'|'FAIL',command?:readonly string[]}} ShipStep */
+/** @typedef {{deployWorker:boolean,trendRefill:boolean,applyCollector:boolean,hasUi:boolean,defaultKind:'verify'|'done'}} ShipScope */
+/** @typedef {{name:string,status:'PLAN'|'PASS'|'FAIL'|'SKIP',command?:readonly string[]}} ShipStep */
 
 /** @param {readonly string[]} files @returns {ShipScope} */
 export function classifyShipScope(files) {
   const has = (pred) => files.some(pred)
   const deployWorker = has((f) => f === 'wrangler.jsonc' || f.startsWith('worker/') || f.startsWith('src/') || f.startsWith('shared/'))
+  const trendRefill = has((f) => f.startsWith('worker/domain/trend/') || f.startsWith('worker/app/trend/') || f.startsWith('worker/infra/trend/') || /^shared\/trend-[^/]*\.ts$/.test(f))
   const applyCollector = has((f) => f.startsWith('collector/') || f.startsWith('shared/'))
   const hasUi = has((f) => f.startsWith('src/'))
-  return { deployWorker, applyCollector, hasUi, defaultKind: hasUi ? 'verify' : 'done' }
+  return { deployWorker, trendRefill, applyCollector, hasUi, defaultKind: hasUi ? 'verify' : 'done' }
 }
 
 /** @param {string} dir @returns {string|null} */
@@ -74,6 +75,7 @@ export async function runShip(options = {}) {
       { name: 'pr_merge', status: 'PLAN', command: ['gh', 'pr', 'merge', '--merge'] },
       { name: 'release_sync', status: 'PLAN', command: ['git', 'pull', '--ff-only'] },
       ...(scope.deployWorker ? [{ name: 'deploy_worker', status: /** @type {'PLAN'} */ ('PLAN'), command: ['node', 'scripts/deploy-verify.mjs', '--deploy', '--release', '<release>'] }] : []),
+      ...(scope.trendRefill ? [{ name: 'trend_refill', status: /** @type {'PLAN'} */ ('PLAN'), command: ['node', 'scripts/trend-refresh-once.mjs', '--apply'] }] : [{ name: 'trend_refill', status: /** @type {'SKIP'} */ ('SKIP') }]),
       ...(scope.applyCollector ? [{ name: 'apply_collector', status: /** @type {'PLAN'} */ ('PLAN'), command: ['node', 'scripts/collector-apply.mjs', '--apply'] }] : []),
       { name: 'verify_request', status: 'PLAN' },
       { name: 'notify_discord', status: 'PLAN', command: ['scripts/notify-discord.sh'] },
@@ -127,6 +129,15 @@ export async function runShip(options = {}) {
     if (deploy.exitCode !== 0) return fail('deploy_worker')
     steps.push({ name: 'deploy_worker', status: 'PASS' })
     autoChecks.push('deploy-verify --deploy 통과')
+  }
+
+  if (scope.trendRefill) {
+    const refill = await execute('node', ['scripts/trend-refresh-once.mjs', '--apply'], { cwd: releaseDir, timeoutMs: 1_200_000 })
+    if (refill.exitCode !== 0) return fail('trend_refill')
+    steps.push({ name: 'trend_refill', status: 'PASS' })
+    autoChecks.push('trend-refresh-once --apply 통과')
+  } else {
+    steps.push({ name: 'trend_refill', status: 'SKIP' })
   }
 
   if (scope.applyCollector) {

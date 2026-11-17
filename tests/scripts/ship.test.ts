@@ -21,18 +21,21 @@ describe('Given ship scope classification (변경 범위 판정)', () => {
   it('When worker, src, shared or wrangler.jsonc changes Then deployWorker is true and UI sets default kind verify', () => {
     expect(classifyShipScope(['src/ui/App.tsx'])).toEqual({
       deployWorker: true,
+      trendRefill: false,
       applyCollector: false,
       hasUi: true,
       defaultKind: 'verify',
     })
     expect(classifyShipScope(['worker/index.ts'])).toEqual({
       deployWorker: true,
+      trendRefill: false,
       applyCollector: false,
       hasUi: false,
       defaultKind: 'done',
     })
     expect(classifyShipScope(['wrangler.jsonc'])).toEqual({
       deployWorker: true,
+      trendRefill: false,
       applyCollector: false,
       hasUi: false,
       defaultKind: 'done',
@@ -42,6 +45,7 @@ describe('Given ship scope classification (변경 범위 판정)', () => {
   it('When collector changes Then applyCollector is true and deployWorker is false', () => {
     expect(classifyShipScope(['collector/main.mjs'])).toEqual({
       deployWorker: false,
+      trendRefill: false,
       applyCollector: true,
       hasUi: false,
       defaultKind: 'done',
@@ -51,6 +55,7 @@ describe('Given ship scope classification (변경 범위 판정)', () => {
   it('When shared changes Then both deployWorker and applyCollector are true', () => {
     expect(classifyShipScope(['shared/usage-policy.ts'])).toEqual({
       deployWorker: true,
+      trendRefill: false,
       applyCollector: true,
       hasUi: false,
       defaultKind: 'done',
@@ -60,6 +65,7 @@ describe('Given ship scope classification (변경 범위 판정)', () => {
   it('When only docs change Then neither worker deploy nor collector apply runs', () => {
     expect(classifyShipScope(['docs/harness/operations.md'])).toEqual({
       deployWorker: false,
+      trendRefill: false,
       applyCollector: false,
       hasUi: false,
       defaultKind: 'done',
@@ -86,9 +92,18 @@ describe('Given scripts/ship.mjs dry-run mode (기본 dry-run)', () => {
       'pr_merge',
       'release_sync',
       'deploy_worker',
+      'trend_refill',
       'verify_request',
       'notify_discord',
     ])
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('When a trend file changes Then plans refill without executing commands', async () => {
+    const fake = makeFakeExecutor()
+    const result = await runShip({ execute: fake.execute, changedFiles: ['worker/domain/trend/projection.ts'] })
+    const deploy = result.steps.findIndex((s: { name: string }) => s.name === 'deploy_worker')
+    expect(result.steps[deploy + 1]).toEqual({ name: 'trend_refill', status: 'PLAN', command: ['node', 'scripts/trend-refresh-once.mjs', '--apply'] })
     expect(fake.calls).toHaveLength(0)
   })
 
@@ -97,6 +112,39 @@ describe('Given scripts/ship.mjs dry-run mode (기본 dry-run)', () => {
     const code = await shipMain(['--apply', '--dry-run'], { write: (s: string) => lines.push(s) })
     expect(code).toBe(64)
     expect(JSON.parse(lines[0])).toEqual({ ok: false, dryRun: true, stage: 'arguments' })
+  })
+})
+
+describe('Given trend refill scope (트렌드 재적재 범위)', () => {
+  it('When a trend payload path changes Then deploys before refilling', async () => {
+    for (const path of ['worker/domain/trend/projection.ts', 'worker/app/trend/refresh.ts', 'shared/trend-models.ts']) {
+      const fake = makeFakeExecutor({ 'git diff --name-only': { stdout: `${path}\n` } })
+      const result = await runShip({ apply: true, execute: fake.execute, summary: '트렌드 갱신', version: '0.7.1' })
+      expect(result.ok).toBe(true)
+      const ran = fake.calls.map((c) => [c.command, ...c.args].join(' '))
+      const deploy = ran.findIndex((c) => c.includes('deploy-verify.mjs --deploy'))
+      const refill = ran.findIndex((c) => c === 'node scripts/trend-refresh-once.mjs --apply')
+      expect(refill).toBe(deploy + 1)
+      expect(result.steps.find((s: { name: string }) => s.name === 'trend_refill')?.status).toBe('PASS')
+    }
+  })
+
+  it('When only a trend infrastructure file changes Then deploys before refilling', async () => {
+    const fake = makeFakeExecutor({ 'git diff --name-only': { stdout: 'worker/infra/trend/metrics-sources.ts\n' } })
+    const result = await runShip({ apply: true, execute: fake.execute, summary: '트렌드 수집 갱신', version: '0.7.1' })
+    const ran = fake.calls.map((c) => [c.command, ...c.args].join(' '))
+    const deploy = ran.findIndex((c) => c.includes('deploy-verify.mjs --deploy'))
+    const refill = ran.findIndex((c) => c === 'node scripts/trend-refresh-once.mjs --apply')
+    expect(deploy).toBeGreaterThanOrEqual(0)
+    expect(refill).toBe(deploy + 1)
+    expect(result.steps.find((s: { name: string }) => s.name === 'trend_refill')?.status).toBe('PASS')
+  })
+
+  it('When unrelated or similar paths change Then skips trend refill', async () => {
+    const fake = makeFakeExecutor({ 'git diff --name-only': { stdout: 'worker/index.ts\nshared/trendish.ts\nshared/trend-nested/a.ts\nworker/domain/trends/a.ts\n' } })
+    const result = await runShip({ apply: true, execute: fake.execute, summary: '워커 갱신', version: '0.7.1' })
+    expect(result.steps.find((s: { name: string }) => s.name === 'trend_refill')?.status).toBe('SKIP')
+    expect(fake.calls.some((c) => c.args.includes('scripts/trend-refresh-once.mjs'))).toBe(false)
   })
 })
 
@@ -167,6 +215,22 @@ describe('Given failure handling and secret redaction (실패 중단 및 비밀�
     expect(lines[0]).not.toContain('secret-token-xyz')
     expect(lines[0]).not.toContain('DISCORD_WEBHOOK_URL')
     expect(fake.calls.some((c) => c.args.join(' ').includes('notify-discord.sh'))).toBe(false)
+  })
+
+  it('When refill fails with --notify-failure Then stops and reports the refill stage', async () => {
+    const fake = makeFakeExecutor({
+      'git diff --name-only': { stdout: 'worker/app/trend/refresh.ts\nshared/trend-types.ts\n' },
+      'trend-refresh-once.mjs --apply': { exitCode: 1, stderr: 'secret-refill-output' },
+    })
+    const lines: string[] = []
+    const code = await shipMain(['--apply', '--notify-failure', '--summary', '트렌드 갱신'],
+      { execute: fake.execute, write: (s: string) => lines.push(s), version: '0.7.1', releaseDir: '/tmp/ship-release' })
+    expect(code).toBe(1)
+    expect(JSON.parse(lines[0])).toEqual({ ok: false, dryRun: false, stage: 'trend_refill' })
+    expect(lines[0]).not.toContain('secret-refill-output')
+    expect(fake.calls.find((c) => c.args.includes('scripts/trend-refresh-once.mjs'))?.cwd).toBe('/tmp/ship-release')
+    expect(fake.calls.some((c) => c.args.includes('scripts/collector-apply.mjs'))).toBe(false)
+    expect(fake.calls.find((c) => c.command.includes('notify-discord.sh'))?.args.join(' ')).toContain('trend_refill')
   })
 
   it('When a stage fails with --notify-failure Then sends failure notice to Discord without leaking secrets', async () => {
