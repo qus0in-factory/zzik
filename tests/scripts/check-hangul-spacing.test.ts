@@ -3,7 +3,7 @@ import { spawnSync, execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 // @ts-expect-error scripts/check-hangul-spacing.mjs is plain ESM checked by vitest
 import { findLongHangulRuns } from '../../scripts/check-hangul-spacing.mjs'
 
@@ -71,6 +71,39 @@ describe('Given the Korean spacing checker', () => {
     const files = execFileSync('git', ['ls-files', '*.md'], { encoding: 'utf8' }).split('\n').filter((file) => file !== '')
     const result = run(files)
     expect(result.status).toBe(0)
+  })
+
+  it('When no base is given Then changedMarkdownFiles compares against origin/main', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zzik-spacing-git-'))
+    const git = (...args: string[]) => execFileSync('git', ['-c', `core.hooksPath=${join(directory, 'no-hooks')}`, ...args], { cwd: directory, stdio: 'pipe' })
+    try {
+      git('init')
+      writeFileSync(join(directory, 'deleted.md'), 'before\n')
+      writeFileSync(join(directory, 'changed.md'), 'before\n')
+      writeFileSync(join(directory, 'base-only.md'), 'before\n')
+      git('add', '.')
+      git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '-m', 'base')
+      writeFileSync(join(directory, 'base-only.md'), 'base branch\n')
+      git('add', '.')
+      git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '-m', 'base branch')
+      git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+      git('reset', '--hard', 'HEAD^')
+      rmSync(join(directory, 'deleted.md'))
+      writeFileSync(join(directory, 'changed.md'), 'after\n')
+      writeFileSync(join(directory, 'added.md'), 'added\n')
+      writeFileSync(join(directory, 'other.txt'), 'ignored\n')
+      git('add', '-A')
+      git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '-m', 'changes')
+
+      const output = execFileSync(process.execPath, [
+        '--input-type=module', '-e',
+        'const { changedMarkdownFiles } = await import(process.argv[1]); console.log(JSON.stringify(changedMarkdownFiles()))',
+        pathToFileURL(SCRIPT).href,
+      ], { cwd: directory, encoding: 'utf8' })
+      expect(JSON.parse(output)).toEqual(['added.md', 'changed.md'])
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   it('When --help is requested Then prints usage and exits 0', () => {
