@@ -38,3 +38,23 @@
 - export 경보 임계: `36시간`.
 - R2 백업 보존: `30일` 이상.
 - 이벤트 정리: `30일`, receipt 정리: `35일`.
+
+## 배포·알림 통합 (`scripts/ship.mjs`)
+
+- 실행 단계 (기본 dry-run, `--apply`만 실행):
+  1. `release_prep`: `node scripts/release-prep.mjs --apply`
+  2. `pr_merge`: `gh pr merge --merge`
+  3. `release_sync`: `.worktree/release`에서 `git pull --ff-only` → `pnpm install --frozen-lockfile` → clean 확인
+  4. `scope`: 직전 `main`과 비교해 변경 범위 판정
+  5. `deploy_worker`: 대상 변경 시 `node scripts/deploy-verify.mjs --deploy`
+  6. `apply_collector`: 대상 변경 시 `node scripts/collector-apply.mjs --apply`
+  7. `verify_request`: `verify-request.mjs` 형식으로 확인/완료 본문 생성 (`--kind verify|done`, `--summary`, `--check`, `--issues`)
+  8. `notify_discord`: `scripts/notify-discord.sh` 전송 (실패 시 `--notify-failure`가 있으면 실패 알림 전송)
+
+| 변경 경로 | Worker 배포 (`deploy-verify`) | 수집기 반영 (`collector-apply`) | 기본 `--kind` |
+|---|---|---|---|
+| `src/` | 실행 | — | `verify` (화면 확인 요청) |
+| `worker/`, `wrangler.jsonc` | 실행 | — | `done` |
+| `collector/` | — | 실행 | `done` |
+| `shared/` | 실행 | 실행 | `done` (`src/` 동반 시 `verify`) |
+| 그 외 (`docs/` 등) | 생략 | 생략 | `done` |
