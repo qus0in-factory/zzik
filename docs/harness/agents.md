@@ -11,7 +11,7 @@
 | `z-ds` (`ds`) | 경량 구현·잡무, 하네스·스크립트·문서 동기화 | OpenCode (`DeepSeek V4.1 Flash`) |
 | `z-hf` (`hf`) | 소규모 구현·문서 동기화·가벼운 확인 | OpenCode (`Hy4 flash Free`) |
 | `z-hyd` (`hydro`) | 문서·하네스 동기화, 범위가 명확한 소규모 구현, 테스트 보강 | Antigravity CLI (`Gemini 4 Hydrogen`, medium) |
-| `z-fable` (`fable`) | 설계·리뷰 전용. 파일 수정·커밋 금지(읽기·검색·테스트 실행은 허용). 결과는 `/tmp/fable-<주제>.md` | Claude Code (`Fable 5.1`, high) |
+| `z-fable` (`fable`) | 설계·리뷰 위주, 필요하면 구현도 맡는다. 손이 가는 일은 Sonnet 서브에이전트에 위임해 Fable 사용량을 아낀다. 결과는 `/tmp/fable-<주제>.md` | Claude Code (`Fable 5.1`, high) |
 | `z-astra` (`astra`) | 설계·리뷰 전용(주로 구현 코드 리뷰, `z-fable`과 분담). 파일 수정·커밋 금지. 결과는 `/tmp/astra-<주제>.md` | Codex (`GPT-6-Astra`, high, Fast) |
 
 - `z-grok`은 한도가 남을 때만 쓰고 소진되면 다른 워커가 승계한다.
@@ -34,3 +34,5 @@
   - `agy`: `Gemini <버전> Hydrogen` 또는 `Hydrogen`→`hydro`, 그 외 `Gemini <버전>`→`gemini`.
   - `opencode`: `GPT-<버전>-Sol`→`sol`, `DeepSeek <버전>`→`ds`, `Hy<버전>`→`hy`, `Hy4 flash`→`hf`(`hy`와 구분), `GLM-<버전>`→`glm`, `Beam Free`→`beam`.
   - `claude`: `Opus|Fable|Sonnet <버전>`→`opus`|`fable`|`sonnet`(마지막 줄 우선).
+
+- 2026-11-17 사용자 지시: z-fable·z-astra는 놀리지 말고 구현 후 리뷰에 적극 투입한다. z-fable은 리뷰·설계 외 작업도 하되 과하게 쓰지 않도록 Sonnet 서브에이전트와 협업한다.
