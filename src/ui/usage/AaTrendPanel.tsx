@@ -50,7 +50,7 @@ function AaModelTable({
             )}
             {mode === 'cost' && (
               <>
-                <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.costPerTask')}</th>
+                <th scope="col" className="min-w-[3.5rem] px-2.5 py-2 text-right font-medium sm:min-w-0 sm:whitespace-nowrap sm:px-3">{t('usage.trend.col.costPerTask')}</th>
                 <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.priceOut')}</th>
                 <th scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium sm:px-3">{t('usage.trend.col.intelligence')}</th>
               </>
@@ -68,7 +68,7 @@ function AaModelTable({
           {rows.map((item, idx) => (
             <tr key={item.slug} className="hover:bg-muted/20">
               <td className="whitespace-nowrap px-2.5 py-2 tabular-nums text-muted-foreground sm:px-3">{idx + 1}</td>
-              <td className="break-keep [overflow-wrap:anywhere] px-2.5 py-2 font-medium text-foreground sm:px-3">
+              <td className={`break-keep [overflow-wrap:anywhere] px-2.5 py-2 font-medium text-foreground sm:px-3${mode === 'cost' ? ' min-w-[5rem]' : ''}`}>
                 <div>{item.name}</div>
                 {item.creator !== '' && (
                   <div className="mt-0.5 text-[11px] font-normal text-muted-foreground sm:hidden">{item.creator}</div>
