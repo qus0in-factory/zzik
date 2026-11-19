@@ -16,10 +16,11 @@ const EXPECTED = [
   { name: 'Arena Leaderboard', domain: 'arena.ai', description: '사용자 투표 기반 모델 선호 순위', href: 'https://arena.ai/leaderboard' },
   { name: 'OpenRouter Rankings', domain: 'openrouter.ai', description: 'OpenRouter 사용량 기준 인기 모델 순위', href: 'https://openrouter.ai/rankings' },
   { name: 'OpenCode 데이터', domain: 'opencode.ai', description: 'OpenCode 사용량·모델 데이터', href: 'https://opencode.ai/ko/data' },
+  { name: 'models.dev', domain: 'models.dev', description: 'AI 모델 사양·가격·컨텍스트 오픈 데이터베이스', href: 'https://models.dev' },
 ] as const
 
 describe('Given the /trend external link list', () => {
-  it('When TrendPage renders Then five links appear in order with href, target and rel, without data calls', () => {
+  it('When TrendPage renders Then six links appear in order with href, target and rel, without data calls', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     render(
       <MemoryRouter initialEntries={['/trend']}>
@@ -32,7 +33,7 @@ describe('Given the /trend external link list', () => {
 
     const list = screen.getByRole('list', { name: '트렌드 참고 링크' })
     const links = within(list).getAllByRole('link')
-    expect(links).toHaveLength(5)
+    expect(links).toHaveLength(6)
     expect(links.map((link) => link.getAttribute('href'))).toEqual(EXPECTED.map((item) => item.href))
 
     for (const [index, link] of links.entries()) {

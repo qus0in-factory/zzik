@@ -7,4 +7,5 @@ export const TREND_LINKS = [
   { nameKey: 'trend.link.arenaLeaderboard', domainKey: 'trend.domain.arenaLeaderboard', descriptionKey: 'trend.linkDesc.arenaLeaderboard', url: 'https://arena.ai/leaderboard' },
   { nameKey: 'trend.link.openRouterRankings', domainKey: 'trend.domain.openRouterRankings', descriptionKey: 'trend.linkDesc.openRouterRankings', url: 'https://openrouter.ai/rankings' },
   { nameKey: 'trend.link.openCodeData', domainKey: 'trend.domain.openCodeData', descriptionKey: 'trend.linkDesc.openCodeData', url: 'https://opencode.ai/ko/data' },
+  { nameKey: 'trend.link.modelsDev', domainKey: 'trend.domain.modelsDev', descriptionKey: 'trend.linkDesc.modelsDev', url: 'https://models.dev' },
 ] as const satisfies readonly { nameKey: MessageKey; domainKey: MessageKey; descriptionKey: MessageKey; url: string }[]
