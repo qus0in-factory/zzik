@@ -3,13 +3,14 @@
  * Pure constants, row/document shapes and validation. No clock, I/O or driver.
  */
 import { isDecimalEventId, isRecord, isUsageProvider, isUsageStatus } from '../../../shared/d1-canonical'
+import { TREND_REFRESH_INTERVAL_HOURS } from '../../../shared/trend-contract'
 import type { UsageProvider, UsageStatus } from '../../../shared/usage-contract'
 
 /** The daily export cron. E's 15-minute bucket writer keeps its own string. */
 export const EXPORT_CRON = '0 3 * * *'
 export const BUCKET_CRON = '*/15 * * * *'
-/** Public trend refresh: every two hours, off the other cron boundaries. */
-export const TREND_CRON = '7 */2 * * *'
+/** Public trend refresh, off the other cron boundaries. */
+export const TREND_CRON = `7 */${TREND_REFRESH_INTERVAL_HOURS} * * *`
 /** Public metrics refresh: daily, after the trend collection cron. */
 export const METRICS_CRON = '17 0 * * *'
 

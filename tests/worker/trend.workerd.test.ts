@@ -2,7 +2,7 @@ import { builtinModules } from 'node:module'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-import { Miniflare, Log, LogLevel } from 'miniflare'
+import { Miniflare, Log, LogLevel, Response, type Request } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { TREND_CRON } from '../../worker/domain/usage/export'
 
@@ -78,33 +78,7 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
 
   beforeAll(async () => {
     const bundle = await build({
-      stdin: {
-        resolveDir: fileURLToPath(new URL('../../', import.meta.url)),
-        contents: `
-          import { createWorker } from './worker/index.ts';
-          const models = ${JSON.stringify(models)};
-          const zen = ${JSON.stringify(zen)};
-          const openrouter = ${JSON.stringify(openrouter)};
-          const json = (body, etag) => new Response(JSON.stringify(body), {
-            status: 200,
-            headers: etag === undefined ? {} : { etag, 'content-type': 'application/json' },
-          });
-          const fakeFetch = async (input, init) => {
-            const url = String(input);
-            const inm = new Headers(init?.headers).get('If-None-Match');
-            if (url.includes('models.dev')) {
-              if (inm === '"v1"') return new Response(null, { status: 304, headers: { etag: '"v1"' } });
-              return json(models, '"v1"');
-            }
-            if (url.includes('opencode.ai/inference/go/v1/models')) return json({ object: 'list', data: [{ id: 'deepseek-v4.1-flash', canonical_id: 'deepseek/deepseek-v4.1-flash-1017', name: 'DeepSeek V4.1 Flash 1017' }, ...zen.data] });
-            if (url.includes('ollama.com/api/tags')) return json({ models: [{ name: 'glm-5.3', size: 0 }] });
-            if (url.includes('opencode.ai')) return json(zen);
-            if (url.includes('openrouter.ai')) return json(openrouter);
-            return new Response('not found', { status: 404 });
-          };
-          export default createWorker({ trendFetch: fakeFetch });
-        `,
-      },
+      entryPoints: [fileURLToPath(new URL('../../worker/index.ts', import.meta.url))],
       bundle: true, write: false, format: 'esm', platform: 'neutral',
       conditions: ['workerd', 'worker', 'browser'], external: ['cloudflare:sockets', 'node:*'],
       plugins: [{ name: 'node-builtins', setup(builder) {
@@ -115,6 +89,30 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     })
     mf = new Miniflare({
       workers: [{
+        dev: {
+          outboundService: {
+            type: 'fetcher',
+            handler(request: Request) {
+              const { hostname, pathname } = new URL(request.url)
+              if (hostname === 'models.dev') {
+                const headers = { etag: '"v1"' }
+                if (request.headers.get('If-None-Match') === '"v1"') return new Response(null, { status: 304, headers })
+                return Response.json(models, { headers })
+              }
+              if (hostname === 'opencode.ai' && pathname === '/inference/go/v1/models') {
+                return Response.json({
+                  object: 'list',
+                  data: [{ id: 'deepseek-v4.1-flash', canonical_id: 'deepseek/deepseek-v4.1-flash-1017', name: 'DeepSeek V4.1 Flash 1017' }, ...zen.data],
+                })
+              }
+              if (hostname === 'ollama.com' && pathname === '/api/tags') {
+                return Response.json({ models: [{ name: 'glm-5.3', size: 0 }] })
+              }
+              if (hostname === 'openrouter.ai') return Response.json(openrouter)
+              return new Response(null, { status: 404 })
+            },
+          },
+        },
         config: {
           name: 'zzik-trend-test',
           compatibilityDate: '2026-11-11',
