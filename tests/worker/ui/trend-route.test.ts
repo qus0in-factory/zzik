@@ -80,7 +80,7 @@ describe('Given public trend routes with a ready D1 store', () => {
 
   it('When section:<id> state is missing or expired Then index omits missing checkedAt and marks status stale', async () => {
     const baseMs = Date.parse(payload.generatedAt)
-    const s = setup(baseMs + 5 * 60 * 60 * 1000)
+    const s = setup(baseMs + 9 * 60 * 60 * 1000)
     s.trend.sourceStates = [
       { source: 'section:new-models', etag: null, fetchedAt: baseMs, ok: true, httpStatus: null },
     ]
