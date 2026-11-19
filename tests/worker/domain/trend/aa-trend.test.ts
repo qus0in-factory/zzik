@@ -21,7 +21,7 @@ function row(index: number, overrides: Partial<AaSnapshotRow> = {}): AaSnapshotR
 }
 
 describe('Given AA snapshot rows for the internal /api/trend/aa endpoint', () => {
-  it('When 25 rows exist Then computes intelligence/cost top 20 and price/speed/latency top 10 from raw AA fields', () => {
+  it('When 25 rows exist Then computes intelligence/cost/price top 20 and speed/latency top 10 from raw AA fields', () => {
     const rows = Array.from({ length: 25 }, (_, idx) => row(idx + 1, { costPerTask: Number(((25 - idx) / 100).toFixed(2)) }))
     rows[24] = row(25, { priceIn: null, priceOut: null, outputTokensPerSecond: 0, timeToFirstTokenSeconds: 0, costPerTask: null })
 
@@ -37,7 +37,7 @@ describe('Given AA snapshot rows for the internal /api/trend/aa endpoint', () =>
     expect(response.intelligenceTop[0]).toMatchObject({ slug: 'model-01', intelligenceIndex: 89 })
     expect(response.intelligenceTop[19]).toMatchObject({ slug: 'model-20', intelligenceIndex: 70 })
 
-    expect(response.priceLowest).toHaveLength(10)
+    expect(response.priceLowest).toHaveLength(20)
     expect(response.priceLowest[0]).toMatchObject({ slug: 'model-01', priceIn: 1, priceOut: 3 })
     expect(response.costLowest).toHaveLength(20)
     expect(response.costLowest[0]).toMatchObject({ slug: 'model-24', costPerTask: 0.02 })

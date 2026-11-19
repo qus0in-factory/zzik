@@ -27,7 +27,7 @@ export const AA_TREND_FIXTURE: AaTrendResponse = {
   indexVersion: '5.0',
   attribution: 'Source: Artificial Analysis (artificialanalysis.ai)',
   intelligenceTop: [...FIXTURE_ITEMS].sort((a, b) => b.intelligenceIndex - a.intelligenceIndex).slice(0, 20),
-  priceLowest: [...FIXTURE_ITEMS].sort((a, b) => (a.priceOut ?? 0) - (b.priceOut ?? 0)).slice(0, 10),
+  priceLowest: [...FIXTURE_ITEMS].sort((a, b) => (a.priceOut ?? 0) - (b.priceOut ?? 0)).slice(0, 20),
   costLowest: [...FIXTURE_ITEMS].sort((a, b) => (a.costPerTask ?? 0) - (b.costPerTask ?? 0)).slice(0, 20),
   speedHighest: [...FIXTURE_ITEMS].sort((a, b) => (b.outputTokensPerSecond ?? 0) - (a.outputTokensPerSecond ?? 0)).slice(0, 10),
   latencyLowest: [...FIXTURE_ITEMS].sort((a, b) => (a.timeToFirstTokenSeconds ?? 0) - (b.timeToFirstTokenSeconds ?? 0)).slice(0, 10),

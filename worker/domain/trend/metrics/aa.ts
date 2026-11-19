@@ -1,4 +1,4 @@
-import { TREND_AA_COST_LIMIT, TREND_AA_INTELLIGENCE_LIMIT, TREND_AA_PANEL_LIMIT } from '../../../../shared/trend-contract'
+import { TREND_AA_COST_LIMIT, TREND_AA_INTELLIGENCE_LIMIT, TREND_AA_PANEL_LIMIT, TREND_AA_PRICE_LIMIT } from '../../../../shared/trend-contract'
 import type { AaTrendModelItem, AaTrendResponse } from '../../../../shared/trend-contract'
 import { composeNotableCitation, notableFamilyName } from './citation'
 import type { AaModelEntry, AaSnapshot, AaSnapshotRow } from './types'
@@ -146,7 +146,7 @@ export function buildAaTrendResponse(rows: readonly AaSnapshotRow[]): AaTrendRes
     item.priceIn !== null && item.priceOut !== null)
   const priceLowest = [...priced]
     .sort((a, b) => a.priceOut - b.priceOut || a.priceIn - b.priceIn || a.slug.localeCompare(b.slug))
-    .slice(0, TREND_AA_PANEL_LIMIT)
+    .slice(0, TREND_AA_PRICE_LIMIT)
   const costLowest = items
     .filter((item): item is AaTrendModelItem & { costPerTask: number } =>
       item.costPerTask !== null && item.costPerTask > 0)
