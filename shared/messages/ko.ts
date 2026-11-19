@@ -12,7 +12,7 @@ export const ko = {
   'nav.trend': '트렌드',
   'trend.metrics.title': '성능 지표',
   'trend.metrics.aa.source': 'Source: Artificial Analysis (artificialanalysis.ai)',
-  'trend.fixture.aaCitation': '요즘 주목받는 모델은 Claude Fable, Claude Opus, Claude Sonnet, Gemini Carbon, Gemini Hydrogen, GPT Astra, GPT Sol 등입니다.',
+  'trend.fixture.aaCitation': '요즘 주목받는 모델은 Claude Fable 5.2, Claude Opus 5.5, Claude Sonnet 5.5, Gemini 4 Carbon, Gemini 4 Hydrogen, GPT 6 Astra, GPT 6.1 Sol 등입니다.',
   'trend.metrics.rule': 'OpenRouter 7일 사용 점유율·순위 변동입니다.',
   'trend.metrics.loading': '성능 지표를 불러오는 중…',
   'trend.metrics.error': '성능 지표를 불러오지 못했습니다.',

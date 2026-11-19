@@ -36,6 +36,23 @@ describe('Given the herdr label detection', () => {
     const screen = `"Gemini 4 Hydrogen"로 바꿨다\nSonnet 5.5 로 전환 기록\n${filler(8)}\n? for shortcuts`
     expect(detect('agy', screen)).toBe('')
   })
+  it('When agy shows a versioned Claude model in the status line Then it is sonnet or opus', () => {
+    expect(detect('agy', `${filler(10)}\n  Sonnet 5.5 · high`)).toBe('sonnet')
+    expect(detect('agy', `${filler(10)}\n  Claude Sonnet 5.5 · high`)).toBe('sonnet')
+    expect(detect('agy', `${filler(10)}\n  Opus 5.5 · high`)).toBe('opus')
+    expect(detect('agy', `${filler(10)}\n  Claude Opus 4.1 · high`)).toBe('opus')
+  })
+  it('When agy shows a lowercase or versionless Claude word Then it is not detected', () => {
+    expect(detect('agy', `${filler(10)}\n  sonnet 5.5 · high`)).toBe('')
+    expect(detect('agy', `${filler(10)}\n  opus 5.5 · high`)).toBe('')
+    expect(detect('agy', `${filler(10)}\n  Sonnet high`)).toBe('')
+    expect(detect('agy', `${filler(10)}\n  Opus high`)).toBe('')
+  })
+  it('When agy status line mixes a Claude model with an existing mapping Then the existing mapping wins', () => {
+    expect(detect('agy', `${filler(10)}\n  Gemini 4 Argon · Sonnet 5.5`)).toBe('argon')
+    expect(detect('agy', `${filler(10)}\n  Gemini 4 Hydrogen · Opus 5.5`)).toBe('hydro')
+    expect(detect('agy', `${filler(10)}\n  Gemini 4.1 · Sonnet 5.5`)).toBe('gemini')
+  })
   it('When opencode shows a model in the bottom lines Then Grok is no longer detected and GPT-Sol is told apart', () => {
     expect(detect('opencode', `${filler(10)}\n  ┃  Build auto · Grok 4.7 xAI · high`)).toBe('')
     expect(detect('opencode', `${filler(10)}\n  GPT-6.1-Sol medium · ~/zzik`)).toBe('sol')

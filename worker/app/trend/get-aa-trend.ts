@@ -7,7 +7,7 @@ export interface AaTrendStore {
   readAaSnapshot(day: string): Promise<AaSnapshotRow[]>
 }
 
-/** 내부 전용(/api/trend/aa): 최신 AA 스냅샷을 읽어 지능·가격·속도·응답시간 상위/하위 10을 만든다. */
+/** 내부 전용(/api/trend/aa): 최신 AA 스냅샷을 읽어 지능·가격·속도·응답시간 표(지능·비용·단가 20, 속도·TTFT 10)를 만든다. */
 export async function getAaTrend(
   store: AaTrendStore,
 ): Promise<{ ok: true; value: AaTrendResponse } | { ok: false; reason: 'not_ready' }> {
