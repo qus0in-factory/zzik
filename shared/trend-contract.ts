@@ -163,11 +163,14 @@ export interface TrendSectionPayload {
   plans?: TrendPlanGroup[]
 }
 
-/** 인덱스 status 판정용 섹션별 최대 허용 경과(2×cron 주기: trend 4시간, metrics 48시간). */
+export const TREND_REFRESH_INTERVAL_HOURS = 4
+const trendSectionStaleMs = 2 * TREND_REFRESH_INTERVAL_HOURS * 60 * 60 * 1000
+
+/** 인덱스 status 판정용 섹션별 최대 허용 경과(2×cron 주기). */
 export const TREND_SECTION_STALE_MS: Record<TrendSection, number> = {
-  'plan-models': 4 * 60 * 60 * 1000,
-  'new-models': 4 * 60 * 60 * 1000,
-  'free-models': 4 * 60 * 60 * 1000,
+  'plan-models': trendSectionStaleMs,
+  'new-models': trendSectionStaleMs,
+  'free-models': trendSectionStaleMs,
   metrics: 48 * 60 * 60 * 1000,
 }
 
