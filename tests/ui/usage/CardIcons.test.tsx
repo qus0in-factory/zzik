@@ -109,6 +109,57 @@ describe('Given the raw property name info button', () => {
     fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
     expect(screen.getAllByTestId('usage-card-info-content')[0].getAttribute('aria-hidden')).toBe('true')
   })
+  it('Then the bubble is portaled to body outside any overflow-hidden card/table wrapper (Safari 목록 모드 첫 행 잘림 방지)', () => {
+    open()
+    fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+    const bubble = screen.getAllByTestId('usage-card-info-content')[0]
+    expect(bubble.parentElement).toBe(document.body)
+    expect(bubble.closest('[data-testid="usage-card"], .overflow-hidden')).toBeNull()
+    expect(bubble.className).toContain('fixed')
+  })
+  it('When open Then the bubble is fixed at the button position: above by default, below when there is no room above', () => {
+    const original = HTMLElement.prototype.getBoundingClientRect
+    const rect = (top: number, left: number, width: number, height: number): DOMRect => ({ top, left, width, height, bottom: top + height, right: left + width, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+    try {
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        return this.getAttribute('data-testid') === 'usage-card-info-content' ? rect(0, 0, 80, 24) : rect(200, 40, 16, 16)
+      }
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      const above = screen.getAllByTestId('usage-card-info-content')[0]
+      expect(above.getAttribute('data-side')).toBe('top')
+      expect(above.style.left).toBe('40px')
+      expect(above.style.top).toBe(`${200 - 24 - 6}px`)
+      cleanup()
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        return this.getAttribute('data-testid') === 'usage-card-info-content' ? rect(0, 0, 80, 24) : rect(4, 40, 16, 16)
+      }
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      const belowBubble = screen.getAllByTestId('usage-card-info-content')[0]
+      expect(belowBubble.getAttribute('data-side')).toBe('bottom')
+      expect(belowBubble.style.top).toBe(`${4 + 16 + 6}px`)
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original
+    }
+  })
+  it('When the bubble would run past the right edge Then it is shifted left to stay in the viewport', () => {
+    const original = HTMLElement.prototype.getBoundingClientRect
+    const originalWidth = window.innerWidth
+    try {
+      Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        const isBubble = this.getAttribute('data-testid') === 'usage-card-info-content'
+        return { top: 200, left: isBubble ? 0 : 350, width: isBubble ? 120 : 16, height: isBubble ? 24 : 16, bottom: 216, right: 0, x: 0, y: 200, toJSON: () => ({}) } as DOMRect
+      }
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      expect(screen.getAllByTestId('usage-card-info-content')[0].style.left).toBe(`${390 - 120 - 8}px`)
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original
+      Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
+    }
+  })
   it('When the button receives keyboard focus Then the tooltip opens', async () => {
     open()
     screen.getAllByTestId('usage-card-info')[0].focus()
