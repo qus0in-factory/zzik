@@ -136,7 +136,7 @@ async function start(): Promise<void> {
             <ViewModeProvider store={viewModeStore}>
               <HistoryDepsProvider deps={historyDeps}>
                 <TrendGatewayProvider deps={{ gateway: trendGateway, enabled: true }}>
-                  <AaTrendGatewayProvider deps={{ gateway: aaTrendGateway, enabled: true }}>
+                  <AaTrendGatewayProvider deps={{ gateway: aaTrendGateway, enabled: true, storage: browserLocalKeyValue() }}>
                     <BrowserRouter>
                       <AppRoutes />
                     </BrowserRouter>

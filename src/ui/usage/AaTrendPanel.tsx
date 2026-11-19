@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router'
 import { AaTrendLoadError, useAaTrend, useAaTrendDeps } from '@app/trend/AaTrendContext'
+import { useAaTrendExpanded } from '@app/trend/useAaTrendExpanded'
 import { t } from '@shared/messages'
 import type { AaTrendModelItem } from '@shared/trend-contract'
 
@@ -113,7 +114,7 @@ function AaModelTable({
 /** `/usage` 하단 접이식 트렌드 패널. 기본 접힘 상태이며 펼칠 때만 `/api/trend/aa`를 호출한다. */
 export function AaTrendPanel(): ReactNode {
   const deps = useAaTrendDeps()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, toggleExpanded] = useAaTrendExpanded(deps.storage)
   const [tab, setTab] = useState<AaTab>('intelligence')
   const { data, error, isError, isPending, refetch } = useAaTrend(expanded)
   if (!deps.enabled) return null
@@ -134,7 +135,7 @@ export function AaTrendPanel(): ReactNode {
             type="button"
             aria-expanded={expanded}
             aria-controls={PANEL_ID}
-            onClick={() => setExpanded((prev) => !prev)}
+            onClick={toggleExpanded}
             className="motion-button inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
           >
             <span>{expanded ? t('usage.trend.collapse') : t('usage.trend.expand')}</span>
