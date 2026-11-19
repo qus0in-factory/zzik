@@ -197,6 +197,7 @@ export const TREND_AA_SNAPSHOT_TOP_N = 50
 export const TREND_AA_PANEL_LIMIT = 10
 export const TREND_AA_INTELLIGENCE_LIMIT = 20
 export const TREND_AA_COST_LIMIT = 20
+export const TREND_AA_PRICE_LIMIT = 20
 
 export interface AaTrendModelItem {
   slug: string
