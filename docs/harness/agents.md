@@ -42,7 +42,7 @@
 
 - `agent` 필드 1차 판정: `codex`→`sol`, `grok`→`grok`.
 - 하단 상태줄(비어 있지 않은 마지막 5줄) 판정:
-  - `agy`: `Gemini <버전> Hydrogen` 또는 `Hydrogen`→`hydro`, 그 외 `Gemini <버전>`→`gemini`.
+  - `agy`: `Argon`→`argon`, `Gemini <버전> Hydrogen` 또는 `Hydrogen`→`hydro`, 그 외 `Gemini <버전>`→`gemini`, `Sonnet <버전>`→`sonnet`, `Opus <버전>`→`opus` (앞쪽 매핑 우선, 버전 없는 소문자 단어는 매칭하지 않음).
   - `opencode`: `GPT-<버전>-Sol`→`sol`, `DeepSeek <버전>`→`ds`, `Hy<버전>`→`hy`, `Hy4 flash`→`hf`(`hy`와 구분), `GLM-<버전>`→`glm`, `Beam Free`→`beam`.
   - `claude`: `Opus|Fable|Sonnet <버전>`→`opus`|`fable`|`sonnet`(마지막 줄 우선).
 
