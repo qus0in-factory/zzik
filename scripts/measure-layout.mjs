@@ -27,10 +27,10 @@ try {
     for (const mode of MODES) for (const width of WIDTHS) {
       await page.setSize(width)
       const shoot = async (name, fixture) => {
-        await page.send('Page.navigate', { url: `${base}/?fixture=${fixture}` })
+        await page.send('Page.navigate', { url: `${base}/usage?fixture=${fixture}` })
         await sleep(600)
         await page.evaluate(`localStorage.setItem('zzik:view-mode:v1', JSON.stringify({ version: 1, mode: '${mode}' }))`)
-        await page.send('Page.navigate', { url: `${base}/?fixture=${fixture}` })
+        await page.send('Page.navigate', { url: `${base}/usage?fixture=${fixture}` })
         await sleep(2500)
         const result = await page.evaluate(probe)
         if (shotPrefix) {
