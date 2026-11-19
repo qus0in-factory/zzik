@@ -1,11 +1,14 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import type { KeyValueStorage } from '@domain/usage/history/ports'
 import type { AaTrendGateway } from '@domain/trend/aa-gateway'
 import type { AaTrendResponse } from '@shared/trend-contract'
 
 export interface AaTrendDeps {
   gateway: AaTrendGateway
   enabled: boolean
+  /** 패널 접기/펼치기 상태 저장소(infra: localStorage). 없으면 저장하지 않는다. */
+  storage?: KeyValueStorage
 }
 
 export class AaTrendLoadError extends Error {
