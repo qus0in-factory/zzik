@@ -18,3 +18,5 @@ description: zzik 배포·Access 검증·수집기 운영 반영 시 사용. Wor
 
 - 릴리스 준비는 `scripts/release-prep.mjs`(로컬은 screenshot·KST test·한글 띄어쓰기 검사, UTC test·typecheck·typecheck:collector·build는 CI), 문서 검사는 `scripts/check-hangul-spacing.mjs`, 확인/완료 본문은 `scripts/verify-request.mjs`(`--done`)로 만든다.
 - 작업 묶음이 어느 정도 도입되면 `scripts/ship.mjs`로 릴리스·배포·Discord 알림까지 한 번에 한다(기본 dry-run, `--apply`만 실행, 단계·범위 표는 `docs/harness/operations.md` 참고).
+- `ship.mjs`가 `release_prep`에서 실패하면 `git status`로 생성 파일(`package.json`, `docs/screenshots/desktop.png`, `public/screenshots/*`)만 남았는지 확인하고 그 경로만 `git restore`한 뒤 원인을 고쳐 재실행한다. 일괄 원복(`git checkout -- .`)은 쓰지 않는다.
+- 릴리스 묶음이 끝나면 GitHub 위키 `변경-이력`에 배포 버전을 추가하고, 구조·운영이 바뀌었으면 `아키텍처`·`배포-운영-개요`도 고친다(위키 클론은 `/tmp`에서 작업 후 푸시).
