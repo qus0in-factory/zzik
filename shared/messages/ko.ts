@@ -90,7 +90,7 @@ export const ko = {
   'usage.trend.tab.intelligence': '지능 상위 20',
   'usage.trend.tab.price': '가격',
   'usage.trend.tab.speed': '속도',
-  'usage.trend.group.priceLowest': '출력 단가 최저 10',
+  'usage.trend.group.priceLowest': '출력 단가 최저 20',
   'usage.trend.group.costLowest': '작업당 비용 최저 20 ($)',
   'usage.trend.group.speedHighest': '출력 속도 상위 10 (tok/s)',
   'usage.trend.group.latencyLowest': '첫 토큰 시간(TTFT) 하위 10 (초)',
