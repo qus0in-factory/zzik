@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   BUCKET_CRON,
   EXPORT_CRON,
-  TREND_CRON,
   METRICS_CRON,
   EXPORT_PART_MAX_BYTES,
   buildExportDocument,
@@ -65,7 +64,8 @@ describe('Given a scheduled cron string', () => {
   it.each([
     [EXPORT_CRON, 'export'],
     [BUCKET_CRON, 'bucket'],
-    [TREND_CRON, 'trend'],
+    ['7 */4 * * *', 'trend'],
+    ['7 */2 * * *', 'unknown'],
     ['17 0 * * *', 'metrics'],
     ['37 4 * * *', 'unknown'],
     ['0 * * * *', 'unknown'],

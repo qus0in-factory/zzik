@@ -78,7 +78,8 @@ export async function fetchJsonWithLimits(options: JsonRequestOptions): Promise<
   try {
     let response: Response
     try {
-      response = await options.fetchImpl(options.url, { ...options.init, signal: controller.signal })
+      // workerd requires globalThis as the receiver of its native fetch.
+      response = await options.fetchImpl.call(globalThis, options.url, { ...options.init, signal: controller.signal })
     } catch {
       return { ok: false, reason: 'network', httpStatus: null }
     }
