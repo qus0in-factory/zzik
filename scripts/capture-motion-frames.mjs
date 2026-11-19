@@ -9,7 +9,7 @@ const frames = times.length > 0 ? times.map(Number) : [0, 400, 1200]
 await ensureServer(base)
 const page = await openPage({ width: 900, height: 620 })
 try {
-  await page.send('Page.navigate', { url: `${base}/?fixture=normal` })
+  await page.send('Page.navigate', { url: `${base}/usage?fixture=normal` })
   for (let i = 0; i < 100 && !(await page.evaluate("!!document.querySelector('[data-testid=\"usage-card\"]')")); i += 1) await sleep(30)
   for (const time of frames) {
     await page.evaluate(`document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ${time} })`)
