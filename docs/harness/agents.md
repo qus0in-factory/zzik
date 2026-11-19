@@ -2,18 +2,20 @@
 
 이 문서는 자주 바뀌는 에이전트 구성·모델·역할·라벨 매핑의 현재 정본이다. 절차는 `herdr-orchestration`, `herdr-label-models` 스킬을 따른다.
 
-## 에이전트 구성 (2026-11-16 사용자 결정, 2026-11-17 `z-hyd`·`z-fable`·`z-astra` 추가)
+## 에이전트 구성 (2026-11-16 사용자 결정, 2026-11-17 `z-hyd`·`z-fable`·`z-astra` 추가, 2026-11-19 `z-glm` 추가)
 
 | 에이전트 | 역할 | 도구·모델 |
 |---|---|---|
 | `z-opus` (`opus`) | 사용자 응대·총괄·병합·릴리스. 조사·구현·편집·대기를 직접 해도 된다. | Claude Code (Opus) |
-| `z-sol` (`sol`) | 백엔드·수집기 구현, DB 연동, 까다로운 디버깅·조사 | Codex (`GPT-6.1-Sol`, Fast) |
+| `z-sol` (`sol`) | 백엔드·수집기 구현, DB 연동, 까다로운 디버깅·조사 | Codex (`GPT-6.2-Sol`, high, Fast) |
 | `z-ds` (`ds`, 현재 미가동) | 경량 구현·잡무, 하네스·스크립트·문서 동기화 | OpenCode (`DeepSeek V4.1 Flash`) |
 | `z-hf` (`hf`) | 소규모 구현·문서 동기화·가벼운 확인 | OpenCode (`Hy4 flash Free`) |
+| `z-glm` (`glm`) | 이슈 구현 여부 판정, 문서·위키 동기화, 읽기 전용 조사 | OpenCode (OpenCode Go `GLM-5.3`, high) |
 | `z-hyd` (`hydro`, 현재 미가동) | 문서·하네스 동기화, 범위가 명확한 소규모 구현, 테스트 보강 | Antigravity CLI (`Gemini 4 Hydrogen`, medium) |
 | `z-fable` (`fable`) | 설계·리뷰 외 구현·조사·검증 등 다양한 일을 맡는다. 손이 가는 일은 `.claude/agents/`의 Sonnet 전용 서브에이전트에 위임하고 판단·지시·결과 검토에 집중한다. 결과는 `/tmp/fable-<주제>.md` | Claude Code (`Fable 5.1`, high) |
 | `z-astra` (`astra`) | 설계·리뷰 외 구현·조사·검증 등 다양한 일을 맡는다(`z-fable`과 분담). 손이 가는 일은 `.codex/agents`의 Codex Terra 서브에이전트에 위임하고 판단·지시·결과 검토에 집중한다. 결과는 `/tmp/astra-<주제>.md` | Codex (`GPT-6-Astra`, high, Fast) |
 
+- OpenCode는 실행 인자로 모델을 받지 않는다(`-m` 전달 시 시작 타임아웃). 기본 모델로 띄운 뒤 `/models`에서 고르고 상태줄(`GLM-5.3 OpenCode Go`)을 확인한 다음 지시한다. TUI 문자 입력은 `herdr pane send-text`, 키는 `herdr agent send-keys <이름> Enter|Down`.
 - `z-grok`은 한도가 남을 때만 쓰고 소진되면 다른 워커가 승계한다.
 
 ## 사용량 한도·effort (2026-11-17 사용자 지시)
