@@ -114,11 +114,14 @@ export const ko = {
   'trend.domain.openRouterRankings': 'openrouter.ai',
   'trend.link.openCodeData': 'OpenCode 데이터',
   'trend.domain.openCodeData': 'opencode.ai',
+  'trend.link.modelsDev': 'models.dev',
+  'trend.domain.modelsDev': 'models.dev',
   'trend.linkDesc.artificialAnalysis': '지능·속도·가격을 독립 벤치마크로 비교',
   'trend.linkDesc.cognitionFrontierCode': '프론티어 코딩 모델의 실제 작업 성능 비교',
   'trend.linkDesc.arenaLeaderboard': '사용자 투표 기반 모델 선호 순위',
   'trend.linkDesc.openRouterRankings': 'OpenRouter 사용량 기준 인기 모델 순위',
   'trend.linkDesc.openCodeData': 'OpenCode 사용량·모델 데이터',
+  'trend.linkDesc.modelsDev': 'AI 모델 사양·가격·컨텍스트 오픈 데이터베이스',
 
   // 소개 페이지
   'landing.eyebrow': '개인 사용량 대시보드',

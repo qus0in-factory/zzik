@@ -60,7 +60,7 @@ describe('Given /trend?fixture=normal', () => {
     expect(free.getAllByRole('link', { name: '가격표' })).toHaveLength(3)
 
     const links = screen.getByRole('list', { name: '트렌드 참고 링크' })
-    expect(within(links).getAllByRole('link')).toHaveLength(5)
+    expect(within(links).getAllByRole('link')).toHaveLength(6)
     expect(within(links).getByRole('link', { name: /Artificial Analysis/ }).getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
   })
 })

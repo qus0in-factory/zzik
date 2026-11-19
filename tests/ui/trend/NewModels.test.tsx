@@ -32,7 +32,7 @@ function renderPage(fetchSection: TrendGateway['fetchSection']) {
 }
 
 describe('Given the recent new-models section on /trend', () => {
-  it('When the section is loaded Then renders items, source/updated time and keeps the five reference links', async () => {
+  it('When the section is loaded Then renders items, source/updated time and keeps the six reference links', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     renderPage(async () => ({ ok: true, value: fixture }))
     const section = within(screen.getByTestId('trend-new-models'))
@@ -47,7 +47,7 @@ describe('Given the recent new-models section on /trend', () => {
     expect(section.getByText(/출처 models\.dev · OpenRouter · 갱신/)).toBeTruthy()
     expect(screen.getByRole('heading', { name: '참고 링크' })).toBeTruthy()
     const links = screen.getByRole('list', { name: '트렌드 참고 링크' })
-    expect(within(links).getAllByRole('link')).toHaveLength(5)
+    expect(within(links).getAllByRole('link')).toHaveLength(6)
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 

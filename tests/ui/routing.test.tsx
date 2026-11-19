@@ -78,6 +78,7 @@ describe('Given the usage/trend router', () => {
       'https://arena.ai/leaderboard',
       'https://openrouter.ai/rankings',
       'https://opencode.ai/ko/data',
+      'https://models.dev',
     ])
     expect(screen.queryAllByTestId(/^usage-section-/)).toHaveLength(0)
     expect(screen.getByTestId('app-version').textContent).toBe(`v${__APP_VERSION__}`)
