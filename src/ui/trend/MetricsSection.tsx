@@ -261,7 +261,7 @@ function MetricsSectionContent(): ReactNode {
                   {parsed.names.map((name, index) => (
                     <span key={name}>
                       {index > 0 && ', '}
-                      <strong className="font-semibold">{name}</strong>
+                      <strong className="whitespace-nowrap font-semibold">{name}</strong>
                     </span>
                   ))}
                   {parsed.suffix}

@@ -67,11 +67,13 @@ describe('Given the metrics section on /trend', () => {
     const versioned = '요즘 주목받는 모델은 Claude Opus 5.5, Gemini 4 Hydrogen, GPT 6.2 Sol 등입니다.'
     renderPage(async (section) => ({ ok: true, value: section === 'metrics' ? { ...metrics, aaCitation: versioned } : metrics }))
     const versionedNode = await screen.findByTestId('trend-metrics-aa-citation')
-    expect(Array.from(versionedNode.querySelectorAll('strong')).map((item) => item.textContent)).toEqual([
+    const strongNodes = Array.from(versionedNode.querySelectorAll('strong'))
+    expect(strongNodes.map((item) => item.textContent)).toEqual([
       'Claude Opus 5.5',
       'Gemini 4 Hydrogen',
       'GPT 6.2 Sol',
     ])
+    expect(strongNodes.every((item) => item.classList.contains('whitespace-nowrap'))).toBe(true)
     expect(versionedNode.textContent).toBe(versioned)
     cleanup()
 
