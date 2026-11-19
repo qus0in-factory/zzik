@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { UsageGatewayProvider } from '@app/usage/UsageGatewayContext'
 import { UsageDashboard } from '@ui/usage/UsageDashboard'
 import { buildUsageView } from '@domain/usage/view'
@@ -88,14 +88,14 @@ describe('Given the raw property name info button', () => {
     const original = HTMLElement.prototype.getBoundingClientRect
     try {
       HTMLElement.prototype.getBoundingClientRect = function () {
-        return { top: 200, height: 24, bottom: 224, left: 0, right: 0, width: 0, x: 0, y: 200, toJSON: () => ({}) } as DOMRect
+        return { top: 200, height: 24, bottom: 224, left: 0, right: 16, width: 16, x: 0, y: 200, toJSON: () => ({}) } as DOMRect
       }
       open()
       fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
       expect(screen.getAllByTestId('usage-card-info-content')[0].getAttribute('data-side')).toBe('top')
       cleanup()
       HTMLElement.prototype.getBoundingClientRect = function () {
-        return { top: 4, height: 24, bottom: 28, left: 0, right: 0, width: 0, x: 0, y: 4, toJSON: () => ({}) } as DOMRect
+        return { top: 4, height: 24, bottom: 28, left: 0, right: 16, width: 16, x: 0, y: 4, toJSON: () => ({}) } as DOMRect
       }
       open()
       fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
@@ -150,7 +150,7 @@ describe('Given the raw property name info button', () => {
       Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
       HTMLElement.prototype.getBoundingClientRect = function () {
         const isBubble = this.getAttribute('data-testid') === 'usage-card-info-content'
-        return { top: 200, left: isBubble ? 0 : 350, width: isBubble ? 120 : 16, height: isBubble ? 24 : 16, bottom: 216, right: 0, x: 0, y: 200, toJSON: () => ({}) } as DOMRect
+        return { top: 200, left: isBubble ? 0 : 350, width: isBubble ? 120 : 16, height: isBubble ? 24 : 16, bottom: 216, right: isBubble ? 120 : 366, x: 0, y: 200, toJSON: () => ({}) } as DOMRect
       }
       open()
       fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
@@ -159,6 +159,89 @@ describe('Given the raw property name info button', () => {
       HTMLElement.prototype.getBoundingClientRect = original
       Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
     }
+  })
+  describe('Given a live layout (viewport, frames, overlays)', () => {
+    const rect = (top: number, left: number, width: number, height: number): DOMRect => ({ top, left, width, height, bottom: top + height, right: left + width, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+    const originalRect = HTMLElement.prototype.getBoundingClientRect
+    const originalInnerHeight = window.innerHeight
+    const originalRaf = window.requestAnimationFrame
+    const originalCaf = window.cancelAnimationFrame
+    const originalFromPoint = document.elementFromPoint
+    let frames: FrameRequestCallback[] = []
+    let buttonRect = rect(200, 40, 16, 16)
+    const bubbleRect = rect(0, 0, 80, 24)
+    const mockLayout = () => {
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        return this.getAttribute('data-testid') === 'usage-card-info-content' ? bubbleRect : buttonRect
+      }
+      frames = []
+      window.requestAnimationFrame = (cb) => frames.push(cb)
+      window.cancelAnimationFrame = () => {}
+    }
+    const nextFrame = () => act(() => { const pending = frames.splice(0); pending.forEach((cb) => cb(0)) })
+    afterEach(() => {
+      HTMLElement.prototype.getBoundingClientRect = originalRect
+      window.requestAnimationFrame = originalRaf
+      window.cancelAnimationFrame = originalCaf
+      document.elementFromPoint = originalFromPoint
+      Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
+      buttonRect = rect(200, 40, 16, 16)
+    })
+    it('When there is no room above nor below Then the bubble stays above (never pushed off the bottom of a short viewport)', () => {
+      mockLayout()
+      buttonRect = rect(4, 40, 16, 16)
+      Object.defineProperty(window, 'innerHeight', { value: 40, configurable: true })
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      expect(screen.getAllByTestId('usage-card-info-content')[0].getAttribute('data-side')).toBe('top')
+    })
+    it('When the layout moves the button without a scroll or resize event Then the next frame re-anchors the bubble', () => {
+      mockLayout()
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      const bubble = screen.getAllByTestId('usage-card-info-content')[0]
+      expect(bubble.style.left).toBe('40px')
+      buttonRect = rect(300, 100, 16, 16)
+      nextFrame()
+      expect(bubble.style.left).toBe('100px')
+      expect(bubble.style.top).toBe(`${300 - 24 - 6}px`)
+    })
+    it('When the bubble is closed Then no frame callback keeps running (cleanup)', () => {
+      mockLayout()
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(screen.queryByTestId('usage-card-info-content')).toBeNull()
+      const cancel = vi.fn()
+      window.cancelAnimationFrame = cancel
+      frames = []
+      nextFrame()
+      expect(frames).toHaveLength(0)
+    })
+    it('When the button scrolls out of the viewport Then the bubble closes', () => {
+      mockLayout()
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      expect(screen.getAllByTestId('usage-card-info-content')).toHaveLength(1)
+      buttonRect = rect(2000, 40, 16, 16)
+      nextFrame()
+      expect(screen.queryByTestId('usage-card-info-content')).toBeNull()
+    })
+    it('When the button slides under the sticky header (another element is hit at its center) Then the bubble closes', () => {
+      mockLayout()
+      const header = document.createElement('header')
+      document.body.append(header)
+      let covered = false
+      document.elementFromPoint = (() => (covered ? header : screen.getAllByTestId('usage-card-info')[0])) as typeof document.elementFromPoint
+      open()
+      fireEvent.click(screen.getAllByTestId('usage-card-info')[0])
+      nextFrame()
+      expect(screen.getAllByTestId('usage-card-info-content')).toHaveLength(1)
+      covered = true
+      nextFrame()
+      expect(screen.queryByTestId('usage-card-info-content')).toBeNull()
+      header.remove()
+    })
   })
   it('When the button receives keyboard focus Then the tooltip opens', async () => {
     open()

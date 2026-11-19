@@ -15,16 +15,34 @@ interface BubblePosition {
   top: number
 }
 
+interface Viewport {
+  width: number
+  height: number
+}
+
+/** 버튼이 뷰포트 안에 한 픽셀이라도 보이는지(스크롤로 완전히 벗어나면 말풍선을 닫는다). 크기 0(레이아웃 전·jsdom)은 판정하지 않는다. */
+export function isButtonInViewport(button: DOMRect, viewport: Viewport): boolean {
+  if (button.width === 0 && button.height === 0) return true
+  return button.bottom > 0 && button.top < viewport.height && button.right > 0 && button.left < viewport.width
+}
+
 /**
- * 버튼·말풍선 크기로 고정(fixed) 좌표를 계산한다. 위쪽 공간이 모자라면 아래쪽,
- * 오른쪽으로 넘치면 뷰포트 안으로 밀어 넣는다(순수 함수라 테스트하기 쉽다).
+ * 버튼·말풍선 크기로 고정(fixed) 좌표를 계산한다. 기본은 버튼 위쪽, 위에 공간이 없고 아래에 있으면 아래쪽,
+ * 둘 다 없으면 위쪽(낮은 뷰포트에서 아래로 밀려 잘리지 않게). 오른쪽으로 넘치면 뷰포트 안으로 밀어 넣는다(순수 함수).
  */
-export function positionBubble(button: DOMRect, bubble: { width: number; height: number }, viewportWidth: number): BubblePosition {
-  const below = button.top < bubble.height + BUBBLE_GAP_PX
+export function positionBubble(button: DOMRect, bubble: { width: number; height: number }, viewport: Viewport): BubblePosition {
+  const need = bubble.height + BUBBLE_GAP_PX
+  const roomAbove = button.top >= need
+  const roomBelow = viewport.height - button.bottom >= need
+  const below = !roomAbove && roomBelow
   const top = below ? button.bottom + BUBBLE_GAP_PX : button.top - BUBBLE_GAP_PX - bubble.height
-  const maxLeft = Math.max(VIEWPORT_MARGIN_PX, viewportWidth - bubble.width - VIEWPORT_MARGIN_PX)
+  const maxLeft = Math.max(VIEWPORT_MARGIN_PX, viewport.width - bubble.width - VIEWPORT_MARGIN_PX)
   const left = Math.min(Math.max(button.left, VIEWPORT_MARGIN_PX), maxLeft)
   return { below, left, top }
+}
+
+function samePosition(a: BubblePosition | null, b: BubblePosition): boolean {
+  return a !== null && a.below === b.below && a.left === b.left && a.top === b.top
 }
 
 /**
@@ -48,24 +66,39 @@ export function RawIdInfo({ id, label }: { id: string; label: string }): ReactNo
     setPinned(false)
   }
 
-  // 열릴 때 버튼 위치로 좌표를 잡고, 열려 있는 동안 스크롤·리사이즈에 따라 다시 잡는다(그리기 전에 계산해 깜빡임이 없다).
+  // 열릴 때 버튼 위치로 좌표를 잡고(그리기 전에 계산해 깜빡임이 없다), 열려 있는 동안 매 프레임 다시 잰다.
+  // 스크롤·리사이즈뿐 아니라 카드 재배치처럼 이벤트 없는 레이아웃 변화도 따라가고, 값이 같으면 다시 그리지 않는다.
+  // 버튼이 뷰포트 밖으로 나가거나 고정 헤더 등 다른 요소에 덮이면(중심점 히트 테스트) 닫는다.
   useLayoutEffect(() => {
     if (!open) {
       setPosition(null)
       return
     }
+    let frame = 0
     const update = (): void => {
-      if (rootRef.current === null || bubbleRef.current === null) return
-      const bubble = bubbleRef.current.getBoundingClientRect()
-      setPosition(positionBubble(rootRef.current.getBoundingClientRect(), { width: bubble.width, height: bubble.height }, window.innerWidth))
+      const root = rootRef.current
+      const bubble = bubbleRef.current
+      if (root === null || bubble === null) return
+      const button = root.getBoundingClientRect()
+      const viewport = { width: window.innerWidth, height: window.innerHeight }
+      const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(button.left + button.width / 2, button.top + button.height / 2) : null
+      const measurable = button.width > 0 || button.height > 0
+      const covered = measurable && hit !== null && hit !== undefined && !root.contains(hit)
+      if (!isButtonInViewport(button, viewport) || covered) {
+        close()
+        return
+      }
+      const size = bubble.getBoundingClientRect()
+      const next = positionBubble(button, { width: size.width, height: size.height }, viewport)
+      setPosition((current) => (samePosition(current, next) ? current : next))
+    }
+    const tick = (): void => {
+      update()
+      frame = window.requestAnimationFrame(tick)
     }
     update()
-    window.addEventListener('scroll', update, { capture: true, passive: true })
-    window.addEventListener('resize', update)
-    return () => {
-      window.removeEventListener('scroll', update, { capture: true })
-      window.removeEventListener('resize', update)
-    }
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
   }, [open])
 
   // 열려 있는 동안 바깥 클릭·탭과 Esc로 닫는다.
