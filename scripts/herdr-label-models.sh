@@ -30,7 +30,8 @@ bottom_lines() {
 # herdr agent list의 agent 필드로 1차 판정하고, 모호한 종류만 화면 하단 상태줄로 확인한다.
 #   codex → sol
 #   grok → grok
-#   agy → 하단에 `Argon`(예: `Gemini <버전> Argon`)이면 argon, `Hydrogen`이면 hydro, 그 외 `Gemini <버전>`이면 gemini
+#   agy → 하단에 `Argon`(예: `Gemini <버전> Argon`)이면 argon, `Hydrogen`이면 hydro, 그 외 `Gemini <버전>`이면 gemini,
+#          `Sonnet <버전>`이면 sonnet, `Opus <버전>`이면 opus
 #   opencode → 하단에 `GPT-<버전>-Sol` 이면 sol,
 #              `DeepSeek <버전>` 이면 ds, `Hy<버전>` 이면 hy, `GLM-<버전>` 이면 glm, `Beam Free` 이면 beam
 #   claude → 하단에 `Opus|Fable|Sonnet <버전>` 이 있을 때만(마지막 매칭 우선)
@@ -50,6 +51,8 @@ detect() {
         if   [[ "$line" =~ Argon ]]; then echo argon; return 0
         elif [[ "$line" =~ Hydrogen ]]; then echo hydro; return 0
         elif [[ "$line" =~ Gemini\ [Vv]?$ver ]]; then echo gemini; return 0
+        elif [[ "$line" =~ Sonnet\ $ver ]]; then echo sonnet; return 0
+        elif [[ "$line" =~ Opus\ $ver ]]; then echo opus; return 0
         fi ;;
       opencode)
         if   [[ "$line" =~ GPT-$ver-Sol ]]; then echo sol; return 0
