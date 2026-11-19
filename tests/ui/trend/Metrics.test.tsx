@@ -63,12 +63,23 @@ describe('Given the metrics section on /trend', () => {
     expect(section.getByTestId('trend-metrics-view-table').getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('When a citation is present Then only the model names are bold; invalid text stays plain', async () => {
-    const citation = '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.'
-    renderPage(async (section) => ({ ok: true, value: section === 'metrics' ? { ...metrics, aaCitation: citation } : metrics }))
+  it('When a citation is present Then only the model names (with or without versions) are bold; invalid text stays plain', async () => {
+    const versioned = '요즘 주목받는 모델은 Claude Opus 5.5, Gemini 4 Hydrogen, GPT 6.2 Sol 등입니다.'
+    renderPage(async (section) => ({ ok: true, value: section === 'metrics' ? { ...metrics, aaCitation: versioned } : metrics }))
+    const versionedNode = await screen.findByTestId('trend-metrics-aa-citation')
+    expect(Array.from(versionedNode.querySelectorAll('strong')).map((item) => item.textContent)).toEqual([
+      'Claude Opus 5.5',
+      'Gemini 4 Hydrogen',
+      'GPT 6.2 Sol',
+    ])
+    expect(versionedNode.textContent).toBe(versioned)
+    cleanup()
+
+    const legacy = '요즘 주목받는 모델은 Claude Fable, GPT Sol 등입니다.'
+    renderPage(async (section) => ({ ok: true, value: section === 'metrics' ? { ...metrics, aaCitation: legacy } : metrics }))
     const node = await screen.findByTestId('trend-metrics-aa-citation')
     expect(Array.from(node.querySelectorAll('strong')).map((item) => item.textContent)).toEqual(['Claude Fable', 'GPT Sol'])
-    expect(node.textContent).toBe(citation)
+    expect(node.textContent).toBe(legacy)
     cleanup()
 
     renderPage(async (section) => ({ ok: true, value: section === 'metrics' ? { ...metrics, aaCitation: '자유 형식 문장입니다.' } : metrics }))

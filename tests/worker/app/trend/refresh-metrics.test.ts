@@ -192,8 +192,8 @@ describe('Given the daily metrics refresh (OpenRouter only)', () => {
     expect(store.aa[0]?.slug).toBe('model-01')
     expect(store.aa[49]?.slug).toBe('model-50')
     const payload = metricsPayload(store)
-    expect(payload.aaCitation).toMatch(/^요즘 주목받는 모델은 .+ 등입니다\.$/)
-    expect(payload.aaCitation).not.toMatch(/\d/)
+    expect(payload.aaCitation).toBe('요즘 주목받는 모델은 Model 1 등입니다.')
+    expect(payload.aaCitation).not.toMatch(/1위|99/)
     expect(JSON.stringify(payload)).not.toContain('model-02')
   })
 

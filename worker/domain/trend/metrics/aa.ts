@@ -1,6 +1,6 @@
 import { TREND_AA_COST_LIMIT, TREND_AA_INTELLIGENCE_LIMIT, TREND_AA_PANEL_LIMIT } from '../../../../shared/trend-contract'
 import type { AaTrendModelItem, AaTrendResponse } from '../../../../shared/trend-contract'
-import { composeNotableCitation, notableFamilyName } from './citation'
+import { composeNotableCitation, notableFamilyKey, notableFamilyName } from './citation'
 import type { AaModelEntry, AaSnapshot, AaSnapshotRow } from './types'
 
 interface Ranked {
@@ -36,9 +36,8 @@ export function buildAaCitation(snapshot: AaSnapshot): string | null {
   const families = new Map<string, Family>()
   for (const { entry } of rankAa(snapshot.entries).slice(0, AA_NOTABLE_SCAN_N)) {
     const name = notableFamilyName(entry.name)
-    if (name === null) continue
-    const key = name.toLowerCase()
-    if (families.has(key)) continue
+    const key = notableFamilyKey(entry.name)
+    if (name === null || key === null || families.has(key)) continue
     families.set(key, { name, creator: entry.creator === '' ? 'unknown' : entry.creator })
   }
   if (families.size === 0) return null
