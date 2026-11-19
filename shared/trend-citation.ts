@@ -9,7 +9,8 @@ const MAX_CITATION_LENGTH = 700
 const PREFIX = '요즘 주목받는 모델은 '
 const SUFFIX = ' 등입니다.'
 const CITATION_RE = /^요즘 주목받는 모델은 (.+) 등입니다\.$/
-const RANK_WORD_RE = /1위|2위|3위|순위|지수|점수|rank|score|index/i
+const RANK_WORD_RE = /\d+\s*위|순위|지수|점수|rank|score|index/i
+const VERSION_TOKEN_RE = /^\d+(?:\.\d+)*$/
 
 /** 모델 표시명: 버전 점과 "(high)" 같은 괄호 수식은 허용, 개행·추가 문장·직렬화 기호는 거부. */
 export function safeModelName(value: unknown): string | null {
@@ -23,20 +24,43 @@ export function safeModelName(value: unknown): string | null {
   return name
 }
 
-/** 원시 표시명에서 괄호 수식과 버전 숫자를 제거해 계열 대표 이름으로 만든다. */
+function extractFamilyKey(name: string): string | null {
+  if (safeModelName(name) !== name || /[()]/.test(name) || RANK_WORD_RE.test(name)) return null
+  const tokens = name.split(' ')
+  if (tokens.some((token) => token === '')) return null
+  for (const token of tokens) {
+    if (/\d/.test(token) && !VERSION_TOKEN_RE.test(token)) return null
+  }
+  const key = tokens
+    .filter((token) => !VERSION_TOKEN_RE.test(token))
+    .join(' ')
+    .toLowerCase()
+  return key === '' ? null : key
+}
+
+/** 원시 표시명에서 괄호 수식을 제거하고 버전은 남긴 계열 대표 이름으로 만든다. */
 export function notableFamilyName(raw: string): string | null {
-  const withoutModifier = raw.replace(/\([^)]*\)/g, ' ')
-  const withoutVersion = withoutModifier.replace(/\b\d+(?:\.\d+)*\b/g, ' ').replace(/\s*-\s*/g, ' ')
-  return safeModelName(withoutVersion.replace(/\s+/g, ' ').trim())
+  const withoutModifier = raw.replace(/\([^)]*\)/g, ' ').replace(/\s*-\s*/g, ' ')
+  const name = safeModelName(withoutModifier.replace(/\s+/g, ' ').trim())
+  if (name === null || extractFamilyKey(name) === null) return null
+  return name
+}
+
+/** 원시 표시명에서 괄호 수식과 버전 숫자를 모두 제거한 계열 식별 키(소문자)를 돌려준다. */
+export function notableFamilyKey(raw: string): string | null {
+  const name = notableFamilyName(raw)
+  return name === null ? null : extractFamilyKey(name)
 }
 
 /** 검증된 대표 이름 목록으로 한 문장을 만든다. 하나라도 의심스러우면 null. */
 export function composeNotableCitation(names: readonly string[]): string | null {
   if (!Array.isArray(names) || names.length === 0 || names.length > MAX_MODELS) return null
   const clean: string[] = []
+  const seenFamilies = new Set<string>()
   for (const name of names) {
-    if (safeModelName(name) === null || /\d/.test(name) || RANK_WORD_RE.test(name)) return null
-    if (clean.some((item) => item.toLowerCase() === name.toLowerCase())) return null
+    const familyKey = extractFamilyKey(name)
+    if (familyKey === null || seenFamilies.has(familyKey)) return null
+    seenFamilies.add(familyKey)
     clean.push(name)
   }
   for (let index = 1; index < clean.length; index += 1) {

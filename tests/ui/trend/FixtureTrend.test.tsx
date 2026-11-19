@@ -41,7 +41,7 @@ describe('Given /trend?fixture=normal', () => {
     expect(dated.textContent).not.toContain('20261017')
     const metrics = within(screen.getByTestId('trend-metrics'))
     expect(metrics.queryByText('Artificial Analysis Intelligence Index')).toBeNull()
-    expect(metrics.getByTestId('trend-metrics-aa-citation').textContent).toContain('요즘 주목받는 모델은 Claude Fable, Claude Opus, Claude Sonnet, Gemini Carbon, Gemini Hydrogen, GPT Astra, GPT Sol')
+    expect(metrics.getByTestId('trend-metrics-aa-citation').textContent).toContain('요즘 주목받는 모델은 Claude Fable 5.2, Claude Opus 5.5, Claude Sonnet 5.5, Gemini 4 Carbon, Gemini 4 Hydrogen, GPT 6 Astra, GPT 6.1 Sol')
     expect(metrics.getByRole('link', { name: /Artificial Analysis/ }).getAttribute('href')).toBe('https://artificialanalysis.ai/leaderboards/models')
 
     expect(await screen.findAllByTestId('trend-new-model')).toHaveLength(6)

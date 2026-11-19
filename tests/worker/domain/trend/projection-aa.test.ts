@@ -57,9 +57,11 @@ describe('Given the public projection of the AA citation', () => {
     expect(JSON.stringify(projected)).not.toContain('"score"')
   })
 
-  it('When a stored citation matches the validated template Then it is kept', () => {
-    const citation = '요즘 주목받는 모델은 Claude Opus, GPT Sol 등입니다.'
-    const projected = projectSectionPayload({ ...base, aaCitation: citation, blocks: [] }, 'metrics')
-    expect((projected as { aaCitation?: unknown }).aaCitation).toBe(citation)
+  it('When a stored citation matches the validated template (with or without versions) Then it is kept', () => {
+    const legacy = '요즘 주목받는 모델은 Claude Opus, GPT Sol 등입니다.'
+    expect((projectSectionPayload({ ...base, aaCitation: legacy, blocks: [] }, 'metrics') as { aaCitation?: unknown }).aaCitation).toBe(legacy)
+
+    const versioned = '요즘 주목받는 모델은 Claude Opus 5.5, Gemini 4 Hydrogen, GPT 6.2 Sol 등입니다.'
+    expect((projectSectionPayload({ ...base, aaCitation: versioned, blocks: [] }, 'metrics') as { aaCitation?: unknown }).aaCitation).toBe(versioned)
   })
 })
