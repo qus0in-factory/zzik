@@ -132,7 +132,7 @@ function toTrendItem(row: AaSnapshotRow): AaTrendModelItem {
 
 /**
  * 내부 전용(/api/trend/aa, Access JWT 뒤) AA 표 데이터 구성.
- * 우리가 만든 종합 점수 없이 AA 원시 필드만으로 정렬한다(지능·작업당 비용 20, 단가·속도·TTFT 10).
+ * 우리가 만든 종합 점수 없이 AA 원시 필드만으로 정렬한다(지능·작업당 비용·출력 단가 20, 속도·TTFT 10).
  */
 export function buildAaTrendResponse(rows: readonly AaSnapshotRow[]): AaTrendResponse | null {
   if (rows.length === 0) return null
