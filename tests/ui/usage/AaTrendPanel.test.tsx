@@ -4,10 +4,13 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import type { AaTrendResponse } from '@shared/trend-contract'
+import type { KeyValueStorage } from '@domain/usage/history/ports'
 import type { AaTrendGateway, AaTrendResult } from '@domain/trend/aa-gateway'
 import { AaTrendGatewayProvider } from '@app/trend/AaTrendContext'
 import { AaTrendPanel } from '@ui/usage/AaTrendPanel'
+import { AA_TREND_EXPANDED_KEY } from '@app/trend/useAaTrendExpanded'
 import { createTestQueryClient } from '../../helpers/query'
+import { createMemoryKeyValue } from '../../fakes/history-ports'
 
 afterEach(cleanup)
 
@@ -32,10 +35,10 @@ const SAMPLE: AaTrendResponse = {
   ],
 }
 
-function renderPanel(fetchAaTrend: AaTrendGateway['fetchAaTrend']) {
-  render(
+function renderPanel(fetchAaTrend: AaTrendGateway['fetchAaTrend'], storage?: KeyValueStorage) {
+  return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <AaTrendGatewayProvider deps={{ gateway: { fetchAaTrend }, enabled: true }}>
+      <AaTrendGatewayProvider deps={{ gateway: { fetchAaTrend }, enabled: true, storage }}>
         <MemoryRouter initialEntries={['/usage']}>
           <AaTrendPanel />
         </MemoryRouter>
@@ -95,5 +98,63 @@ describe('Given the AA Trend panel inside /usage', () => {
     renderPanel(async () => ({ ok: false, reason: 'not_ready', message: 'not_ready' }))
     fireEvent.click(screen.getByRole('button', { name: /트렌드/ }))
     expect(await screen.findByText(/아직 수집된 Artificial Analysis/)).toBeTruthy()
+  })
+})
+
+describe('Given the AA Trend panel with a key-value storage', () => {
+  const ok = async () => ({ ok: true as const, value: SAMPLE })
+
+  it('When expanded and remounted Then stays expanded', async () => {
+    const storage = createMemoryKeyValue()
+    const first = renderPanel(ok, storage)
+    fireEvent.click(screen.getByRole('button', { name: /트렌드/ }))
+    first.unmount()
+
+    renderPanel(ok, storage)
+    expect(screen.getByRole('button', { name: /트렌드/ }).getAttribute('aria-expanded')).toBe('true')
+    expect(await screen.findByText('Claude Fable 5')).toBeTruthy()
+  })
+
+  it('When expanded, then collapsed, and remounted Then stays collapsed', () => {
+    const storage = createMemoryKeyValue()
+    const first = renderPanel(ok, storage)
+    const toggle = screen.getByRole('button', { name: /트렌드/ })
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+    first.unmount()
+
+    renderPanel(ok, storage)
+    expect(screen.getByRole('button', { name: /트렌드/ }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('When nothing is stored Then uses the default (collapsed)', () => {
+    renderPanel(ok, createMemoryKeyValue())
+    expect(screen.getByRole('button', { name: /트렌드/ }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('When the stored value is garbage Then uses the default (collapsed)', () => {
+    renderPanel(ok, createMemoryKeyValue({ [AA_TREND_EXPANDED_KEY]: 'maybe' }))
+    expect(screen.getByRole('button', { name: /트렌드/ }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('When writes fail Then the toggle still works for the session', () => {
+    const storage = createMemoryKeyValue()
+    storage.failWrites = true
+    renderPanel(ok, storage)
+    const toggle = screen.getByRole('button', { name: /트렌드/ })
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('When reads throw Then silently falls back to the default', () => {
+    const storage: KeyValueStorage = {
+      get() {
+        throw new Error('blocked')
+      },
+      set: () => false,
+      remove: () => {},
+    }
+    renderPanel(ok, storage)
+    expect(screen.getByRole('button', { name: /트렌드/ }).getAttribute('aria-expanded')).toBe('false')
   })
 })
