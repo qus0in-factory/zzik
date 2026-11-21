@@ -78,7 +78,8 @@ export function createOpencodeDbCredentialReader({ path = DEFAULT_OPENCODE_DB_PA
         continue
       }
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) continue
-      const token = parsed['access']
+      // OAuth 행은 access, API 키 행({type:'key'})은 key를 토큰으로 쓴다.
+      const token = parsed['type'] === 'key' ? parsed['key'] : parsed['access']
       if (typeof token !== 'string' || token.length === 0) continue
       const expires = parsed['expires']
       await warnIfWide(path, warn)
