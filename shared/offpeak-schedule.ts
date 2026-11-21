@@ -23,4 +23,14 @@ export const OFFPEAK_SCHEDULE: OffpeakSchedule = {
     verifiedAt: '2026-11-15',
     effect: { target: 'DeepSeek', discountPercent: 50 },
   },
+  zai: {
+    windows: [
+      { start: '00:00', end: '06:00', days: [1, 2, 3, 4, 5] },
+      { start: '10:00', end: '24:00', days: [1, 2, 3, 4, 5] },
+      { start: '00:00', end: '24:00', days: [0, 6] },
+    ],
+    source: 'https://docs.z.ai/devpack/overview#credit-calculation',
+    verifiedAt: '2026-11-21',
+    effect: { target: 'GLM', discountPercent: 50 },
+  },
 }
