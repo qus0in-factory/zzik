@@ -14,8 +14,9 @@
 | `z-fable` | 구현·조사·검증·설계·리뷰. 손이 가는 일은 `.claude/agents/` Sonnet 서브에이전트에 위임. 결과는 `/tmp/fable-<주제>.md` | Claude Code (`Fable 5.1`, high) |
 | `z-sonnet` | UI·일반 구현, 테스트 보강 | Antigravity CLI (`Claude Sonnet 5.5`, high) |
 | `z-argon` | 중간 규모 구현·조사 | Antigravity CLI (`Gemini 4 Argon`, high) |
+| `z-neon` | 공식 문서 조사·근거 확인, 중간 규모 구현 | Antigravity CLI (`Gemini 4 Neon`, high) |
 | `z-hyd` | 문서·하네스 동기화, 범위가 명확한 소규모 구현 | Antigravity CLI (`Gemini 4 Hydrogen`, medium) |
-| `z-glm` | 이슈 구현 여부 판정, 문서·위키 동기화, 읽기 전용 조사 | OpenCode (OpenCode Go `GLM-5.3`, high) |
+| `z-glm` | 이슈 구현 여부 판정, 문서·위키 동기화, 읽기 전용 조사 | OpenCode (Z.AI Coding Plan `GLM-5.3`, high) |
 | `z-ds` | 경량 구현·잡무, 스크립트·문서 동기화 | OpenCode (Ollama Cloud `DeepSeek V4.1 Flash`, high) |
 | `z-hf` | 소규모 구현·문서 동기화·가벼운 확인 | OpenCode (OpenCode Go `Hy4 flash Free`) |
 | `z-beam` | 가벼운 확인·잡무 | OpenCode (OpenCode Go `Beam Free`, 기본 모델) |
@@ -25,6 +26,7 @@
 - 같은 도구에서 공급자(OpenCode Go·Ollama Cloud)나 모델만 바꿔 다시 열어도 이름은 그대로 쓰고, 이 표는 실제 조합이 자리 잡았을 때 한 번만 고친다.
 - OpenCode는 실행 인자로 모델을 받지 않는다(`-m` 전달 시 시작 타임아웃). 기본 모델로 띄운 뒤 `/models`에서 검색해 고르고(공급자 열 확인, 수준 선택 창이 뜨면 고름) 상태줄(`GLM-5.3 OpenCode Go · high`)을 확인한 다음 지시한다. TUI 문자 입력은 `herdr pane send-text`, 키는 `herdr agent send-keys <이름> Enter|Down|Backspace`.
 - Codex는 `herdr agent start z-sol --kind codex --pane <ID> -- -m gpt-6.2-sol -c model_reasoning_effort=high -c service_tier=fast`로 연다(`z-astra`는 모델만 바꿈). 전역 `~/.codex/config.toml`의 effort가 표와 다를 수 있으므로 실행 인자로 지정하고, 상태줄 `GPT-6.2-Sol high fast`를 확인한다.
+- 워커는 split 말고 워커마다 탭으로 연다: `herdr tab create --workspace <ID> --cwd <경로> --label <이름> --no-focus`로 만든 패널에 `herdr agent start`.
 - Antigravity CLI는 `herdr agent start <이름> --kind agy --pane <ID> -- --model <ID>`로 연다. 모델 ID는 `agy models`.
 
 ## 사용량 한도·effort (2026-11-17 사용자 지시)
