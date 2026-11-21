@@ -1,4 +1,4 @@
-import { rebaseIsoFields } from '@domain/usage/rebase-iso-fields'
+import { rebaseEpochMsFields, rebaseIsoFields } from '@domain/usage/rebase-iso-fields'
 import agyNormal from '../../../tests/fixtures/antigravity-usage.gemini-argon.json' // normal 시나리오: Gemini·Claude/GPT·Argon 세 그룹(페이스 칩 6개가 모두 보이게)
 import agyLimited from '../../../tests/fixtures/antigravity-usage.limited.json'
 import agyUnknown from '../../../tests/fixtures/antigravity-usage.unknown-keys.json'
@@ -20,6 +20,9 @@ import opencodeUnknownKeysRaw from '../../../tests/fixtures/opencode-usage.unkno
 import ollamaNormalRaw from '../../../tests/fixtures/ollama-usage.normal.json'
 import ollamaLimitedRaw from '../../../tests/fixtures/ollama-usage.limited.json'
 import ollamaUnknownKeysRaw from '../../../tests/fixtures/ollama-usage.unknown-keys.json'
+import zaiNormalRaw from '../../../tests/fixtures/zai-usage.normal.json'
+import zaiLimitedRaw from '../../../tests/fixtures/zai-usage.limited.json'
+import zaiUnknownKeysRaw from '../../../tests/fixtures/zai-usage.unknown-keys.json'
 import codexNormalRaw from '../../../tests/fixtures/codex-usage.normal.json'
 import codexLimitedRaw from '../../../tests/fixtures/codex-usage.limited.json'
 import codexUnknownKeysRaw from '../../../tests/fixtures/codex-usage.unknown-keys.json'
@@ -47,6 +50,9 @@ export { parseFixtureUsageName }
 /** fixture 파일들이 작성된 기준 시각. Claude `resets_at` 보정의 원점이다. */
 export const FIXTURE_ANCHOR_ISO = '2026-11-11T12:00:00.000Z'
 
+/** Z.AI fixture는 `nextResetTime`이 ms epoch 숫자이고 작성 기준 시각이 달라 원점을 따로 둔다(5시간 창이 2시간 43분 남는 시점). */
+export const ZAI_FIXTURE_ANCHOR_ISO = '2026-11-21T09:00:00.000Z'
+
 type ScenarioName = Exclude<FixtureName, 'error' | 'loading' | 'auth_rejected'>
 
 const CLAUDE_FIXTURES: Record<ScenarioName, Record<string, unknown>> = {
@@ -70,6 +76,7 @@ const FIXTURES: Record<UsageProvider, Record<ScenarioName, Record<string, unknow
   grok: { normal: grokNormalRaw, warn: grokNormalRaw, limited: grokLimitedRaw, ['unknown-keys']: grokUnknownKeysRaw },
   ollama: { normal: ollamaNormalRaw, warn: ollamaNormalRaw, limited: ollamaLimitedRaw, ['unknown-keys']: ollamaUnknownKeysRaw },
   opencode: { normal: opencodeNormalRaw, warn: opencodeNormalRaw, limited: opencodeLimitedRaw, ['unknown-keys']: opencodeUnknownKeysRaw },
+  zai: { normal: zaiNormalRaw, warn: zaiNormalRaw, limited: zaiLimitedRaw, ['unknown-keys']: zaiUnknownKeysRaw },
   antigravity: { normal: agyNormal, warn: agyLimited, limited: agyLimited, ['unknown-keys']: agyUnknown },
   claude: CLAUDE_FIXTURES,
   codex: {
@@ -143,6 +150,8 @@ export function createFixtureUsageGateway(options: FixtureUsageGatewayOptions = 
       const usage =
         rebaseKeys !== undefined
           ? rebaseIsoFields(fixture, rebaseKeys, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
+          : provider === 'zai'
+          ? rebaseEpochMsFields(fixture, ['nextResetTime'], new Date(ZAI_FIXTURE_ANCHOR_ISO), new Date(now()))
           : provider === 'claude'
           ? rebaseUsageResetsAt(fixture as never, new Date(FIXTURE_ANCHOR_ISO), new Date(now()))
           : fixture

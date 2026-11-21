@@ -554,5 +554,59 @@
         "cycleSeconds": null
       }
     ]
+  },
+  "zai-usage.limited.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 100,
+        "resetsAt": "2026-11-21T11:43:25.338Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "weekly",
+        "usedPercent": 68,
+        "resetsAt": "2026-11-28T06:36:57.983Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "zai-usage.normal.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 20,
+        "resetsAt": "2026-11-21T11:43:25.338Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "weekly",
+        "usedPercent": 15,
+        "resetsAt": "2026-11-28T06:36:57.983Z",
+        "cycleSeconds": 604800
+      }
+    ]
+  },
+  "zai-usage.unknown-keys.json": {
+    "ok": true,
+    "skipped": 0,
+    "series": [
+      {
+        "id": "five_hour",
+        "usedPercent": 5,
+        "resetsAt": "2026-11-21T11:43:25.338Z",
+        "cycleSeconds": 18000
+      },
+      {
+        "id": "weekly",
+        "usedPercent": 1,
+        "resetsAt": "2026-11-28T06:36:57.983Z",
+        "cycleSeconds": 604800
+      }
+    ]
   }
 }

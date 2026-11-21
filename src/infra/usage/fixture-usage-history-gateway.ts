@@ -4,6 +4,7 @@ import codex from '../../../tests/fixtures/usage-history/codex.samples.json'
 import grok from '../../../tests/fixtures/usage-history/grok.samples.json'
 import ollama from '../../../tests/fixtures/usage-history/ollama.samples.json'
 import opencode from '../../../tests/fixtures/usage-history/opencode.samples.json'
+import zai from '../../../tests/fixtures/usage-history/zai.samples.json'
 import { USAGE_BUCKET_SEC, USAGE_HISTORY_MIN_OK_EVENTS, USAGE_HISTORY_SCAN_VERSION } from '../../../shared/usage-history-contract'
 import type { UsageHistoryPage, UsageHistorySummaryEntry } from '../../../shared/usage-history-contract'
 import { decodeHistoryPage } from '@domain/usage/history/decode-history'
@@ -11,7 +12,7 @@ import type { UsageHistoryGateway } from '@domain/usage/history/ports'
 import { USAGE_PROVIDERS } from '@domain/usage/providers'
 import type { UsageProvider } from '@domain/usage/providers'
 
-const FIXTURES: Record<UsageProvider, unknown> = { claude, codex, antigravity, opencode, grok, ollama }
+const FIXTURES: Record<UsageProvider, unknown> = { claude, codex, antigravity, opencode, grok, ollama, zai }
 
 /**
  * 합성 표본 픽스처로 만든 이력 게이트웨이(DEV 목 모드, T1 API 없이 개발). 첫 요청은 픽스처 쪽을 그대로 돌려주고
