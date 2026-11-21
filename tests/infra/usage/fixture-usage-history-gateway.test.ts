@@ -10,9 +10,9 @@ describe('Given the fixture history gateway (DEV·개발용, T1 API 없이)', ()
     const next = await gateway.fetchSamples('claude', { limit: 50, after: first.page.nextCursor ?? undefined })
     expect(next).toMatchObject({ ok: true, page: { samples: [], nextCursor: first.page.nextCursor, hasMore: false } })
   })
-  it('Then the summary lists all six providers with ok counts from the fixtures', async () => {
+  it('Then the summary lists all seven providers with ok counts from the fixtures', async () => {
     const result = await createFixtureUsageHistoryGateway().fetchSummary()
-    expect(result.ok && result.summary.map((entry) => entry.provider)).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
+    expect(result.ok && result.summary.map((entry) => entry.provider)).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'])
   })
 })
 

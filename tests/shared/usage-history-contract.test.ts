@@ -26,6 +26,7 @@ import antigravityFixture from '../fixtures/usage-history/antigravity.samples.js
 import opencodeFixture from '../fixtures/usage-history/opencode.samples.json'
 import grokFixture from '../fixtures/usage-history/grok.samples.json'
 import ollamaFixture from '../fixtures/usage-history/ollama.samples.json'
+import zaiFixture from '../fixtures/usage-history/zai.samples.json'
 import gapFixture from '../fixtures/usage-history/gap.samples.json'
 import emptyPageFixture from '../fixtures/usage-history/empty-page.samples.json'
 import hasMoreFixture from '../fixtures/usage-history/has-more.samples.json'
@@ -50,6 +51,7 @@ const FIXTURES: { provider: UsageProvider; value: unknown }[] = [
   { provider: 'opencode', value: opencodeFixture },
   { provider: 'grok', value: grokFixture },
   { provider: 'ollama', value: ollamaFixture },
+  { provider: 'zai', value: zaiFixture },
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {

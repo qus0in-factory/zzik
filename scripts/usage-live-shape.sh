@@ -2,7 +2,8 @@
 # D1에 저장된 실제 수집 응답(rawText)의 "모양"만 출력한다.
 # 문자열 값은 길이만, 숫자는 그대로(사용률·리셋 시각 비교용), 라벨류(display_name·kind·group)는 원문.
 # 표시 기능을 만들기 전·배포 후에 픽스처 가정과 실데이터가 맞는지 대조하는 용도.
-# 사용: scripts/usage-live-shape.sh [claude|codex|antigravity|opencode|grok|ollama]   (기본 claude)
+# 지원 제공자 7개.
+# 사용: scripts/usage-live-shape.sh [claude|codex|antigravity|opencode|grok|ollama|zai]   (기본 claude)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

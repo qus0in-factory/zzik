@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createFixtureUsageGateway, FIXTURE_ANCHOR_ISO, parseFixtureUsageName } from '@infra/usage/fixture-usage-gateway'
+import { createFixtureUsageGateway, FIXTURE_ANCHOR_ISO, parseFixtureUsageName, ZAI_FIXTURE_ANCHOR_ISO } from '@infra/usage/fixture-usage-gateway'
 
 const ANCHOR_CLOCK = (): string => FIXTURE_ANCHOR_ISO
 const LATER_CLOCK = (): string => '2026-11-21T12:00:00.000Z'
@@ -177,6 +177,28 @@ describe('Given OpenCode, Grok and Ollama DEV scenarios', () => {
   it.each(['opencode', 'grok', 'ollama'] as const)('When %s has limited and unknown-keys Then both return data', async (provider) => {
     for (const name of ['limited', 'unknown-keys']) {
       const result = await createFixtureUsageGateway({ getFixtureName: () => name, now: LATER_CLOCK }).fetchUsage(provider)
+      expect(result.ok && result.usage !== null).toBe(true)
+    }
+  })
+})
+
+describe('Given the Z.AI DEV scenarios', () => {
+  it('When normal is selected Then the ms epoch reset times move from the Z.AI anchor to now', async () => {
+    const result = await createFixtureUsageGateway({ getFixtureName: () => 'normal', now: LATER_CLOCK }).fetchUsage('zai')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const limits = (result.usage as Record<string, any>).data.limits as Array<{ nextResetTime: number; percentage: number }>
+    // 원점 2026-11-21T09:00Z → 지금 12:00Z: 3시간 뒤로 옮긴다(5시간 창이 2시간 43분 남은 상태 유지).
+    expect(limits.map((limit) => new Date(limit.nextResetTime).toISOString())).toEqual(['2026-11-21T14:43:25.338Z', '2026-11-24T02:43:25.338Z'])
+    expect(limits.map((limit) => limit.percentage)).toEqual([20, 15])
+  })
+  it('When the clock equals the Z.AI anchor Then the fixture values are returned unchanged', async () => {
+    const result = await createFixtureUsageGateway({ getFixtureName: () => 'normal', now: () => ZAI_FIXTURE_ANCHOR_ISO }).fetchUsage('zai')
+    expect(result.ok && (result.usage as Record<string, any>).data.limits[0].nextResetTime).toBe(1795261405338)
+  })
+  it('When limited and unknown-keys are selected Then both return data', async () => {
+    for (const name of ['limited', 'unknown-keys']) {
+      const result = await createFixtureUsageGateway({ getFixtureName: () => name, now: LATER_CLOCK }).fetchUsage('zai')
       expect(result.ok && result.usage !== null).toBe(true)
     }
   })

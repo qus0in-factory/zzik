@@ -6,6 +6,7 @@ import { buildOllamaUsageView } from './ollama-view'
 import { buildOpencodeUsageView } from './opencode-view'
 import type { UsageReport } from './types'
 import { buildUsageView } from './view'
+import { buildZaiUsageView } from './zai-view'
 
 /**
  * 제공자 등록부 (ADR 0.3 D8).
@@ -13,7 +14,7 @@ import { buildUsageView } from './view'
  * 화면 컴포넌트는 제공자별 분기를 갖지 않고 이 등록부만 본다.
  */
 
-export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'] as const
+export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'] as const
 
 export type UsageProvider = (typeof USAGE_PROVIDERS)[number]
 
@@ -90,6 +91,15 @@ export const USAGE_PROVIDER_META: Record<UsageProvider, UsageProviderMeta> = {
     sectionId: 'usage-codex',
     ariaLabel: t('provider.codex.ariaLabel'),
   },
+  zai: {
+    id: 'zai',
+    title: t('provider.zai.title'),
+    metricsTitle: t('section.metrics.extra'),
+    clientName: 'Z.AI',
+    refreshHint: t('provider.refreshHint'),
+    sectionId: 'usage-zai',
+    ariaLabel: t('provider.zai.ariaLabel'),
+  },
 }
 
 export interface UsageViewOptions {
@@ -105,5 +115,6 @@ export function buildProviderUsageView(provider: UsageProvider, raw: unknown, op
   if (provider === 'ollama') return buildOllamaUsageView(raw, options)
   if (provider === 'opencode') return buildOpencodeUsageView(raw, options)
   if (provider === 'codex') return buildCodexUsageView(raw, options)
+  if (provider === 'zai') return buildZaiUsageView(raw, options)
   return buildUsageView(raw, { now: options.now })
 }

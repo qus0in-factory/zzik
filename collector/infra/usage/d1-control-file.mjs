@@ -8,7 +8,7 @@ function valid(input){
   const s=/** @type {State} */(input)
   return (s.credentialKey===null||typeof s.credentialKey==='string'&&/^[a-f0-9]{64}$/.test(s.credentialKey)) && typeof s.authStopped==='boolean'&&Number.isSafeInteger(s.nextRequestAtMs)&&s.nextRequestAtMs>=0
     && (s.lastHealthCheckAtMs===null||Number.isSafeInteger(s.lastHealthCheckAtMs))
-    && s.paused!==null&&typeof s.paused==='object'&&!Array.isArray(s.paused)&&Object.entries(s.paused).every(([p,id])=>['claude','codex','antigravity','opencode','grok','ollama'].includes(p)&&typeof id==='string')
+    && s.paused!==null&&typeof s.paused==='object'&&!Array.isArray(s.paused)&&Object.entries(s.paused).every(([p,id])=>['claude','codex','antigravity','opencode','grok','ollama','zai'].includes(p)&&typeof id==='string')
 }
 /** @param {{path:string}} options @returns {import('../../domain/usage/d1-sender-types.ts').D1ControlPort} */
 export function createD1ControlFile({path}){

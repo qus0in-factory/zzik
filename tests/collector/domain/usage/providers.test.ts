@@ -13,11 +13,11 @@ const providersSource = readFileSync(join(BASE, 'collector', 'domain', 'usage', 
 describe('Given the provider contract', () => {
   it('When the collector provider list is compared with shared then they are the same', () => {
     // shared의 정의를 소스 텍스트에서 읽어 런타임 상수와 대조한다.
-    expect(contractSource).toContain("['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'] as const")
-    expect(providersSource).toContain("['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama']")
+    expect(contractSource).toContain("['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'] as const")
+    expect(providersSource).toContain("['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai']")
     expect(COLLECTOR_PROVIDERS).toEqual([...USAGE_PROVIDERS])
     expect(COLLECTOR_VERSION).toBe(USAGE_COLLECTOR_VERSION)
-    expect([...USAGE_PROVIDERS]).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
+    expect([...USAGE_PROVIDERS]).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'])
   })
 
   it('When providers address database rows Then neither contract exports a KV key mapping', () => {
@@ -37,7 +37,7 @@ describe('Given the provider contract', () => {
 
 describe('Given ZZIK_PROVIDERS parsing (v2 D3)', () => {
   it('When the env is missing then the default claude,codex applies', () => {
-    expect(parseProvidersEnv(undefined).providers).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
+    expect(parseProvidersEnv(undefined).providers).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'])
   })
   it('When values have spaces, upper case and duplicates then they are trimmed, lowered and deduped', () => {
     const parsed = parseProvidersEnv(' Codex, claude , CODEX ')
@@ -63,12 +63,13 @@ describe('Given Antigravity selection', () => {
 
 describe('Given the OpenCode, Grok and Ollama providers', () => {
   it('When each is selected Then ZZIK_PROVIDERS recognizes it', () => {
-    expect(parseProvidersEnv('opencode, Grok ,ollama').providers).toEqual(['opencode', 'grok', 'ollama'])
+    expect(parseProvidersEnv('opencode, Grok ,ollama, ZAI').providers).toEqual(['opencode', 'grok', 'ollama', 'zai'])
   })
   it('When reading redaction paths Then only grok hides topUpMethod', async () => {
     const { USAGE_REDACTION_PATHS } = await import('../../../../collector/domain/usage/providers.mjs')
     expect(USAGE_REDACTION_PATHS.grok).toEqual(['config.topUpMethod'])
     expect(USAGE_REDACTION_PATHS.opencode).toEqual([])
     expect(USAGE_REDACTION_PATHS.ollama).toEqual([])
+    expect(USAGE_REDACTION_PATHS.zai).toEqual([])
   })
 })

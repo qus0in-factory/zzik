@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * 수집기 조립 루트(ADR 0.3 D3 다중 제공자 + D9 조립 배정).
- * 제공자 정의(claude/codex/antigravity/opencode/grok/ollama)를 만들어 runCycle에 주입한다. 로직은 이 파일에 두지 않는다.
+ * 제공자 정의(claude/codex/antigravity/opencode/grok/ollama/zai)를 만들어 runCycle에 주입한다. 로직은 이 파일에 두지 않는다.
  *
  * 실행 모드(PM2 상주가 기본):
  *   (기본)       provider별 nextDue에 따라 D1 resident가 수집한다
  *   --once       1회 실행 후 종료한다. 종료 코드는 제공자별 결과 중 가장 큰 값
  *   --dry-run    상태·DB·로그 어디에도 쓰지 않는다(--provider와 같이 쓰면 경로 목록 출력)
- *   --provider <id>   대상 제공자(claude|codex|antigravity|opencode|grok|ollama). 생략하면 켜진 제공자 전부
+ *   --provider <id>   대상 제공자(claude|codex|antigravity|opencode|grok|ollama|zai). 생략하면 켜진 제공자 전부
  *   --credentials-file <path>  자격 증명 파일 재현(--provider와 --dry-run이 함께 있을 때만)
  *
  * 제공자 목록: env ZZIK_PROVIDERS(기본 전체 6개). 하나의 제공자 실패가 다른
@@ -50,6 +50,7 @@ import { readGrokBuildCredentials } from './infra/usage/grok-build-credentials-f
 import { createOpencodeUsageClient } from './infra/usage/opencode-usage-client.mjs'
 import { createOllamaUsageClient, DEFAULT_OLLAMA_HOST, isAllowedOllamaHost } from './infra/usage/ollama-usage-client.mjs'
 import { readOllamaLocalCredentials } from './infra/usage/ollama-local-credentials.mjs'
+import { createZaiUsageClient } from './infra/usage/zai-usage-client.mjs'
 import { createOpencodeDbCredentialReader, DEFAULT_OPENCODE_DB_PATH } from './infra/usage/opencode-db-credentials.mjs'
 import { runAgyQuotaCli } from './infra/usage/agy-quota-cli-runner.mjs'
 import { createCodexUsageClient } from './infra/usage/codex-usage-client.mjs'
@@ -100,11 +101,11 @@ for (const unknownValue of parsedProviders.warnings) {
 }
 const enabledProviders = parsedProviders.providers
 if (enabledProviders.length === 0) {
-  process.stderr.write('[zzik-usage-collector] ZZIK_PROVIDERS 해석 결과가 비었다. claude,codex,antigravity,opencode,grok,ollama 형식으로 설정한다\n')
+  process.stderr.write('[zzik-usage-collector] ZZIK_PROVIDERS 해석 결과가 비었다. claude,codex,antigravity,opencode,grok,ollama,zai 형식으로 설정한다\n')
   process.exit(78)
 }
 
-const USAGE_TEXT = '격리 재개: ZZIK_STORE=d1 node collector/main.mjs --resume-without-quarantine <provider> (기동 전 운영자 명령)\n사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity|opencode|grok|ollama] [--credentials-file <path>]'
+const USAGE_TEXT = '격리 재개: ZZIK_STORE=d1 node collector/main.mjs --resume-without-quarantine <provider> (기동 전 운영자 명령)\n사용법: node collector/main.mjs [--once] [--dry-run] [--provider claude|codex|antigravity|opencode|grok|ollama|zai] [--credentials-file <path>]'
 
 /** @typedef {import('./domain/usage/ports.mjs').CollectorPorts} CollectorPorts */
 /** @typedef {{ dryRun: boolean, once: boolean, credentialsPath: string|null, provider: string|null, codexAccountHeader: boolean, resumeWithoutQuarantine:string|null }} ParsedFlags */
@@ -161,6 +162,8 @@ function buildProviderPorts(provider, { credentialsPath, dryRun }) {
       ? createOpencodeUsageClient({ fetchImpl: globalThis.fetch })
       : provider === 'ollama'
       ? createOllamaUsageClient({ fetchImpl: globalThis.fetch, host: OLLAMA_HOST })
+      : provider === 'zai'
+      ? createZaiUsageClient({ fetchImpl: globalThis.fetch })
       : provider === 'antigravity'
       ? createAntigravityCliUsageClient({ runQuota })
       : provider === 'codex'
@@ -176,6 +179,7 @@ function buildProviderPorts(provider, { credentialsPath, dryRun }) {
     credentials: {
       readAll: async () => {
         if (provider === 'grok') return [await readGrokBuildCredentials(credentialsPath ?? undefined)]
+        if (provider === 'zai') return [await readOpencodeDb('zai-coding-plan')]
         if (provider === 'opencode') return [await readOpencodeDb('opencode')]
         if (provider === 'ollama') return [await readOllamaLocalCredentials()]
         if (provider === 'antigravity') return [dryRun ? null : { source: 'cli', token: '', expiresAt: null, accountId: null }]

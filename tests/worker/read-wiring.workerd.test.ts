@@ -6,7 +6,7 @@ import { Miniflare, Log, LogLevel } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Env } from '../../worker/infra/env'
 
-const providers = ['claude','codex','antigravity','opencode','grok','ollama'] as const
+const providers = ['claude','codex','antigravity','opencode','grok','ollama','zai'] as const
 const at = '2026-11-16T00:00:00.000Z'
 const bucketPath = '/api/usage-history/codex/buckets?from=2026-10-17T00%3A03%3A00.000Z&until=2026-11-16T00%3A03%3A00.000Z&bucketSec=900'
 const env: Env = { ACCESS_TEAM_DOMAIN:'test.cloudflareaccess.com', ACCESS_AUD:'test', ALLOWED_EMAIL:'test@example.invalid', ASSETS:{fetch:async()=>new Response('fixture')} }
@@ -44,12 +44,12 @@ describe('Given the actual Worker composition with local D1 data only',()=>{
  afterAll(async()=>{await mf?.dispose();})
  const d1Fetch=(path:string,headers:Record<string,string>={})=>mf.dispatchFetch('https://local'+path,{headers:{'Cf-Access-Jwt-Assertion':'synthetic',...headers}})
  const compare=async(path:string)=>{const a=await d1Fetch(path);expect(a.status,path).toBe(200);expect(a.headers.get('Cache-Control')).toBe('no-store');return a.status}
- it('When D1 is selected Then alias, six snapshots and summary retain the API contract while D1 is queried',async()=>{
+ it('When D1 is selected Then alias, seven snapshots and summary retain the API contract while D1 is queried',async()=>{
   const before=await (await d1Fetch('/__stats')).json() as {d1Queries:number}
   for(const path of ['/api/usage',...providers.map(p=>'/api/usage/'+p),'/api/usage-history'])expect(await compare(path)).toBe(200)
   const after=await (await d1Fetch('/__stats')).json() as typeof before
   const snapshot=await (await d1Fetch('/api/usage/codex')).json() as {snapshot:{provider:string}};expect(snapshot.snapshot.provider).toBe('codex');
-  const summary=await (await d1Fetch('/api/usage-history')).json() as {summary:unknown[]};expect(summary.summary).toHaveLength(6);
+  const summary=await (await d1Fetch('/api/usage-history')).json() as {summary:unknown[]};expect(summary.summary).toHaveLength(7);
   expect(after.d1Queries).toBeGreaterThan(before.d1Queries)
  })
  it('When history is paginated Then cursor, anchor and 64-bit id strings retain their contract',async()=>{

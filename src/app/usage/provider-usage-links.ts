@@ -11,6 +11,7 @@ export const PROVIDER_USAGE_LINKS: Record<UsageProvider, string | null> = {
   opencode: 'https://opencode.ai/console/',
   grok: 'https://grok.com/?_s=usage',
   ollama: 'https://ollama.com/dashboard',
+  zai: 'https://z.ai/manage-apikey/subscription',
 }
 
 export function providerUsageLink(provider: UsageProvider): string | null {

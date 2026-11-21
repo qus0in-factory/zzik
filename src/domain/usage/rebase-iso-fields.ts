@@ -16,3 +16,17 @@ export function rebaseIsoFields(raw: Record<string, unknown>, keys: readonly str
   }
   return visit(raw) as Record<string, unknown>
 }
+
+/** DEV 전용: 지정한 키의 ms epoch 숫자를 같은 간격만큼 옮긴다(Z.AI `nextResetTime`). 숫자가 아닌 값은 건드리지 않는다. */
+export function rebaseEpochMsFields(raw: Record<string, unknown>, keys: readonly string[], from: Date, to: Date): Record<string, unknown> {
+  const delta = to.getTime() - from.getTime()
+  const visit = (value: unknown, key = ''): unknown => {
+    if (keys.includes(key) && typeof value === 'number' && Number.isFinite(value)) return value + delta
+    if (Array.isArray(value)) return value.map((item) => visit(item))
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([field, item]) => [field, visit(item, field)]))
+    }
+    return value
+  }
+  return visit(raw) as Record<string, unknown>
+}

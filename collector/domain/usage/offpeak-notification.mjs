@@ -35,7 +35,7 @@ function kstEnd(event,nowMs){
 /** Public schedule data only; same dashboard and bounded content convention as usage alerts.
  * @param {readonly OffpeakEvent[]} events @param {number} [nowMs] */
 export function formatOffpeakMessage(events,nowMs){
- const names=/** @type {Record<string,string>} */({opencode:'OpenCode Go',ollama:'Ollama'})
+ const names=/** @type {Record<string,string>} */({opencode:'OpenCode Go',ollama:'Ollama',zai:'Z.AI'})
  const lines=events.map(e=>{
   const prefix=e.kind==='started'?'off-peak 시작':'off-peak 10분 후 종료'
   const until=e.kind==='started'?`${kstEnd(e,nowMs??e.atMs)}까지`:`${kstEnd(e,nowMs??e.atMs)}부터 peak`

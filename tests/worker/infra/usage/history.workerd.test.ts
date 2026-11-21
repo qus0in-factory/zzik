@@ -5,8 +5,8 @@ import { Miniflare, Log, LogLevel } from 'miniflare';
 import { describe, expect, it } from 'vitest';
 /** Always local: no DB_URL, sockets, secrets or production database. */
 describe('Given fixture history inside actual workerd', () => {
-  it('When all six routes and summary are called Then samples decode without exposing raw data', async () => {
-    const fixtures = Object.fromEntries(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'].map(p => [p, readFileSync(new URL(`../../../fixtures/${p}-usage.normal.json`, import.meta.url), 'utf8')]));
+  it('When all seven routes and summary are called Then samples decode without exposing raw data', async () => {
+    const fixtures = Object.fromEntries(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'].map(p => [p, readFileSync(new URL(`../../../fixtures/${p}-usage.normal.json`, import.meta.url), 'utf8')]));
     const bundle = await build({ stdin: { resolveDir: fileURLToPath(new URL('../../../../', import.meta.url)), contents: `
   import {createRouter} from './worker/ui/router.ts';
   const fixtures=${JSON.stringify(fixtures)};
@@ -31,7 +31,7 @@ describe('Given fixture history inside actual workerd', () => {
       }
       const summary = await mf.dispatchFetch('http://local/api/usage-history', { headers: { 'Cf-Access-Jwt-Assertion': 'fixture' } });
       expect(summary.status).toBe(200);
-      expect((await summary.json() as any).summary).toHaveLength(6);
+      expect((await summary.json() as any).summary).toHaveLength(7);
     }
     finally {
       await mf.dispose();

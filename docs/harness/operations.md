@@ -23,7 +23,7 @@
 
 ## provider 목록 및 수집 주기
 
-현재 provider는 6개이며 기본 수집 주기는 다음과 같다.
+현재 provider는 7개이며 기본 수집 주기는 다음과 같다.
 
 | provider | 기본 주기 | 비고 |
 |---|---|---|
@@ -32,6 +32,7 @@
 | `opencode` | `180초` | 429/gate 시 `900` override |
 | `grok` | `180초` | 429/gate 시 `900` override |
 | `ollama` | `180초` | 429/gate 시 `900` override |
+| `zai` | `180초` | 429/gate 시 `900` override |
 | `claude` | `300초` | provider 429 시 자동 `900초` 강등, 24시간부터 최대 7일 |
 
 ## 보존·경보 수치

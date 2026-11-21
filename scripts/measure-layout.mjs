@@ -3,6 +3,7 @@
 //   baseUrl이 응답하지 않으면 vite dev 서버를 직접 띄우고 끝나면(비정상 종료 포함) 정리한다. 폭: 390·768·1024·1280.
 // 비교 항목: 칩 줄 top/height, 첫 섹션 h2 top, 격자·첫 카드 top·height. 다르거나 칩 줄이 한 줄이 아니면 종료 코드 1.
 import { writeFileSync } from 'node:fs'
+import { USAGE_PROVIDERS } from '../shared/usage-contract.ts'
 import { ensureServer, openPage, sleep } from './lib/cdp.mjs'
 
 const [base = 'http://localhost:5199', shotPrefix] = process.argv.slice(2)
@@ -45,8 +46,8 @@ try {
       console.log(`${tag} loading`, JSON.stringify(loading))
       console.log(`${tag} normal `, JSON.stringify(normal))
       const same = (mode === 'list' ? ['title', 'groupTop'] : ['title', 'gridTop', 'groupTop']).every((key) => loading[key] === normal[key]) && loading.chipRow.top === normal.chipRow.top && loading.chipRow.height === normal.chipRow.height && loading.titleRow.height === normal.titleRow.height && loading.card.top === normal.card.top && loading.card.height === normal.card.height
-      const oneLine = width < 768 || (loading.chipRows === 1 && normal.chipRows === 1 && !normal.chipOverflow && normal.chipCount === 6)
-      console.log(same && oneLine ? `${tag} OK` : `${tag} MISMATCH${same ? '' : ' (위치·높이 불일치)'}${oneLine ? '' : ' (칩 6개가 한 줄에 다 들어가지 않음)'}`)
+      const oneLine = width < 768 || (loading.chipRows === 1 && normal.chipRows === 1 && !normal.chipOverflow && normal.chipCount === USAGE_PROVIDERS.length)
+      console.log(same && oneLine ? `${tag} OK` : `${tag} MISMATCH${same ? '' : ' (위치·높이 불일치)'}${oneLine ? '' : ` (칩 ${USAGE_PROVIDERS.length}개가 한 줄에 다 들어가지 않음)`}`)
       if (!same || !oneLine) failed = true
     }
   } finally {
