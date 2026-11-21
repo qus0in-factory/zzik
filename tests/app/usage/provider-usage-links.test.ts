@@ -18,7 +18,7 @@ describe('Given provider usage links', () => {
     expect(providerUsageLink('opencode')).toBe('https://opencode.ai/console/')
   })
   it('When looking up zai Then returns the Z.AI subscription usage page', () => {
-    expect(providerUsageLink('zai')).toBe('https://z.ai/manage-apikey/subscription')
+    expect(providerUsageLink('zai')).toBe('https://z.ai/manage-apikey/coding-plan/personal/usage')
   })
   it('When looking up antigravity Then returns null', () => {
     expect(providerUsageLink('antigravity')).toBeNull()
