@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare, Log, LogLevel } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { addDays, utcDay } from '../../worker/domain/trend/metrics/types'
 import { METRICS_CRON } from '../../worker/domain/usage/export'
 
 const migration1 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0001_d1_storage.sql', import.meta.url)), 'utf8')
@@ -11,7 +12,10 @@ const migration2 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0
 const migration4 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0004_metrics.sql', import.meta.url)), 'utf8')
 const migration5 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0005_aa_speed.sql', import.meta.url)), 'utf8')
 const migration6 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0006_aa_cost.sql', import.meta.url)), 'utf8')
-const NOW = Date.parse('2026-11-17T05:00:00.000Z')
+const NOW = Date.now()
+const RANKING_DAY = utcDay(NOW)
+const PREVIOUS_RANKING_DAY = addDays(RANKING_DAY, -7)
+const RANKING_AS_OF = `${RANKING_DAY}T00:00:00.000Z`
 
 async function applyMigrations(db: Awaited<ReturnType<Miniflare['getD1Database']>>): Promise<void> {
   for (const migration of [migration1, migration2, migration4, migration5, migration6]) {
@@ -69,13 +73,13 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
       import { createWorker } from './worker/index.ts';
       const orRankings = {
         data: [
-          { date: '2026-11-17', model_permaslug: 'a/x', total_tokens: '600' },
-          { date: '2026-11-17', model_permaslug: 'other', total_tokens: '400' },
-          { date: '2026-11-10', model_permaslug: 'a/x', total_tokens: '500' },
-          { date: '2026-11-10', model_permaslug: 'b/x', total_tokens: '300' },
-          { date: '2026-11-10', model_permaslug: 'other', total_tokens: '200' },
+          { date: '${RANKING_DAY}', model_permaslug: 'a/x', total_tokens: '600' },
+          { date: '${RANKING_DAY}', model_permaslug: 'other', total_tokens: '400' },
+          { date: '${PREVIOUS_RANKING_DAY}', model_permaslug: 'a/x', total_tokens: '500' },
+          { date: '${PREVIOUS_RANKING_DAY}', model_permaslug: 'b/x', total_tokens: '300' },
+          { date: '${PREVIOUS_RANKING_DAY}', model_permaslug: 'other', total_tokens: '200' },
         ],
-        meta: { as_of: '2026-11-17T04:00:00Z' },
+        meta: { as_of: '${RANKING_AS_OF}' },
       };
       const fakeFetch = async (input, init) => {
         const url = String(input);
@@ -116,7 +120,7 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
     expect(Number(aa.results[0]?.count)).toBe(3)
     const aaRows = await db.prepare('SELECT slug FROM trend_aa_snapshot ORDER BY slug').all<{ slug: string }>()
     expect(aaRows.results.map((row: { slug: string }) => row.slug)).toEqual(['a/x', 'b/x', 'c/x'])
-    const or = await db.prepare('SELECT model_permaslug AS id, total_tokens AS tokens FROM trend_or_ranking WHERE day = ? ORDER BY model_permaslug').bind('2026-11-17').all<{ id: string; tokens: string }>()
+    const or = await db.prepare('SELECT model_permaslug AS id, total_tokens AS tokens FROM trend_or_ranking WHERE day = ? ORDER BY model_permaslug').bind(RANKING_DAY).all<{ id: string; tokens: string }>()
     expect(or.results).toEqual([{ id: 'a/x', tokens: '600' }, { id: 'other', tokens: '400' }])
 
     const response = await mf.dispatchFetch('http://localhost/pub/trend/metrics')
@@ -138,7 +142,7 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
       aaCitation?: string
     }
     expect(body.aaCitation).toBe('요즘 주목받는 모델은 A X, B X, C X 등입니다.')
-    expect(text).not.toMatch(/1위|90|Intelligence Index/)
+    expect(text).not.toMatch(/1위|\b90\b|Intelligence Index/)
     expect(body.section).toBe('metrics')
     expect(body.items).toEqual([])
     expect(body.sources.map((source) => source.id)).toEqual(['openrouter-rankings'])
@@ -196,8 +200,8 @@ describe('Given the actual Worker metrics cron and public route in workerd', () 
         sources: [{ id: 'openrouter-rankings', fetchedAt: new Date(NOW).toISOString(), status: 'ok' }],
         items: [],
         blocks: [
-          { id: 'aa-intelligence', status: 'ok', asOf: '2026-11-17', version: '3.0', entries: [{ id: 'a/x', name: 'A X', creator: 'A', rank: 1, rankDelta: null, kind: 'steady', index: 90 }], attribution: 'AA' },
-          { id: 'or-usage', status: 'ok', asOf: '2026-11-17T04:00:00Z', entries: [{ id: 'a/x', name: 'a/x', creator: 'a', rank: 1, rankDelta: null, kind: 'steady', share7d: 0.6 }], attribution: 'OR', license: { name: 'CC BY 4.0', url: 'https://creativecommons.org/licenses/by/4.0/' }, processed: true },
+          { id: 'aa-intelligence', status: 'ok', asOf: RANKING_DAY, version: '3.0', entries: [{ id: 'a/x', name: 'A X', creator: 'A', rank: 1, rankDelta: null, kind: 'steady', index: 90 }], attribution: 'AA' },
+          { id: 'or-usage', status: 'ok', asOf: RANKING_AS_OF, entries: [{ id: 'a/x', name: 'a/x', creator: 'a', rank: 1, rankDelta: null, kind: 'steady', share7d: 0.6 }], attribution: 'OR', license: { name: 'CC BY 4.0', url: 'https://creativecommons.org/licenses/by/4.0/' }, processed: true },
         ],
       }
       const text = JSON.stringify(prior)

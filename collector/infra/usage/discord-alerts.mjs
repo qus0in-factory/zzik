@@ -1,25 +1,26 @@
-import { formatAlertMessage, formatAlertPreview } from '../../domain/usage/alert-message.mjs'
+import { formatAlertMessage, formatAlertPreview, shouldMention } from '../../domain/usage/alert-message.mjs'
 export const DISCORD_ALERT_TIMEOUT_MS = 5000
 /** @typedef {import('../../domain/usage/alert-types.mjs').AlertEvent} AlertEvent */
 /**
  * No request/response/error body or webhook URL is logged. No retries within the collection cycle.
- * @param {{webhookUrl?:string,enabled?:boolean,fetchImpl?:typeof fetch,log?:(safeMessage:string)=>void}} [deps]
+ * The mention id is never logged.
+ * @param {{webhookUrl?:string,enabled?:boolean,mentionUserId?:string,fetchImpl?:typeof fetch,log?:(safeMessage:string)=>void}} [deps]
  */
-export function createDiscordAlerts({ webhookUrl, enabled = true, fetchImpl = globalThis.fetch, log = () => {} } = {}) {
+export function createDiscordAlerts({ webhookUrl, enabled = true, mentionUserId, fetchImpl = globalThis.fetch, log = () => {} } = {}) {
   /** @param {string} status @param {number} count @param {AlertEvent[]} [events] */
   const record = (status,count,events = []) => {
     try { log(`alerts=${status} count=${count} message=${status === 'dry_run' ? formatAlertPreview(events) : '[가림]'}`) } catch { /* logging must not affect collection */ }
     return {status,count}
   }
-  /** @param {string} content @param {number} count */
-  const sendMessage = async (content,count) => {
+  /** @param {string} content @param {number} count @param {string} [mention] */
+  const sendMessage = async (content,count,mention) => {
     if (count === 0) return {status:'empty',count:0}
     if (!enabled || !webhookUrl?.trim()) return record('disabled',count)
     try {
       const response = await fetchImpl(webhookUrl, {
         method:'POST',redirect:'manual',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({content,allowed_mentions:{parse:[]}}),
+        body:JSON.stringify(mention ? {content:`<@${mention}> ${content}`,allowed_mentions:{parse:[],users:[mention]}} : {content,allowed_mentions:{parse:[]}}),
         signal:AbortSignal.timeout(DISCORD_ALERT_TIMEOUT_MS),
       })
       return record(response.ok ? 'sent' : 'failed',count)
@@ -27,11 +28,12 @@ export function createDiscordAlerts({ webhookUrl, enabled = true, fetchImpl = gl
   }
   return {
     timeoutMs:DISCORD_ALERT_TIMEOUT_MS,
-    sendMessage,
+    /** @param {string} content @param {number} count */
+    sendMessage:(content,count) => sendMessage(content,count),
     /** @param {AlertEvent[]} events @param {{dryRun?:boolean}} [options] */
     async send(events, options = {}) {
       if (options.dryRun) return record('dry_run',events.length,events)
-      return sendMessage(formatAlertMessage(events),events.length)
+      return sendMessage(formatAlertMessage(events),events.length,mentionUserId && shouldMention(events) ? mentionUserId : undefined)
     },
   }
 }
