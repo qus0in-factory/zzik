@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { buildZaiUsageView } from '@domain/usage/zai-view'
+import { cardPresentation } from '@app/usage/card-presentation'
 import normal from '../../fixtures/zai-usage.normal.json'
 import limited from '../../fixtures/zai-usage.limited.json'
 import unknown from '../../fixtures/zai-usage.unknown-keys.json'
 
-// fixture의 nextResetTime(ms epoch): 5시간 창 2026-11-21T11:43:25.338Z, 주간 창 2026-11-28T06:36:57.983Z
+// fixture의 nextResetTime(ms epoch): 5시간 창 2026-11-21T11:43:25.338Z, 주간 창 2026-11-23T23:43:25.338Z
 const now = new Date('2026-11-21T09:00:00Z')
 const FIVE_HOUR_RESET = '2026-11-21T11:43:25.338Z'
-const WEEKLY_RESET = '2026-11-28T06:36:57.983Z'
+const WEEKLY_RESET = '2026-11-23T23:43:25.338Z'
 
 const credit = (unit: number, number: number, extra: Record<string, unknown> = {}) => ({ type: 'CREDIT_LIMIT', unit, number, percentage: 10, nextResetTime: 1795261405338, ...extra })
 const wrap = (limits: unknown) => ({ code: 200, data: { limits }, success: true })
@@ -19,12 +20,19 @@ describe('Given the Z.AI Coding Plan quota view (합성 값)', () => {
     expect(report.windows[0]).toMatchObject({ label: '5시간 한도', usedPercent: 20, resetsAt: FIVE_HOUR_RESET, cycleSeconds: 18000, status: 'normal', expired: false })
     expect(report.windows[1]).toMatchObject({ label: '주간 한도', usedPercent: 15, resetsAt: WEEKLY_RESET, cycleSeconds: 604800, status: 'normal', expired: false })
     expect(report.windows[0].elapsedPercent).toBeCloseTo(45.526, 2)
-    expect(report.windows[1].elapsedPercent).toBeCloseTo(1.419, 2)
+    expect(report.windows[1].elapsedPercent).toBeCloseTo(62.664, 2)
     expect(report.windows.some((item) => item.unknown)).toBe(false)
     expect(report.metrics).toEqual([])
     expect(report.issues).toEqual([])
     expect(report.status).toBe('normal')
     expect(report.raw).toBe(normal)
+  })
+  it('When normal Then the weekly window is not 위험 at the demo clock', () => {
+    const report = buildZaiUsageView(normal, { now })
+    const weekly = report.windows[1]
+    const presentation = cardPresentation(weekly, null)
+    expect(presentation.barLevel).not.toBe('danger')
+    expect(presentation.barLevelText).not.toBe('위험')
   })
   it('When normal Then the plan level is kept in others and the response status keys are not', () => {
     const report = buildZaiUsageView(normal, { now })

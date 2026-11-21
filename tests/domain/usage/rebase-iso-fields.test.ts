@@ -27,9 +27,9 @@ describe('Given rebaseIsoFields', () => {
 
 describe('Given rebaseEpochMsFields', () => {
   it('When keys are listed Then only those ms epoch numbers move by the delta, at any depth', () => {
-    const raw = { data: { limits: [{ nextResetTime: 1795261405338, usage: 12000 }, { nextResetTime: 1795847817983 }] }, nextResetTime: 1 }
+    const raw = { data: { limits: [{ nextResetTime: 1795261405338, usage: 12000 }, { nextResetTime: 1795477405338 }] }, nextResetTime: 1 }
     expect(rebaseEpochMsFields(raw, ['nextResetTime'], from, to)).toEqual({
-      data: { limits: [{ nextResetTime: 1795261405338 + 864_000_000, usage: 12000 }, { nextResetTime: 1795847817983 + 864_000_000 }] },
+      data: { limits: [{ nextResetTime: 1795261405338 + 864_000_000, usage: 12000 }, { nextResetTime: 1795477405338 + 864_000_000 }] },
       nextResetTime: 1 + 864_000_000,
     })
   })
