@@ -23,6 +23,15 @@ describe('Given the OpenCode DB credential reader (설계 2절)', () => {
     expect(JSON.stringify(read)).not.toContain('do-not-read')
   })
 
+  it('When an API-key row ({type:"key", key}) exists Then the key is the token with no expiry', async () => {
+    db.insert('zai-coding-plan', { type: 'key', key: 'fake-key' }, 10)
+    const read = await createOpencodeDbCredentialReader({ path: db.path, integrationId: 'zai-coding-plan', sleep: noSleep })()
+    expect(read).toEqual({ source: 'opencode-db:zai-coding-plan', token: 'fake-key', expiresAt: null, accountId: null })
+  })
+  it('When a row has key but a type other than key Then it is not used', async () => {
+    db.insert('zai-coding-plan', { type: 'oauth', key: 'fake-key' }, 10)
+    expect(await createOpencodeDbCredentialReader({ path: db.path, integrationId: 'zai-coding-plan', sleep: noSleep })()).toBeNull()
+  })
   it('When several rows exist Then the newest time_updated wins', async () => {
     db.insert('xai', { access: 'old' }, 1)
     db.insert('xai', { access: 'new' }, 9)
