@@ -12,6 +12,10 @@ function remaining(reset, nowMs) {
   const days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60), mins = minutes % 60
   return `리셋 ${[days ? `${days}일` : '',hours ? `${hours}시간` : '',mins ? `${mins}분` : ''].filter(Boolean).join(' ')} 남음`
 }
+/** Ping only for caution→danger, caution→normal and a cycle reset. @param {AlertEvent[]} events */
+export function shouldMention(events) {
+  return events.some(e => e.kind === 'reset' || (e.kind === 'level' && e.from === 'caution' && (e.to === 'danger' || e.to === 'normal')))
+}
 /** One Discord content, no raw payloads. @param {AlertEvent[]} events @returns {string} */
 export function formatAlertMessage(events) {
   const heading = `사용량 알림 (${events.length}건)`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDiscordAlerts } from '../../../../collector/infra/usage/discord-alerts.mjs'
-import { formatAlertMessage } from '../../../../collector/domain/usage/alert-message.mjs'
+import { formatAlertMessage, shouldMention } from '../../../../collector/domain/usage/alert-message.mjs'
 const event = { provider: 'claude', id: 'five_hour', label: '5시간 한도', kind: 'level' as const, from: 'normal' as const, to: 'caution' as const, usedPercent: 75, elapsedPercent: 50, resetsAt: '2026-11-14T02:30:00Z', nowMs: Date.parse('2026-11-14T00:00:00Z') }
 const url = 'https://discord.com/api/webhooks/123/synthetic-token'
 
@@ -72,5 +72,42 @@ describe('Given Discord alerts', () => {
     expect(text.length).toBeLessThanOrEqual(2000)
     expect(text).toContain('https://zzik.qus0in.dev')
     expect(text).toContain('생략')
+  })
+  it.each([
+    ['caution → danger', { from: 'caution', to: 'danger' }, true],
+    ['caution → normal', { from: 'caution', to: 'normal' }, true],
+    ['cycle reset', { kind: 'reset', from: 'previous_cycle', to: 'new_cycle', previousLevel: 'caution', usedPercent: 0 }, true],
+    ['normal → caution', { from: 'normal', to: 'caution' }, false],
+    ['normal → danger', { from: 'normal', to: 'danger' }, false],
+    ['danger → normal', { from: 'danger', to: 'normal' }, false],
+    ['danger → limit', { from: 'danger', to: 'limit' }, false],
+    ['spend', { kind: 'spend', from: 'normal', to: 'limit' }, false],
+  ] as const)('When the event is %s Then mention=%s', (_name, patch, expected) => {
+    expect(shouldMention([{ ...event, ...patch } as any])).toBe(expected)
+  })
+  it('When a mention-worthy event is sent with a mention id Then pings only that user', async () => {
+    let body: any
+    const sink = createDiscordAlerts({ webhookUrl: url, mentionUserId: '123456789012345678', fetchImpl: (async (_u, init) => { body = JSON.parse(String(init?.body)); return new Response(null, { status: 204 }) }) as typeof fetch })
+    await sink.send([event, { ...event, provider: 'codex', from: 'caution', to: 'danger' }])
+    expect(body.content.startsWith('<@123456789012345678> 사용량 알림 (2건)')).toBe(true)
+    expect(body.allowed_mentions).toEqual({ parse: [], users: ['123456789012345678'] })
+  })
+  it('When no event is mention-worthy or no id is set Then sends without a ping', async () => {
+    const bodies: any[] = []
+    const fetchImpl = (async (_u: unknown, init?: RequestInit) => { bodies.push(JSON.parse(String(init?.body))); return new Response(null, { status: 204 }) }) as typeof fetch
+    await createDiscordAlerts({ webhookUrl: url, mentionUserId: '123456789012345678', fetchImpl }).send([event])
+    await createDiscordAlerts({ webhookUrl: url, fetchImpl }).send([{ ...event, from: 'caution', to: 'danger' }])
+    await createDiscordAlerts({ webhookUrl: url, mentionUserId: '123456789012345678', fetchImpl }).sendMessage('public schedule', 1)
+    for (const body of bodies) {
+      expect(body.content).not.toContain('<@')
+      expect(body.allowed_mentions).toEqual({ parse: [] })
+    }
+  })
+  it('When dry-running a mention-worthy event Then the log never contains the user id', async () => {
+    const logs: string[] = []
+    const sink = createDiscordAlerts({ webhookUrl: url, mentionUserId: '123456789012345678', log: s => logs.push(s), fetchImpl: (async () => new Response(null, { status: 204 })) as typeof fetch })
+    await sink.send([{ ...event, from: 'caution', to: 'danger' }], { dryRun: true })
+    await sink.send([{ ...event, from: 'caution', to: 'danger' }])
+    expect(logs.join('')).not.toContain('123456789012345678')
   })
 })
