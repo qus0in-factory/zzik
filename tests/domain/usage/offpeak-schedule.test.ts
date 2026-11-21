@@ -4,16 +4,19 @@ import { OFFPEAK_SCHEDULE } from '@domain/usage/offpeak-schedule'
 describe('Given verified off-peak schedules', () => {
   it('When production data is decoded Then every rule is valid and sourced', () => {
     expect(decodeOffpeakSchedule(OFFPEAK_SCHEDULE).ok).toBe(true)
-    expect(Object.keys(OFFPEAK_SCHEDULE).sort()).toEqual(['ollama', 'opencode'])
+    expect(Object.keys(OFFPEAK_SCHEDULE).sort()).toEqual(['ollama', 'opencode', 'zai'])
     for (const rule of Object.values(OFFPEAK_SCHEDULE)) {
       expect(rule.source).toMatch(/^https:/)
       expect(rule.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-      expect(rule.effect).toEqual({ target: 'DeepSeek', discountPercent: 50 })
     }
+    expect(OFFPEAK_SCHEDULE.opencode?.effect).toEqual({ target: 'DeepSeek', discountPercent: 50 })
+    expect(OFFPEAK_SCHEDULE.ollama?.effect).toEqual({ target: 'DeepSeek', discountPercent: 50 })
+    expect(OFFPEAK_SCHEDULE.zai?.effect).toEqual({ target: 'GLM', discountPercent: 50 })
   })
   it('When a weekend joins weekdays Then the whole continuous interval is returned', () => {
     expect(offpeakStateOf(OFFPEAK_SCHEDULE.opencode, new Date('2026-11-21T12:00:00Z'))).toEqual({ active: true, endsAt: '2026-11-23T01:00:00.000Z' })
     expect(offpeakStateOf(OFFPEAK_SCHEDULE.ollama, new Date('2026-11-21T12:00:00Z'))).toEqual({ active: true, endsAt: '2026-11-23T12:00:00.000Z' })
+    expect(offpeakStateOf(OFFPEAK_SCHEDULE.zai, new Date('2026-11-21T08:00:00Z'))).toEqual({ active: true, endsAt: '2026-11-23T06:00:00.000Z' })
   })
 })
 
@@ -25,6 +28,8 @@ const boundaries = [
   ['opencode', '10:00', false, '2026-11-16T10:00:00.000Z', true, '2026-11-17T01:00:00.000Z'],
   ['ollama', '12:00', true, '2026-11-16T12:00:00.000Z', false, '2026-11-16T18:00:00.000Z'],
   ['ollama', '18:00', false, '2026-11-16T18:00:00.000Z', true, '2026-11-17T12:00:00.000Z'],
+  ['zai', '06:00', true, '2026-11-16T06:00:00.000Z', false, '2026-11-16T10:00:00.000Z'],
+  ['zai', '10:00', false, '2026-11-16T10:00:00.000Z', true, '2026-11-17T06:00:00.000Z'],
 ] as const
 describe('Given production weekday UTC peak boundaries', () => {
   for (const [provider, time, beforeActive, beforeAt, afterActive, afterAt] of boundaries) {
