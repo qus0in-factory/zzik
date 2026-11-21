@@ -189,7 +189,7 @@ describe('Given the Z.AI DEV scenarios', () => {
     if (!result.ok) return
     const limits = (result.usage as Record<string, any>).data.limits as Array<{ nextResetTime: number; percentage: number }>
     // 원점 2026-11-21T09:00Z → 지금 12:00Z: 3시간 뒤로 옮긴다(5시간 창이 2시간 43분 남은 상태 유지).
-    expect(limits.map((limit) => new Date(limit.nextResetTime).toISOString())).toEqual(['2026-11-21T14:43:25.338Z', '2026-11-28T09:36:57.983Z'])
+    expect(limits.map((limit) => new Date(limit.nextResetTime).toISOString())).toEqual(['2026-11-21T14:43:25.338Z', '2026-11-24T02:43:25.338Z'])
     expect(limits.map((limit) => limit.percentage)).toEqual([20, 15])
   })
   it('When the clock equals the Z.AI anchor Then the fixture values are returned unchanged', async () => {

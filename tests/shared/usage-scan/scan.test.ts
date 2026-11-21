@@ -61,10 +61,10 @@ describe('Given a redacted malformed limit', () => {
 describe('Given Z.AI Coding Plan limits', () => {
   const limit = (unit: number, number: number, percentage: unknown, extra: Record<string, unknown> = {}) => ({ type: 'CREDIT_LIMIT', unit, number, percentage, nextResetTime: 1795261405338, ...extra });
   it('When both known windows are present Then the 5-hour series leads the weekly one with ms epoch resets as ISO', () => {
-    const raw = { data: { limits: [limit(6, 1, 15, { nextResetTime: 1795847817983 }), limit(3, 5, 20)], level: 'pro' } };
+    const raw = { data: { limits: [limit(6, 1, 15, { nextResetTime: 1795477405338 }), limit(3, 5, 20)], level: 'pro' } };
     expect(scanUsageSeries('zai', raw, options)).toEqual({ ok: true, skipped: 0, series: [
       { id: 'five_hour', usedPercent: 20, resetsAt: '2026-11-21T11:43:25.338Z', cycleSeconds: 18000 },
-      { id: 'weekly', usedPercent: 15, resetsAt: '2026-11-28T06:36:57.983Z', cycleSeconds: 604800 },
+      { id: 'weekly', usedPercent: 15, resetsAt: '2026-11-23T23:43:25.338Z', cycleSeconds: 604800 },
     ] });
   });
   it('When a limit has an unknown type or unit Then it is neither a series nor skipped', () => {
@@ -79,7 +79,7 @@ describe('Given Z.AI Coding Plan limits', () => {
       expect(scanUsageSeries('zai', raw, options)).toEqual({ ok: false, reason: 'invalid_shape' });
   });
   it('When a window reset before the fetch Then the expired series is dropped', () => {
-    const raw = { data: { limits: [limit(3, 5, 20), limit(6, 1, 15, { nextResetTime: 1795847817983 })] } };
+    const raw = { data: { limits: [limit(3, 5, 20), limit(6, 1, 15, { nextResetTime: 1795477405338 })] } };
     expect(scanUsageSeries('zai', raw, { ...options, fetchedAt: '2026-11-21T12:00:00.000Z' })).toMatchObject({ ok: true, skipped: 0, series: [{ id: 'weekly' }] });
   });
   it('When a limit path or series id is redacted Then it is excluded rather than counted as skipped', () => {
