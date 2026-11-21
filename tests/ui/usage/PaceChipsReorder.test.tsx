@@ -11,6 +11,7 @@ import type { ProviderOrderPort } from '@app/usage/provider-order'
 import agyRaw from '../../fixtures/antigravity-usage.gemini-argon.json'
 import grokRaw from '../../fixtures/grok-usage.normal.json'
 import ollamaRaw from '../../fixtures/ollama-usage.normal.json'
+import zaiRaw from '../../fixtures/zai-usage.normal.json'
 import opencodeRaw from '../../fixtures/opencode-usage.normal.json'
 import normalRaw from '../../fixtures/claude-usage.normal.json'
 import codexRaw from '../../fixtures/codex-usage.normal.json'
@@ -39,7 +40,7 @@ const release = (init: Record<string, unknown> = {}) => fireEvent.pointerUp(wind
 
 function renderApp(saved: unknown[] | null = null) {
   const gateway = createFakeUsageGateway()
-  for (const [provider, usage] of [['claude', normalRaw], ['codex', codexRaw], ['antigravity', agyRaw], ['opencode', opencodeRaw], ['grok', grokRaw], ['ollama', ollamaRaw]] as const) {
+  for (const [provider, usage] of [['claude', normalRaw], ['codex', codexRaw], ['antigravity', agyRaw], ['opencode', opencodeRaw], ['grok', grokRaw], ['ollama', ollamaRaw], ['zai', zaiRaw]] as const) {
     gateway.pushResultFor(provider, { ok: true, usage, collection: null, rawText: null })
   }
   let stored: unknown[] | null = saved
@@ -70,9 +71,9 @@ async function ready() {
 describe('Given the draggable pace chips (순서 = 패널 순서)', () => {
   it('When a stored order exists Then chips and sections both follow it, and the skeleton sections too', async () => {
     renderApp(['ollama', 'grok'])
-    expect(sectionOrder()).toEqual(['ollama', 'grok', 'claude', 'codex', 'antigravity', 'opencode'])
+    expect(sectionOrder()).toEqual(['ollama', 'grok', 'claude', 'codex', 'antigravity', 'opencode', 'zai'])
     await ready()
-    expect(chipOrder()).toEqual(['ollama', 'grok', 'claude', 'codex', 'antigravity', 'opencode'])
+    expect(chipOrder()).toEqual(['ollama', 'grok', 'claude', 'codex', 'antigravity', 'opencode', 'zai'])
   })
 
   it('When a chip is grabbed with Space, moved with arrows and dropped Then chips and panels reorder together and the order is saved', async () => {
@@ -133,7 +134,7 @@ describe('Given the draggable pace chips (순서 = 패널 순서)', () => {
     const reset = screen.getByRole('button', { name: '제공자 순서 초기화' }) as HTMLButtonElement
     expect(reset.disabled).toBe(false)
     act(() => fireEvent.click(reset))
-    expect(sectionOrder()).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
+    expect(sectionOrder()).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'])
     expect(app.stored).toBeNull()
     expect((screen.getByRole('button', { name: '제공자 순서 초기화' }) as HTMLButtonElement).disabled).toBe(true)
   })

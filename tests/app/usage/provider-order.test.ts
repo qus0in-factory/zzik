@@ -11,13 +11,13 @@ describe('Given the provider order normalization', () => {
     expect(normalizeOrder({}, DEFAULT)).toEqual(DEFAULT)
   })
   it('When a saved order lacks a new provider Then it is appended after the saved ones in default order', () => {
-    expect(normalizeOrder(['grok', 'claude'], DEFAULT)).toEqual(['grok', 'claude', 'codex', 'antigravity', 'opencode', 'ollama'])
+    expect(normalizeOrder(['grok', 'claude'], DEFAULT)).toEqual(['grok', 'claude', 'codex', 'antigravity', 'opencode', 'ollama', 'zai'])
   })
   it('When a saved id no longer exists, is duplicated, or is not a string Then it is dropped', () => {
-    expect(normalizeOrder(['gone', 'ollama', 'ollama', 7, null, 'claude'], DEFAULT)).toEqual(['ollama', 'claude', 'codex', 'antigravity', 'opencode', 'grok'])
+    expect(normalizeOrder(['gone', 'ollama', 'ollama', 7, null, 'claude'], DEFAULT)).toEqual(['ollama', 'claude', 'codex', 'antigravity', 'opencode', 'grok', 'zai'])
   })
   it('When the saved order is complete Then it is kept as is', () => {
-    const custom = ['ollama', 'grok', 'opencode', 'antigravity', 'codex', 'claude'] as const
+    const custom = ['zai', 'ollama', 'grok', 'opencode', 'antigravity', 'codex', 'claude'] as const
     expect(normalizeOrder(custom, DEFAULT)).toEqual(custom)
   })
   it('Then normalize never returns the same array instance as the defaults (no shared mutation)', () => {
@@ -48,6 +48,6 @@ describe('Given moving a provider', () => {
 describe('Given the default-order check', () => {
   it('When the order equals the default Then isDefaultOrder is true', () => {
     expect(isDefaultOrder([...DEFAULT], DEFAULT)).toBe(true)
-    expect(isDefaultOrder(['codex', 'claude', 'antigravity', 'opencode', 'grok', 'ollama'], DEFAULT)).toBe(false)
+    expect(isDefaultOrder(['codex', 'claude', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'], DEFAULT)).toBe(false)
   })
 })

@@ -16,7 +16,7 @@ describe('Given authenticated history routes', () => {
     expect(s.verifier.tokens).toEqual([]);
   });
   it('When JWKS fails Then returns 503 without reading', async () => { const s = setup(); s.verifier.result = { ok: false, reason: 'unavailable' }; expect((await s.app.request('/api/usage-history', { headers })).status).toBe(503); expect(s.history.reads).toBe(0); });
-  it('When summary receives arbitrary query Then ignores it and returns six providers', async () => { const s = setup(), r = await s.app.request('/api/usage-history?limit=bad&anchor=1', { headers }); expect(r.status).toBe(200); expect((await r.json()).summary).toHaveLength(6); });
+  it('When summary receives arbitrary query Then ignores it and returns seven providers', async () => { const s = setup(), r = await s.app.request('/api/usage-history?limit=bad&anchor=1', { headers }); expect(r.status).toBe(200); expect((await r.json()).summary).toHaveLength(7); });
   it('When a poisoned row lies between good rows Then 200 and a usable last cursor survive', async () => {
     const s = setup(), at = '2026-11-11T12:00:00.000Z';
     s.history.rows = [1, 2, 3].map(id => ({ id: String(id), runAt: at, status: 'ok', fetchedAt: at, intervalSec: '900', rawText: id === 2 ? 'bad JSON' : '{"five_hour":{"utilization":12}}', rawRedacted: [] }));

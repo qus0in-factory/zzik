@@ -6,6 +6,7 @@ import App from '@ui/App'
 import agyRaw from '../fixtures/antigravity-usage.normal.json'
 import grokRaw from '../fixtures/grok-usage.normal.json'
 import ollamaRaw from '../fixtures/ollama-usage.normal.json'
+import zaiRaw from '../fixtures/zai-usage.normal.json'
 import opencodeRaw from '../fixtures/opencode-usage.normal.json'
 import normalRaw from '../fixtures/claude-usage.normal.json'
 import codexUnknownRaw from '../fixtures/codex-usage.unknown-keys.json'
@@ -22,6 +23,7 @@ function renderApp(client = createTestQueryClient()) {
   gateway.pushResultFor('opencode', { ok: true, usage: opencodeRaw, collection: null, rawText: null })
   gateway.pushResultFor('grok', { ok: true, usage: grokRaw, collection: null, rawText: null })
   gateway.pushResultFor('ollama', { ok: true, usage: ollamaRaw, collection: null, rawText: null })
+  gateway.pushResultFor('zai', { ok: true, usage: zaiRaw, collection: null, rawText: null })
   const providers = makeUsageProviders(
     {
       gateway,
@@ -40,7 +42,7 @@ function renderApp(client = createTestQueryClient()) {
   return { utils, gateway }
 }
 
-describe('Given the dashboard with six providers', () => {
+describe('Given the dashboard with seven providers', () => {
   it('When it renders Then a sticky section nav sits below the header with provider and trend anchors', () => {
     renderApp()
     const nav = screen.getByRole('navigation', { name: '사용량 섹션' })
@@ -54,8 +56,9 @@ describe('Given the dashboard with six providers', () => {
       '/usage#usage-opencode',
       '/usage#usage-grok',
       '/usage#usage-ollama',
+      '/usage#usage-zai',
     ])
-    for (const provider of ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama']) {
+    for (const provider of ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai']) {
       expect(document.getElementById(`usage-${provider}`)).toBeTruthy()
     }
   })
@@ -84,12 +87,12 @@ describe('Given the dashboard with six providers', () => {
     expect(chips.every((chip) => ['true', 'false'].includes(chip.getAttribute('data-over-pace') ?? ''))).toBe(true)
   })
 
-  it('When both queries resolve Then six provider sections render side by side in fixed order', async () => {
+  it('When both queries resolve Then seven provider sections render side by side in fixed order', async () => {
     renderApp()
     await screen.findByTestId('usage-section-claude')
     await waitFor(() => expect(screen.getByRole('heading', { name: 'ChatGPT (Codex)', level: 2 })).toBeTruthy())
     const sections = screen.getAllByTestId(/^usage-section-/)
-    expect(sections.map((section) => section.getAttribute('data-provider'))).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
+    expect(sections.map((section) => section.getAttribute('data-provider'))).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'])
     expect(screen.getByRole('heading', { name: 'Claude', level: 2 })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'ChatGPT (Codex)', level: 2 })).toBeTruthy()
   })

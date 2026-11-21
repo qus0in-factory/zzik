@@ -11,7 +11,7 @@ afterEach(cleanup)
 describe('Given the pace chip row while data loads', () => {
   it('When providers are still loading Then placeholder chips hold the row height (레이아웃 이동 방지)', () => {
     const gateway = createFakeUsageGateway()
-    for (let i = 0; i < 6; i += 1) gateway.pushDeferred()
+    for (let i = 0; i < 7; i += 1) gateway.pushDeferred()
     const providers = makeUsageProviders({ gateway, clock: createFakeUsageClock(), scheduler: createFakeUsageScheduler() })
     render(
       <providers.wrapper>
@@ -19,7 +19,7 @@ describe('Given the pace chip row while data loads', () => {
       </providers.wrapper>,
     )
     const placeholders = screen.getAllByTestId('usage-pace-skeleton')
-    expect(placeholders.length).toBe(6)
+    expect(placeholders.length).toBe(7)
     for (const item of placeholders) expect(item.getAttribute('aria-hidden')).toBe('true')
   })
 })
