@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { USAGE_PROVIDERS } from '../../shared/usage-contract'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -120,7 +121,8 @@ describe('Given the deploy verification script', () => {
       expect(result.steps.find((step) => step.name === 'usage_live_shape')).toMatchObject({ status: 'PASS' })
       expect(calls.some((call) => call.command === 'pnpm' && call.args[0] === 'run')).toBe(false)
       expect(calls.filter((call) => call.command === 'curl')).toHaveLength(UNAUTH_PATHS.length * 2 + PUBLIC_SPA_PATHS.length + PUBLIC_PATHS.length)
-      expect(calls.filter((call) => call.command === 'bash' && call.args[0] === 'scripts/usage-live-shape.sh')).toHaveLength(6)
+      const shapeCalls = calls.filter((call) => call.command === 'bash' && call.args[0] === 'scripts/usage-live-shape.sh')
+      expect(shapeCalls.map((call) => call.args[1])).toEqual([...USAGE_PROVIDERS])
       expect(calls.every((call) => call.cwd === undefined || call.cwd === release)).toBe(true)
     } finally {
       rmSync(release, { recursive: true, force: true })
@@ -260,6 +262,11 @@ describe('Given the deploy verification CLI branches', () => {
       expect(body.mode).toBe('dry-run')
       expect(body.dryRun).toBe(true)
       expect(body.deployed).toBe(false)
+      expect(UNAUTH_PATHS).toContain('/api/usage/zai')
+      expect(body.steps.find((step) => step.name === 'usage_live_shape')).toMatchObject({
+        status: 'PLAN',
+        details: { providers: expect.arrayContaining(['zai']) },
+      })
       expect(body.steps.find((step) => step.name === 'release_clean')).toMatchObject({ status: 'PLAN' })
       expect(body.steps.find((step) => step.name === 'deploy')).toMatchObject({ status: 'SKIP', reason: 'flag_not_set' })
     } finally {

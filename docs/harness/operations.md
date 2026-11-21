@@ -32,10 +32,8 @@
 | `opencode` | `180초` | 429/gate 시 `900` override |
 | `grok` | `180초` | 429/gate 시 `900` override |
 | `ollama` | `180초` | 429/gate 시 `900` override |
-| `zai` | `기본값` | 429/gate 시 `900` override |
+| `zai` | `180초` | 429/gate 시 `900` override |
 | `claude` | `300초` | provider 429 시 자동 `900초` 강등, 24시간부터 최대 7일 |
-
-`zai`(Z.AI, ADR 0.6 Z.AI 사용량)는 수집기 트랙 반영 전까지 주기가 기본값이다.
 
 ## 보존·경보 수치
 
