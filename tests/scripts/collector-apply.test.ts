@@ -7,7 +7,7 @@ function fixture(){
  const calls:any[]=[]
  const runtime={name:'zzik-usage-collector',pm2_env:{status:'online',pm_cwd:root,...config.apps[0].env}}
  const execute=async(command:string,args:readonly string[],options:any)=>{calls.push({command,args,options});return{exitCode:0,stderr:'private email@example.invalid',stdout:command==='pm2'&&args[0]==='jlist'?JSON.stringify([runtime]):command==='pm2'?'secret token':JSON.stringify(status)}}
- return{releaseDir:root,config,clock:{now:()=>123456},execute,calls,runtime}
+ return{releaseDir:root,config,clock:{now:()=>123456},execute,calls,runtime,preflight:async()=>true}
 }
 describe('Given a deterministic collector apply workflow',()=>{
  it('When no apply flag is provided Then performs zero external commands',async()=>{
@@ -19,6 +19,9 @@ describe('Given a deterministic collector apply workflow',()=>{
   expect(f.calls[0].args).toEqual(['restart','collector/ecosystem.config.cjs','--only','zzik-usage-collector','--update-env'])
   expect(f.calls.every(c=>c.options.cwd===root)).toBe(true)
   expect(f.calls[3].args).toEqual([root+'/scripts/d1-status.mjs','--wait-fresh','--since','123456','--max-wait-ms','12345'])
+ })
+ it('When the ledger preflight fails Then it never restarts PM2',async()=>{
+  const f=fixture();expect(await runCollectorApply({...f,apply:true,preflight:async()=>false})).toEqual({ok:false,dryRun:false,stage:'ledger_preflight'});expect(f.calls).toHaveLength(0)
  })
  it('When restart or save fails Then never runs later steps or leaks the command result',async()=>{
   for(const stage of ['restart','save']){
