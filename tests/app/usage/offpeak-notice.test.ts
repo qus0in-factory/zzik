@@ -71,6 +71,12 @@ describe('Given transitions near local calendar boundaries', () => {
 })
 
 describe('Given data-defined off-peak effects', () => {
+  it.each([
+    ['2026-11-23T05:59:59Z', true, 'off-peak · 15:00까지', 'Z.AI off-peak 시간대 · 15:00에 끝남 · GLM 단가 50 퍼센트 할인'],
+    ['2026-11-23T06:00:00Z', false, 'off-peak 19:00부터', 'Z.AI off-peak 시간대 아님 · 19:00에 시작 · off-peak 동안 GLM 단가 50 퍼센트 할인'],
+  ] as const)('When Z.AI is evaluated at %s Then the production schedule supplies the Seoul time and GLM discount', (iso, active, text, description) => {
+    expect(offpeakNoticeOf('zai', OFFPEAK_SCHEDULE, new Date(iso), { timeZone: 'Asia/Seoul' })).toEqual({ active, text, description })
+  })
   it.each(['opencode', 'ollama'] as const)('When %s has no effect Then no discount description is invented', provider => {
     const notice = offpeakNoticeOf(provider, { [provider]: { windows: [{ start: '16:30', end: '22:30' }] } }, new Date('2026-11-16T17:00:00Z'), { timeZone: 'UTC' })
     expect(notice?.description).not.toContain('할인')

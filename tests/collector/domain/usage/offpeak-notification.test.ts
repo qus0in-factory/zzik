@@ -26,6 +26,23 @@ describe('Given merged off-peak boundaries in UTC',()=>{
   expect(nextOffpeakEvents(schedule,e[0]!.atMs,[e[0]!.key])).toHaveLength(1)
   expect(nextOffpeakEvents(schedule,e[0]!.atMs,e.map(x=>x.key))).toMatchObject([{kind:'ending',atMs:at('2026-11-17T01:50:00Z')},{kind:'ending'}])
  })
+ it('When OpenCode Go and Z.AI start off-peak on Friday Then one message includes both discounts',()=>{
+  const events=nextOffpeakEvents(OFFPEAK_SCHEDULE,at('2026-11-20T10:00:00Z'))
+  expect(events).toMatchObject([
+   {provider:'opencode',kind:'started',atMs:at('2026-11-20T10:10:00Z')},
+   {provider:'zai',kind:'started',atMs:at('2026-11-20T10:10:00Z'),endMs:at('2026-11-23T06:00:00Z')},
+  ])
+  expect(formatOffpeakMessage(events)).toBe([
+   'off-peak 알림 (2건)',
+   'off-peak 시작 · OpenCode Go · 11/23(월) 10:00(KST)까지 · DeepSeek 50% 할인',
+   'off-peak 시작 · Z.AI · 11/23(월) 15:00(KST)까지 · GLM 50% 할인',
+   'https://zzik.qus0in.dev',
+  ].join('\n'))
+
+  const ending=nextOffpeakEvents({zai:OFFPEAK_SCHEDULE.zai},at('2026-11-20T10:11:00Z'))
+  expect(ending).toMatchObject([{provider:'zai',kind:'ending',atMs:at('2026-11-23T05:50:00Z')}])
+  expect(formatOffpeakMessage(ending)).toContain('off-peak 10분 후 종료 · Z.AI · 15:00(KST)부터 peak · GLM 50% 할인')
+ })
  it('When the same instant is written as UTC or KST Then keys and boundaries are identical',()=>{
   expect(nextOffpeakEvents({ollama:daily},at('2026-11-17T09:00:00+09:00'))).toEqual(nextOffpeakEvents({ollama:daily},at('2026-11-17T00:00:00Z')))
  })
