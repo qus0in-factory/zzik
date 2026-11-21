@@ -1,3 +1,4 @@
+import { USAGE_PROVIDERS } from '../../../../collector/domain/usage/providers.mjs'
 import {initialLedgerState,acceptObservation} from '../../../../collector/domain/usage/d1-ledger.mjs'
 import {describe,it,expect} from 'vitest'
 import {createD1Maintenance} from '../../../../collector/app/usage/d1-maintenance.mjs'
@@ -52,13 +53,13 @@ it('When quiesce cancels a queued health read Then sends no outage alert and pre
   expect(h.control.read()).toMatchObject({ok:true,value:{lastHealthCheckAtMs:Date.parse(D1_NOW)}})
  })
  it('When pruning Then uses separate provider-specific 500-row event, boundary and receipt batches without touching checkpoints',async()=>{
-  const h=setup();for(let i=0;i<18;i++)h.responses.push({ok:true,value:[{meta:{changes:0}}]})
+  const h=setup();for(let i=0;i<USAGE_PROVIDERS.length*3;i++)h.responses.push({ok:true,value:[{meta:{changes:0}}]})
   expect(await h.maintenance.prune('2026-11-14T00:00:00Z',30)).toMatchObject({ok:true,lastPruneAt:D1_NOW})
-  expect(h.calls).toHaveLength(18)
+  expect(h.calls).toHaveLength(USAGE_PROVIDERS.length*3)
   const sqls=h.calls.flatMap(call=>(call as {sql:string}[]).map(s=>s.sql))
-  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_event'))).toHaveLength(6)
-  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_bucket_boundary'))).toHaveLength(6)
-  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_write_receipt'))).toHaveLength(6)
+  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_event'))).toHaveLength(USAGE_PROVIDERS.length)
+  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_bucket_boundary'))).toHaveLength(USAGE_PROVIDERS.length)
+  expect(sqls.filter(sql=>sql.includes('DELETE FROM usage_write_receipt'))).toHaveLength(USAGE_PROVIDERS.length)
   for(const call of h.calls){
    const statements=call as {sql:string;params?:unknown[]}[]
    expect(statements).toHaveLength(1)

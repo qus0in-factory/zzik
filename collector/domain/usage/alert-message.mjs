@@ -1,6 +1,6 @@
 /** @typedef {import('./alert-types.mjs').AlertEvent} AlertEvent */
 const DASHBOARD = 'https://zzik.qus0in.dev'
-const PROVIDERS = /** @type {Record<string,string>} */ ({claude:'Claude',codex:'Codex',antigravity:'Antigravity',opencode:'OpenCode',grok:'Grok',ollama:'Ollama'})
+const PROVIDERS = /** @type {Record<string,string>} */ ({claude:'Claude',codex:'Codex',antigravity:'Antigravity',opencode:'OpenCode',grok:'Grok',ollama:'Ollama',zai:'Z.AI'})
 const LEVELS = {previous_cycle:'이전 주기',new_cycle:'새 주기',normal:'정상',caution:'주의',danger:'위험',limit:'한도 도달'}
 /** @param {number|null} value */
 const percent = value => value === null ? '알 수 없음' : `${Math.round(value * 10) / 10}%`

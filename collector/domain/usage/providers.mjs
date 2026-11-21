@@ -3,7 +3,7 @@
  * 하나의 테스트가 두 곳의 일치를 확인한다(.mjs는 shared를 런타임에 import할 수 없다).
  */
 
-export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama']
+export const USAGE_PROVIDERS = ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai']
 
 export const USAGE_COLLECTOR_VERSION = '0.6.0'
 
@@ -12,6 +12,7 @@ export const USAGE_REDACTION_PATHS = {
   antigravity: [],
   claude: [],
   ollama: [],
+  zai: [],
   opencode: [],
   grok: ['config.topUpMethod'], // 결제 수단 식별자일 수 있는 자유 문자열(화면에서 쓰지 않음)
   codex: ['user_id', 'account_id', 'email'], // G2 실측(2026-11-12): 최상위 식별자 키 확정
@@ -25,7 +26,7 @@ export const USAGE_REDACTION_PATHS = {
  * @returns {{ providers: string[], warnings: string[] }}
  */
 export function parseProvidersEnv(value) {
-  const raw = (value ?? 'claude,codex,antigravity,opencode,grok,ollama').split(',').map((item) => item.trim().toLowerCase())
+  const raw = (value ?? 'claude,codex,antigravity,opencode,grok,ollama,zai').split(',').map((item) => item.trim().toLowerCase())
   /** @type {string[]} */
   const providers = []
   /** @type {string[]} */

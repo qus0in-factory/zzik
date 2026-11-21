@@ -103,15 +103,15 @@ describe('Given Antigravity bundle wiring', () => {
 })
 
 describe('Given the six-provider bundle wiring', () => {
-  const ids = ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama']
+  const ids = ['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai']
   it('When all are enabled Then order is kept and only grok carries a redaction path', () => {
     const bundles = buildProviderBundles({ providerIds: ids, flags: { provider: null, credentialsPath: null, codexAccountHeader: true }, buildPorts: () => ({}) as never })
     expect(bundles.map((bundle) => bundle.id)).toEqual(ids)
     expect(bundles.find((bundle) => bundle.id === 'grok')?.runOptions).toEqual({ redactionPaths: ['config.topUpMethod'] })
     expect(bundles.find((bundle) => bundle.id === 'opencode')?.runOptions).toEqual({ redactionPaths: [] })
-    expect(bundles.find((bundle) => bundle.id === 'ollama')?.runOptions).toEqual({ redactionPaths: [] })
+    expect(bundles.find((bundle) => bundle.id === 'zai')?.runOptions).toEqual({ redactionPaths: [] })
   })
-  it.each(['opencode', 'grok', 'ollama'])('When --provider %s Then only that bundle', (provider) => {
+  it.each(['opencode', 'grok', 'ollama', 'zai'])('When --provider %s Then only that bundle', (provider) => {
     const bundles = buildProviderBundles({ providerIds: ids, flags: { provider, credentialsPath: null, codexAccountHeader: false }, buildPorts: () => ({}) as never })
     expect(bundles.map((bundle) => bundle.id)).toEqual([provider])
   })
