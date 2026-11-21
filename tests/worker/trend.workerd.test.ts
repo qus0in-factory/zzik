@@ -9,7 +9,9 @@ import { TREND_CRON } from '../../worker/domain/usage/export'
 const migration1 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0001_d1_storage.sql', import.meta.url)), 'utf8')
 const migration2 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0002_trend.sql', import.meta.url)), 'utf8')
 const migration3 = readFileSync(fileURLToPath(new URL('../../worker/migrations/0003-trend-plan-observation.sql', import.meta.url)), 'utf8')
+const DAY_MS = 86_400_000
 const NOW = Date.now()
+const daysAgo = (days: number) => new Date(NOW - days * DAY_MS).toISOString().slice(0, 10)
 const models = {
   anthropic: {
     id: 'anthropic',
@@ -17,7 +19,7 @@ const models = {
       'claude-x': {
         id: 'claude-x',
         name: 'Claude X',
-        release_date: '2026-11-16',
+        release_date: daysAgo(1),
         cost: { input: 3, output: 15 },
         canonical_model_id: 'anthropic/claude-x',
         open_weights: false,
@@ -30,7 +32,7 @@ const models = {
       'claude-x': {
         id: 'claude-x',
         name: 'Claude X resold',
-        release_date: '2026-11-15',
+        release_date: daysAgo(2),
         cost: { input: 4, output: 16 },
         canonical_model_id: 'anthropic/claude-x',
         open_weights: false,
@@ -43,7 +45,7 @@ const models = {
       'qwen4-max': {
         id: 'qwen4-max',
         name: 'Qwen4 Max',
-        release_date: '2026-11-05',
+        release_date: daysAgo(12),
         canonical_model_id: 'qwen/qwen4-max',
         open_weights: true,
       },
@@ -56,7 +58,7 @@ const zen = {
     id: 'hy4-flash-free',
     name: 'Hy4 Flash Free',
     canonical_id: 'tencent/hy4-flash',
-    release_date: '2026-11-16',
+    release_date: daysAgo(1),
     open_weights: false,
     cost: { text: { input: { price: 0 }, output: { price: 0 } } },
   }],
@@ -65,7 +67,7 @@ const openrouter = {
   data: [{
     id: 'inclusionai/ling-3.2-flash:free',
     name: 'Ling 3.2 Flash (free)',
-    created: 1_794_528_000,
+    created: Math.floor((NOW - 4 * DAY_MS) / 1000),
     pricing: { prompt: '0', completion: '0' },
     hugging_face_id: null,
     expiration_date: null,
@@ -134,7 +136,7 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
       await db.prepare(
         `INSERT INTO trend_plan_observation (plan, model_id, display_name, source, confidence, first_seen_at, last_seen_at, baseline)
          VALUES (?, ?, ?, ?, 'catalog', ?, ?, 0)`,
-      ).bind(plan, modelId, displayName, source, NOW - 86_400_000, NOW - 3_600_000).run()
+      ).bind(plan, modelId, displayName, source, NOW - DAY_MS, NOW - 3_600_000).run()
     }
     await seed('opencode-go', 'deepseek/deepseek-v4.1-flash-1017', 'DeepSeek V4.1 Flash 1017', 'go-models')
     await seed('ollama-cloud', 'glm-5.3', 'glm-5.3', 'ollama-tags')
@@ -224,13 +226,15 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     const worker = await mf.getWorker() as unknown as {
       scheduled(options: { cron: string; scheduledTime: number }): Promise<void>
     }
-    await worker.scheduled({ cron: TREND_CRON, scheduledTime: NOW + 8 * 86_400_000 })
+    const nextRun = NOW + 8 * DAY_MS
+    const nextRunIso = new Date(nextRun).toISOString()
+    await worker.scheduled({ cron: TREND_CRON, scheduledTime: nextRun })
 
     const response = await mf.dispatchFetch('http://localhost/pub/trend/new-models')
     expect(response.status).toBe(200)
     const body = await response.json() as { items: unknown[]; generatedAt: string }
     expect(body.items).toEqual([])
-    expect(body.generatedAt).toBe(new Date(NOW + 8 * 86_400_000).toISOString())
+    expect(body.generatedAt).toBe(nextRunIso)
 
     // free-models는 OpenCode Go 무료 목록을 유지한다.
     const free = await mf.dispatchFetch('http://localhost/pub/trend/free-models')
@@ -240,8 +244,8 @@ describe('Given the actual Worker trend cron and public route in workerd', () =>
     const index = await mf.dispatchFetch('http://localhost/pub/trend')
     const indexBody = await index.json() as { sections: Array<{ id: string; count: number; status: string }> }
     expect(indexBody.sections).toEqual(expect.arrayContaining([
-      { id: 'new-models', count: 0, generatedAt: new Date(NOW + 8 * 86_400_000).toISOString(), checkedAt: new Date(NOW + 8 * 86_400_000).toISOString(), status: 'ok' },
-      expect.objectContaining({ id: 'free-models', count: 1, checkedAt: new Date(NOW + 8 * 86_400_000).toISOString(), status: 'ok' }),
+      { id: 'new-models', count: 0, generatedAt: nextRunIso, checkedAt: nextRunIso, status: 'ok' },
+      expect.objectContaining({ id: 'free-models', count: 1, checkedAt: nextRunIso, status: 'ok' }),
     ]))
   })
 })
