@@ -32,6 +32,7 @@ function labelOf(provider, value, raw) {
   if (provider === 'grok') return raw.config?.currentPeriod?.type === 'USAGE_PERIOD_TYPE_WEEKLY' ? '주간 크레딧' : raw.config?.currentPeriod?.type === 'USAGE_PERIOD_TYPE_MONTHLY' ? '월간 크레딧' : '크레딧 사용률'
   if (provider === 'ollama') return '포함 크레딧'
   if (provider === 'opencode') return value.id === 'rolling' ? '단기 한도' : value.id === 'weekly' ? '주간 한도' : value.id === 'monthly' ? '월간 한도' : `${value.id} 한도`
+  if (provider === 'zai') return periodLabel(value)
   const base = periodLabel(value)
   return value.id === 'rate_limit' || value.id.startsWith('rate_limit.') ? base : `${value.id.split(/[.[]/)[0].split('_').map(s => s.charAt(0).toUpperCase()+s.slice(1)).join(' ')} · ${base}`
 }
