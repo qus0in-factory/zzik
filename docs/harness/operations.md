@@ -51,7 +51,7 @@
   4. `scope`: 직전 `main`과 비교해 변경 범위 판정
   5. `deploy_worker`: 대상 변경 시 `node scripts/deploy-verify.mjs --deploy`
   6. `trend_refill`: 트렌드 대상 변경 시 `node scripts/trend-refresh-once.mjs --apply` (Worker 배포 성공 직후)
-  7. `apply_collector`: 대상 변경 시 `node scripts/collector-apply.mjs --apply`
+  7. `apply_collector`: 대상 변경 시 `node scripts/collector-apply.mjs --apply` (PM2 재시작 전 `scripts/ledger-preflight.mjs`로 운영 원장 복사본 열기 확인, 실패 시 `stage: ledger_preflight`로 재시작하지 않음)
   8. `verify_request`: `verify-request.mjs` 형식으로 확인/완료 본문 생성 (`--kind verify|done`, `--summary`, `--check`, `--issues`)
   9. `notify_discord`: `scripts/notify-discord.sh` 전송 (실패 시 `--notify-failure`가 있으면 실패 알림 전송)
 

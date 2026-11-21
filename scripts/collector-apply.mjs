@@ -30,6 +30,8 @@ export async function runCollectorApply(options={}){
   if(dryRun)return {ok:true,dryRun:true}
   const since=clock.now();if(!Number.isSafeInteger(since)||since<0)return {ok:false,dryRun:false,stage:'configuration'}
   const env=Object.fromEntries(PRIVATE_CHILD_KEYS.map(k=>[k,undefined])),pmOptions={cwd:root,env,timeoutMs:120000}
+  stage='ledger_preflight';const preflight=options.preflight??(async()=>(await execute(process.execPath,[join(root,'scripts/ledger-preflight.mjs')],{cwd:root,env,timeoutMs:60000})).exitCode===0)
+  if(!(await preflight()))return {ok:false,dryRun:false,stage}
   stage='restart';if((await execute('pm2',['restart','collector/ecosystem.config.cjs','--only','zzik-usage-collector','--update-env'],pmOptions)).exitCode!==0)return {ok:false,dryRun:false,stage}
   stage='save';if((await execute('pm2',['save'],pmOptions)).exitCode!==0)return {ok:false,dryRun:false,stage}
   stage='runtime';const runtime=await execute('pm2',['jlist'],pmOptions)
