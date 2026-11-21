@@ -13,6 +13,7 @@ description: Herdr 워크스페이스의 각 에이전트 패널에서 실행 �
 SELF_LABEL=<내 모델 약칭> scripts/herdr-label-models.sh [--force] [--dry-run] [workspace_id]
 ```
 - `SELF_LABEL`: 스크립트를 실행하는 자기 패널의 약칭. 자기 화면에는 버전 붙은 모델 표시가 없거나 다른 모델명이 섞일 수 있으므로 항상 지정한다.
+- `LABEL_PREFIX`: 워크스페이스 접두어(예: `z-`). 감지·`SELF_LABEL` 이름 앞에 한 번만 붙인다(이미 붙어 있으면 그대로). 지원 여부는 프로젝트 스크립트를 확인한다.
 - workspace_id 생략 시 `$HERDR_WORKSPACE_ID`.
 
 ## 동작
