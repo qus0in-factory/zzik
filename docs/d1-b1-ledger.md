@@ -17,7 +17,7 @@ ADR 0.10 §5·§11 B1 구현. 운영 배선은 없다. `collector/main.mjs`, `ru
 
 ## 상태와 복구
 
-- 외부 collector-ledger.marker.json은 active/rolled-back을 구분한다. 롤백 시 마커를 삭제하지 않고 반드시 `rolled-back` 마커만 남긴다. 따라서 `마커 없음 + SQLite 있음`은 SQLite 커밋 직후 외부 마커 rename 전에 종료된 크래시로만 해석해 재import 없이 복구하고, `rolled-back` 마커 + SQLite 있음(+JSON)은 롤백 후 재전환으로 보고 기존 SQLite(`-wal`, `-shm` 포함)를 타임스탬프 이름으로 archive(삭제 금지)한 뒤 JSON을 재import한다. 내부 initialized 마커와 6개 provider 행으로 빈 DB를 검증하며, `active` 마커는 import 및 `parseD1Envelope` 검증 완료 뒤에만 쓴다.
+- 외부 collector-ledger.marker.json은 active/rolled-back을 구분한다. 롤백 시 마커를 삭제하지 않고 반드시 `rolled-back` 마커만 남긴다. 따라서 `마커 없음 + SQLite 있음`은 SQLite 커밋 직후 외부 마커 rename 전에 종료된 크래시로만 해석해 재import 없이 복구하고, `rolled-back` 마커 + SQLite 있음(+JSON)은 롤백 후 재전환으로 보고 기존 SQLite(`-wal`, `-shm` 포함)를 타임스탬프 이름으로 archive(삭제 금지)한 뒤 JSON을 재import한다. 내부 initialized 마커와 제공자별 행으로 빈 DB를 검증하며, `active` 마커는 import 및 `parseD1Envelope` 검증 완료 뒤에만 쓴다.
 - 단독 잠금은 별도 SQLite DB의 프로세스 수명 EXCLUSIVE 트랜잭션이다. 프로세스 종료 시 OS가 해제하며, stale PID 파일을 삭제할 필요가 없다. 다른 기동은 78 결과를 받는다.
 - SQLite commit 실패는 그 인스턴스의 수용을 latch로 차단한다. 큐/상태는 rollback하고 프로세스를 종료하지 않는다. 읽기·점검·종료는 가능하다. 안전한 복구 뒤 재기동은 운영자의 별도 절차다.
 - lastPruneAt 누락/깨짐은 skipFirstPrune=true로 보고한다. 실제 prune 스케줄(보고 후 다음 24시간)은 향후 app 조립에서 기존 규칙으로 실행한다.

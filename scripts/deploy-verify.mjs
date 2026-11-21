@@ -8,6 +8,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { USAGE_PROVIDERS } from '../shared/usage-contract.ts'
 import { executeCommand } from './lib/exec-command.mjs'
 
 /** @typedef {import('./lib/exec-command.mjs').Executor} Executor */
@@ -15,21 +16,16 @@ import { executeCommand } from './lib/exec-command.mjs'
 /** @typedef {{name:string,status:StepStatus,reason?:string,details?:Record<string,unknown>}} Step */
 /** @typedef {{collector:boolean,ecosystem:boolean,wrangler:boolean,lockfile:boolean}} Scope */
 
+export const PROVIDERS = Object.freeze([...USAGE_PROVIDERS])
+
 export const UNAUTH_PATHS = Object.freeze([
   '/usage',
   '/api/usage',
-  '/api/usage/claude',
-  '/api/usage/codex',
-  '/api/usage/antigravity',
-  '/api/usage/opencode',
-  '/api/usage/grok',
-  '/api/usage/ollama',
+  ...PROVIDERS.map((provider) => `/api/usage/${provider}`),
 ])
 
 export const PUBLIC_SPA_PATHS = Object.freeze(['/', '/trend'])
 export const PUBLIC_PATHS = Object.freeze(['/pub/trend'])
-
-export const PROVIDERS = Object.freeze(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
 
 const APP_BODY_MARKER = 'Hello Young-In'
 const DB_WORKERD_TEST = 'tests/worker/read-wiring.workerd.test.ts'
