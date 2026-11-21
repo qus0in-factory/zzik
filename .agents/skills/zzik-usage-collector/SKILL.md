@@ -21,4 +21,11 @@ Worker 선배포·검증 후 release frozen install. 주기 사이에 `pm2 resta
 - export 경보·백업 보존·이벤트/receipt 정리 주기(`docs/harness/operations.md` 참고)를 관측한다. 실제 export 성공과 로컬 테스트를 구분한다.
 - 저장소 불통 시 임의로 모드를 전환하지 않는다. 수집 정지 후 `docs/harness/operations.md`의 복구 절차(forward-fix·백업 복구·id 펜스·outbox 재생)를 검증한다. 운영 저장소 덮어쓰기/원격 리소스/secret 삭제는 이번 권한에 없다.
 
+## 새 제공자 추가
+
+- 실측 자격 형식(OAuth `access`, API 키 `{type:"key", key}` 등)을 합성 테스트 입력으로 고정한다. 기존 리더 재사용 시 그 형식을 읽는지 확인한다.
+- 원장은 기존 행을 두고 누락 제공자 행만 추가한다. 재시작 전 `scripts/ledger-preflight.mjs`(collector-apply가 자동 실행)로 운영 원장 복사본이 새 코드로 열리는지 본다.
+- Worker 배포 검증은 수집기 반영 전이라 새 제공자 스냅샷이 없으면 `SKIP(no_snapshot)`이 정상이다. 반영 후 `scripts/usage-live-shape.sh <id>`로 `status=ok`를 확인한다.
+- 사례: `docs/postmortem/0.6.62-zai-usage.md`.
+
 상태 확인은 `scripts/d1-status.mjs`, 수집기 반영은 `scripts/collector-apply.mjs`(기본 dry-run, 명시 `--apply`, 필요 시 `--release <경로>`)를 사용하며 두 도구는 최종 JSON 한 줄만 출력한다.
