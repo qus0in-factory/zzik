@@ -63,6 +63,7 @@ herdr agent prompt <이름> "$PROMPT"
 ## 워크트리 (병렬 트랙)
 - 같은 파일을 건드릴 수 있는 트랙이 동시에 돌면 레포 내부 `.worktree/`에 워크트리를 만든다(`.gitignore` 등록됨).
   `git worktree add .worktree/<트랙> -b <버전>/<트랙> dev` (예: `.worktree/usage`, 브랜치 `0.2/usage`)
+- 코드 작업 워커에는 브랜치만 주지 말고 항상 워크트리 경로를 준다(메인 체크아웃 브랜치가 바뀜). 일은 지시 전에 조사·구현·문서로 나눠 동시에 보낸다.
 - 작업 경로 `.worktree/<트랙>`을 명시하고 그 안에서 `pnpm install`부터 실행한다.
 - 끝난 워크트리는 `git worktree remove .worktree/<트랙>`으로 정리한다.
 - 생성·dev `--no-ff` 병합·제거는 `scripts/worktree-track.mjs`(기본 dry-run, `--apply`만 실행). 생성은 `create <트랙> <버전>`으로 버전 인자가 필수다. 사용법은 `--help`.
