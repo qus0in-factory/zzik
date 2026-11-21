@@ -96,6 +96,12 @@ rename_agent() {
   done
 }
 
+# 워크스페이스 접두어(예: LABEL_PREFIX=z-)를 한 번만 붙인다. 이미 붙은 이름(SELF_LABEL=z-opus)은 그대로 둔다.
+with_prefix() {
+  local prefix="${LABEL_PREFIX:-}" name="$1"
+  case "$name" in "$prefix"*) printf '%s\n' "$name" ;; *) printf '%s%s\n' "$prefix" "$name" ;; esac
+}
+
 # 라이브러리처럼 불러올 때(테스트)는 아래 실행부를 건너뛴다.
 if [ "${HERDR_LABEL_SOURCE_ONLY:-}" = 1 ]; then return 0 2>/dev/null || exit 0; fi
 
@@ -114,6 +120,7 @@ while IFS=$'\t' read -r pane tab agent current; do
     echo "$pane ($agent): 모델 감지 실패, 건너뜀"
     continue
   fi
+  name="$(with_prefix "$name")"
   if [ "$dry_run" = true ]; then
     echo "$pane ($agent): [dry-run] → $name"
     continue

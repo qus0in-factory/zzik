@@ -147,4 +147,14 @@ esac
     expect(out).toContain('[dry-run] → sol')
     expect(calls).not.toContain('rename')
   })
+  it('When LABEL_PREFIX is set Then names get the workspace prefix once', () => {
+    const run = (name: string, prefix: string) => spawnSync('bash', ['-c', 'source scripts/herdr-label-models.sh; with_prefix "$1"', '_', name], {
+      env: { ...process.env, HERDR_ENV: '1', HERDR_WORKSPACE_ID: 'w', HERDR_LABEL_SOURCE_ONLY: '1', LABEL_PREFIX: prefix },
+      encoding: 'utf8',
+    }).stdout.trim()
+    expect(run('sol', 'z-')).toBe('z-sol')
+    expect(run('z-opus', 'z-')).toBe('z-opus')
+    expect(run('sol', '')).toBe('sol')
+  })
 })
+
