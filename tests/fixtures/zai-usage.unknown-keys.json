@@ -1,0 +1,14 @@
+{
+  "code": 200,
+  "msg": "Operation successful",
+  "data": {
+    "limits": [
+      { "type": "CREDIT_LIMIT", "unit": 3, "number": 5, "usage": 12000, "currentValue": 600, "remaining": 11400, "percentage": 5, "nextResetTime": 1795261405338, "newField": "x" },
+      { "type": "TIME_LIMIT", "unit": 5, "number": 1, "usage": 1000, "currentValue": 10, "remaining": 990, "percentage": 1, "nextResetTime": 1797000000000 },
+      { "type": "CREDIT_LIMIT", "unit": 6, "number": 1, "usage": 60000, "currentValue": 600, "remaining": 59400, "percentage": 1, "nextResetTime": 1795847817983 }
+    ],
+    "level": "pro",
+    "extra": { "note": "future" }
+  },
+  "success": true
+}
