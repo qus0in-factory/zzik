@@ -24,6 +24,7 @@
 - 배정은 열려 있는 패널 중에서 위 "잘 맞는 일"을 참고해 고른다. 역할은 고정이 아니라 기본값이며, 비어 있는 워커에 다른 성격의 일을 줘도 된다.
 - 같은 도구에서 공급자(OpenCode Go·Ollama Cloud)나 모델만 바꿔 다시 열어도 이름은 그대로 쓰고, 이 표는 실제 조합이 자리 잡았을 때 한 번만 고친다.
 - OpenCode는 실행 인자로 모델을 받지 않는다(`-m` 전달 시 시작 타임아웃). 기본 모델로 띄운 뒤 `/models`에서 검색해 고르고(공급자 열 확인, 수준 선택 창이 뜨면 고름) 상태줄(`GLM-5.3 OpenCode Go · high`)을 확인한 다음 지시한다. TUI 문자 입력은 `herdr pane send-text`, 키는 `herdr agent send-keys <이름> Enter|Down|Backspace`.
+- Codex는 `herdr agent start z-sol --kind codex --pane <ID> -- -m gpt-6.2-sol -c model_reasoning_effort=high -c service_tier=fast`로 연다(`z-astra`는 모델만 바꿈). 전역 `~/.codex/config.toml`의 effort가 표와 다를 수 있으므로 실행 인자로 지정하고, 상태줄 `GPT-6.2-Sol high fast`를 확인한다.
 - Antigravity CLI는 `herdr agent start <이름> --kind agy --pane <ID> -- --model <ID>`로 연다. 모델 ID는 `agy models`.
 
 ## 사용량 한도·effort (2026-11-17 사용자 지시)
@@ -35,7 +36,7 @@
 
 ## 워크스페이스 라벨
 
-- 워크스페이스별 접두어 라벨(`z-`, `e-`) 규칙을 따른다.
+- 워크스페이스별 접두어 라벨(`z-`, `e-`) 규칙을 따른다. 라벨 스크립트는 `LABEL_PREFIX=z- SELF_LABEL=opus scripts/herdr-label-models.sh`처럼 접두어를 넘겨 실행한다(접두어가 이미 붙은 이름은 그대로 둔다).
 - 상주 구성은 정하지 않는다. 사용자가 요청하거나 일이 몰릴 때 풀에서 열고, 쓰지 않으면 닫는다.
 
 ## 모델 약칭 및 감지 매핑
