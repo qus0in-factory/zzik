@@ -10,4 +10,8 @@ describe('Given dedicated usage alert configuration',()=>{
  it('When ZZIK_ALERTS=0 Then force disables even a configured alert webhook',()=>{
   expect(readAlertConfig({ZZIK_ALERT_WEBHOOK_URL:'alert',ZZIK_ALERTS:'0'})).toEqual({webhookUrl:'alert',enabled:false})
  })
+ it('When a numeric mention user id is set Then it is selected, otherwise ignored',()=>{
+  expect(readAlertConfig({ZZIK_ALERT_MENTION_USER_ID:' 123456789012345678 '}).mentionUserId).toBe('123456789012345678')
+  for (const bad of ['', 'abc', '<@123456789012345678>', '123', '@everyone']) expect(readAlertConfig({ZZIK_ALERT_MENTION_USER_ID:bad}).mentionUserId).toBeUndefined()
+ })
 })
