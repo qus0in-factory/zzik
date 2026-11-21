@@ -76,7 +76,8 @@ function parseCurlBody(stdout) {
   return { ok: true, value: { httpStatus, body: cut < 0 ? '' : trimmed.slice(0, cut) } }
 }
 
-/** @param {string} text @returns {{ok:true,value:{status:string,rawKeys:number}}|{ok:false,reason:'invalid_shape_json'|'raw_missing'|'status_missing'|'http_status_missing'|'fetched_at_missing'}} */
+/** No D1 snapshot yet (a newly added provider before the collector runs) is value:null, not a failure.
+ * @param {string} text @returns {{ok:true,value:{status:string,rawKeys:number}|null}|{ok:false,reason:'invalid_shape_json'|'raw_missing'|'status_missing'|'http_status_missing'|'fetched_at_missing'}} */
 export function validateShape(text) {
   let parsed
   try {
@@ -86,6 +87,7 @@ export function validateShape(text) {
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, reason: 'invalid_shape_json' }
   const record = /** @type {Record<string, unknown>} */ (parsed)
+  if (record.status === null && record.raw === null && record.fetchedAt === null) return { ok: true, value: null }
   if (typeof record.status !== 'string') return { ok: false, reason: 'status_missing' }
   if (!(record.httpStatus === null || typeof record.httpStatus === 'number')) return { ok: false, reason: 'http_status_missing' }
   if (!(record.fetchedAt === null || typeof record.fetchedAt === 'string')) return { ok: false, reason: 'fetched_at_missing' }
@@ -334,9 +336,9 @@ export async function runDeployVerify(options = {}) {
       continue
     }
     const validated = validateShape(shape.stdout)
-    shapeResults.push(validated.ok ? { provider, status: 'PASS' } : { provider, status: 'FAIL', reason: validated.reason })
+    shapeResults.push(!validated.ok ? { provider, status: 'FAIL', reason: validated.reason } : validated.value === null ? { provider, status: 'SKIP', reason: 'no_snapshot' } : { provider, status: 'PASS' })
   }
-  const shapesOk = shapeResults.every((result) => result.status === 'PASS')
+  const shapesOk = shapeResults.every((result) => result.status !== 'FAIL')
   steps.push({
     name: 'usage_live_shape',
     status: shapesOk ? 'PASS' : 'FAIL',

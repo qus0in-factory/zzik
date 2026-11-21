@@ -28,6 +28,8 @@ export function openSqliteLedger(options) {
   /** @type {DatabaseSync|undefined} */ let lock
   /** @type {DatabaseSync|undefined} */ let db
   let closed=false,failed=false
+  /** @type {string[]} */
+  let missingProviders=[]
   const path=join(directory,'collector-ledger.sqlite'), marker=join(directory,'collector-ledger.marker.json')
   const cleanup=()=>{if(closed)return;closed=true;try{db?.close()}finally{try{lock?.exec('ROLLBACK')}catch{}lock?.close()}}
   try {
@@ -58,11 +60,19 @@ export function openSqliteLedger(options) {
     chmodSync(path,0o600)
     if(existing || active) {
       const meta=db.prepare("SELECT value FROM ledger_meta WHERE key='initialized'").get()
-      const count=db.prepare('SELECT count(*) AS n FROM provider_state').get()
-      if(meta?.value!=='1' || Number(count?.n)!==PROVIDERS.length)throw new Error('empty_ledger')
+      const known=db.prepare('SELECT provider FROM provider_state').all().map(r=>String(r.provider))
+      if(meta?.value!=='1' || known.length===0)throw new Error('empty_ledger')
+      if(known.some(provider=>!(/** @type {readonly string[]} */(PROVIDERS)).includes(provider)))throw new Error('unknown_provider')
+      missingProviders=PROVIDERS.filter(provider=>!known.includes(provider))
       if(db.prepare('PRAGMA integrity_check').get()?.integrity_check!=='ok')throw new Error('corrupt_ledger')
     }
     db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=0')
+    if(missingProviders.length>0) {
+      // A provider added after the ledger was created gets a fresh row; existing rows are untouched.
+      db.exec('BEGIN IMMEDIATE')
+      for(const provider of missingProviders)db.prepare('INSERT INTO provider_state VALUES(?,?,?,?,?,?,?)').run(provider,JSON.stringify(initialLedgerState().state),0,1,0,null,null)
+      db.exec('COMMIT')
+    }
     if(!existing && !active) {
       db.exec(`BEGIN IMMEDIATE;
         CREATE TABLE ledger_meta(key TEXT PRIMARY KEY NOT NULL,value TEXT NOT NULL) STRICT;

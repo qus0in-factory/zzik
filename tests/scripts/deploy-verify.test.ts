@@ -241,6 +241,7 @@ describe('Given the deploy verification script', () => {
     expect(validateShape('{"status":"ok","httpStatus":200,"fetchedAt":null,"raw":null}')).toMatchObject({ ok: false, reason: 'raw_missing' })
     expect(validateShape('{"status":"ok","raw":{"a":1}}')).toMatchObject({ ok: false, reason: 'http_status_missing' })
     expect(validateShape('not-json')).toMatchObject({ ok: false, reason: 'invalid_shape_json' })
+    expect(validateShape('{"status":null,"httpStatus":null,"fetchedAt":null,"rawOmitted":null,"raw":null}')).toEqual({ ok: true, value: null })
   })
 })
 

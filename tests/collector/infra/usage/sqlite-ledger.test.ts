@@ -112,6 +112,20 @@ describe('Given a private SQLite WAL ledger and a process-lifetime lock',()=>{
   const db=new DatabaseSync(join(d,'collector-ledger.sqlite'));db.exec('DELETE FROM provider_state');db.close()
   expect(openSqliteLedger({directory:d,nowMs:now})).toMatchObject({ok:false,reason:'ledger_start_failed'})
  })
+ it('When a provider was added after the ledger was created Then inserts only its missing row and keeps existing state',()=>{
+  const d=dir(),l=open(d);successValue(add(l));l.close()
+  const db=new DatabaseSync(join(d,'collector-ledger.sqlite'));db.exec("DELETE FROM provider_state WHERE provider='zai'");db.close()
+  const next=open(d)
+  expect(successValue(next.read('claude')).rows).toHaveLength(1)
+  expect(successValue(next.read('zai')).rows).toHaveLength(0)
+  next.close()
+  const check=new DatabaseSync(join(d,'collector-ledger.sqlite'));expect(check.prepare('SELECT count(*) AS n FROM provider_state').get()).toEqual({n:7});check.close()
+ })
+ it('When the ledger has an unknown provider row Then refuses to start',()=>{
+  const d=dir(),l=open(d);l.close()
+  const db=new DatabaseSync(join(d,'collector-ledger.sqlite'));db.exec("UPDATE provider_state SET provider='legacy-x' WHERE provider='zai'");db.close()
+  expect(openSqliteLedger({directory:d,nowMs:now})).toMatchObject({ok:false,reason:'ledger_start_failed'})
+ })
  it('When queued data exceeds seven days Then quarantines it and never returns it for automatic sending',()=>{
   const l=open(dir());successValue(add(l))
   expect(successValue(l.pending(now+7*86400000))).toHaveLength(1)
