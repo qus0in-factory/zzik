@@ -33,7 +33,7 @@ describe('Given the provider order zustand store (순수 함수 호출 + 주입�
   })
   it('When a stored order has a removed id and misses a provider Then it is normalized on load', () => {
     const { result } = renderHook(() => useProviderOrder(), { wrapper: wrapperFor(fakePort(['gone', 'grok', 'claude']).port) })
-    expect(result.current.order).toEqual(['grok', 'claude', 'codex', 'antigravity', 'opencode', 'ollama'])
+    expect(result.current.order).toEqual(['grok', 'claude', 'codex', 'antigravity', 'opencode', 'ollama', 'zai'])
     expect(result.current.customized).toBe(true)
   })
   it('When a provider is moved Then the order changes and is saved through the port', () => {
@@ -99,6 +99,6 @@ describe('Given another tab changed the stored order (rehydrate)', () => {
     fake.port.save(['ollama', 'claude'])
     store.getState().rehydrate()
     store.getState().move('grok', 0)
-    expect(fake.saved).toEqual(['grok', 'ollama', 'claude', 'codex', 'antigravity', 'opencode'])
+    expect(fake.saved).toEqual(['grok', 'ollama', 'claude', 'codex', 'antigravity', 'opencode', 'zai'])
   })
 })

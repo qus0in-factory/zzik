@@ -126,9 +126,9 @@ export const ko = {
   // 소개 페이지
   'landing.eyebrow': '개인 사용량 대시보드',
   'landing.title': 'AI 사용량을 한곳에서',
-  'landing.lead': 'Claude, ChatGPT(Codex), Antigravity, OpenCode, Grok, Ollama 사용량을 수집·보관·시각화하는 개인 대시보드입니다.',
+  'landing.lead': 'Claude, ChatGPT(Codex), Antigravity, OpenCode, Grok, Ollama, Z.AI 사용량을 수집·보관·시각화하는 개인 대시보드입니다.',
   'landing.arch.title': '아키텍처',
-  'landing.arch.lead': '수집기 PM2가 6개 제공자의 사용량을 D1에 저장하고, Worker API가 Access JWT를 검증한 뒤 React UI에 전달합니다. D1은 R2로 백업하고 수집기는 Discord로 알립니다.',
+  'landing.arch.lead': '수집기 PM2가 7개 제공자의 사용량을 D1에 저장하고, Worker API가 Access JWT를 검증한 뒤 React UI에 전달합니다. D1은 R2로 백업하고 수집기는 Discord로 알립니다.',
   'landing.arch.caption': '수집기 PM2 → D1 → Worker API(Access JWT) → React UI. D1 export는 R2에 보관하고, 수집기 알림은 Discord로 보냅니다.',
   'landing.arch.source': '정본: README 아키텍처 절 · docs/harness/operations.md',
   'landing.screens.title': '주요 화면',
@@ -166,6 +166,8 @@ export const ko = {
   'provider.ollama.title': 'Ollama',
   'provider.ollama.ariaLabel': 'Ollama 사용량',
   'provider.ollama.networkErrorNote': '수집기 Mac의 Ollama 연결을 확인해 주세요. 다음 수집 주기에 자동으로 다시 시도합니다.',
+  'provider.zai.title': 'Z.AI',
+  'provider.zai.ariaLabel': 'Z.AI 사용량',
   'provider.refreshHint': '수집기가 15분마다 자동으로 갱신합니다.',
 
   // 제공자 사용량 페이지 바로가기(외부 링크)

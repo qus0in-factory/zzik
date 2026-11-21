@@ -11,6 +11,12 @@ export function clampPercent(value: unknown): number | null {
 export function isoOrNull(value: unknown): string | null {
   return typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null;
 }
+/** 양수 ms epoch 숫자를 ISO 시각으로. 숫자가 아니거나 Date 범위를 벗어나면 null. */
+export function epochMsOrNull(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 8.64e15)
+    return null;
+  return new Date(value).toISOString();
+}
 /** 두 시각의 간격(초). 둘 다 해석되고 end가 start보다 뒤일 때만. 월 길이를 가정하지 않는다. */
 export function secondsBetween(start: unknown, end: unknown): number | null {
   const from = isoOrNull(start);

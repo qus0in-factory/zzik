@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { buildProviderUsageView, isUsageProvider, USAGE_PROVIDER_META, USAGE_PROVIDERS } from '@domain/usage/providers'
 import codexNormalRaw from '../../fixtures/codex-usage.normal.json'
 import normalRaw from '../../fixtures/claude-usage.normal.json'
+import zaiNormalRaw from '../../fixtures/zai-usage.normal.json'
 import { NOW } from '../../fakes/usage-ports'
 
 describe('Given the provider registry (D8)', () => {
-  it('When listing providers then claude comes before codex, then antigravity, opencode, grok and ollama', () => {
-    expect(USAGE_PROVIDERS).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama'])
+  it('When listing providers then claude comes before codex, then antigravity, opencode, grok, ollama and zai', () => {
+    expect(USAGE_PROVIDERS).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'])
   })
 
   it.each([
@@ -16,6 +17,8 @@ describe('Given the provider registry (D8)', () => {
     ['opencode', true],
     ['grok', true],
     ['ollama', true],
+    ['zai', true],
+    ['z.ai', false],
     ['xai', false],
     ['nope', false],
     ['', false],
@@ -86,6 +89,16 @@ describe('Given OpenCode, Grok and Ollama registration', () => {
   })
 })
 
+describe('Given Z.AI registration', () => {
+  it('When reading the metadata Then title, client name and section id follow the display name', () => {
+    expect(USAGE_PROVIDER_META.zai).toMatchObject({ id: 'zai', title: 'Z.AI', clientName: 'Z.AI', sectionId: 'usage-zai', ariaLabel: 'Z.AI 사용량' })
+  })
+  it('When zai is selected Then its own normalizer builds the 5-hour and weekly cards', () => {
+    expect(buildProviderUsageView('zai', null, { now: NOW }).issues).toEqual([{ code: 'invalid_shape' }])
+    const report = buildProviderUsageView('zai', zaiNormalRaw, { now: new Date('2026-11-21T09:00:00Z') })
+    expect(report.windows.map((item) => [item.id, item.label, item.usedPercent])).toEqual([['five_hour', '5시간 한도', 20], ['weekly', '주간 한도', 15]])
+  })
+})
 
 describe('Given automatic collection on the collector Mac', () => {
   it.each(USAGE_PROVIDERS)('When %s shows refresh guidance Then describes the fifteen minute collector', provider => {

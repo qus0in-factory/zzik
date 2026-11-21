@@ -8,6 +8,7 @@ import { readAntigravity, antigravityCycleSeconds, hasAntigravityShape, AGY_QUOT
 import { readGrok } from './grok.ts';
 import { readOllamaIncluded } from './ollama.ts';
 import { opencodeKeys, readOpencodeWindow } from './opencode.ts';
+import { readZaiLimits, zaiLimits } from './zai.ts';
 export type { ScannedSeries, UsageScanResult } from './types.ts';
 /** Read values only. A poisoned row must never prevent the history cursor advancing. */
 export function scanUsageSeries(provider: UsageProvider, raw: unknown, options: {
@@ -89,6 +90,14 @@ export function scanUsageSeries(provider: UsageProvider, raw: unknown, options: 
         series.push(value);
       else if (!hidden('included'))
         skipped++;
+    }
+    else if (provider === 'zai') {
+      const limits = zaiLimits(raw);
+      if (limits === null)
+        return { ok: false, reason: 'invalid_shape' };
+      const scan = readZaiLimits(limits);
+      skipped = scan.invalid.filter(index => !hidden(`data.limits[${index}]`)).length;
+      series = scan.windows.filter(w => !hidden(`data.limits[${w.index}]`)).map(w => ({ id: w.id, usedPercent: w.usedPercent, resetsAt: w.resetsAt, cycleSeconds: w.cycleSeconds }));
     }
     else
       return { ok: false, reason: 'invalid_shape' };

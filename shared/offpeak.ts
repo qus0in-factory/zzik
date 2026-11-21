@@ -30,7 +30,7 @@ export type OffpeakDecodeResult =
 const DAY = 86_400_000
 // providers.ts의 런타임 import 없이 순수하고 이식 가능한 검증을 유지한다.
 const PROVIDERS: Record<UsageProvider, true> = {
-  claude: true, codex: true, antigravity: true, opencode: true, grok: true, ollama: true,
+  claude: true, codex: true, antigravity: true, opencode: true, grok: true, ollama: true, zai: true,
 }
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

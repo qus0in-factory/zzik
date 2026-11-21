@@ -73,7 +73,7 @@ describe('Given UsageSectionNav for /usage', () => {
 
   it('When rendered with custom order, hidden providers, and AA trend enabled Then lists visible providers in order followed by Trend and highlights current', () => {
     renderNav({
-      customOrder: ['codex', 'claude', 'antigravity', 'opencode', 'grok', 'ollama'],
+      customOrder: ['codex', 'claude', 'antigravity', 'opencode', 'grok', 'ollama', 'zai'],
       hiddenProviders: ['grok'],
       aaEnabled: true,
     })
@@ -85,6 +85,7 @@ describe('Given UsageSectionNav for /usage', () => {
       '/usage#usage-antigravity',
       '/usage#usage-opencode',
       '/usage#usage-ollama',
+      '/usage#usage-zai',
       '/usage#trend',
     ])
     expect(links[0]?.getAttribute('aria-current')).toBe('location')
